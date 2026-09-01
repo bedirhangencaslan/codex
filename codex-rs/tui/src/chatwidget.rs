@@ -272,6 +272,7 @@ use crate::auto_review_denials;
 use crate::auto_review_denials::RecentAutoReviewDenials;
 use crate::bottom_pane::ApplyPatchApprovalRequest;
 use crate::bottom_pane::ApprovalRequest;
+use crate::bottom_pane::ResponseSpeed;
 use crate::bottom_pane::BottomPane;
 use crate::bottom_pane::BottomPaneParams;
 use crate::bottom_pane::CancellationEvent;
@@ -1150,6 +1151,7 @@ impl ChatWidget {
                     .set_context_window_pending(/*pending*/ true);
                 self.bottom_pane
                     .set_context_window(/*percent*/ None, /*used_tokens*/ None);
+                self.bottom_pane.set_response_speed(/*speed*/ None);
                 self.token_info = None;
             }
         }
@@ -1162,6 +1164,8 @@ impl ChatWidget {
         let percent = self.context_remaining_percent(&info);
         let used_tokens = self.context_used_tokens(&info, percent.is_some());
         self.bottom_pane.set_context_window(percent, used_tokens);
+        let speed = ResponseSpeed::from_readiness(info.last_token_usage.context_readiness());
+        self.bottom_pane.set_response_speed(speed);
         self.token_info = Some(info);
     }
 

@@ -566,14 +566,16 @@ pub(crate) fn status_line_right_indicator_line(
     collaboration_mode_indicator: Option<CollaborationModeIndicator>,
     goal_status_indicator: Option<&GoalStatusIndicator>,
     ide_context_active: bool,
+    response_speed: Option<ResponseSpeed>,
     show_cycle_hint: bool,
 ) -> Option<Line<'static>> {
     let primary_indicator = mode_indicator_line(collaboration_mode_indicator, show_cycle_hint)
         .or_else(|| goal_status_indicator_line(goal_status_indicator));
     let ide_context_indicator = ide_context_active.then(|| Line::from(vec!["IDE context".cyan()]));
+    let speed_indicator = response_speed.map(response_speed_indicator_line);
     let mut line: Option<Line<'static>> = None;
 
-    for indicator in [primary_indicator, ide_context_indicator]
+    for indicator in [primary_indicator, speed_indicator, ide_context_indicator]
         .into_iter()
         .flatten()
     {
@@ -588,6 +590,42 @@ pub(crate) fn status_line_right_indicator_line(
     }
 
     line
+}
+
+/// End-user facing responsiveness indicator derived from how much of the latest
+/// request's input was served from already-warm context. Higher warmth means
+/// visibly faster responses. Labels are intentionally performance-framed and
+/// centralized here so they can be rebranded in one place.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ResponseSpeed {
+    /// Most of the context was already warm; responses arrive almost instantly.
+    Instant,
+    /// Partially warm context; responses arrive at a steady pace.
+    Fast,
+    /// Context is cold (first request or after a pause); responses take longer.
+    WarmingUp,
+}
+
+impl ResponseSpeed {
+    pub(crate) fn from_readiness(ratio: Option<f64>) -> Option<Self> {
+        ratio.map(|ratio| {
+            if ratio >= 0.8 {
+                Self::Instant
+            } else if ratio >= 0.4 {
+                Self::Fast
+            } else {
+                Self::WarmingUp
+            }
+        })
+    }
+}
+
+pub(crate) fn response_speed_indicator_line(speed: ResponseSpeed) -> Line<'static> {
+    match speed {
+        ResponseSpeed::Instant => Line::from(vec!["⚡ Instant".green()]),
+        ResponseSpeed::Fast => Line::from(vec!["● Fast".cyan()]),
+        ResponseSpeed::WarmingUp => Line::from(vec!["◌ Warming up".dim()]),
+    }
 }
 
 pub(crate) fn side_conversation_context_line(label: &str) -> Line<'static> {
@@ -1370,12 +1408,14 @@ mod tests {
                         collaboration_mode_indicator,
                         /*goal_status_indicator*/ None,
                         ide_context_active,
+                        /*response_speed*/ None,
                         show_cycle_hint,
                     );
                     let compact = status_line_right_indicator_line(
                         collaboration_mode_indicator,
                         /*goal_status_indicator*/ None,
                         ide_context_active,
+                        /*response_speed*/ None,
                         /*show_cycle_hint*/ false,
                     );
                     let full_width = full.as_ref().map(|line| line.width() as u16).unwrap_or(0);

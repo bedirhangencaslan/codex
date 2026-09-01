@@ -40,6 +40,14 @@ impl TokenUsage {
         self.total_tokens
     }
 
+    /// Fraction (0.0-1.0) of the latest request's input that was served from
+    /// already-warm server-side context. Higher values correspond to visibly
+    /// faster responses; returns `None` before the first request.
+    pub(crate) fn context_readiness(&self) -> Option<f64> {
+        let input = self.input_tokens.max(0);
+        (input > 0).then(|| self.cached_input().min(input) as f64 / input as f64)
+    }
+
     pub(crate) fn percent_of_context_window_remaining(&self, context_window: i64) -> i64 {
         if context_window <= BASELINE_TOKENS {
             return 0;
@@ -85,5 +93,38 @@ impl fmt::Display for TokenUsage {
                 String::new()
             }
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn context_readiness_is_none_before_first_request() {
+        let usage = TokenUsage::default();
+        assert_eq!(usage.context_readiness(), None);
+    }
+
+    #[test]
+    fn context_readiness_is_full_when_all_input_is_warm() {
+        let usage = TokenUsage {
+            input_tokens: 200,
+            cached_input_tokens: 200,
+            ..TokenUsage::default()
+        };
+        let ratio = usage.context_readiness().expect("ratio");
+        assert!((ratio - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn context_readiness_is_partial_for_mixed_input() {
+        let usage = TokenUsage {
+            input_tokens: 1000,
+            cached_input_tokens: 250,
+            ..TokenUsage::default()
+        };
+        let ratio = usage.context_readiness().expect("ratio");
+        assert!((ratio - 0.25).abs() < f64::EPSILON);
     }
 }

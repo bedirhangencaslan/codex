@@ -117,6 +117,7 @@ mod skills_toggle_view;
 pub(crate) mod slash_commands;
 pub(crate) use footer::CollaborationModeIndicator;
 pub(crate) use footer::GoalStatusIndicator;
+pub(crate) use footer::ResponseSpeed;
 #[cfg(test)]
 pub(crate) use footer::goal_status_indicator_line;
 pub(crate) use list_selection_view::ColumnWidthMode;
@@ -476,6 +477,11 @@ impl BottomPane {
 
     pub fn set_ide_context_active(&mut self, active: bool) {
         self.composer.set_ide_context_active(active);
+        self.request_redraw();
+    }
+
+    pub fn set_response_speed(&mut self, speed: Option<ResponseSpeed>) {
+        self.composer.set_response_speed(speed);
         self.request_redraw();
     }
 

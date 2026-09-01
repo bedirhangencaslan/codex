@@ -7,6 +7,7 @@ use ratatui::text::Line;
 use crate::bottom_pane::footer::CollaborationModeIndicator;
 use crate::bottom_pane::footer::FooterMode;
 use crate::bottom_pane::footer::GoalStatusIndicator;
+use crate::bottom_pane::footer::ResponseSpeed;
 use crate::key_hint::KeyBinding;
 use crate::key_hint::ShortcutHint;
 #[cfg(test)]
@@ -26,6 +27,7 @@ pub(super) struct FooterState {
     pub(super) collaboration_mode_indicator: Option<CollaborationModeIndicator>,
     pub(super) goal_status_indicator: Option<GoalStatusIndicator>,
     pub(super) ide_context_active: bool,
+    pub(super) response_speed: Option<ResponseSpeed>,
     pub(super) status_line_value: Option<Line<'static>>,
     pub(super) status_line_hyperlink_url: Option<String>,
     pub(super) status_line_enabled: bool,

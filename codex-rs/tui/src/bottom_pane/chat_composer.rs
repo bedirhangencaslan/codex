@@ -236,6 +236,7 @@ use super::footer::FooterKeyHints;
 use super::footer::FooterMode;
 use super::footer::FooterProps;
 use super::footer::GoalStatusIndicator;
+use super::footer::ResponseSpeed;
 use super::footer::SummaryLeft;
 use super::footer::can_show_left_with_context;
 use super::footer::context_window_line;
@@ -643,6 +644,7 @@ impl ChatComposer {
                 collaboration_mode_indicator: None,
                 goal_status_indicator: None,
                 ide_context_active: false,
+                response_speed: None,
                 status_line_value: None,
                 status_line_hyperlink_url: None,
                 status_line_enabled: false,
@@ -965,6 +967,10 @@ impl ChatComposer {
 
     pub fn set_ide_context_active(&mut self, active: bool) {
         self.footer.ide_context_active = active;
+    }
+
+    pub fn set_response_speed(&mut self, speed: Option<ResponseSpeed>) {
+        self.footer.response_speed = speed;
     }
 
     pub fn set_personality_command_enabled(&mut self, enabled: bool) {
@@ -1423,6 +1429,7 @@ impl ChatComposer {
             self.footer.collaboration_mode_indicator,
             self.footer.goal_status_indicator.as_ref(),
             self.footer.ide_context_active,
+            self.footer.response_speed,
             show_cycle_hint,
         ) {
             if !spans.is_empty() {
