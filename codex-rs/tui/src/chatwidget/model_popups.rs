@@ -229,15 +229,16 @@ impl ChatWidget {
                 });
             })];
             items.push(SelectionItem {
-                name: preset.model.clone(),
+                name: preset.display_name.clone(),
                 description,
-                is_current,
+                is_current: is_current && self.active_mode_kind() != ModeKind::Plan,
                 is_default: preset.is_default,
                 actions,
                 dismiss_on_select: single_supported_effort,
                 dismiss_parent_on_child_accept: !single_supported_effort,
                 ..Default::default()
             });
+            items.extend(self.plan_mode_selection_item(&preset));
         }
 
         let header = self.model_menu_header(
@@ -251,6 +252,33 @@ impl ChatWidget {
             header,
             ..Default::default()
         });
+    }
+
+    /// Companion picker row that selects the same model but switches into Plan mode.
+    ///
+    /// Plan is a collaboration mode rather than a model, so it is surfaced next to the
+    /// model it will run with instead of in a separate menu.
+    fn plan_mode_selection_item(&self, preset: &ModelPreset) -> Option<SelectionItem> {
+        if !self.collaboration_modes_enabled() {
+            return None;
+        }
+        let plan_mask = collaboration_modes::plan_mask(self.model_catalog.as_ref())?;
+        let is_current = preset.model.as_str() == self.current_model()
+            && self.active_mode_kind() == ModeKind::Plan;
+        let model = preset.model.clone();
+        Some(SelectionItem {
+            name: format!("{} Plan", preset.display_name),
+            description: Some(
+                "Research and draft a plan before making any changes.".to_string(),
+            ),
+            is_current,
+            actions: vec![Box::new(move |tx| {
+                tx.send(AppEvent::UpdateModel(model.clone()));
+                tx.send(AppEvent::SetCollaborationMode(plan_mask.clone()));
+            })],
+            dismiss_on_select: true,
+            ..Default::default()
+        })
     }
 
     fn model_selection_actions(

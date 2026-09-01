@@ -371,9 +371,10 @@ pub(crate) async fn run_turn(
 
             // Construct the input that we will send to the model.
             let sampling_request_input: Vec<ResponseItem> = async {
-                sess.clone_history()
-                    .await
-                    .for_prompt(&step_context.settings.model_info.input_modalities)
+                sess.clone_history().await.for_prompt(
+                    &step_context.settings.model_info.input_modalities,
+                    Some(step_context.turn.sub_id.as_str()),
+                )
             }
             .instrument(trace_span!("run_turn.prepare_sampling_request_input"))
             .await;
@@ -1391,9 +1392,10 @@ async fn run_sampling_request(
         let prompt_input = if let Some(input) = initial_input.take() {
             input
         } else {
-            sess.clone_history()
-                .await
-                .for_prompt(&step_context.settings.model_info.input_modalities)
+            sess.clone_history().await.for_prompt(
+                &step_context.settings.model_info.input_modalities,
+                Some(step_context.turn.sub_id.as_str()),
+            )
         };
         let mut prompt_input = prompt_input;
         if let Some(executed_tool_calls) = sess.services.executed_tool_calls.as_ref()

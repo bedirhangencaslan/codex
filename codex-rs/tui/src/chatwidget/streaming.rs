@@ -248,7 +248,10 @@ impl ChatWidget {
             self.reasoning_header = extract_first_bold(&self.reasoning_buffer);
         }
         let Some(header) = self.reasoning_header.as_deref() else {
-            // Fallback while we don't yet have a bold header: leave existing header as-is.
+            // Plaintext reasoning without bold section headers (non-OpenAI providers).
+            // Stream the live tail into the status details so thinking is visible while it
+            // happens, without committing it to scrollback.
+            self.stream_plaintext_reasoning_status();
             return;
         };
 
@@ -269,6 +272,26 @@ impl ChatWidget {
         let header = header.to_string();
         self.status_state.terminal_title_status_kind = TerminalTitleStatusKind::Thinking;
         if !self.set_status_header(header) {
+            self.request_redraw();
+        }
+    }
+
+    /// Show the tail of the accumulated plaintext reasoning in the status details area.
+    fn stream_plaintext_reasoning_status(&mut self) {
+        if self.bottom_pane.status_widget().is_none() {
+            return;
+        }
+        let tail = reasoning_status_tail(&self.reasoning_buffer);
+        if tail.is_empty() {
+            return;
+        }
+        self.status_state.terminal_title_status_kind = TerminalTitleStatusKind::Thinking;
+        if !self.set_status(
+            String::from("Thinking"),
+            Some(tail),
+            StatusDetailsCapitalization::Preserve,
+            REASONING_STATUS_DETAIL_LINES,
+        ) {
             self.request_redraw();
         }
     }
@@ -574,4 +597,23 @@ impl ChatWidget {
         }
         false
     }
+}
+
+/// Height of the live plaintext-reasoning preview under the status header.
+const REASONING_STATUS_DETAIL_LINES: usize = 2;
+/// How much of the reasoning tail to keep; the widget truncates from the front,
+/// so the caller must select the trailing window itself.
+const REASONING_STATUS_TAIL_CHARS: usize = 160;
+
+fn reasoning_status_tail(buffer: &str) -> String {
+    let trimmed = buffer.trim();
+    let char_count = trimmed.chars().count();
+    if char_count <= REASONING_STATUS_TAIL_CHARS {
+        return trimmed.to_string();
+    }
+    let tail: String = trimmed
+        .chars()
+        .skip(char_count - REASONING_STATUS_TAIL_CHARS)
+        .collect();
+    format!("…{tail}")
 }

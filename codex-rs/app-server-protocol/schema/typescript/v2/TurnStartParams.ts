@@ -52,4 +52,8 @@ personality?: Personality | null, /**
  * Optional JSON Schema used to constrain the final assistant message for
  * this turn.
  */
-outputSchema?: JsonValue | null};
+outputSchema?: JsonValue | null, /**
+ * Run this turn invisibly: its input and output are excluded from the model
+ * input of every later turn. Earlier visible history is still sent.
+ */
+invisible: boolean};

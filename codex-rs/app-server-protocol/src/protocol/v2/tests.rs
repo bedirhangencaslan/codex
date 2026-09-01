@@ -4765,6 +4765,7 @@ fn turn_start_params_preserve_explicit_null_service_tier() {
         multi_agent_mode: None,
         personality: None,
         cyber_access_program: None,
+        invisible: false,
     };
     let serialized_without_override =
         serde_json::to_value(&without_override).expect("params should serialize");

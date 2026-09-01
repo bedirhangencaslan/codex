@@ -51,6 +51,11 @@ pub fn proposed_plan_style() -> Style {
     proposed_plan_style_for(default_bg())
 }
 
+/// Returns the style for a message that is excluded from later model input.
+pub fn invisible_message_style() -> Style {
+    invisible_message_style_for(default_bg())
+}
+
 /// Returns a low-contrast rule style for separators within markdown tables.
 pub(crate) fn table_separator_style() -> Style {
     table_separator_style_for(default_fg(), default_bg(), stdout_color_level())
@@ -72,6 +77,14 @@ pub fn user_message_style_for(terminal_bg: Option<(u8, u8, u8)>) -> Style {
 pub fn proposed_plan_style_for(terminal_bg: Option<(u8, u8, u8)>) -> Style {
     match terminal_bg {
         Some(bg) => Style::default().bg(proposed_plan_bg(bg)),
+        None => Style::default(),
+    }
+}
+
+/// Returns the style for an invisible-mode message using the provided terminal background.
+pub fn invisible_message_style_for(terminal_bg: Option<(u8, u8, u8)>) -> Style {
+    match terminal_bg {
+        Some(bg) => Style::default().bg(invisible_message_bg(bg)),
         None => Style::default(),
     }
 }
@@ -118,6 +131,22 @@ pub(crate) fn user_message_bg_rgb(terminal_bg: (u8, u8, u8)) -> (u8, u8, u8) {
 #[allow(clippy::disallowed_methods)]
 pub fn proposed_plan_bg(terminal_bg: (u8, u8, u8)) -> Color {
     user_message_bg(terminal_bg)
+}
+
+#[allow(clippy::disallowed_methods)]
+pub fn invisible_message_bg(terminal_bg: (u8, u8, u8)) -> Color {
+    best_color(invisible_message_bg_rgb(terminal_bg))
+}
+
+/// Invisible turns get a fainter panel than a normal message, matching the fact
+/// that they drop out of the conversation the model sees.
+pub(crate) fn invisible_message_bg_rgb(terminal_bg: (u8, u8, u8)) -> (u8, u8, u8) {
+    let (top, alpha) = if is_light(terminal_bg) {
+        ((0, 0, 0), 0.02)
+    } else {
+        ((255, 255, 255), 0.05)
+    };
+    blend(top, terminal_bg, alpha)
 }
 
 #[cfg(test)]

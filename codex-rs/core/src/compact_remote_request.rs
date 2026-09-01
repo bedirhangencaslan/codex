@@ -58,7 +58,8 @@ pub(super) async fn run_remote_compact_attempt(
     let trace_input_history = compaction_trace
         .is_enabled()
         .then(|| history.raw_items().cloned().collect());
-    let prompt_input = history.for_prompt(&turn_context.model_info().input_modalities);
+    // Invisible turns never contribute to a summary, so none of them is "active" here.
+    let prompt_input = history.for_prompt(&turn_context.model_info().input_modalities, None);
     let tool_router = &step_context.tool_router;
     let prompt = Prompt {
         input: prompt_input,

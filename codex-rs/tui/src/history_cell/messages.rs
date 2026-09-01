@@ -8,13 +8,16 @@ use crate::wrapping::url_preserving_wrap_options;
 use crate::wrapping::word_wrap_line;
 use std::borrow::Cow;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct UserHistoryCell {
     pub message: String,
     pub text_elements: Vec<TextElement>,
     #[allow(dead_code)]
     pub local_image_paths: Vec<PathBuf>,
     pub remote_image_urls: Vec<String>,
+    /// Submitted while invisible mode was on, so this turn is left out of every
+    /// later request. Rendered with a fainter panel and an `invisible` tag.
+    pub invisible: bool,
 }
 
 /// Remove CSI sequences and control characters, preserving tabs and newlines.
@@ -169,7 +172,11 @@ impl HistoryCell for UserHistoryCell {
             )
             .max(1);
 
-        let style = user_message_style();
+        let style = if self.invisible {
+            invisible_message_style()
+        } else {
+            user_message_style()
+        };
         let element_style = style.fg(Color::Cyan);
 
         let wrapped_remote_images = if self.remote_image_urls.is_empty() {
@@ -247,6 +254,12 @@ impl HistoryCell for UserHistoryCell {
         }
 
         let mut lines = vec![HyperlinkLine::new(Line::from("").style(style))];
+
+        if self.invisible {
+            lines.push(HyperlinkLine::new(
+                Line::from(vec!["  ".into(), "invisible".dim().italic()]).style(style),
+            ));
+        }
 
         if let Some(wrapped_remote_images) = wrapped_remote_images {
             lines.extend(prefix_hyperlink_lines(
@@ -342,12 +355,39 @@ impl ReasoningSummaryCell {
                 .subsequent_indent("  ".into()),
         )
     }
+
+    /// Single-line placeholder shown inline when the reasoning body itself is only
+    /// rendered in the transcript overlay (Ctrl+T).
+    fn collapsed_lines(&self) -> Vec<Line<'static>> {
+        let content = self.content.trim();
+        if content.is_empty() {
+            return Vec::new();
+        }
+        vec![
+            vec![
+                "• ".dim(),
+                "Thinking".dim().italic(),
+                format!(" · {} · Ctrl+T", approx_token_label(content.len())).dim(),
+            ]
+            .into(),
+        ]
+    }
+}
+
+/// Rough token count for a reasoning block, using the codebase's 4-bytes-per-token heuristic.
+fn approx_token_label(bytes: usize) -> String {
+    let tokens = bytes / 4;
+    if tokens >= 1000 {
+        format!("~{:.1}k tokens", tokens as f64 / 1000.0)
+    } else {
+        format!("~{tokens} tokens")
+    }
 }
 
 impl HistoryCell for ReasoningSummaryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         if self.transcript_only {
-            Vec::new()
+            self.collapsed_lines()
         } else {
             self.lines(width)
         }
@@ -612,12 +652,14 @@ pub(crate) fn new_user_prompt(
     text_elements: Vec<TextElement>,
     local_image_paths: Vec<PathBuf>,
     remote_image_urls: Vec<String>,
+    invisible: bool,
 ) -> UserHistoryCell {
     UserHistoryCell {
         message,
         text_elements,
         local_image_paths,
         remote_image_urls,
+        invisible,
     }
 }
 /// Create the reasoning history cell emitted at the end of a reasoning block.

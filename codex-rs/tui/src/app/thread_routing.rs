@@ -665,6 +665,7 @@ impl App {
                 final_output_json_schema,
                 collaboration_mode,
                 personality,
+                invisible,
             } => {
                 let mut should_start_turn = true;
                 if let Some(turn_id) = self.active_turn_id_for_thread(thread_id).await {
@@ -758,6 +759,7 @@ impl App {
                             collaboration_mode.clone(),
                             *personality,
                             final_output_json_schema.clone(),
+                            *invisible,
                         )
                         .await?;
                     if self.active_thread_id == Some(thread_id)

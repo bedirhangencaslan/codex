@@ -256,6 +256,11 @@ pub struct TurnStartParams {
     #[experimental("turn/start.cyberAccessProgram")]
     #[ts(optional = nullable)]
     pub cyber_access_program: Option<CyberAccessProgram>,
+
+    /// Run this turn invisibly: its input and output are excluded from the model
+    /// input of every later turn. Earlier visible history is still sent.
+    #[serde(default)]
+    pub invisible: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

@@ -3228,7 +3228,14 @@ impl Session {
         let items = items
             .into_owned()
             .into_iter()
-            .map(ResponseItemEnvelope::new)
+            .map(|item| {
+                let mut envelope = ResponseItemEnvelope::new(item);
+                if turn_context.invisible {
+                    envelope.metadata.get_or_insert_default().invisible_turn =
+                        Some(turn_context.sub_id.clone());
+                }
+                envelope
+            })
             .collect();
         self.record_prepared_conversation_items(turn_context, items, image_preparations)
             .await;

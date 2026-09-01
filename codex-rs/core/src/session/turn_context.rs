@@ -187,6 +187,8 @@ impl std::fmt::Debug for TurnEnvironment {
 pub(crate) struct NewTurnContextOptions {
     pub(crate) final_output_json_schema: Option<Value>,
     pub(crate) cyber_access_program: Option<CyberAccessProgram>,
+    /// Records this turn's items as invisible so later turns never see them.
+    pub(crate) invisible: bool,
 }
 
 /// The context needed for a single turn of the thread.
@@ -243,6 +245,8 @@ pub struct TurnContext {
     pub(crate) model_verification_emitted: AtomicBool,
     /// Effective cyber treatment for this turn, including any child-agent inheritance.
     pub(crate) cyber_access_program: Option<CyberAccessProgram>,
+    /// Whether items recorded by this turn are hidden from every later turn's prompt.
+    pub(crate) invisible: bool,
 }
 
 enum TurnMultiAgentRuntime {
@@ -550,6 +554,7 @@ impl TurnContext {
                 self.model_verification_emitted.load(Ordering::Relaxed),
             ),
             cyber_access_program: self.cyber_access_program,
+            invisible: self.invisible,
         }
     }
 
@@ -817,6 +822,7 @@ impl Session {
             server_model_warning_emitted: AtomicBool::new(false),
             model_verification_emitted: AtomicBool::new(false),
             cyber_access_program: None,
+            invisible: false,
         }
     }
 
@@ -1024,6 +1030,7 @@ impl Session {
         turn_context.realtime_active = self.conversation.running_state().await.is_some();
 
         turn_context.final_output_json_schema = options.final_output_json_schema;
+        turn_context.invisible = options.invisible;
         if turn_context.config.model_provider_id == codex_model_provider_info::OPENAI_PROVIDER_ID {
             turn_context.cyber_access_program = options.cyber_access_program;
         }

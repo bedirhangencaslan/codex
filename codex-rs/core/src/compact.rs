@@ -275,9 +275,10 @@ async fn run_compact_task_inner_impl(
 
     loop {
         // Clone is required because of the loop
+        // Invisible turns never contribute to a summary, so none of them is "active" here.
         let turn_input = history
             .clone()
-            .for_prompt(&turn_context.model_info().input_modalities);
+            .for_prompt(&turn_context.model_info().input_modalities, None);
         let turn_input_len = turn_input.len();
         let prompt = Prompt {
             input: turn_input,

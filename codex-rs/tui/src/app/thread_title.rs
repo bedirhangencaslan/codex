@@ -20,7 +20,7 @@ use serde_json::json;
 use tokio::sync::mpsc;
 
 pub(super) const THREAD_TITLE_MAX_CHARS: usize = 36;
-const THREAD_TITLE_MODEL: &str = "gpt-5.6-luna";
+const THREAD_TITLE_MODEL: &str = "glm-5.3-flash";
 pub(super) const THREAD_TITLE_PROMPT_MAX_BYTES: usize = 960;
 const THREAD_TITLE_RECENT_MESSAGES: usize = 8;
 

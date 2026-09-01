@@ -556,6 +556,8 @@ pub(crate) struct ChatWidget {
     transcript: TranscriptState,
     config: Config,
     raw_output_mode: bool,
+    /// While set, submitted turns are kept out of every later turn's model input.
+    invisible_mode: bool,
     /// Runtime value resolved by core. `config.service_tier` remains the explicit user choice.
     effective_service_tier: Option<String>,
     /// The unmasked collaboration mode settings (always Default mode).
@@ -1362,11 +1364,13 @@ impl ChatWidget {
             || !display.local_images.is_empty()
             || !display.remote_image_urls.is_empty()
         {
+            let invisible = self.invisible_mode;
             self.add_to_history(history_cell::new_user_prompt(
                 display.message,
                 display.text_elements,
                 display.local_images,
                 display.remote_image_urls,
+                invisible,
             ));
         }
 
@@ -1670,6 +1674,19 @@ impl ChatWidget {
         let enabled = !self.raw_output_mode;
         self.set_raw_output_mode_and_notify(enabled);
         enabled
+    }
+
+    /// Flip invisible mode and tell the user which way it went.
+    pub(crate) fn toggle_invisible_mode(&mut self) -> bool {
+        self.invisible_mode = !self.invisible_mode;
+        let notice = if self.invisible_mode {
+            "Invisible mode on: these turns stay visible here but are left out of later requests."
+        } else {
+            "Invisible mode off: new turns are part of the conversation again."
+        };
+        self.add_info_message(notice.to_string(), /*hint*/ None);
+        self.refresh_status_surfaces();
+        self.invisible_mode
     }
 
     /// Update resize-sensitive chat widget state after the terminal width changes.

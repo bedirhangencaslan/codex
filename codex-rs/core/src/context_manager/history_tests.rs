@@ -413,26 +413,14 @@ fn filters_non_api_messages() {
 }
 
 #[test]
-fn non_last_reasoning_tokens_return_zero_when_no_user_messages() {
-    let history =
-        create_history_with_items(vec![reasoning_with_encrypted_content(/*len*/ 800)]);
+fn reasoning_items_are_not_model_visible() {
+    let plaintext = reasoning_msg(&"x".repeat(800));
+    let encrypted = reasoning_with_encrypted_content(/*len*/ 900);
 
-    assert_eq!(history.get_non_last_reasoning_items_tokens(), 0);
-}
-
-#[test]
-fn non_last_reasoning_tokens_ignore_entries_after_last_user() {
-    let history = create_history_with_items(vec![
-        reasoning_with_encrypted_content(/*len*/ 900),
-        user_msg("first"),
-        reasoning_with_encrypted_content(/*len*/ 1_000),
-        user_msg("second"),
-        reasoning_with_encrypted_content(/*len*/ 2_000),
-    ]);
-    // first: (900 * 0.75 - 650) / 4 = 6.25 tokens
-    // second: (1000 * 0.75 - 650) / 4 = 25 tokens
-    // first + second = 62.5
-    assert_eq!(history.get_non_last_reasoning_items_tokens(), 32);
+    // Thinking tokens are stripped from every request, so reasoning items —
+    // plaintext or encrypted — never count as model-visible context.
+    assert_eq!(estimate_item_token_count(&plaintext), 0);
+    assert_eq!(estimate_item_token_count(&encrypted), 0);
 }
 
 #[test]
@@ -481,7 +469,7 @@ fn for_prompt_preserves_inter_agent_assistant_messages() {
     let history = create_history_with_items(vec![item.clone()]);
 
     assert_eq!(raw_items(&history), std::slice::from_ref(&item));
-    assert_eq!(history.for_prompt(&default_input_modalities()), vec![item]);
+    assert_eq!(history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None), vec![item]);
 }
 
 #[test]
@@ -525,6 +513,38 @@ fn annotated_history_apis_preserve_envelopes() {
         std::slice::from_ref(&first_envelope)
     );
     assert_eq!(history.into_raw_items(), vec![first_item]);
+}
+
+#[test]
+fn invisible_items_leave_the_prompt_once_their_turn_finishes() {
+    let invisible = |turn: &str, text: &str| ResponseItemEnvelope {
+        item: user_msg(text),
+        metadata: Some(CodexHarnessMetadata {
+            invisible_turn: Some(turn.to_string()),
+            ..Default::default()
+        }),
+    };
+    let visible = assistant_msg("visible");
+    let mut history = ContextManager::new();
+    history.replace_annotated(vec![
+        ResponseItemEnvelope::new(visible.clone()),
+        invisible("turn-1", "old invisible"),
+        invisible("turn-2", "running invisible"),
+    ]);
+
+    // The running turn still sees the request it is answering.
+    assert_eq!(
+        history
+            .clone()
+            .for_prompt(&default_input_modalities(), Some("turn-2")),
+        vec![visible.clone(), user_msg("running invisible")]
+    );
+
+    // Once no invisible turn is running, none of them reaches the model.
+    assert_eq!(
+        history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
+        vec![visible]
+    );
 }
 
 #[test_case(None, 100, 5, true; "model policy")]
@@ -599,7 +619,8 @@ fn for_prompt_annotated_preserves_metadata_while_normalizing_item() {
     let mut history = ContextManager::new();
     history.replace_annotated(vec![envelope.clone()]);
 
-    let normalized = history.for_prompt_annotated(&[InputModality::Text]);
+    let normalized =
+        history.for_prompt_annotated(&[InputModality::Text], /*active_turn_id*/ None);
 
     assert_eq!(normalized.len(), 1);
     assert_eq!(normalized[0].metadata, envelope.metadata);
@@ -750,7 +771,7 @@ fn for_prompt_strips_media_when_model_does_not_support_it() {
     let fully_supported_items = items.clone();
     let history = create_history_with_items(items);
     let text_only_modalities = vec![InputModality::Text];
-    let stripped = history.for_prompt(&text_only_modalities);
+    let stripped = history.for_prompt(&text_only_modalities, /*active_turn_id*/ None);
 
     let expected = vec![
         ResponseItem::Message {
@@ -849,7 +870,7 @@ fn for_prompt_strips_media_when_model_does_not_support_it() {
             InputModality::Text,
             InputModality::Image,
             InputModality::Audio,
-        ]),
+        ], /*active_turn_id*/ None),
         fully_supported_items
     );
 
@@ -870,7 +891,7 @@ fn for_prompt_strips_media_when_model_does_not_support_it() {
         phase: None,
         internal_chat_message_metadata_passthrough: None,
     }]);
-    let preserved = with_images.for_prompt(&modalities);
+    let preserved = with_images.for_prompt(&modalities, /*active_turn_id*/ None);
     assert_eq!(preserved.len(), 1);
     if let ResponseItem::Message { content, .. } = &preserved[0] {
         assert_eq!(content.len(), 2);
@@ -890,7 +911,7 @@ fn for_prompt_strips_media_when_model_does_not_support_it() {
     };
     let with_audio = create_history_with_items(vec![audio_message.clone()]);
     assert_eq!(
-        with_audio.for_prompt(&[InputModality::Text, InputModality::Audio]),
+        with_audio.for_prompt(&[InputModality::Text, InputModality::Audio], /*active_turn_id*/ None),
         vec![audio_message]
     );
 }
@@ -917,7 +938,7 @@ fn for_prompt_preserves_image_generation_calls_when_images_are_supported() {
     ]);
 
     assert_eq!(
-        history.for_prompt(&default_input_modalities()),
+        history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
         vec![
             ResponseItem::ImageGenerationCall {
                 id: Some(ResponseItemId::with_suffix("ig", "123")),
@@ -961,7 +982,7 @@ fn for_prompt_clears_image_generation_result_when_images_are_unsupported() {
     ]);
 
     assert_eq!(
-        history.for_prompt(&[InputModality::Text]),
+        history.for_prompt(&[InputModality::Text], /*active_turn_id*/ None),
         vec![
             ResponseItem::Message {
                 id: None,
@@ -1103,7 +1124,7 @@ fn drop_last_n_user_turns_preserves_prefix() {
     let mut history = create_history_with_items(items);
     history.drop_last_n_user_turns(/*num_turns*/ 1);
     assert_eq!(
-        history.for_prompt(&modalities),
+        history.for_prompt(&modalities, /*active_turn_id*/ None),
         vec![
             assistant_msg("session prefix item"),
             user_msg("u1"),
@@ -1120,7 +1141,7 @@ fn drop_last_n_user_turns_preserves_prefix() {
     ]);
     history.drop_last_n_user_turns(/*num_turns*/ 99);
     assert_eq!(
-        history.for_prompt(&modalities),
+        history.for_prompt(&modalities, /*active_turn_id*/ None),
         vec![assistant_msg("session prefix item")]
     );
 }
@@ -1166,7 +1187,7 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
     ];
 
     assert_eq!(
-        history.for_prompt(&modalities),
+        history.for_prompt(&modalities, /*active_turn_id*/ None),
         expected_prefix_and_first_turn
     );
 
@@ -1202,7 +1223,7 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
         assistant_msg("turn 2 assistant"),
     ]);
     history.drop_last_n_user_turns(/*num_turns*/ 2);
-    assert_eq!(history.for_prompt(&modalities), expected_prefix_only);
+    assert_eq!(history.for_prompt(&modalities, /*active_turn_id*/ None), expected_prefix_only);
 
     let mut history = create_history_with_items(vec![
         user_input_text_msg("<environment_context>ctx</environment_context>"),
@@ -1222,7 +1243,7 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
         assistant_msg("turn 2 assistant"),
     ]);
     history.drop_last_n_user_turns(/*num_turns*/ 3);
-    assert_eq!(history.for_prompt(&modalities), expected_prefix_only);
+    assert_eq!(history.for_prompt(&modalities, /*active_turn_id*/ None), expected_prefix_only);
 }
 
 #[test]
@@ -1260,7 +1281,7 @@ fn drop_last_n_user_turns_trims_context_updates_above_rolled_back_turn() {
     history.drop_last_n_user_turns(/*num_turns*/ 1);
 
     assert_eq!(
-        history.clone().for_prompt(&modalities),
+        history.clone().for_prompt(&modalities, /*active_turn_id*/ None),
         vec![
             assistant_msg("session prefix item"),
             user_input_text_msg("turn 1 user"),
@@ -1359,7 +1380,7 @@ fn drop_last_n_user_turns_trims_saved_prefix_update_above_rolled_back_turn() {
     history.drop_last_n_user_turns(/*num_turns*/ 1);
 
     assert_eq!(
-        history.for_prompt(&modalities),
+        history.for_prompt(&modalities, /*active_turn_id*/ None),
         vec![
             assistant_msg("session prefix item"),
             user_input_text_msg("turn 1 user"),
@@ -1390,7 +1411,7 @@ fn drop_last_n_user_turns_clears_reference_context_for_mixed_developer_context_b
     history.drop_last_n_user_turns(/*num_turns*/ 1);
 
     assert_eq!(
-        history.clone().for_prompt(&modalities),
+        history.clone().for_prompt(&modalities, /*active_turn_id*/ None),
         vec![
             user_input_text_msg("turn 1 user"),
             assistant_msg("turn 1 assistant"),
@@ -1452,7 +1473,7 @@ fn normalization_retains_local_shell_outputs() {
 
     let modalities = default_input_modalities();
     let history = create_history_with_items(items.clone());
-    let normalized = history.for_prompt(&modalities);
+    let normalized = history.for_prompt(&modalities, /*active_turn_id*/ None);
     assert_eq!(normalized, items);
 }
 
@@ -1983,7 +2004,7 @@ fn normalize_preserves_named_function_call_output_without_call_id() {
     };
     let history = create_history_with_items(vec![item.clone()]);
 
-    assert_eq!(history.for_prompt(&default_input_modalities()), vec![item]);
+    assert_eq!(history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None), vec![item]);
 }
 
 #[test]
@@ -2009,8 +2030,8 @@ fn for_prompt_assigns_stable_id_to_synthetic_output_without_reordering_history()
         },
     ];
 
-    let first = create_history_with_items(items.clone()).for_prompt(&default_input_modalities());
-    let second = create_history_with_items(items).for_prompt(&default_input_modalities());
+    let first = create_history_with_items(items.clone()).for_prompt(&default_input_modalities(), /*active_turn_id*/ None);
+    let second = create_history_with_items(items).for_prompt(&default_input_modalities(), /*active_turn_id*/ None);
 
     assert_eq!(
         first, second,

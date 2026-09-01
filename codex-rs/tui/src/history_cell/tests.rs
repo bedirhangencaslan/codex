@@ -461,6 +461,7 @@ fn source_backed_cells_render_raw_source_without_prefix_or_style() {
         Vec::new(),
         Vec::new(),
         Vec::new(),
+        /*invisible*/ false,
     );
     let assistant = AgentMarkdownCell::new(
         "- item\n\n| A | B |\n| - | - |\n| x | y |\n".to_string(),
@@ -721,6 +722,7 @@ fn raw_mode_toggle_transcript_snapshot() {
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
+                /*invisible*/ false,
             )),
             Box::new(AgentMarkdownCell::new(
                 "- first item\n- second item\n\n| Col | Value |\n| --- | --- |\n| code | `x = 1` |\n\n```text\ncopy me\n```".to_string(),
@@ -2469,6 +2471,7 @@ fn user_history_cell_wraps_and_prefixes_each_line_snapshot() {
         text_elements: Vec::new(),
         local_image_paths: Vec::new(),
         remote_image_urls: Vec::new(),
+        ..Default::default()
     };
 
     // Small width to force wrapping more clearly. Effective wrap width is width-2 due to the ▌ prefix and trailing space.
@@ -2478,6 +2481,34 @@ fn user_history_cell_wraps_and_prefixes_each_line_snapshot() {
 
     assert_eq!(render_lines(&cell.raw_lines()), ["_count_rows"]);
     insta::assert_snapshot!(rendered);
+}
+
+#[test]
+fn invisible_user_history_cell_is_tagged_and_uses_its_own_background() {
+    let make = |invisible: bool| UserHistoryCell {
+        message: "hello".to_string(),
+        invisible,
+        ..Default::default()
+    };
+
+    let rendered = render_lines(&make(/*invisible*/ true).display_lines(/*width*/ 40)).join("\n");
+    assert!(
+        rendered.contains("invisible"),
+        "invisible turns must be labelled: {rendered}"
+    );
+    assert!(
+        !render_lines(&make(/*invisible*/ false).display_lines(/*width*/ 40))
+            .join("\n")
+            .contains("invisible"),
+        "normal turns must not be labelled"
+    );
+
+    let bg = (0, 0, 0);
+    assert_ne!(
+        crate::style::invisible_message_bg_rgb(bg),
+        crate::style::user_message_bg_rgb(bg),
+        "invisible turns need a background distinct from normal user messages"
+    );
 }
 
 #[test]
@@ -2495,6 +2526,7 @@ fn user_history_cell_wraps_long_urls_inside_the_message_gutter() {
         )],
         local_image_paths: Vec::new(),
         remote_image_urls: Vec::new(),
+        ..Default::default()
     };
     let width = 64;
     let hyperlink_lines = cell.display_hyperlink_lines(width);
@@ -2542,6 +2574,7 @@ fn user_history_cell_renders_remote_image_urls() {
         text_elements: Vec::new(),
         local_image_paths: Vec::new(),
         remote_image_urls: vec!["https://example.com/example.png".to_string()],
+        ..Default::default()
     };
 
     let rendered = render_lines(&cell.display_lines(/*width*/ 80)).join("\n");
@@ -2558,6 +2591,7 @@ fn user_history_cell_summarizes_inline_data_urls() {
         text_elements: Vec::new(),
         local_image_paths: Vec::new(),
         remote_image_urls: vec!["data:image/png;base64,aGVsbG8=".to_string()],
+        ..Default::default()
     };
 
     let rendered = render_lines(&cell.display_lines(/*width*/ 80)).join("\n");
@@ -2576,6 +2610,7 @@ fn user_history_cell_numbers_multiple_remote_images() {
             "https://example.com/one.png".to_string(),
             "https://example.com/two.png".to_string(),
         ],
+        ..Default::default()
     };
 
     let rendered = render_lines(&cell.display_lines(/*width*/ 80)).join("\n");
@@ -2595,6 +2630,7 @@ fn user_history_cell_height_matches_rendered_lines_with_remote_images() {
             "https://example.com/one.png".to_string(),
             "https://example.com/two.png".to_string(),
         ],
+        ..Default::default()
     };
 
     let width = 80;
@@ -2614,6 +2650,7 @@ fn user_history_cell_trims_trailing_blank_message_lines() {
         text_elements: Vec::new(),
         local_image_paths: Vec::new(),
         remote_image_urls: vec!["https://example.com/one.png".to_string()],
+        ..Default::default()
     };
 
     let rendered = render_lines(&cell.display_lines(/*width*/ 80));
@@ -2637,6 +2674,7 @@ fn user_history_cell_trims_trailing_blank_message_lines_with_text_elements() {
         )],
         local_image_paths: Vec::new(),
         remote_image_urls: vec!["https://example.com/one.png".to_string()],
+        ..Default::default()
     };
 
     let rendered = render_lines(&cell.display_lines(/*width*/ 80));
@@ -2657,6 +2695,7 @@ fn render_uses_wrapping_for_long_url_like_line() {
         text_elements: Vec::new(),
         local_image_paths: Vec::new(),
         remote_image_urls: Vec::new(),
+        ..Default::default()
     });
 
     let width: u16 = 52;
@@ -3132,6 +3171,7 @@ fn wrapped_and_prefixed_cells_handle_tiny_widths() {
         text_elements: Vec::new(),
         local_image_paths: Vec::new(),
         remote_image_urls: Vec::new(),
+        ..Default::default()
     };
     let agent_message_cell = AgentMessageCell::new(
         vec!["tiny width agent line".into()],
@@ -3238,6 +3278,7 @@ fn consolidation_walker_replaces_agent_message_cells() {
         text_elements: Vec::new(),
         local_image_paths: Vec::new(),
         remote_image_urls: Vec::new(),
+        ..Default::default()
     }) as Arc<dyn HistoryCell>;
     let head = Arc::new(AgentMessageCell::new(
         vec![Line::from("line 1")],

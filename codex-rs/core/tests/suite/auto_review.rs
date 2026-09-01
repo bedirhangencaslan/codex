@@ -640,6 +640,7 @@ fn remote_model_with_auto_review_override(slug: &str, review_model: &str) -> Mod
         include_plugin_usage_instructions: false,
         include_apps_usage_instructions: false,
         supports_reasoning_summary_parameter: true,
+        supports_encrypted_reasoning: true,
         default_reasoning_summary: ReasoningSummary::Auto,
         support_verbosity: false,
         default_verbosity: None,

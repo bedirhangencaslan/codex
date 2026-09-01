@@ -22156,6 +22156,11 @@
           },
           "type": "array"
         },
+        "invisible": {
+          "default": false,
+          "description": "Run this turn invisibly: its input and output are excluded from the model input of every later turn. Earlier visible history is still sent.",
+          "type": "boolean"
+        },
         "model": {
           "description": "Override the model for this turn and subsequent turns.",
           "type": [

@@ -173,6 +173,9 @@ pub struct TurnStartOptions {
     /// Explicit cyber treatment for this turn. Omission preserves the backend's
     /// automatic behavior.
     pub cyber_access_program: Option<CyberAccessProgram>,
+    /// Runs the turn invisibly: its input and output stay out of every later
+    /// turn's model input, while earlier visible history is still sent.
+    pub invisible: bool,
 }
 
 /// What Core did with input submitted through `start_or_steer_turn`.

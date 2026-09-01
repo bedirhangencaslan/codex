@@ -521,6 +521,7 @@ fn test_remote_model(slug: &str, priority: i32) -> ModelInfo {
         include_plugin_usage_instructions: false,
         include_apps_usage_instructions: false,
         supports_reasoning_summary_parameter: true,
+        supports_encrypted_reasoning: true,
         default_reasoning_summary: ReasoningSummary::Auto,
         support_verbosity: false,
         default_verbosity: None,

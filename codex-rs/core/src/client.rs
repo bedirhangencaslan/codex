@@ -934,6 +934,9 @@ impl ModelClient {
         responses_metadata: &CodexResponsesMetadata,
     ) -> Result<ResponsesApiRequest> {
         let mut input = prompt.get_formatted_input_for_request(model_info.use_responses_lite);
+        // Thinking tokens are never replayed as model-visible input: strip all
+        // reasoning items from the request context regardless of capability.
+        input.retain(|item| !matches!(item, ResponseItem::Reasoning { .. }));
         let is_openai = self.state.provider.info().is_openai();
         let (instructions, tools) = if model_info.use_responses_lite {
             // These prompt-only items are rebuilt on every request. Hash their visible payloads
@@ -992,7 +995,10 @@ impl ModelClient {
         .then_some(StreamOptions {
             reasoning_summary_delivery: codex_api::ReasoningSummaryDelivery::SequentialCutoff,
         });
-        let include = vec!["reasoning.encrypted_content".to_string()];
+        let include = model_info
+            .supports_encrypted_reasoning
+            .then(|| vec!["reasoning.encrypted_content".to_string()])
+            .unwrap_or_default();
         let verbosity = if model_info.support_verbosity {
             self.state.model_verbosity.or(model_info.default_verbosity)
         } else {

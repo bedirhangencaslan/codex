@@ -1197,6 +1197,7 @@ impl AppServerSession {
         collaboration_mode: Option<codex_protocol::config_types::CollaborationMode>,
         personality: Option<codex_protocol::config_types::Personality>,
         output_schema: Option<serde_json::Value>,
+        invisible: bool,
     ) -> Result<TurnStartResponse> {
         let request_id = self.next_request_id();
         let (sandbox_policy, permissions) =
@@ -1229,6 +1230,7 @@ impl AppServerSession {
                     collaboration_mode,
                     multi_agent_mode: None,
                     cyber_access_program: None,
+                    invisible,
                 },
             })
             .await

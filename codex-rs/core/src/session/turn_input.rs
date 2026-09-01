@@ -127,6 +127,7 @@ impl PreparedTurnInputSettings {
             parent_turn_id,
             root_turn_id,
             cyber_access_program,
+            invisible,
         } = self.start_options;
         let emit_thread_settings_applied = self.thread_settings_update.is_some();
         let _settings_guard = if emit_thread_settings_applied {
@@ -140,6 +141,7 @@ impl PreparedTurnInputSettings {
         let options = NewTurnContextOptions {
             final_output_json_schema,
             cyber_access_program,
+            invisible,
         };
         let turn_context = match kind {
             TurnStartKind::User | TurnStartKind::Recovery => Some(

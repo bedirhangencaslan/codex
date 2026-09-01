@@ -419,6 +419,13 @@ pub struct ModelInfo {
     /// Whether the model accepts the Responses API `reasoning.summary` parameter.
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub supports_reasoning_summary_parameter: bool,
+    /// Whether the model returns opaque encrypted reasoning content that the
+    /// client must request via `include: ["reasoning.encrypted_content"]` and
+    /// replay verbatim. When false, reasoning is carried in plaintext
+    /// `ReasoningItem.content` fields instead and the include parameter is not
+    /// sent.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub supports_encrypted_reasoning: bool,
     #[serde(default)]
     pub default_reasoning_summary: ReasoningSummary,
     pub support_verbosity: bool,
@@ -975,6 +982,7 @@ mod tests {
             include_plugin_usage_instructions: false,
             include_apps_usage_instructions: false,
             supports_reasoning_summary_parameter: true,
+            supports_encrypted_reasoning: true,
             default_reasoning_summary: ReasoningSummary::Auto,
             support_verbosity: false,
             default_verbosity: None,

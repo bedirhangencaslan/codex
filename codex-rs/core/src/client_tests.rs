@@ -405,6 +405,106 @@ fn reasoning_effort_in_request(
 }
 
 #[test]
+fn responses_request_includes_encrypted_reasoning_by_default() {
+    let client = test_model_client(SessionSource::Cli);
+    let request = client
+        .build_responses_request(
+            &Prompt::default(),
+            &test_model_info(),
+            /*effort*/ None,
+            codex_protocol::config_types::ReasoningSummary::None,
+            /*service_tier*/ None,
+            &test_responses_metadata_for_client(
+                &client,
+                /*turn_id*/ None,
+                format!("{}:0", client.state.thread_id),
+                /*parent_thread_id*/ None,
+                TestCodexResponsesRequestKind::Turn,
+            ),
+        )
+        .expect("build responses request");
+    assert_eq!(
+        request.include,
+        vec!["reasoning.encrypted_content".to_string()]
+    );
+}
+
+#[test]
+fn responses_request_omits_encrypted_reasoning_when_model_does_not_support_it() {
+    let mut model_info = test_model_info();
+    model_info.supports_encrypted_reasoning = false;
+    let client = test_model_client(SessionSource::Cli);
+    let request = client
+        .build_responses_request(
+            &Prompt::default(),
+            &model_info,
+            /*effort*/ None,
+            codex_protocol::config_types::ReasoningSummary::None,
+            /*service_tier*/ None,
+            &test_responses_metadata_for_client(
+                &client,
+                /*turn_id*/ None,
+                format!("{}:0", client.state.thread_id),
+                /*parent_thread_id*/ None,
+                TestCodexResponsesRequestKind::Turn,
+            ),
+        )
+        .expect("build responses request");
+    assert!(request.include.is_empty());
+}
+
+#[test]
+fn responses_request_strips_reasoning_items_from_input() {
+    let client = test_model_client(SessionSource::Cli);
+    let prompt = Prompt {
+        input: vec![
+            ResponseItem::Reasoning {
+                id: None,
+                summary: vec![],
+                content: None,
+                encrypted_content: None,
+                internal_chat_message_metadata_passthrough: None,
+            },
+            ResponseItem::Message {
+                id: None,
+                role: "user".to_string(),
+                content: vec![ContentItem::InputText {
+                    text: "hello".to_string(),
+                }],
+                phase: None,
+                internal_chat_message_metadata_passthrough: None,
+            },
+        ],
+        ..Default::default()
+    };
+    let request = client
+        .build_responses_request(
+            &prompt,
+            &test_model_info(),
+            /*effort*/ None,
+            codex_protocol::config_types::ReasoningSummary::None,
+            /*service_tier*/ None,
+            &test_responses_metadata_for_client(
+                &client,
+                /*turn_id*/ None,
+                format!("{}:0", client.state.thread_id),
+                /*parent_thread_id*/ None,
+                TestCodexResponsesRequestKind::Turn,
+            ),
+        )
+        .expect("build responses request");
+
+    assert!(request
+        .input
+        .iter()
+        .all(|item| !matches!(item, ResponseItem::Reasoning { .. })));
+    assert!(request
+        .input
+        .iter()
+        .any(|item| matches!(item, ResponseItem::Message { .. })));
+}
+
+#[test]
 fn reasoning_effort_for_requests_uses_multi_agent_override_for_ultra() {
     let mut model_info = test_model_info();
     model_info.multi_agent_reasoning_effort = Some(ReasoningEffort::High);

@@ -3369,6 +3369,9 @@ async fn model_picker_refresh_preserves_highlight() {
         ];
         chat.model_catalog = Arc::new(ModelCatalog::new(presets.clone()));
         chat.open_model_popup();
+        // Each model contributes a model row plus a Plan row, so two steps down
+        // moves from gpt-5.2 to gpt-5.5.
+        chat.handle_key_event(KeyEvent::from(KeyCode::Down));
         chat.handle_key_event(KeyEvent::from(KeyCode::Down));
         if reasoning_submenu {
             chat.open_reasoning_popup(presets[1].clone());

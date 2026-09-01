@@ -232,20 +232,43 @@ impl ContextManager {
     /// Returns the history prepared for sending to the model. This applies a proper
     /// normalization and drops un-suited items. Unsupported image and audio content
     /// is stripped from messages and tool outputs according to `input_modalities`.
-    pub(crate) fn for_prompt(self, input_modalities: &[InputModality]) -> Vec<ResponseItem> {
-        self.for_prompt_annotated(input_modalities)
+    pub(crate) fn for_prompt(
+        self,
+        input_modalities: &[InputModality],
+        active_turn_id: Option<&str>,
+    ) -> Vec<ResponseItem> {
+        self.for_prompt_annotated(input_modalities, active_turn_id)
             .into_iter()
             .map(ResponseItemEnvelope::into_item)
             .collect()
     }
 
     /// Returns normalized history envelopes for internal consumers that must retain metadata.
+    ///
+    /// Items recorded by a *completed* invisible turn are dropped. The still-running
+    /// turn identified by `active_turn_id` keeps its own items so the model can act on
+    /// the request it is currently answering.
     pub(crate) fn for_prompt_annotated(
         mut self,
         input_modalities: &[InputModality],
+        active_turn_id: Option<&str>,
     ) -> Vec<ResponseItemEnvelope> {
+        self.drop_completed_invisible_items(active_turn_id);
         self.normalize_history(input_modalities);
         Arc::unwrap_or_clone(self.items)
+    }
+
+    fn drop_completed_invisible_items(&mut self, active_turn_id: Option<&str>) {
+        let is_completed_invisible = |envelope: &ResponseItemEnvelope| {
+            envelope
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.invisible_turn.as_deref())
+                .is_some_and(|turn_id| Some(turn_id) != active_turn_id)
+        };
+        if self.items.iter().any(is_completed_invisible) {
+            Arc::make_mut(&mut self.items).retain(|envelope| !is_completed_invisible(envelope));
+        }
     }
 
     /// Iterates over raw response items without exposing their history envelopes.
@@ -418,32 +441,6 @@ impl ContextManager {
         );
     }
 
-    fn get_non_last_reasoning_items_tokens(&self) -> i64 {
-        // Get reasoning items excluding all the ones after the last instruction boundary.
-        let Some(last_user_index) = self
-            .items
-            .iter()
-            .rposition(|envelope| is_user_turn_boundary(&envelope.item))
-        else {
-            return 0;
-        };
-
-        self.items
-            .iter()
-            .take(last_user_index)
-            .filter(|envelope| {
-                matches!(
-                    &envelope.item,
-                    ResponseItem::Reasoning {
-                        encrypted_content: Some(_),
-                        ..
-                    }
-                )
-            })
-            .map(|envelope| estimate_item_token_count(&envelope.item))
-            .fold(0i64, i64::saturating_add)
-    }
-
     // These are local items added after the most recent model-emitted item.
     // They are not reflected in `last_token_usage.total_tokens`.
     fn items_after_last_model_generated_item(
@@ -457,9 +454,10 @@ impl ContextManager {
         self.items[start..].iter().map(|envelope| &envelope.item)
     }
 
-    /// When true, the server already accounted for past reasoning tokens and
-    /// the client should not re-estimate them.
-    pub(crate) fn get_total_token_usage(&self, server_reasoning_included: bool) -> i64 {
+    /// Reasoning items are stripped from every request (see
+    /// `ModelClient::build_responses_request`), so past thinking is never model-visible
+    /// and the server-side reasoning accounting signal does not change this estimate.
+    pub(crate) fn get_total_token_usage(&self, _server_reasoning_included: bool) -> i64 {
         let last_tokens = self
             .token_info
             .as_ref()
@@ -469,13 +467,7 @@ impl ContextManager {
             .items_after_last_model_generated_item()
             .map(estimate_item_token_count)
             .fold(0i64, i64::saturating_add);
-        if server_reasoning_included {
-            last_tokens.saturating_add(items_after_last_model_generated_tokens)
-        } else {
-            last_tokens
-                .saturating_add(self.get_non_last_reasoning_items_tokens())
-                .saturating_add(items_after_last_model_generated_tokens)
-        }
+        last_tokens.saturating_add(items_after_last_model_generated_tokens)
     }
 
     pub(crate) fn estimated_tokens_after_last_model_generated_item(&self) -> i64 {
@@ -622,11 +614,10 @@ static ORIGINAL_IMAGE_ESTIMATE_CACHE: LazyLock<BlockingLruCache<[u8; 20], Option
 
 fn estimate_response_item_model_visible_bytes(item: &ResponseItem) -> i64 {
     match item {
-        ResponseItem::Reasoning {
-            encrypted_content: Some(content),
-            ..
-        }
-        | ResponseItem::Compaction {
+        // Reasoning items are stripped from every request, so neither their encrypted
+        // payload nor their plaintext body is ever model-visible.
+        ResponseItem::Reasoning { .. } => 0,
+        ResponseItem::Compaction {
             encrypted_content: content,
             ..
         }

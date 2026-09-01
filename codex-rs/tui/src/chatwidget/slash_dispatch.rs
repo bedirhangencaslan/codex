@@ -305,6 +305,9 @@ impl ChatWidget {
             SlashCommand::Plan => {
                 self.apply_plan_slash_command();
             }
+            SlashCommand::Invisible => {
+                self.toggle_invisible_mode();
+            }
             SlashCommand::Goal => {
                 if !self.config.features.enabled(Feature::Goals) {
                     return;
@@ -1169,6 +1172,7 @@ impl ChatWidget {
             | SlashCommand::Model
             | SlashCommand::Personality
             | SlashCommand::Plan
+            | SlashCommand::Invisible
             | SlashCommand::Goal
             | SlashCommand::Side
             | SlashCommand::Btw

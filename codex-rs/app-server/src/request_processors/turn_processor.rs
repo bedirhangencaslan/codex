@@ -633,6 +633,7 @@ impl TurnRequestProcessor {
                         final_output_json_schema: params.output_schema,
                         service_tier: params.service_tier_for_turn,
                         cyber_access_program: params.cyber_access_program.map(Into::into),
+                        invisible: params.invisible,
                         ..Default::default()
                     })
                     .with_additional_context(additional_context)

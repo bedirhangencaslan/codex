@@ -1228,6 +1228,9 @@ pub(crate) enum AppEvent {
         collaboration_mode: CollaborationModeMask,
     },
 
+    /// Switch the active collaboration mode (e.g. from the model picker's Plan row).
+    SetCollaborationMode(CollaborationModeMask),
+
     /// Open the approval popup.
     FullScreenApprovalRequest(ApprovalRequest),
 

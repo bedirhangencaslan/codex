@@ -53,6 +53,15 @@ pub struct CodexHarnessMetadata {
     /// Measured in tokens, with any tool-specific allowance already included.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback_token_limit_override: Option<usize>,
+
+    /// Id of the invisible turn that produced this item.
+    ///
+    /// Items from an invisible turn stay model-visible while that turn is still
+    /// running, then drop out of every later prompt. The turn id is stored rather
+    /// than a plain flag so the exclusion survives a rollout round-trip without
+    /// rewriting already-persisted items.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invisible_turn: Option<String>,
 }
 
 impl ResponseItemEnvelope {

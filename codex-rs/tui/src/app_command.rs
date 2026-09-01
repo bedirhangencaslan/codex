@@ -42,6 +42,8 @@ pub(crate) enum AppCommand {
         final_output_json_schema: Option<Value>,
         collaboration_mode: Option<CollaborationMode>,
         personality: Option<Personality>,
+        /// Keep this turn out of the model input of every later turn.
+        invisible: bool,
     },
     OverrideTurnContext {
         cwd: Option<PathBuf>,
@@ -124,6 +126,7 @@ impl AppCommand {
         final_output_json_schema: Option<Value>,
         collaboration_mode: Option<CollaborationMode>,
         personality: Option<Personality>,
+        invisible: bool,
     ) -> Self {
         Self::UserTurn {
             items,
@@ -138,6 +141,7 @@ impl AppCommand {
             final_output_json_schema,
             collaboration_mode,
             personality,
+            invisible,
         }
     }
 

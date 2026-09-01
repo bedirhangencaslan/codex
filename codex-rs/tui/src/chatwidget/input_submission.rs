@@ -365,6 +365,7 @@ impl ChatWidget {
             /*final_output_json_schema*/ None,
             collaboration_mode,
             personality,
+            self.invisible_mode,
         );
         let submitted_message = UserMessage {
             text,

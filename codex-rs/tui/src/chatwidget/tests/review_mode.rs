@@ -584,7 +584,8 @@ async fn item_completed_only_pops_front_pending_steer() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn item_completed_pops_pending_steer_with_local_image_and_text_elements() {
-    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    // The default model is text-only, so pin a model that accepts image input.
+    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(Some("gpt-5.6-sol")).await;
     chat.thread_id = Some(ThreadId::new());
     chat.on_task_started();
 

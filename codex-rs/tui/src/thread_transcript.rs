@@ -123,6 +123,7 @@ pub(crate) fn thread_items_to_transcript_cells(
                     text_elements: item.text_elements(),
                     local_image_paths: item.local_image_paths(),
                     remote_image_urls: item.image_urls(),
+                    ..Default::default()
                 }));
             }
             ThreadItem::AgentMessage { text, .. } => {
