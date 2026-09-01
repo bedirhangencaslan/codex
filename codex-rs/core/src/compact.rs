@@ -43,6 +43,7 @@ use codex_protocol::models::AgentMessageInputContent;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ContentItemKind;
 use codex_protocol::models::InternalChatMessageMetadataPassthrough;
+use codex_protocol::models::MessagePhase;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::EventMsg;
@@ -59,7 +60,14 @@ use tracing::error;
 
 pub use codex_prompts::SUMMARIZATION_PROMPT;
 pub use codex_prompts::SUMMARY_PREFIX;
-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 20_000;
+/// Budget for the user's own messages, which are always preserved verbatim.
+const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 12_000;
+/// Budget for assistant answers that survive compaction verbatim. Spent newest-first over whole
+/// request groups; a group that does not fit entirely is summarized instead of partially kept.
+///
+/// Together with the user budget and the summary this puts the post-compaction floor around 21k,
+/// leaving roughly 59k of runway before the next compaction at the 80k auto-compact limit.
+const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 8_000;
 
 /// Controls whether compaction replacement history must include initial context.
 ///
@@ -252,9 +260,21 @@ async fn run_compact_task_inner_impl(
     let compaction_item = TurnItem::ContextCompaction(ContextCompactionItem::new());
     sess.emit_turn_item_started(&turn_context, &compaction_item)
         .await;
+    let mut history = sess.clone_history().await;
+    // Computed before the summarization call so the model can be told where the verbatim tail
+    // starts, and so the tail never picks up this turn's own summary message.
+    let retained_assistant_messages = select_retained_assistant_tail(
+        &collect_annotated_assistant_messages(history.annotated_items()),
+        COMPACT_ASSISTANT_TAIL_MAX_TOKENS,
+    );
+    let mut input = input;
+    if let Some(note) = retained_assistant_tail_note(&retained_assistant_messages)
+        && let Some(UserInput::Text { text, .. }) = input.last_mut()
+    {
+        text.push_str(&note);
+    }
     let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input);
 
-    let mut history = sess.clone_history().await;
     history.record_items(
         &[initial_input_for_turn.into()],
         turn_context.model_info().truncation_policy.into(),
@@ -357,7 +377,12 @@ async fn run_compact_task_inner_impl(
     let summary_text = format!("{SUMMARY_PREFIX}\n{summary_suffix}");
     let user_messages = collect_annotated_user_messages(history_items);
 
-    let mut new_history = build_compacted_history(Vec::new(), &user_messages, &summary_text);
+    let mut new_history = build_compacted_history(
+        Vec::new(),
+        &user_messages,
+        &retained_assistant_messages,
+        &summary_text,
+    );
     if let Some(summary_item) = new_history.last_mut() {
         // This replacement history skips `record_conversation_items`; only the appended summary
         // belongs to this compaction turn.
@@ -429,7 +454,9 @@ impl CompactionAnalyticsAttempt {
         implementation: CompactionImplementation,
         phase: CompactionPhase,
     ) -> Self {
-        let active_context_tokens_before = sess.get_total_token_usage().await;
+        let active_context_tokens_before = sess
+            .get_total_token_usage(Some(turn_context.sub_id.as_str()))
+            .await;
         Self {
             thread_id: sess.thread_id.to_string(),
             turn_id: turn_context.sub_id.clone(),
@@ -459,7 +486,8 @@ impl CompactionAnalyticsAttempt {
         } = details;
         let active_context_tokens_before =
             active_context_tokens_before.unwrap_or(self.active_context_tokens_before);
-        let active_context_tokens_after = sess.get_total_token_usage().await;
+        let active_context_tokens_after =
+            sess.get_total_token_usage(Some(self.turn_id.as_str())).await;
         sess.services
             .analytics_events_client
             .track_compaction(CodexCompactionEvent {
@@ -570,6 +598,107 @@ fn compacted_user_message(
     })
 }
 
+/// An assistant answer kept verbatim through compaction, tagged with the 1-based index of the user
+/// request it answered so it can be re-interleaved after that request.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct RetainedAssistantMessage {
+    request_index: usize,
+    text: String,
+    phase: Option<MessagePhase>,
+    internal_chat_message_metadata_passthrough: Option<InternalChatMessageMetadataPassthrough>,
+    harness_metadata: Option<CodexHarnessMetadata>,
+}
+
+/// Collects assistant answers only: tool calls, tool outputs, reasoning, and the synthetic
+/// system/context messages are all skipped, so they never consume the retention budget.
+pub(crate) fn collect_annotated_assistant_messages(
+    items: &[ResponseItemEnvelope],
+) -> Vec<RetainedAssistantMessage> {
+    let mut request_index = 0usize;
+    let mut messages = Vec::new();
+    for envelope in items {
+        // Counts the same messages as `collect_annotated_user_messages`, so request indices line up
+        // between the two collections.
+        if compacted_user_message(&envelope.item, /*harness_metadata*/ None).is_some() {
+            request_index += 1;
+            continue;
+        }
+        if request_index == 0 {
+            continue;
+        }
+        let ResponseItem::Message {
+            role,
+            content,
+            phase,
+            internal_chat_message_metadata_passthrough,
+            ..
+        } = &envelope.item
+        else {
+            continue;
+        };
+        // Commentary is mid-turn progress chatter; only the answers the user actually received are
+        // worth keeping.
+        if role != "assistant" || matches!(phase, Some(MessagePhase::Commentary)) {
+            continue;
+        }
+        let Some(text) = content_items_to_text(content) else {
+            continue;
+        };
+        if text.trim().is_empty() {
+            continue;
+        }
+        messages.push(RetainedAssistantMessage {
+            request_index,
+            text,
+            phase: phase.clone(),
+            internal_chat_message_metadata_passthrough:
+                internal_chat_message_metadata_passthrough.clone(),
+            harness_metadata: envelope.metadata.clone(),
+        });
+    }
+    messages
+}
+
+/// Walks request groups newest-first and keeps those that fit whole. Stopping at the first group
+/// that would overflow makes the boundary a pure function of the history, so it stays stable across
+/// turns and the prompt prefix keeps hitting cache.
+fn select_retained_assistant_tail(
+    messages: &[RetainedAssistantMessage],
+    max_tokens: usize,
+) -> Vec<RetainedAssistantMessage> {
+    let mut selected: Vec<RetainedAssistantMessage> = Vec::new();
+    let mut remaining = max_tokens;
+    let mut rest = messages;
+    while let Some(last) = rest.last() {
+        let group_start = rest.partition_point(|message| message.request_index < last.request_index);
+        let group = &rest[group_start..];
+        let tokens: usize = group
+            .iter()
+            .map(|message| approx_token_count(&message.text))
+            .sum();
+        if tokens > remaining {
+            break;
+        }
+        remaining -= tokens;
+        selected.splice(0..0, group.iter().cloned());
+        rest = &rest[..group_start];
+    }
+    selected
+}
+
+/// Tells the summarizer where the verbatim tail begins so it does not spend output re-describing
+/// answers that are being preserved anyway.
+fn retained_assistant_tail_note(retained: &[RetainedAssistantMessage]) -> Option<String> {
+    let first_retained = retained.first()?.request_index;
+    let last_summarized = first_retained.checked_sub(1)?;
+    if last_summarized == 0 {
+        return None;
+    }
+    Some(format!(
+        "\n\nThe assistant responses for request #{first_retained} and later are preserved verbatim by this compaction. Summarize requests #1 through #{last_summarized} only.",
+    ))
+}
+
 pub(crate) fn is_summary_message(message: &str) -> bool {
     message.starts_with(format!("{SUMMARY_PREFIX}\n").as_str())
 }
@@ -645,11 +774,13 @@ pub(crate) fn insert_initial_context_before_last_real_user_or_summary(
 pub(crate) fn build_compacted_history(
     initial_context: Vec<ResponseItemEnvelope>,
     user_messages: &[CompactedUserMessage],
+    retained_assistant_messages: &[RetainedAssistantMessage],
     summary_text: &str,
 ) -> Vec<ResponseItemEnvelope> {
     build_compacted_history_with_limit(
         initial_context,
         user_messages,
+        retained_assistant_messages,
         summary_text,
         COMPACT_USER_MESSAGE_MAX_TOKENS,
     )
@@ -658,37 +789,43 @@ pub(crate) fn build_compacted_history(
 fn build_compacted_history_with_limit(
     mut history: Vec<ResponseItemEnvelope>,
     user_messages: &[CompactedUserMessage],
+    retained_assistant_messages: &[RetainedAssistantMessage],
     summary_text: &str,
     max_tokens: usize,
 ) -> Vec<ResponseItemEnvelope> {
-    let mut selected_messages: Vec<CompactedUserMessage> = Vec::new();
+    // Request indices are 1-based positions in `user_messages`, matching
+    // `collect_annotated_assistant_messages`.
+    let mut selected_messages: Vec<(usize, CompactedUserMessage)> = Vec::new();
     if max_tokens > 0 {
         let mut remaining = max_tokens;
-        for message in user_messages.iter().rev() {
+        for (index, message) in user_messages.iter().enumerate().rev() {
             if remaining == 0 {
                 break;
             }
             let tokens = approx_token_count(&message.message);
             if tokens <= remaining {
-                selected_messages.push(message.clone());
+                selected_messages.push((index + 1, message.clone()));
                 remaining = remaining.saturating_sub(tokens);
             } else {
                 let truncated =
                     truncate_text(&message.message, TruncationPolicy::Tokens(remaining));
-                selected_messages.push(CompactedUserMessage {
-                    message: truncated,
-                    internal_chat_message_metadata_passthrough: message
-                        .internal_chat_message_metadata_passthrough
-                        .clone(),
-                    harness_metadata: message.harness_metadata.clone(),
-                });
+                selected_messages.push((
+                    index + 1,
+                    CompactedUserMessage {
+                        message: truncated,
+                        internal_chat_message_metadata_passthrough: message
+                            .internal_chat_message_metadata_passthrough
+                            .clone(),
+                        harness_metadata: message.harness_metadata.clone(),
+                    },
+                ));
                 break;
             }
         }
         selected_messages.reverse();
     }
 
-    for message in &selected_messages {
+    for (request_index, message) in &selected_messages {
         let mut item = ResponseItem::Message {
             id: None,
             role: "user".to_string(),
@@ -718,6 +855,26 @@ fn build_compacted_history_with_limit(
             item,
             metadata: message.harness_metadata.clone(),
         });
+
+        for assistant in retained_assistant_messages
+            .iter()
+            .filter(|assistant| assistant.request_index == *request_index)
+        {
+            history.push(ResponseItemEnvelope {
+                item: ResponseItem::Message {
+                    id: None,
+                    role: "assistant".to_string(),
+                    content: vec![ContentItem::OutputText {
+                        text: assistant.text.clone(),
+                    }],
+                    phase: assistant.phase.clone(),
+                    internal_chat_message_metadata_passthrough: assistant
+                        .internal_chat_message_metadata_passthrough
+                        .clone(),
+                },
+                metadata: assistant.harness_metadata.clone(),
+            });
+        }
     }
 
     let summary_text = if summary_text.is_empty() {

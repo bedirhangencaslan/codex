@@ -28,7 +28,7 @@
       "model_specialty": null,
       "context_window": 200000,
       "max_context_window": 200000,
-      "auto_compact_token_limit": null,
+      "auto_compact_token_limit": 80000,
       "comp_hash": "2911",
       "default_reasoning_summary": "none",
       "display_name": "GLM 5.3",

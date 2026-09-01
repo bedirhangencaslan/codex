@@ -372,6 +372,7 @@ impl Session {
                         let rebuilt = compact::build_compacted_history(
                             Vec::new(),
                             &user_messages,
+                            /*retained_assistant_messages*/ &[],
                             &compacted.message,
                         );
                         history.replace_annotated(rebuilt);

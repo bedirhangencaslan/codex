@@ -1149,7 +1149,9 @@ async fn maybe_run_previous_model_inline_compact(
     let Some(new_context_window) = turn_context.model_context_window() else {
         return Ok(());
     };
-    let active_context_tokens = sess.get_total_token_usage().await;
+    let active_context_tokens = sess
+        .get_total_token_usage(Some(turn_context.sub_id.as_str()))
+        .await;
     let previous_model_limit_reached = match turn_context
         .config
         .model_auto_compact_token_limit_scope

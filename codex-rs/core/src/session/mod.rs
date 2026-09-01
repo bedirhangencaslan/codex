@@ -1265,9 +1265,11 @@ impl Session {
         format!("auto-compact-{id}")
     }
 
-    pub(crate) async fn get_total_token_usage(&self) -> i64 {
+    /// `active_turn_id` is the turn the caller is about to sample for; reasoning produced by any
+    /// other turn is discounted because it will not be resent.
+    pub(crate) async fn get_total_token_usage(&self, active_turn_id: Option<&str>) -> i64 {
         let state = self.state.lock().await;
-        state.get_total_token_usage(state.server_reasoning_included())
+        state.get_total_token_usage(active_turn_id)
     }
 
     pub(crate) async fn auto_compact_window_snapshot(&self) -> AutoCompactWindowSnapshot {
@@ -4225,8 +4227,11 @@ impl Session {
         if let Some(token_usage) = token_usage {
             let token_info = {
                 let mut state = self.state.lock().await;
-                state
-                    .update_token_info_from_usage(token_usage, turn_context.model_context_window());
+                state.update_token_info_from_usage(
+                    token_usage,
+                    turn_context.model_context_window(),
+                    &turn_context.sub_id,
+                );
                 if matches!(
                     turn_context.config.model_auto_compact_token_limit_scope,
                     AutoCompactTokenLimitScope::BodyAfterPrefix

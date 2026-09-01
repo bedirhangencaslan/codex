@@ -154,7 +154,10 @@ async fn run_remote_compact_task_inner(
     let implementation = compaction_metadata.implementation();
     let phase = compaction_metadata.phase();
     let mut analytics_details = CompactionAnalyticsDetails {
-        active_context_tokens_before: Some(sess.get_total_token_usage().await),
+        active_context_tokens_before: Some(
+            sess.get_total_token_usage(Some(turn_context.sub_id.as_str()))
+                .await,
+        ),
         ..Default::default()
     };
     let attempt = CompactionAnalyticsAttempt::begin(
