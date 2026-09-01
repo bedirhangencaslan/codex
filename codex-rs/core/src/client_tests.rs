@@ -453,8 +453,10 @@ fn responses_request_omits_encrypted_reasoning_when_model_does_not_support_it() 
     assert!(request.include.is_empty());
 }
 
+/// Turn-scoped filtering happens in `ContextManager::for_prompt_annotated`, so whatever
+/// reaches the client is already what the model should see, reasoning included.
 #[test]
-fn responses_request_strips_reasoning_items_from_input() {
+fn responses_request_forwards_reasoning_items_from_input() {
     let client = test_model_client(SessionSource::Cli);
     let prompt = Prompt {
         input: vec![
@@ -497,7 +499,7 @@ fn responses_request_strips_reasoning_items_from_input() {
     assert!(request
         .input
         .iter()
-        .all(|item| !matches!(item, ResponseItem::Reasoning { .. })));
+        .any(|item| matches!(item, ResponseItem::Reasoning { .. })));
     assert!(request
         .input
         .iter()

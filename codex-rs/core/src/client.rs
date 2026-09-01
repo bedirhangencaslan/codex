@@ -933,10 +933,9 @@ impl ModelClient {
         service_tier: Option<String>,
         responses_metadata: &CodexResponsesMetadata,
     ) -> Result<ResponsesApiRequest> {
+        // Reasoning is scoped to its own turn by `ContextManager::for_prompt_annotated`,
+        // so whatever reaches here is already the set the model is meant to see.
         let mut input = prompt.get_formatted_input_for_request(model_info.use_responses_lite);
-        // Thinking tokens are never replayed as model-visible input: strip all
-        // reasoning items from the request context regardless of capability.
-        input.retain(|item| !matches!(item, ResponseItem::Reasoning { .. }));
         let is_openai = self.state.provider.info().is_openai();
         let (instructions, tools) = if model_info.use_responses_lite {
             // These prompt-only items are rebuilt on every request. Hash their visible payloads

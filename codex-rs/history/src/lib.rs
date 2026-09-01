@@ -62,6 +62,14 @@ pub struct CodexHarnessMetadata {
     /// rewriting already-persisted items.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub invisible_turn: Option<String>,
+
+    /// Id of the turn that produced this reasoning item.
+    ///
+    /// Thinking stays model-visible only while its own turn is still running, so the
+    /// model can follow its plan across the tool-call loop. Once the turn ends the
+    /// reasoning drops out of every later prompt. Only reasoning items carry this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_turn: Option<String>,
 }
 
 impl ResponseItemEnvelope {

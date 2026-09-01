@@ -3234,6 +3234,10 @@ impl Session {
                     envelope.metadata.get_or_insert_default().invisible_turn =
                         Some(turn_context.sub_id.clone());
                 }
+                if matches!(envelope.item, ResponseItem::Reasoning { .. }) {
+                    envelope.metadata.get_or_insert_default().reasoning_turn =
+                        Some(turn_context.sub_id.clone());
+                }
                 envelope
             })
             .collect();

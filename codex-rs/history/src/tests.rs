@@ -74,6 +74,7 @@ fn response_item_envelope_stores_metadata_beside_rollout_payload() -> Result<()>
                 client_authored: true,
                 fallback_token_limit_override: Some(20_000),
                 invisible_turn: None,
+                reasoning_turn: None,
             }),
         }),
     };
@@ -101,6 +102,7 @@ fn response_item_envelope_stores_metadata_beside_rollout_payload() -> Result<()>
             client_authored: true,
             fallback_token_limit_override: Some(20_000),
             invisible_turn: None,
+            reasoning_turn: None,
         })
     );
     Ok(())

@@ -245,29 +245,41 @@ impl ContextManager {
 
     /// Returns normalized history envelopes for internal consumers that must retain metadata.
     ///
-    /// Items recorded by a *completed* invisible turn are dropped. The still-running
-    /// turn identified by `active_turn_id` keeps its own items so the model can act on
-    /// the request it is currently answering.
+    /// Two kinds of item are scoped to the turn that produced them and are dropped once
+    /// that turn finishes: everything recorded by an invisible turn, and every reasoning
+    /// item. The still-running turn named by `active_turn_id` keeps its own items, so the
+    /// model can act on the request it is answering and follow its own thinking across the
+    /// tool-call loop. Passing `None` means no turn is running, which drops all of them.
     pub(crate) fn for_prompt_annotated(
         mut self,
         input_modalities: &[InputModality],
         active_turn_id: Option<&str>,
     ) -> Vec<ResponseItemEnvelope> {
-        self.drop_completed_invisible_items(active_turn_id);
+        self.drop_completed_turn_scoped_items(active_turn_id);
         self.normalize_history(input_modalities);
         Arc::unwrap_or_clone(self.items)
     }
 
-    fn drop_completed_invisible_items(&mut self, active_turn_id: Option<&str>) {
-        let is_completed_invisible = |envelope: &ResponseItemEnvelope| {
-            envelope
-                .metadata
-                .as_ref()
-                .and_then(|metadata| metadata.invisible_turn.as_deref())
-                .is_some_and(|turn_id| Some(turn_id) != active_turn_id)
+    fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) {
+        let belongs_to_active_turn = |owner: Option<&str>| match (active_turn_id, owner) {
+            (Some(active), Some(owner)) => active == owner,
+            _ => false,
         };
-        if self.items.iter().any(is_completed_invisible) {
-            Arc::make_mut(&mut self.items).retain(|envelope| !is_completed_invisible(envelope));
+        let is_completed = |envelope: &ResponseItemEnvelope| {
+            let metadata = envelope.metadata.as_ref();
+            let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
+            if invisible_owner.is_some() && !belongs_to_active_turn(invisible_owner) {
+                return true;
+            }
+            // Reasoning that predates this metadata, or that was never stamped, has no
+            // owning turn to compare against and is treated as finished.
+            matches!(envelope.item, ResponseItem::Reasoning { .. })
+                && !belongs_to_active_turn(
+                    metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
+                )
+        };
+        if self.items.iter().any(is_completed) {
+            Arc::make_mut(&mut self.items).retain(|envelope| !is_completed(envelope));
         }
     }
 
@@ -454,9 +466,9 @@ impl ContextManager {
         self.items[start..].iter().map(|envelope| &envelope.item)
     }
 
-    /// Reasoning items are stripped from every request (see
-    /// `ModelClient::build_responses_request`), so past thinking is never model-visible
-    /// and the server-side reasoning accounting signal does not change this estimate.
+    /// Reasoning from finished turns never reaches the model, and reasoning from the
+    /// running turn is already counted in the server-reported usage for the request that
+    /// carried it, so the server-side reasoning accounting signal changes nothing here.
     pub(crate) fn get_total_token_usage(&self, _server_reasoning_included: bool) -> i64 {
         let last_tokens = self
             .token_info
@@ -614,8 +626,8 @@ static ORIGINAL_IMAGE_ESTIMATE_CACHE: LazyLock<BlockingLruCache<[u8; 20], Option
 
 fn estimate_response_item_model_visible_bytes(item: &ResponseItem) -> i64 {
     match item {
-        // Reasoning items are stripped from every request, so neither their encrypted
-        // payload nor their plaintext body is ever model-visible.
+        // Reasoning only reaches the model during its own turn, and the server reports
+        // the real usage for those requests, so it contributes nothing to this estimate.
         ResponseItem::Reasoning { .. } => 0,
         ResponseItem::Compaction {
             encrypted_content: content,

@@ -413,12 +413,12 @@ fn filters_non_api_messages() {
 }
 
 #[test]
-fn reasoning_items_are_not_model_visible() {
+fn reasoning_items_do_not_count_toward_estimated_context() {
     let plaintext = reasoning_msg(&"x".repeat(800));
     let encrypted = reasoning_with_encrypted_content(/*len*/ 900);
 
-    // Thinking tokens are stripped from every request, so reasoning items —
-    // plaintext or encrypted — never count as model-visible context.
+    // Reasoning only reaches the model during its own turn, and the server reports the
+    // real usage for those requests, so it is never added on top of that estimate.
     assert_eq!(estimate_item_token_count(&plaintext), 0);
     assert_eq!(estimate_item_token_count(&encrypted), 0);
 }
@@ -544,6 +544,58 @@ fn invisible_items_leave_the_prompt_once_their_turn_finishes() {
     assert_eq!(
         history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
         vec![visible]
+    );
+}
+
+#[test]
+fn reasoning_stays_in_the_prompt_only_while_its_own_turn_runs() {
+    let thinking = |turn: &str, text: &str| ResponseItemEnvelope {
+        item: reasoning_msg(text),
+        metadata: Some(CodexHarnessMetadata {
+            reasoning_turn: Some(turn.to_string()),
+            ..Default::default()
+        }),
+    };
+    let asked = user_msg("do the thing");
+    let called = assistant_msg("calling a tool");
+    let mut history = ContextManager::new();
+    history.replace_annotated(vec![
+        ResponseItemEnvelope::new(asked.clone()),
+        thinking("turn-1", "earlier turn thinking"),
+        ResponseItemEnvelope::new(called.clone()),
+        thinking("turn-2", "current turn thinking"),
+    ]);
+
+    // Mid-turn the model still sees the plan it formed earlier in the same turn,
+    // but never the thinking from turns that already finished.
+    assert_eq!(
+        history
+            .clone()
+            .for_prompt(&default_input_modalities(), Some("turn-2")),
+        vec![
+            asked.clone(),
+            called.clone(),
+            reasoning_msg("current turn thinking"),
+        ]
+    );
+
+    // Once the turn ends, its thinking stops being replayed.
+    assert_eq!(
+        history
+            .clone()
+            .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
+        vec![asked.clone(), called.clone()]
+    );
+
+    // Reasoning left unstamped by an older rollout has no owning turn and is dropped.
+    let mut legacy = ContextManager::new();
+    legacy.replace_annotated(vec![
+        ResponseItemEnvelope::new(asked.clone()),
+        ResponseItemEnvelope::new(reasoning_msg("unstamped")),
+    ]);
+    assert_eq!(
+        legacy.for_prompt(&default_input_modalities(), Some("turn-2")),
+        vec![asked]
     );
 }
 
