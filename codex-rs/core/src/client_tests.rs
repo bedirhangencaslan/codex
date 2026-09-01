@@ -496,14 +496,18 @@ fn responses_request_forwards_reasoning_items_from_input() {
         )
         .expect("build responses request");
 
-    assert!(request
-        .input
-        .iter()
-        .any(|item| matches!(item, ResponseItem::Reasoning { .. })));
-    assert!(request
-        .input
-        .iter()
-        .any(|item| matches!(item, ResponseItem::Message { .. })));
+    assert!(
+        request
+            .input
+            .iter()
+            .any(|item| matches!(item, ResponseItem::Reasoning { .. }))
+    );
+    assert!(
+        request
+            .input
+            .iter()
+            .any(|item| matches!(item, ResponseItem::Message { .. }))
+    );
 }
 
 #[test]
