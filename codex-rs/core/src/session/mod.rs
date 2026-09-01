@@ -3238,6 +3238,10 @@ impl Session {
                     envelope.metadata.get_or_insert_default().reasoning_turn =
                         Some(turn_context.sub_id.clone());
                 }
+                if matches!(envelope.item, ResponseItem::FunctionCallOutput { .. }) {
+                    envelope.metadata.get_or_insert_default().tool_output_turn =
+                        Some(turn_context.sub_id.clone());
+                }
                 envelope
             })
             .collect();

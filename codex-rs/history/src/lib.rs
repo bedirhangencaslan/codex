@@ -70,6 +70,14 @@ pub struct CodexHarnessMetadata {
     /// reasoning drops out of every later prompt. Only reasoning items carry this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_turn: Option<String>,
+
+    /// Id of the turn that produced this tool output.
+    ///
+    /// While the turn is running the model sees the output whole, because it is acting on
+    /// it. Once the turn ends, noisy output from well-known build and test commands is
+    /// trimmed down to its head and tail. Only function-call outputs carry this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_output_turn: Option<String>,
 }
 
 impl ResponseItemEnvelope {

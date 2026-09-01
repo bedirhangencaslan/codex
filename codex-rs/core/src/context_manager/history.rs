@@ -4,6 +4,7 @@ use crate::context::world_state::PersistentModeState;
 use crate::context::world_state::WorldState;
 use crate::context::world_state::WorldStateSnapshot;
 use crate::context_manager::normalize;
+use crate::context_manager::tool_output::shrink_completed_outputs;
 use crate::event_mapping::has_non_contextual_dev_message_content;
 use crate::event_mapping::is_contextual_dev_message_content;
 use crate::event_mapping::is_contextual_user_message_content;
@@ -250,6 +251,10 @@ impl ContextManager {
     /// item. The still-running turn named by `active_turn_id` keeps its own items, so the
     /// model can act on the request it is answering and follow its own thinking across the
     /// tool-call loop. Passing `None` means no turn is running, which drops all of them.
+    ///
+    /// Tool output from a finished turn survives, but noisy build and test output is
+    /// shrunk to its head and tail. That happens at the same boundary, so it costs no
+    /// prompt-cache invalidation beyond what dropping reasoning already costs.
     pub(crate) fn for_prompt_annotated(
         mut self,
         input_modalities: &[InputModality],
@@ -257,24 +262,30 @@ impl ContextManager {
     ) -> Vec<ResponseItemEnvelope> {
         self.drop_completed_turn_scoped_items(active_turn_id);
         self.normalize_history(input_modalities);
-        Arc::unwrap_or_clone(self.items)
+        let mut items = Arc::unwrap_or_clone(self.items);
+        shrink_completed_outputs(&mut items, |envelope| {
+            let owner = envelope
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.tool_output_turn.as_deref());
+            !belongs_to_active_turn(active_turn_id, owner)
+        });
+        items
     }
 
     fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) {
-        let belongs_to_active_turn = |owner: Option<&str>| match (active_turn_id, owner) {
-            (Some(active), Some(owner)) => active == owner,
-            _ => false,
-        };
         let is_completed = |envelope: &ResponseItemEnvelope| {
             let metadata = envelope.metadata.as_ref();
             let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
-            if invisible_owner.is_some() && !belongs_to_active_turn(invisible_owner) {
+            if invisible_owner.is_some() && !belongs_to_active_turn(active_turn_id, invisible_owner)
+            {
                 return true;
             }
             // Reasoning that predates this metadata, or that was never stamped, has no
             // owning turn to compare against and is treated as finished.
             matches!(envelope.item, ResponseItem::Reasoning { .. })
                 && !belongs_to_active_turn(
+                    active_turn_id,
                     metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
                 )
         };
@@ -553,6 +564,16 @@ impl ContextManager {
             }
         }
         cut_idx
+    }
+}
+
+/// Whether a turn-scoped item was produced by the turn that is currently running.
+///
+/// An item with no owner belongs to no running turn, so it counts as finished.
+fn belongs_to_active_turn(active_turn_id: Option<&str>, owner: Option<&str>) -> bool {
+    match (active_turn_id, owner) {
+        (Some(active), Some(owner)) => active == owner,
+        _ => false,
     }
 }
 
