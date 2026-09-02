@@ -62,7 +62,15 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                     json!(text)
                 };
 
-                let mut msg = json!({"role": role, "content": content_value});
+                // Chat Completions has no `developer` role, and GLM rejects the
+                // whole request with error 1214 rather than ignoring it. The
+                // role was introduced as a rename of `system`, so map it back.
+                let chat_role = if role == "developer" {
+                    "system"
+                } else {
+                    role.as_str()
+                };
+                let mut msg = json!({"role": chat_role, "content": content_value});
                 if role == "assistant"
                     && let Some(reasoning) = reasoning_by_anchor_index.get(&idx)
                     && let Some(obj) = msg.as_object_mut()
@@ -374,6 +382,29 @@ mod tests {
             client_metadata: None,
             access_programs: None,
         }
+    }
+
+    #[test]
+    fn rewrites_developer_messages_as_system_messages() {
+        let body = chat_body_from_responses_request(&request(
+            vec![
+                ResponseItem::Message {
+                    id: None,
+                    role: "developer".to_string(),
+                    content: vec![ContentItem::InputText {
+                        text: "environment context".to_string(),
+                    }],
+                    phase: None,
+                    internal_chat_message_metadata_passthrough: None,
+                },
+                user("hello"),
+            ],
+            None,
+        ));
+
+        let messages = body["messages"].as_array().expect("messages");
+        assert_eq!(messages[1]["role"], "system");
+        assert_eq!(messages[1]["content"], "environment context");
     }
 
     #[test]
