@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::Prompt;
+use crate::agents_md_memory::refresh_agents_md_before_compaction;
 use crate::client::ModelClientSession;
 use crate::client_common::ResponseEvent;
 use crate::context::CompactionSummary;
@@ -220,6 +221,10 @@ async fn run_compact_task_inner(
             return Err(error);
         }
     }
+    // Persist what this conversation taught us before its detail is summarized away. This is an
+    // ordinary agent turn, run invisibly: what it records is hidden from every later prompt, so
+    // the compaction below sees byte-identical history whether or not it ran.
+    refresh_agents_md_before_compaction(&sess, turn_context.as_ref()).await;
     let result = run_compact_task_inner_impl(
         Arc::clone(&sess),
         Arc::clone(&turn_context),

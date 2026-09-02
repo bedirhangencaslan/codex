@@ -1,4 +1,5 @@
 mod compact;
+mod memory;
 mod permissions_instructions;
 mod realtime;
 mod review_exit;
@@ -6,6 +7,7 @@ mod review_request;
 
 pub use compact::SUMMARIZATION_PROMPT;
 pub use compact::SUMMARY_PREFIX;
+pub use memory::agents_md_memory_prompt;
 pub use permissions_instructions::ApprovalPromptContext;
 pub use permissions_instructions::PermissionsInstructions;
 pub use realtime::BACKEND_PROMPT;

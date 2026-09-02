@@ -558,6 +558,55 @@ impl TurnContext {
         }
     }
 
+    /// Copies this context for a nested turn that runs the ordinary agent loop but whose items
+    /// are hidden from every later prompt.
+    ///
+    /// Model, settings, tools, and environment are the parent's, so the nested turn behaves
+    /// exactly like the turn it was spawned from. Only `sub_id` differs, because
+    /// `record_conversation_items` stamps that id onto each item as its invisibility owner.
+    pub(crate) fn invisible_child(&self, sub_id: String) -> Self {
+        Self {
+            sub_id,
+            trace_id: self.trace_id.clone(),
+            realtime_active: self.realtime_active,
+            code_mode_available: self.code_mode_available,
+            config: Arc::clone(&self.config),
+            configured_token_budget: self.configured_token_budget.clone(),
+            use_model_token_budget_defaults: self.use_model_token_budget_defaults,
+            auth_manager: self.auth_manager.clone(),
+            initial_settings: Arc::clone(&self.initial_settings),
+            current_settings: ArcSwap::new(self.current_settings.load_full()),
+            session_telemetry: self.session_telemetry.clone(),
+            provider: self.provider.clone(),
+            session_source: self.session_source.clone(),
+            history_mode: self.history_mode,
+            parent_thread_id: self.parent_thread_id,
+            originator: self.originator.clone(),
+            environments: self.environments.clone(),
+            #[allow(deprecated)]
+            cwd: self.cwd.clone(),
+            current_date: self.current_date.clone(),
+            timezone: self.timezone.clone(),
+            app_server_client_name: self.app_server_client_name.clone(),
+            developer_instructions: self.developer_instructions.clone(),
+            multi_agent_version: self.multi_agent_version,
+            network: self.network.clone(),
+            windows_sandbox_level: self.windows_sandbox_level,
+            available_models: self.available_models.clone(),
+            unified_exec_shell_mode: self.unified_exec_shell_mode.clone(),
+            final_output_json_schema: None,
+            dynamic_tools: self.dynamic_tools.clone(),
+            turn_metadata_state: Arc::clone(&self.turn_metadata_state),
+            extension_data: Arc::clone(&self.extension_data),
+            turn_timing_state: Arc::clone(&self.turn_timing_state),
+            terminal_error: Arc::clone(&self.terminal_error),
+            server_model_warning_emitted: AtomicBool::new(true),
+            model_verification_emitted: AtomicBool::new(true),
+            cyber_access_program: self.cyber_access_program,
+            invisible: true,
+        }
+    }
+
     fn non_legacy_file_system_sandbox_policy(&self) -> Option<RawFileSystemSandboxPolicy> {
         // Omit the derived split filesystem policy when it is equivalent to
         // the legacy sandbox policy. This keeps turn-context payloads stable

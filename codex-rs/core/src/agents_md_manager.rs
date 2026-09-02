@@ -65,6 +65,18 @@ impl AgentsMdManager {
         Ok(())
     }
 
+    /// Drops the cached load so the next `refresh` re-reads from disk.
+    ///
+    /// The cache key is the selections and the trust level, neither of which changes when Codex
+    /// itself writes to an AGENTS.md, so without this an in-session edit stays invisible until
+    /// the next process start.
+    pub(crate) async fn invalidate(&self) {
+        let mut cache = self.cache.lock().await;
+        cache.selections = None;
+        cache.active_project_trust_level = None;
+        cache.loaded = None;
+    }
+
     pub(crate) async fn get_loaded(&self) -> Option<Arc<LoadedAgentsMd>> {
         self.cache.lock().await.loaded.clone()
     }

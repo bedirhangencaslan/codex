@@ -184,7 +184,7 @@ async fn read_agents_md(
 
 /// Discovers AGENTS.md files from the project root to the current working
 /// directory, inclusive. Symlinks are allowed.
-async fn agents_md_paths(
+pub(crate) async fn agents_md_paths(
     config: &Config,
     cwd: &PathUri,
     fs: &dyn ExecutorFileSystem,

@@ -1362,7 +1362,7 @@ pub(crate) fn build_prompt(
         cwd = %step_context.turn.cwd.display()
     )
 )]
-async fn run_sampling_request(
+pub(crate) async fn run_sampling_request(
     sess: Arc<Session>,
     step_context: Arc<StepContext>,
     turn_store: Arc<codex_extension_api::ExtensionData>,
@@ -1602,8 +1602,8 @@ pub(crate) async fn built_tools(
 }
 
 #[derive(Debug)]
-struct SamplingRequestResult {
-    needs_follow_up: bool,
+pub(crate) struct SamplingRequestResult {
+    pub(crate) needs_follow_up: bool,
     last_agent_message: Option<String>,
 }
 
