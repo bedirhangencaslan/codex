@@ -26,9 +26,12 @@ use super::status_state::TerminalTitleStatusKind;
 /// custom selection. Intentionally minimal: activity indicator + project name.
 pub(super) const DEFAULT_TERMINAL_TITLE_ITEMS: [&str; 2] = ["activity", "project-name"];
 
-/// Braille-pattern dot-spinner frames for the terminal title animation.
-pub(super) const TERMINAL_TITLE_SPINNER_FRAMES: [&str; 10] =
-    ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+/// Block-shade spinner frames for the terminal title animation. The ramp is
+/// built from the same block glyphs as the accent rail on the session header
+/// and the composer, so every animated surface uses one mark.
+pub(super) const TERMINAL_TITLE_SPINNER_FRAMES: [&str; 14] = [
+    "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎",
+];
 
 /// Time between spinner frame advances in the terminal title.
 pub(super) const TERMINAL_TITLE_SPINNER_INTERVAL: Duration = Duration::from_millis(100);

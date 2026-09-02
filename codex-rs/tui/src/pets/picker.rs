@@ -253,13 +253,13 @@ mod tests {
                 "Disable terminal pets",
                 "BSOD",
                 "Chefito",
-                "Suffice",
                 "Dewey",
                 "Fireball",
                 "Null Signal",
                 "Rocky",
                 "Seedy",
                 "Stacky",
+                "Suffice",
             ],
         );
         assert_eq!(params.initial_selected_idx, Some(2));
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn picker_preselects_codex_without_marking_it_current_when_no_pet_is_configured() {
+    fn picker_preselects_suffice_without_marking_it_current_when_no_pet_is_configured() {
         let codex_home = tempfile::tempdir().unwrap();
         let params = build_pet_picker_params(
             /*current_pet*/ None,
@@ -278,9 +278,9 @@ mod tests {
             PetPickerPreviewState::default(),
         );
 
-        assert_eq!(params.initial_selected_idx, Some(2));
-        assert_eq!(params.items[2].name, "Suffice");
-        assert!(!params.items[2].is_current);
+        assert_eq!(params.initial_selected_idx, Some(8));
+        assert_eq!(params.items[8].name, "Suffice");
+        assert!(!params.items[8].is_current);
     }
 
     #[test]

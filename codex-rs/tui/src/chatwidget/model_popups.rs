@@ -268,9 +268,7 @@ impl ChatWidget {
         let model = preset.model.clone();
         Some(SelectionItem {
             name: format!("{} Plan", preset.display_name),
-            description: Some(
-                "Research and draft a plan before making any changes.".to_string(),
-            ),
+            description: Some("Research and draft a plan before making any changes.".to_string()),
             is_current,
             actions: vec![Box::new(move |tx| {
                 tx.send(AppEvent::UpdateModel(model.clone()));

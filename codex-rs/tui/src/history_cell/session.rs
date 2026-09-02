@@ -7,17 +7,27 @@ use crate::width::display_width;
 
 pub(crate) const SESSION_HEADER_MAX_INNER_WIDTH: usize = 56; // Just an eyeballed value
 
-pub(crate) fn card_inner_width(width: u16, max_inner_width: usize) -> Option<usize> {
-    if width < 4 {
-        return None;
-    }
-    let inner_width = std::cmp::min(width.saturating_sub(4) as usize, max_inner_width);
-    Some(inner_width)
+/// Prefix `line` with the accent rail that marks Suffice's own output.
+///
+/// The rail replaces a full border: it costs two columns instead of four and
+/// leaves the content itself unframed, so the eye follows the text rather than
+/// the box around it.
+pub(crate) fn with_rail(line: Line<'static>) -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::with_capacity(line.spans.len() + 1);
+    spans.push(Span::from("▌ ").cyan());
+    spans.extend(line);
+    Line::from(spans)
 }
 
-/// Render `lines` inside a border sized to the widest span in the content.
-pub(crate) fn with_border(lines: Vec<Line<'static>>) -> Vec<Line<'static>> {
-    with_border_internal(lines, /*forced_inner_width*/ None)
+/// Columns the rail itself occupies, which the content has to give up.
+const RAIL_WIDTH: u16 = 2;
+
+pub(crate) fn rail_inner_width(width: u16, max_inner_width: usize) -> Option<usize> {
+    if width <= RAIL_WIDTH {
+        return None;
+    }
+    let inner_width = std::cmp::min((width - RAIL_WIDTH) as usize, max_inner_width);
+    Some(inner_width)
 }
 
 /// Render `lines` inside a border whose inner width is at least `inner_width`.
@@ -29,17 +39,8 @@ pub(crate) fn with_border_with_inner_width(
     lines: Vec<Line<'static>>,
     inner_width: usize,
 ) -> Vec<Line<'static>> {
-    with_border_internal(lines, Some(inner_width))
-}
-
-fn with_border_internal(
-    lines: Vec<Line<'static>>,
-    forced_inner_width: Option<usize>,
-) -> Vec<Line<'static>> {
     let max_line_width = lines.iter().map(line_width).max().unwrap_or(0);
-    let content_width = forced_inner_width
-        .unwrap_or(max_line_width)
-        .max(max_line_width);
+    let content_width = inner_width.max(max_line_width);
 
     let mut out = Vec::with_capacity(lines.len() + 2);
     let border_inner_width = content_width + 2;
@@ -311,24 +312,23 @@ impl SessionHeaderHistoryCell {
 
 impl HistoryCell for SessionHeaderHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
-        let Some(inner_width) = card_inner_width(width, SESSION_HEADER_MAX_INNER_WIDTH) else {
+        let Some(inner_width) = rail_inner_width(width, SESSION_HEADER_MAX_INNER_WIDTH) else {
             return Vec::new();
         };
 
         let make_row = |spans: Vec<Span<'static>>| Line::from(spans);
 
-        // Title line rendered inside the box: ">_ Suffice (vX)"
+        // Title line: "Suffice  vX"
         let title_spans: Vec<Span<'static>> = vec![
-            Span::from(">_ ").dim(),
             Span::from("Suffice").bold(),
-            Span::from(" ").dim(),
-            Span::from(format!("(v{})", self.version)).dim(),
+            Span::from("  ").dim(),
+            Span::from(format!("v{}", self.version)).dim(),
         ];
 
         const CHANGE_MODEL_HINT_COMMAND: &str = "/model";
         const CHANGE_MODEL_HINT_EXPLANATION: &str = " to change";
-        const DIR_LABEL: &str = "directory:";
-        const PERMISSIONS_LABEL: &str = "permissions:";
+        const DIR_LABEL: &str = "directory";
+        const PERMISSIONS_LABEL: &str = "permissions";
         let label_width = if self.yolo_mode {
             DIR_LABEL.len().max(PERMISSIONS_LABEL.len())
         } else {
@@ -337,7 +337,7 @@ impl HistoryCell for SessionHeaderHistoryCell {
 
         let model_label = format!(
             "{model_label:<label_width$}",
-            model_label = "model:",
+            model_label = "model",
             label_width = label_width
         );
         let reasoning_label = self.reasoning_label();
@@ -382,11 +382,11 @@ impl HistoryCell for SessionHeaderHistoryCell {
             ]));
         }
 
-        let lines = lines
+        lines
             .into_iter()
             .map(|line| truncate_line_with_ellipsis_if_overflow(line, inner_width))
-            .collect();
-        with_border(lines)
+            .map(with_rail)
+            .collect()
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {

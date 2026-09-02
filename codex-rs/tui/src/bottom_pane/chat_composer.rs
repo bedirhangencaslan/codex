@@ -4909,10 +4909,10 @@ impl ChatComposer {
                         .unwrap_or(1.0);
                     tier.prompt(charge)
                 } else {
-                    "›".bold()
+                    "▌".bold()
                 }
             } else {
-                "›".dim()
+                "▌".dim()
             };
             buf.set_span(
                 textarea_rect.x - LIVE_PREFIX_COLS,

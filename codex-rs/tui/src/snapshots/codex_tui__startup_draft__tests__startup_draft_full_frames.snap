@@ -3,68 +3,58 @@ source: tui/src/startup_draft_tests.rs
 expression: "snapshots.join(\"\\n---\\n\")"
 ---
 empty (48 columns):
-╭───────────────────────────────────────╮
-│ >_ Suffice (v<VERSION>)              │
-│                                       │
-│ model:     loading   /model to change │
-│ directory: loading                    │
-╰───────────────────────────────────────╯
+▌ Suffice  v<VERSION>
+▌
+▌ model     loading   /model to change
+▌ directory loading
 
 
-› Ask Suffice to do anything
+▌ Ask Suffice to do anything
 
   ? for shortcuts
 ---
 resuming (48 columns):
-╭───────────────────────────────────────╮
-│ >_ Suffice (v<VERSION>)              │
-│                                       │
-│ model:     loading   /model to change │
-│ directory: loading                    │
-╰───────────────────────────────────────╯
+▌ Suffice  v<VERSION>
+▌
+▌ model     loading   /model to change
+▌ directory loading
   Resuming session…
 
-› Ask Suffice to do anything
+▌ Ask Suffice to do anything
 
   ? for shortcuts
 ---
 forking (48 columns):
-╭───────────────────────────────────────╮
-│ >_ Suffice (v<VERSION>)              │
-│                                       │
-│ model:     loading   /model to change │
-│ directory: loading                    │
-╰───────────────────────────────────────╯
+▌ Suffice  v<VERSION>
+▌
+▌ model     loading   /model to change
+▌ directory loading
   Forking session…
 
-› draft while loading
+▌ draft while loading
 
 
 ---
 multiline (48 columns):
-╭───────────────────────────────────────╮
-│ >_ Suffice (v<VERSION>)              │
-│                                       │
-│ model:     loading   /model to change │
-│ directory: loading                    │
-╰───────────────────────────────────────╯
+▌ Suffice  v<VERSION>
+▌
+▌ model     loading   /model to change
+▌ directory loading
 
 
-› first startup line
+▌ first startup line
   second startup line
 
 
 ---
 narrow (18 columns):
-╭────────────────╮
-│ >_ OpenAI Cod… │
-│                │
-│ model:     lo… │
-│ directory: …ng │
-╰────────────────╯
+▌ Suffice  v<VERSION>
+▌
+▌ model     loadi…
+▌ directory …ading
 
 
-› first startup
+▌ first startup
   line
   second startup
   line

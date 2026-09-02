@@ -1308,8 +1308,8 @@ fn prefixed_wrapped_history_cell_indents_wrapped_lines() {
     assert_eq!(
         rendered,
         vec![
-            "✔ You approved codex to".to_string(),
-            "  run echo something".to_string(),
+            "✔ You approved Suffice".to_string(),
+            "  to run echo something".to_string(),
             "  really long to ensure".to_string(),
             "  wrapping happens this".to_string(),
             "  time".to_string(),
@@ -1948,7 +1948,7 @@ fn session_header_includes_reasoning_level_when_present() {
     let lines = render_lines(&cell.display_lines(/*width*/ 80));
     let model_line = lines
         .iter()
-        .find(|line| line.contains("model:"))
+        .find(|line| line.contains("model "))
         .expect("model line");
 
     assert!(model_line.contains("gpt-4o high   fast"));
@@ -1968,7 +1968,7 @@ fn session_header_hides_fast_status_when_disabled() {
     let lines = render_lines(&cell.display_lines(/*width*/ 80));
     let model_line = lines
         .iter()
-        .find(|line| line.contains("model:"))
+        .find(|line| line.contains("model "))
         .expect("model line");
 
     assert!(model_line.contains("gpt-4o high"));
@@ -1990,7 +1990,12 @@ fn session_header_clamps_to_narrow_width() {
     let lines = cell.display_lines(WIDTH);
     let widths = lines.iter().map(line_width).collect::<Vec<_>>();
 
-    assert_eq!(widths, vec![usize::from(WIDTH); lines.len()]);
+    // The rail leaves lines ragged on the right, so the guarantee is that no
+    // line overflows the viewport rather than that every line fills it.
+    assert!(
+        widths.iter().all(|width| *width <= usize::from(WIDTH)),
+        "line overflowed width {WIDTH}: {widths:?}"
+    );
     insta::assert_snapshot!(render_lines(&lines).join("\n"));
 }
 

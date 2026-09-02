@@ -65,7 +65,7 @@ async fn embedded_exit_keeps_the_session_summary() {
         exit_info.format_exit_messages(/*color_enabled*/ false),
         vec![
             "Token usage: total=2 input=0 output=2",
-            "To continue this session, run codex resume THREAD_ID",
+            "To continue this session, run suffice resume THREAD_ID",
         ]
     );
 }

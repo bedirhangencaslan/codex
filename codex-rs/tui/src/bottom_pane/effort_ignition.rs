@@ -102,10 +102,13 @@ impl EffortTier {
         }
     }
 
+    /// The accent rail that marks the session header, reused here so the same
+    /// mark opens the header and the composer. The heavier block reads as the
+    /// higher tier.
     fn prompt_glyph(self) -> &'static str {
         match self {
-            Self::Max => "›",
-            Self::Ultra => "»",
+            Self::Max => "▌",
+            Self::Ultra => "█",
         }
     }
 
