@@ -1452,9 +1452,14 @@ async fn status_card_token_usage_excludes_cached_tokens() {
     );
     let rendered = render_lines(&composite.display_lines(/*width*/ 120));
 
+    let token_line = rendered
+        .iter()
+        .find(|line| line.contains("Token usage:"))
+        .expect("token usage line");
+
     assert!(
-        rendered.iter().all(|line| !line.contains("cached")),
-        "cached tokens should not be displayed, got: {rendered:?}"
+        token_line.contains("1.9K total") && token_line.contains("1K input"),
+        "cached tokens should be excluded from the reported counts, got: {token_line}"
     );
 }
 

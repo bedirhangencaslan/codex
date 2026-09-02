@@ -68,6 +68,8 @@ pub(crate) struct StatusTokenUsageData {
     total: i64,
     input: i64,
     output: i64,
+    /// Share of session input served from cache, omitted when nothing was cached.
+    cached_percent: Option<i64>,
     context_window: Option<StatusContextWindowData>,
 }
 
@@ -352,6 +354,10 @@ impl StatusHistoryCell {
             total: total_usage.blended_total(),
             input: total_usage.non_cached_input(),
             output: total_usage.output_tokens,
+            cached_percent: total_usage
+                .context_readiness()
+                .map(|ratio| (ratio * 100.0).round() as i64)
+                .filter(|percent| *percent > 0),
             context_window,
         };
         let rate_limits = if rate_limits.len() <= 1 {
@@ -397,7 +403,7 @@ impl StatusHistoryCell {
         let input_fmt = format_tokens_compact(self.token_usage.input);
         let output_fmt = format_tokens_compact(self.token_usage.output);
 
-        vec![
+        let mut spans = vec![
             Span::from(total_fmt),
             Span::from(" total "),
             Span::from(" (").dim(),
@@ -406,8 +412,12 @@ impl StatusHistoryCell {
             Span::from(" + ").dim(),
             Span::from(output_fmt).dim(),
             Span::from(" output").dim(),
-            Span::from(")").dim(),
-        ]
+        ];
+        if let Some(percent) = self.token_usage.cached_percent {
+            spans.push(Span::from(format!(", {percent}% cached")).dim());
+        }
+        spans.push(Span::from(")").dim());
+        spans
     }
 
     fn context_window_spans(&self) -> Option<Vec<Span<'static>>> {

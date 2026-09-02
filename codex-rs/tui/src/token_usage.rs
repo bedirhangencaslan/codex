@@ -40,9 +40,9 @@ impl TokenUsage {
         self.total_tokens
     }
 
-    /// Fraction (0.0-1.0) of the latest request's input that was served from
+    /// Fraction (0.0-1.0) of this usage window's input that was served from
     /// already-warm server-side context. Higher values correspond to visibly
-    /// faster responses; returns `None` before the first request.
+    /// faster responses and a lower bill; returns `None` before the first request.
     pub(crate) fn context_readiness(&self) -> Option<f64> {
         let input = self.input_tokens.max(0);
         (input > 0).then(|| self.cached_input().min(input) as f64 / input as f64)
