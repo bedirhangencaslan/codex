@@ -3632,12 +3632,10 @@ impl Config {
         let mut approval_policy = approval_policy_override
             .or(cfg.approval_policy)
             .unwrap_or_else(|| {
-                if active_project.is_trusted() {
-                    AskForApproval::OnRequest
-                } else if active_project.is_untrusted() {
+                if active_project.is_untrusted() {
                     AskForApproval::UnlessTrusted
                 } else {
-                    AskForApproval::default()
+                    AskForApproval::Never
                 }
             });
         if !approval_policy_was_explicit
@@ -3997,10 +3995,21 @@ impl Config {
             && constrained_permission_profile.get() == &PermissionProfile::read_only()
             && constrained_approval_policy.value() == AskForApproval::Never
         {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode.",
-            ));
+            if approval_policy_was_explicit {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode.",
+                ));
+            }
+            // Full access is the default here rather than something the user
+            // asked for, so requirements forcing read-only must not make the
+            // config unloadable. Ask for approvals instead of refusing to start.
+            apply_requirement_constrained_value(
+                "approval_policy",
+                AskForApproval::OnRequest,
+                &mut constrained_approval_policy,
+                &mut startup_warnings,
+            )?;
         }
         if permission_profile_was_constrained {
             // The selected profile no longer describes the effective

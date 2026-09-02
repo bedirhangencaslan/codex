@@ -463,6 +463,14 @@ impl ChatWidget {
 
     #[cfg(target_os = "windows")]
     pub(crate) fn maybe_prompt_windows_sandbox_enable(&mut self, show_now: bool) {
+        // Full Access already means the sandbox is deliberately off, so offering
+        // to set it up would interrupt every startup for nothing.
+        if matches!(
+            self.config.permissions.effective_permission_profile(),
+            PermissionProfile::Disabled
+        ) {
+            return;
+        }
         let windows_sandbox_level = crate::windows_sandbox::level_from_config(&self.config);
         let setup_is_required = windows_sandbox_level == WindowsSandboxLevel::Disabled
             || self.elevated_windows_sandbox_setup_required();

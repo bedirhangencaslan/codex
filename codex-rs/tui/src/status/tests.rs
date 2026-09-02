@@ -670,6 +670,11 @@ async fn status_permissions_user_defined_profile_shows_name() {
     let mut config = test_config(&temp_home).await;
     config
         .permissions
+        .approval_policy
+        .set(AskForApproval::OnRequest.to_core())
+        .expect("set approval policy");
+    config
+        .permissions
         .set_permission_profile_from_session_snapshot(PermissionProfileSnapshot::active(
             PermissionProfile::read_only(),
             ActivePermissionProfile::new("locked"),
@@ -844,6 +849,11 @@ async fn status_snapshot_shows_auto_review_permissions() {
     config.model = Some("gpt-5.1-codex-max".to_string());
     set_workspace_cwd(&mut config, test_path_buf("/workspace/tests").abs());
     config.approvals_reviewer = ApprovalsReviewer::AutoReview;
+    config
+        .permissions
+        .approval_policy
+        .set(AskForApproval::OnRequest.to_core())
+        .expect("set approval policy");
     config
         .permissions
         .set_permission_profile_from_session_snapshot(PermissionProfileSnapshot::active(

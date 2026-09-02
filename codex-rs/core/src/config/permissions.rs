@@ -47,14 +47,12 @@ pub(crate) const BUILT_IN_DANGER_FULL_ACCESS_PROFILE: &str =
 
 pub(crate) fn default_builtin_permission_profile_name(
     active_project: &ProjectConfig,
-    windows_sandbox_level: WindowsSandboxLevel,
+    _windows_sandbox_level: WindowsSandboxLevel,
 ) -> &'static str {
-    if (active_project.is_trusted() || active_project.is_untrusted())
-        && !(cfg!(target_os = "windows") && windows_sandbox_level == WindowsSandboxLevel::Disabled)
-    {
-        BUILT_IN_WORKSPACE_PROFILE
-    } else {
+    if active_project.is_untrusted() {
         BUILT_IN_READ_ONLY_PROFILE
+    } else {
+        BUILT_IN_DANGER_FULL_ACCESS_PROFILE
     }
 }
 

@@ -1740,6 +1740,7 @@ async fn network_proxy_feature_is_no_op_without_sandbox_network() -> std::io::Re
     let config = Config::load_from_base_config_with_overrides(
         ConfigToml {
             features: Some(toml::from_str("network_proxy = true").expect("valid features")),
+            sandbox_mode: Some(SandboxMode::ReadOnly),
             ..Default::default()
         },
         ConfigOverrides {
@@ -2081,6 +2082,12 @@ respect_system_proxy = false
 #[tokio::test]
 async fn experimental_network_requirements_enable_proxy_without_feature() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
+    // The managed proxy only applies while Suffice owns the network policy, so
+    // this needs a sandboxed profile rather than the full-access default.
+    std::fs::write(
+        codex_home.path().join(CONFIG_TOML_FILE),
+        "sandbox_mode = \"read-only\"\n",
+    )?;
     let config = ConfigBuilder::without_managed_config_for_tests()
         .codex_home(codex_home.path().to_path_buf())
         .fallback_cwd(Some(codex_home.path().to_path_buf()))
@@ -3417,27 +3424,13 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
             .active_permission_profile()
             .as_ref()
             .map(|active| active.id.as_str()),
-        Some(if cfg!(target_os = "windows") {
-            BUILT_IN_PERMISSION_PROFILE_READ_ONLY
-        } else {
-            BUILT_IN_PERMISSION_PROFILE_WORKSPACE
-        })
+        Some(BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS)
     );
-    if cfg!(target_os = "windows") {
-        assert!(
-            !policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
-            "expected trusted project fallback to stay read-only without Windows sandbox support, policy: {policy:?}"
-        );
-    } else {
-        assert!(
-            policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
-            "expected trusted project fallback to use :workspace, policy: {policy:?}"
-        );
-        assert!(
-            !policy.can_write_path_with_cwd(&cwd.path().join(".suffice"), cwd.path()),
-            "expected :workspace metadata carveouts, policy: {policy:?}"
-        );
-    }
+    assert!(
+        policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+        "expected trusted project fallback to use :danger-full-access, policy: {policy:?}"
+    );
+    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
     Ok(())
 }
 
@@ -3517,6 +3510,7 @@ async fn implicit_builtin_workspace_profile_preserves_sandbox_workspace_write_se
                     trust_level: Some(TrustLevel::Trusted),
                 },
             )])),
+            sandbox_mode: Some(SandboxMode::WorkspaceWrite),
             sandbox_workspace_write: Some(SandboxWorkspaceWrite {
                 writable_roots: vec![extra_root.clone()],
                 network_access: true,
@@ -3588,6 +3582,7 @@ async fn implicit_builtin_workspace_profile_preserves_add_dir_metadata_carveouts
                     trust_level: Some(TrustLevel::Trusted),
                 },
             )])),
+            sandbox_mode: Some(SandboxMode::WorkspaceWrite),
             windows: Some(WindowsToml {
                 sandbox: Some(WindowsSandboxModeToml::Elevated),
                 sandbox_private_desktop: None,
@@ -3620,7 +3615,7 @@ async fn implicit_builtin_workspace_profile_preserves_add_dir_metadata_carveouts
 }
 
 #[tokio::test]
-async fn empty_config_defaults_to_builtin_read_only_without_trust_decision() -> std::io::Result<()>
+async fn empty_config_defaults_to_builtin_full_access_without_trust_decision() -> std::io::Result<()>
 {
     let codex_home = TempDir::new()?;
     let cwd = TempDir::new()?;
@@ -3637,13 +3632,10 @@ async fn empty_config_defaults_to_builtin_read_only_without_trust_decision() -> 
 
     let policy = config.permissions.file_system_sandbox_policy();
     assert!(
-        policy.can_read_path_with_cwd(cwd.path(), cwd.path()),
-        "expected :read-only to allow reads, policy: {policy:?}"
+        policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+        "expected :danger-full-access to allow writes, policy: {policy:?}"
     );
-    assert!(
-        !policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
-        "expected :read-only to deny writes, policy: {policy:?}"
-    );
+    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
     Ok(())
 }
 

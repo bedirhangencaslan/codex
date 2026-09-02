@@ -2,6 +2,7 @@ use super::*;
 use crate::legacy_core::config::PermissionProfileCatalogEntry;
 use codex_protocol::models::ActivePermissionProfile;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS;
+use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_READ_ONLY;
 use codex_protocol::models::ManagedFileSystemPermissions;
 use codex_protocol::permissions::FileSystemAccessMode;
 use codex_protocol::permissions::FileSystemPath;
@@ -52,6 +53,19 @@ fn app_server_workspace_write_profile(extra_root: AbsolutePathBuf) -> Permission
             glob_scan_max_depth: None,
         },
     }
+}
+
+/// Moves the widget off the full-access default so popup navigation starts from
+/// a known row.
+fn select_read_only_permissions(chat: &mut ChatWidget) {
+    chat.config
+        .permissions
+        .set_permission_profile_from_session_snapshot(PermissionProfileSnapshot::active(
+            PermissionProfile::read_only(),
+            ActivePermissionProfile::new(BUILT_IN_PERMISSION_PROFILE_READ_ONLY),
+        ))
+        .expect("set active profile");
+    chat.set_approval_policy(AskForApproval::OnRequest);
 }
 
 fn windows_sandbox_requirements_stack(
@@ -107,6 +121,7 @@ async fn profile_permissions_selection_popup_snapshot() {
             ActivePermissionProfile::new(":workspace"),
         ))
         .expect("set active profile");
+    chat.set_approval_policy(AskForApproval::OnRequest);
 
     chat.open_permissions_popup();
 
@@ -120,6 +135,7 @@ async fn profile_permissions_selection_popup_snapshot() {
 async fn profile_permissions_selection_popup_with_disallowed_full_access_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.config.explicit_permission_profile_mode = true;
+    select_read_only_permissions(&mut chat);
     chat.config.config_layer_stack = requirements_stack(codex_config::ConfigRequirementsToml {
         allowed_sandbox_modes: Some(vec![
             codex_config::SandboxModeRequirement::ReadOnly,
@@ -272,6 +288,7 @@ async fn profile_permissions_full_access_always_opens_confirmation() {
     chat.config.explicit_permission_profile_mode = true;
     chat.set_feature_enabled(Feature::GuardianApproval, /*enabled*/ false);
     chat.config.notices.hide_full_access_warning = Some(true);
+    select_read_only_permissions(&mut chat);
 
     chat.open_permissions_popup();
     chat.handle_key_event(KeyEvent::from(KeyCode::Up));
@@ -435,6 +452,7 @@ async fn windows_auto_mode_prompt_requests_enabling_sandbox_feature() {
 async fn startup_prompts_for_windows_sandbox_when_agent_requested() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
+    select_read_only_permissions(&mut chat);
     chat.set_feature_enabled(Feature::WindowsSandbox, /*enabled*/ false);
     chat.set_feature_enabled(Feature::WindowsSandboxElevated, /*enabled*/ false);
 
@@ -464,6 +482,7 @@ async fn startup_prompts_for_windows_sandbox_when_agent_requested() {
 async fn startup_windows_sandbox_prompt_blocks_disallowed_unelevated_fallback() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
+    select_read_only_permissions(&mut chat);
     chat.set_feature_enabled(Feature::WindowsSandbox, /*enabled*/ false);
     chat.set_feature_enabled(Feature::WindowsSandboxElevated, /*enabled*/ false);
     chat.config.config_layer_stack =
@@ -863,6 +882,7 @@ async fn permissions_selection_history_snapshot_after_mode_switch() {
         chat.config.notices.hide_world_writable_warning = Some(true);
         chat.set_windows_sandbox_mode(Some(WindowsSandboxModeToml::Unelevated));
     }
+    select_read_only_permissions(&mut chat);
     chat.set_feature_enabled(Feature::GuardianApproval, /*enabled*/ false);
     chat.open_permissions_popup();
     chat.handle_key_event(KeyEvent::from(KeyCode::Down));
@@ -1239,6 +1259,7 @@ async fn permissions_full_access_history_cell_emitted_only_after_confirmation() 
         chat.config.notices.hide_world_writable_warning = Some(true);
         chat.set_windows_sandbox_mode(Some(WindowsSandboxModeToml::Unelevated));
     }
+    select_read_only_permissions(&mut chat);
     chat.set_feature_enabled(Feature::GuardianApproval, /*enabled*/ false);
     chat.open_permissions_popup();
     chat.handle_key_event(KeyEvent::from(KeyCode::Down));
