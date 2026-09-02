@@ -33,23 +33,19 @@
       "default_reasoning_summary": "none",
       "display_name": "GLM 5.3",
       "description": "Fast agentic coding model.",
-      "default_reasoning_level": "medium",
+      "default_reasoning_level": "high",
       "supported_reasoning_levels": [
-        {
-          "effort": "none",
-          "description": "No extended thinking; fastest and cheapest"
-        },
         {
           "effort": "low",
           "description": "Fast responses with lighter reasoning"
         },
         {
-          "effort": "medium",
-          "description": "Balances speed and reasoning depth for everyday tasks"
-        },
-        {
           "effort": "high",
           "description": "Greater reasoning depth for complex problems"
+        },
+        {
+          "effort": "max",
+          "description": "Deepest reasoning; slowest and most expensive"
         }
       ],
       "shell_type": "unified_exec",
