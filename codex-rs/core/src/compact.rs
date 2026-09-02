@@ -60,13 +60,14 @@ use tracing::error;
 
 pub use codex_prompts::SUMMARIZATION_PROMPT;
 pub use codex_prompts::SUMMARY_PREFIX;
-/// Budget for the user's own messages, which are always preserved verbatim.
-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 12_000;
+/// Budget for the user's own messages, which are always preserved verbatim. User prompts are
+/// short next to what the agent produces, so this rarely binds.
+const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 5_000;
 /// Budget for assistant answers that survive compaction verbatim. Spent newest-first over whole
 /// request groups; a group that does not fit entirely is summarized instead of partially kept.
 ///
-/// Together with the user budget and the summary this puts the post-compaction floor around 21k,
-/// leaving roughly 59k of runway before the next compaction at the 80k auto-compact limit.
+/// Together with the user budget and the summary this puts the post-compaction floor around 14k,
+/// leaving roughly 66k of runway before the next compaction at the 80k auto-compact limit.
 const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 8_000;
 
 /// Controls whether compaction replacement history must include initial context.
