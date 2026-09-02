@@ -16,3 +16,7 @@ pub fn agents_md_memory_prompt(agents_md_path: &str) -> String {
         .render([("agents_md_path", agents_md_path)])
         .unwrap_or_else(|err| panic!("agents md memory prompt must render: {err}"))
 }
+
+#[cfg(test)]
+#[path = "memory_tests.rs"]
+mod memory_tests;
