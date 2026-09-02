@@ -62,13 +62,17 @@ pub use codex_prompts::SUMMARIZATION_PROMPT;
 pub use codex_prompts::SUMMARY_PREFIX;
 /// Budget for the user's own messages, which are always preserved verbatim. User prompts are
 /// short next to what the agent produces, so this rarely binds.
-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 5_000;
+const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 4_000;
 /// Budget for assistant answers that survive compaction verbatim. Spent newest-first over whole
 /// request groups; a group that does not fit entirely is summarized instead of partially kept.
+const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 10_000;
+/// Budget for the model's summary of the assistant answers that did not survive verbatim. The
+/// prompt asks for this much; the cap is the backstop when the model overruns. Truncation is
+/// middle-out, so the numbered request list and the concrete next step both survive.
 ///
-/// Together with the user budget and the summary this puts the post-compaction floor around 14k,
-/// leaving roughly 66k of runway before the next compaction at the 80k auto-compact limit.
-const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 8_000;
+/// 4k + 10k + 3k puts the post-compaction floor around 17k, leaving roughly 63k of runway before
+/// the next compaction at the 80k auto-compact limit.
+const COMPACT_SUMMARY_MAX_TOKENS: usize = 3_000;
 
 /// Controls whether compaction replacement history must include initial context.
 ///
@@ -373,8 +377,10 @@ async fn run_compact_task_inner_impl(
 
     let history_snapshot = sess.clone_history().await;
     let history_items = history_snapshot.annotated_items();
-    let summary_suffix =
-        get_last_assistant_message_from_turn(history_snapshot.raw_items()).unwrap_or_default();
+    let summary_suffix = truncate_text(
+        &get_last_assistant_message_from_turn(history_snapshot.raw_items()).unwrap_or_default(),
+        TruncationPolicy::Tokens(COMPACT_SUMMARY_MAX_TOKENS),
+    );
     let summary_text = format!("{SUMMARY_PREFIX}\n{summary_suffix}");
     let user_messages = collect_annotated_user_messages(history_items);
 

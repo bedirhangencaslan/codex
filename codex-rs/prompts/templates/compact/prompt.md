@@ -12,3 +12,5 @@ After the list, add only what the next LLM cannot recover from the user messages
 - The concrete next step
 
 Keep each entry to one or two lines. Do not restate the user's requests verbatim; they are preserved. Do not narrate tool calls, only what they established.
+
+Stay under 3000 tokens. Anything past that is cut.
