@@ -5663,6 +5663,13 @@
             "responses"
           ],
           "type": "string"
+        },
+        {
+          "description": "OpenAI-compatible `/chat/completions`. Requests and SSE frames are translated to and from the Responses shape inside `codex-api`.",
+          "enum": [
+            "chat"
+          ],
+          "type": "string"
         }
       ]
     },

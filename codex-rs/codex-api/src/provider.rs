@@ -35,6 +35,19 @@ impl RetryConfig {
     }
 }
 
+/// Wire protocol a provider speaks on its inference route.
+///
+/// Codex is Responses-native. `Chat` exists for providers that only expose an
+/// OpenAI-compatible `/chat/completions` endpoint (Z.ai/GLM, most OSS servers);
+/// requests and SSE frames are translated at the `ResponsesClient` boundary so
+/// the rest of the codebase never sees the difference.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WireApi {
+    #[default]
+    Responses,
+    Chat,
+}
+
 /// HTTP endpoint configuration used to talk to a concrete API deployment.
 ///
 /// Encapsulates base URL, default headers, query params, retry policy, and
@@ -47,6 +60,7 @@ pub struct Provider {
     pub headers: HeaderMap,
     pub retry: RetryConfig,
     pub stream_idle_timeout: Duration,
+    pub wire: WireApi,
 }
 
 impl Provider {
