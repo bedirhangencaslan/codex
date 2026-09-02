@@ -4,10 +4,13 @@ use crate::common::ResponsesApiRequest;
 use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::provider::Provider;
+use crate::provider::WireApi;
 use crate::requests::Compression;
+use crate::requests::chat::chat_body_from_responses_request;
 use crate::requests::headers::build_session_headers;
 use crate::requests::headers::insert_header;
 use crate::requests::headers::subagent_header;
+use crate::sse::spawn_chat_stream;
 use crate::sse::spawn_response_stream;
 use crate::telemetry::SseTelemetry;
 use codex_client::EncodedJsonBody;
@@ -113,8 +116,14 @@ impl<T: HttpTransport> ResponsesClient<T> {
             turn_state,
         } = options;
 
-        let body = EncodedJsonBody::encode(&request)
-            .map_err(|e| ApiError::Stream(format!("failed to encode responses request: {e}")))?;
+        // Chat-only providers get the request rewritten here and their SSE
+        // frames rewritten back, so nothing above this call site is aware of
+        // the wire difference.
+        let body = match self.session.provider().wire {
+            WireApi::Responses => EncodedJsonBody::encode(&request),
+            WireApi::Chat => EncodedJsonBody::encode(&chat_body_from_responses_request(&request)),
+        }
+        .map_err(|e| ApiError::Stream(format!("failed to encode responses request: {e}")))?;
 
         let mut headers = extra_headers;
         if let Some(ref thread_id) = thread_id {
@@ -165,11 +174,17 @@ impl<T: HttpTransport> ResponsesClient<T> {
             Compression::Zstd => RequestCompression::Zstd,
         };
 
+        let wire = self.session.provider().wire;
+        let path = match wire {
+            WireApi::Responses => self.endpoint.path(),
+            WireApi::Chat => "/chat/completions",
+        };
+
         let stream_response = self
             .session
             .stream_encoded_json_with(
                 Method::POST,
-                self.endpoint.path(),
+                path,
                 extra_headers,
                 Some(body),
                 |req| {
@@ -182,11 +197,17 @@ impl<T: HttpTransport> ResponsesClient<T> {
             )
             .await?;
 
-        Ok(spawn_response_stream(
-            stream_response,
-            self.session.provider().stream_idle_timeout,
-            self.sse_telemetry.clone(),
-            turn_state,
-        ))
+        let idle_timeout = self.session.provider().stream_idle_timeout;
+        Ok(match wire {
+            WireApi::Responses => spawn_response_stream(
+                stream_response,
+                idle_timeout,
+                self.sse_telemetry.clone(),
+                turn_state,
+            ),
+            WireApi::Chat => {
+                spawn_chat_stream(stream_response, idle_timeout, self.sse_telemetry.clone())
+            }
+        })
     }
 }
