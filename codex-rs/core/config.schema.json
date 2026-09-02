@@ -832,6 +832,9 @@
             "project_memory": {
               "type": "boolean"
             },
+            "prompt_cache_keep_alive": {
+              "type": "boolean"
+            },
             "psp": {
               "type": "boolean"
             },
@@ -6110,6 +6113,9 @@
           "type": "boolean"
         },
         "project_memory": {
+          "type": "boolean"
+        },
+        "prompt_cache_keep_alive": {
           "type": "boolean"
         },
         "psp": {

@@ -171,6 +171,8 @@ pub enum Feature {
     MemoryTool,
     /// Refresh the project's AGENTS.md from the conversation right before compaction.
     ProjectMemory,
+    /// Replay the last request while idle so the provider's prompt cache stays warm.
+    PromptCacheKeepAlive,
     /// Enable importing project-scoped memory from external agents.
     ExternalAgentMemoryImport,
     /// Compress cold local thread-store rollout files.
@@ -1071,6 +1073,12 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::ProjectMemory,
         key: "project_memory",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::PromptCacheKeepAlive,
+        key: "prompt_cache_keep_alive",
         stage: Stage::Stable,
         default_enabled: true,
     },

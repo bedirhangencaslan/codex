@@ -61,6 +61,7 @@ use codex_api::SseTelemetry;
 use codex_api::StreamOptions;
 use codex_api::TransportError;
 use codex_api::WebsocketTelemetry;
+use codex_api::WireApi as ApiWireApi;
 use codex_api::auth_header_telemetry;
 use codex_api::build_session_headers;
 use codex_api::create_text_param_for_request;
@@ -102,6 +103,7 @@ use futures::StreamExt;
 use http::HeaderMap as ApiHeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
+use serde_json::Value;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -125,6 +127,7 @@ use crate::context::BaseInstructionsFragment;
 use crate::context::ContextualUserFragment;
 use crate::cyber_access_program;
 use crate::feedback_tags;
+use crate::prompt_cache_keep_alive::PromptCacheKeepAlive;
 use crate::responses_metadata::CodexResponsesMetadata;
 use crate::responses_metadata::subagent_header_value;
 use crate::util::emit_feedback_auth_recovery_tags;
@@ -254,6 +257,7 @@ struct ModelClientState {
     disable_websockets: AtomicBool,
     agent_identity_session_fallback: AgentIdentitySessionFallback,
     cached_websocket_session: StdMutex<WebsocketSession>,
+    prompt_cache_keep_alive: Arc<PromptCacheKeepAlive>,
 }
 
 /// Resolved API client setup for a single request attempt.
@@ -295,6 +299,7 @@ pub struct ModelClient {
     agent_identity_policy: AgentIdentityAuthPolicy,
     prompt_cache_key_override: Option<String>,
     free_guardian_enabled: bool,
+    prompt_cache_keep_alive_enabled: bool,
     event_sender: Option<Sender<ProtocolEvent>>,
     http_client_factory: HttpClientFactory,
 }
@@ -513,10 +518,12 @@ impl ModelClient {
                 disable_websockets: AtomicBool::new(false),
                 agent_identity_session_fallback: AgentIdentitySessionFallback::default(),
                 cached_websocket_session: StdMutex::new(WebsocketSession::default()),
+                prompt_cache_keep_alive: Arc::new(PromptCacheKeepAlive::new()),
             }),
             agent_identity_policy,
             prompt_cache_key_override: None,
             free_guardian_enabled: false,
+            prompt_cache_keep_alive_enabled: false,
             event_sender: None,
             http_client_factory,
         }
@@ -525,6 +532,26 @@ impl ModelClient {
     pub(crate) fn with_free_guardian_enabled(mut self, free_guardian_enabled: bool) -> Self {
         self.free_guardian_enabled = free_guardian_enabled;
         self
+    }
+
+    pub(crate) fn with_prompt_cache_keep_alive(
+        mut self,
+        prompt_cache_keep_alive_enabled: bool,
+    ) -> Self {
+        self.prompt_cache_keep_alive_enabled = prompt_cache_keep_alive_enabled;
+        self
+    }
+
+    /// Returns a slot for the outgoing wire body when an idle session could usefully replay it.
+    ///
+    /// Only the Chat wire qualifies. Its prompt cache is keyed by the literal message prefix, so
+    /// resending the body is what refreshes the entry, and its request shape has an output cap that
+    /// keeps the replay to a single token. The Responses wire has neither: its cache is named by a
+    /// server-owned `prompt_cache_key`, and a replay there would generate a full answer at full
+    /// price.
+    fn prompt_cache_keep_alive_slot(&self, provider: &ApiProvider) -> Option<Arc<OnceLock<Value>>> {
+        (self.prompt_cache_keep_alive_enabled && provider.wire == ApiWireApi::Chat)
+            .then(|| Arc::new(OnceLock::new()))
     }
 
     pub(crate) fn with_session_context(
@@ -1331,6 +1358,7 @@ impl ModelClientSession {
             },
             compression,
             turn_state: Some(Arc::clone(&self.turn_state)),
+            sent_body: None,
         }
     }
 
@@ -1645,6 +1673,20 @@ impl ModelClientSession {
             let inference_trace_attempt = inference_trace.start_attempt();
             inference_trace_attempt.add_request_headers(&mut options.extra_headers);
             inference_trace_attempt.record_started(&request);
+            // Copy what an idle replay would need before it all moves into the client. The body
+            // itself is filled in by the endpoint, so this arms only once the request succeeded.
+            let keep_alive_material = self
+                .client
+                .prompt_cache_keep_alive_slot(&client_setup.api_provider)
+                .map(|body| {
+                    options.sent_body = Some(Arc::clone(&body));
+                    (
+                        transport.clone(),
+                        client_setup.api_provider.clone(),
+                        Arc::clone(&client_setup.api_auth),
+                        body,
+                    )
+                });
             let client = ApiResponsesClient::new(
                 transport,
                 client_setup.api_provider,
@@ -1656,6 +1698,12 @@ impl ModelClientSession {
 
             match stream_result {
                 Ok(stream) => {
+                    if let Some((transport, provider, auth, body)) = keep_alive_material {
+                        self.client
+                            .state
+                            .prompt_cache_keep_alive
+                            .arm(transport, provider, auth, body);
+                    }
                     let (stream, _) = map_response_stream(
                         stream,
                         request_session_telemetry,

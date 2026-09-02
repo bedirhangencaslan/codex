@@ -63,6 +63,13 @@ pub struct ResponsesOptions {
     pub extra_headers: HeaderMap,
     pub compression: Compression,
     pub turn_state: Option<Arc<OnceLock<String>>>,
+    /// Receives the body that actually went on the wire.
+    ///
+    /// The prompt-cache keep-alive replays it verbatim while the session is
+    /// idle; rebuilding it later would cost a second full translation pass.
+    /// Only filled for [`WireApi::Chat`], the one wire whose cache is keyed by
+    /// the literal message prefix.
+    pub sent_body: Option<Arc<OnceLock<Value>>>,
 }
 
 impl<T: HttpTransport> ResponsesClient<T> {
@@ -114,6 +121,7 @@ impl<T: HttpTransport> ResponsesClient<T> {
             extra_headers,
             compression,
             turn_state,
+            sent_body,
         } = options;
 
         // Chat-only providers get the request rewritten here and their SSE
@@ -121,7 +129,14 @@ impl<T: HttpTransport> ResponsesClient<T> {
         // the wire difference.
         let body = match self.session.provider().wire {
             WireApi::Responses => EncodedJsonBody::encode(&request),
-            WireApi::Chat => EncodedJsonBody::encode(&chat_body_from_responses_request(&request)),
+            WireApi::Chat => {
+                let chat_body = chat_body_from_responses_request(&request);
+                let encoded = EncodedJsonBody::encode(&chat_body);
+                if let Some(slot) = sent_body {
+                    let _ = slot.set(chat_body);
+                }
+                encoded
+            }
         }
         .map_err(|e| ApiError::Stream(format!("failed to encode responses request: {e}")))?;
 
