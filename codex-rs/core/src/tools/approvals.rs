@@ -485,7 +485,7 @@ impl ApprovalResolution {
             ReviewDecision::TimedOut => {
                 Err(ToolError::Rejected(guardian_timeout_message(model_info)))
             }
-            ReviewDecision::Abort => Err(ToolError::Codex(CodexErr::TurnAborted)),
+            ReviewDecision::Abort => Err(ToolError::Suffice(CodexErr::TurnAborted)),
             decision => Ok(decision),
         }
     }

@@ -23,7 +23,7 @@ tests unless the test needs more precise control over its executor.
 ### app-server
 
 Start the server with `TestAppServer::new_with_auto_env()` unless the test defines its own
-`$CODEX_HOME/environments.toml` or will define custom environments at runtime.
+`$SUFFICE_HOME/environments.toml` or will define custom environments at runtime.
 
 Start threads with `TestAppServer::send_thread_start_request_with_auto_env()` if you've created the
 server with the `auto_env` approach. Omit `ThreadStartParams.environments` (leave it as `None`) when
@@ -100,7 +100,7 @@ bazel test //codex-rs/app-server:app-server-all-wine-exec-test
 
 You can use a devbox to run these tests if you are running on a macOS machine.
 
-You can list devboxes via `applied_devbox ls`, pick the one with `codex` in the name.
+You can list devboxes via `applied_devbox ls`, pick the one with `suffice` in the name.
 Connect to devbox via `ssh <devbox_name>`.
 Reuse the same checkout of codex in `~/code/codex`. Reset files if needed. Multiple checkouts take longer to build and take up more space.
 Check whether the SHA and modified files are in sync between remote and local.

@@ -2005,10 +2005,10 @@ fn executor_stop_hook_fixture() -> (
         plugin_root: "file:///plugins/computer-use"
             .parse()
             .expect("valid plugin root URI"),
-        manifest_path: "file:///plugins/computer-use/.codex-plugin/plugin.json"
+        manifest_path: "file:///plugins/computer-use/.suffice-plugin/plugin.json"
             .parse()
             .expect("valid plugin manifest URI"),
-        source_relative_path: ".codex-plugin/plugin.json#hooks[0]".to_string(),
+        source_relative_path: ".suffice-plugin/plugin.json#hooks[0]".to_string(),
         hooks: HookEventsToml {
             stop: vec![MatcherGroup {
                 matcher: None,
@@ -2040,10 +2040,10 @@ fn executor_stop_hook_fixture() -> (
                 environment_id: "executor-a".to_string(),
                 mcp_environment_id: None,
                 mcp_metadata: None,
-                manifest_path: "file:///plugins/computer-use/.codex-plugin/plugin.json"
+                manifest_path: "file:///plugins/computer-use/.suffice-plugin/plugin.json"
                     .parse()
                     .expect("valid plugin manifest URI"),
-                source_relative_path: ".codex-plugin/plugin.json#hooks[0]".to_string(),
+                source_relative_path: ".suffice-plugin/plugin.json#hooks[0]".to_string(),
             },
             source: HookSource::Plugin,
             display_order: 0,

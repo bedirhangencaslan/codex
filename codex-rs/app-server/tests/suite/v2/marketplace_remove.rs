@@ -131,10 +131,10 @@ async fn marketplace_remove_preserves_project_marketplace(user_entry: bool) -> R
     if user_entry {
         record_user_marketplace(codex_home.path(), "debug", &configured_marketplace_update())?;
     }
-    // TestAppServer starts in CODEX_HOME, so make it a trusted project as well.
+    // TestAppServer starts in SUFFICE_HOME, so make it a trusted project as well.
     std::fs::create_dir_all(codex_home.path().join(".git"))?;
-    std::fs::create_dir_all(codex_home.path().join(".codex"))?;
-    let project_config_path = codex_home.path().join(".codex/config.toml");
+    std::fs::create_dir_all(codex_home.path().join(".suffice"))?;
+    let project_config_path = codex_home.path().join(".suffice/config.toml");
     let project_config = "[marketplaces.debug]\nsource_type = \"git\"\nsource = \"https://github.com/owner/repo.git\"\n";
     std::fs::write(&project_config_path, project_config)?;
     set_project_trust_level(codex_home.path(), codex_home.path(), TrustLevel::Trusted)?;

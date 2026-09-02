@@ -148,7 +148,7 @@ policy:
             }),
             policy: Some(SkillPolicy {
                 allow_implicit_invocation: Some(false),
-                products: vec![Product::Codex, Product::Chatgpt, Product::Atlas],
+                products: vec![Product::Suffice, Product::Chatgpt, Product::Atlas],
             }),
             path_to_skills_md: skill_path,
             scope: SkillScope::User,
@@ -361,7 +361,7 @@ async fn skips_hidden_host_skills() {
 #[tokio::test]
 async fn discovers_nested_plugin_namespace_without_plugin_identity() {
     let root = TempDir::new().expect("temp dir");
-    let plugin_manifest = root.path().join("nested/.codex-plugin/plugin.json");
+    let plugin_manifest = root.path().join("nested/.suffice-plugin/plugin.json");
     fs::create_dir_all(plugin_manifest.parent().expect("plugin manifest parent"))
         .expect("create plugin manifest directory");
     fs::write(&plugin_manifest, r#"{"name":"plugin-name"}"#).expect("write plugin manifest");
@@ -479,7 +479,7 @@ async fn recursive_plugin_root_preserves_owner_namespace_and_shared_asset_policy
         "skills/group/demo",
         "name: demo\ndescription: Demo skill",
     );
-    let nested_manifest = root.path().join("skills/group/.codex-plugin/plugin.json");
+    let nested_manifest = root.path().join("skills/group/.suffice-plugin/plugin.json");
     fs::create_dir_all(nested_manifest.parent().expect("nested manifest parent"))
         .expect("create nested plugin manifest directory");
     fs::write(nested_manifest, r#"{"name":"conflicting-plugin"}"#)

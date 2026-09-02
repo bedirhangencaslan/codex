@@ -1,4 +1,4 @@
-//! Measures local CODEX_HOME storage once at standalone app-server startup.
+//! Measures local SUFFICE_HOME storage once at standalone app-server startup.
 //!
 //! The background scan sums regular-file lengths, without reading file contents or
 //! following symlinks. Incomplete scans emit no samples, and shutdown cancels the scan.
@@ -33,7 +33,7 @@ pub(crate) fn spawn(
         let sizes = match directory_sizes(&codex_home, &shutdown) {
             Ok(sizes) => sizes,
             Err(error) => {
-                tracing::debug!(error_kind = ?error.kind(), "Skipping CODEX_HOME size metrics");
+                tracing::debug!(error_kind = ?error.kind(), "Skipping SUFFICE_HOME size metrics");
                 return;
             }
         };

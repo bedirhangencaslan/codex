@@ -26,7 +26,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub enum RolloutCompressionMode {
     /// Preserve compatibility with readers that require shared lineages to remain plain JSONL.
     Standalone,
-    /// Requires every reader of this Codex home to support compressed shared lineages.
+    /// Requires every reader of this Suffice home to support compressed shared lineages.
     IncludeShared,
 }
 

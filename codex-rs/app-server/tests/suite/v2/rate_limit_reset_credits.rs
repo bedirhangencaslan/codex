@@ -49,7 +49,7 @@ async fn consume_rate_limit_reset_credit_requires_chatgpt_auth() -> Result<()> {
     assert_eq!(consume_error.error.code, INVALID_REQUEST_ERROR_CODE);
     assert_eq!(
         consume_error.error.message,
-        "codex account authentication required for rate limit reset credits"
+        "suffice account authentication required for rate limit reset credits"
     );
 
     login_with_api_key(&mut mcp, "sk-test-key").await?;

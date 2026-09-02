@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
-  "name": "Codex (Secure)",
+  "name": "Suffice (Secure)",
   "build": {
     "dockerfile": "Dockerfile.secure",
     "context": "..",

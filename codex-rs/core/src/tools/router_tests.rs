@@ -447,7 +447,7 @@ async fn specs_filter_deferred_dynamic_tools() -> anyhow::Result<()> {
     let visible_tool = "visible_dynamic_tool";
     let dynamic_tools = vec![DynamicToolSpec::Namespace(DynamicToolNamespaceSpec {
         name: "codex_app".to_string(),
-        description: "Codex app tools.".to_string(),
+        description: "Suffice app tools.".to_string(),
         tools: vec![
             DynamicToolNamespaceTool::Function(DynamicToolFunctionSpec {
                 name: hidden_tool.to_string(),
@@ -487,7 +487,7 @@ async fn specs_filter_deferred_dynamic_tools() -> anyhow::Result<()> {
     );
     assert_eq!(
         router.deferred_tool_namespaces(),
-        BTreeMap::from([("codex_app".to_string(), "Codex app tools.".to_string())])
+        BTreeMap::from([("codex_app".to_string(), "Suffice app tools.".to_string())])
     );
 
     let updated_router = test_tool_router(step_context.as_ref(), Vec::new(), Vec::new(), &[]);

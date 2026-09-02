@@ -103,9 +103,9 @@ fn resolves_primary_runtime_scripts_from_the_installed_plugin_cache() {
     let temp = TempDir::new().expect("temp dir");
     let marketplace_root = temp.path().join("openai-primary-runtime");
     let source_root = marketplace_root.join("plugins/presentations");
-    fs::create_dir_all(source_root.join(".codex-plugin")).expect("create manifest directory");
+    fs::create_dir_all(source_root.join(".suffice-plugin")).expect("create manifest directory");
     fs::write(
-        source_root.join(".codex-plugin/plugin.json"),
+        source_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"presentations","version":"0.1.29"}"#,
     )
     .expect("write plugin manifest");
@@ -238,7 +238,7 @@ fn recognizes_windows_executor_plugin_cache_root() {
             "skills/presentations/container_tools/mark_artifact_operation_started.mjs".to_string(),
     };
     let script = PathUri::parse(
-        "file:///C:/Users/user/.codex/plugins/cache/openai-primary-runtime/presentations/0.1.29/skills/presentations/container_tools/mark_artifact_operation_started.mjs",
+        "file:///C:/Users/user/.suffice/plugins/cache/openai-primary-runtime/presentations/0.1.29/skills/presentations/container_tools/mark_artifact_operation_started.mjs",
     )
     .expect("Windows script URI");
 
@@ -614,7 +614,7 @@ fn only_emits_safe_normalized_relative_script_paths() {
     );
     assert_eq!(
         normalized_relative_script_path(Path::new(
-            "/home/user/.codex/plugins/cache/openai-curated/sample/scripts/run.py"
+            "/home/user/.suffice/plugins/cache/openai-curated/sample/scripts/run.py"
         )),
         None
     );

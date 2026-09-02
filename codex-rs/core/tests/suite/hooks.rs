@@ -4065,11 +4065,11 @@ async fn plugin_pre_tool_use_blocks_exec_command_before_execution() -> Result<()
     let home = Arc::new(TempDir::new()?);
     let plugin_root = home.path().join("plugins/cache/test/sample/local");
     let hooks_dir = plugin_root.join("hooks");
-    fs::create_dir_all(plugin_root.join(".codex-plugin"))
+    fs::create_dir_all(plugin_root.join(".suffice-plugin"))
         .context("create plugin manifest directory")?;
     fs::create_dir_all(&hooks_dir).context("create plugin hooks directory")?;
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )
     .context("write plugin manifest")?;

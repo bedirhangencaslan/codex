@@ -1,6 +1,6 @@
 # codex-app-server
 
-`codex app-server` is the interface Codex uses to power rich interfaces such as the [Codex VS Code extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt).
+`suffice app-server` is the interface Suffice uses to power rich interfaces such as the [Suffice VS Code extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt).
 
 ## Table of Contents
 
@@ -19,13 +19,13 @@
 
 ## Protocol
 
-Similar to [MCP](https://modelcontextprotocol.io/), `codex app-server` supports bidirectional communication using JSON-RPC 2.0 messages (with the `"jsonrpc":"2.0"` header omitted on the wire).
+Similar to [MCP](https://modelcontextprotocol.io/), `suffice app-server` supports bidirectional communication using JSON-RPC 2.0 messages (with the `"jsonrpc":"2.0"` header omitted on the wire).
 
 Supported transports:
 
 - stdio (`--stdio` or `--listen stdio://`, default): newline-delimited JSON (JSONL)
 - websocket (`--listen ws://IP:PORT`): one JSON-RPC message per websocket text frame (**experimental / unsupported**)
-- unix socket (`--listen unix://` or `--listen unix://PATH`): websocket connections over `$CODEX_HOME/app-server-control/app-server-control.sock` or a custom socket path, using the standard HTTP Upgrade handshake
+- unix socket (`--listen unix://` or `--listen unix://PATH`): websocket connections over `$SUFFICE_HOME/app-server-control/app-server-control.sock` or a custom socket path, using the standard HTTP Upgrade handshake
 - off (`--listen off`): do not expose a local transport
 
 When running with `--listen ws://IP:PORT`, the same listener also serves basic HTTP health probes:
@@ -38,8 +38,8 @@ Websocket transport is currently experimental and unsupported. Do not rely on it
 
 Pass `--code-mode-host URL` to connect this app-server process to a remote code-mode host instead of starting a local host. Use a root `http://` or `https://` URL without a path or query for gRPC. Remote hosts require the `code_mode_host` feature. This outbound connection is independent of `--listen` and is shared by the process's threads.
 
-The unix socket transport is intended for local app-server control-plane clients. `codex app-server proxy`
-opens exactly one raw stream connection to `$CODEX_HOME/app-server-control/app-server-control.sock`
+The unix socket transport is intended for local app-server control-plane clients. `suffice app-server proxy`
+opens exactly one raw stream connection to `$SUFFICE_HOME/app-server-control/app-server-control.sock`
 by default, or to `--sock PATH` when provided, and proxies bytes between that socket and stdin/stdout.
 The proxied stream carries the websocket HTTP Upgrade handshake followed by websocket frames.
 
@@ -56,7 +56,7 @@ Backpressure behavior:
 
 ## Message Schema
 
-Currently, you can dump a TypeScript version of the schema using `codex app-server generate-ts`, or a JSON Schema bundle via `codex app-server generate-json-schema`. Each output is specific to the version of Codex you used to run the command, so the generated artifacts are guaranteed to match that version.
+Currently, you can dump a TypeScript version of the schema using `suffice app-server generate-ts`, or a JSON Schema bundle via `suffice app-server generate-json-schema`. Each output is specific to the version of Suffice you used to run the command, so the generated artifacts are guaranteed to match that version.
 
 ```
 codex app-server generate-ts --out DIR
@@ -65,9 +65,9 @@ codex app-server generate-json-schema --out DIR
 
 ## Core Primitives
 
-The API exposes three top level primitives representing an interaction between a user and Codex:
+The API exposes three top level primitives representing an interaction between a user and Suffice:
 
-- **Thread**: A conversation between a user and the Codex agent. Each thread contains multiple turns.
+- **Thread**: A conversation between a user and the Suffice agent. Each thread contains multiple turns.
 - **Turn**: One turn of the conversation, typically starting with a user message and finishing with an agent message. Each turn contains multiple items.
 - **Item**: Represents user inputs and agent outputs as part of the turn, persisted and used as the context for future conversations. Example items include user message, agent reasoning, agent message, shell command, file edit, etc.
 
@@ -84,7 +84,7 @@ Use the thread APIs to create, list, or archive conversations. Drive a conversat
 
 ## Initialization
 
-Clients must send a single `initialize` request per transport connection before invoking any other method on that connection, then acknowledge with an `initialized` notification. The server returns the user agent string it will present to upstream services, `codexHome` for the server's Codex home directory, and `platformFamily` and `platformOs` strings describing the app-server runtime target; subsequent requests issued before initialization receive a `"Not initialized"` error, and repeated `initialize` calls on the same connection receive an `"Already initialized"` error.
+Clients must send a single `initialize` request per transport connection before invoking any other method on that connection, then acknowledge with an `initialized` notification. The server returns the user agent string it will present to upstream services, `codexHome` for the server's Suffice home directory, and `platformFamily` and `platformOs` strings describing the app-server runtime target; subsequent requests issued before initialization receive a `"Not initialized"` error, and repeated `initialize` calls on the same connection receive an `"Already initialized"` error.
 
 `initialize.params.capabilities` also supports per-connection notification opt-out via `optOutNotificationMethods`, which is a list of exact method names to suppress for that connection. Matching is exact (no wildcards/prefixes). Unknown method names are accepted and ignored.
 
@@ -119,18 +119,18 @@ connected app-server.
 App-server keeps the complete value under `io.modelcontextprotocol/ui`, rather
 than deriving a WebView boolean, so clients can advertise additional supported
 MIME types and future extension settings. The MCP extension profile is fixed
-when a Codex session is created by `thread/start`, `thread/resume`, or
-`thread/fork`. Codex advertises that profile in the downstream MCP
+when a Suffice session is created by `thread/start`, `thread/resume`, or
+`thread/fork`. Suffice advertises that profile in the downstream MCP
 `initialize` request; it is not repeated in individual tool-call metadata.
 Every turn and direct MCP tool call in that loaded session therefore uses the
 same initialized profile. A different app-server connection cannot change it
 by starting a later turn. Subagent sessions inherit the same extension profile.
 
-Applications building on top of `codex app-server` should identify themselves via the `clientInfo` parameter.
+Applications building on top of `suffice app-server` should identify themselves via the `clientInfo` parameter.
 
 **Important**: `clientInfo.name` is used to identify the client for the OpenAI Compliance Logs Platform. If
-you are developing a new Codex integration that is intended for enterprise use, please contact us to get it
-added to a known clients list. For more context: https://chatgpt.com/admin/api-reference#tag/Logs:-Codex
+you are developing a new Suffice integration that is intended for enterprise use, please contact us to get it
+added to a known clients list. For more context: https://chatgpt.com/admin/api-reference#tag/Logs:-Suffice
 
 Example (from OpenAI's official VSCode extension):
 
@@ -141,7 +141,7 @@ Example (from OpenAI's official VSCode extension):
   "params": {
     "clientInfo": {
       "name": "codex_vscode",
-      "title": "Codex VS Code Extension",
+      "title": "Suffice VS Code Extension",
       "version": "0.1.0"
     }
   }
@@ -191,7 +191,7 @@ Example with notification opt-out:
 - `thread/section/move` — atomically move a thread into the section identified by `sectionId`, before another thread or at the end when `beforeThreadId` is `null`. Reordering within the same section preserves `sectionEnteredAt`; entering a different section resets it. Set `sectionId` to `null` to remove the thread from its section. Returns `{}` on success.
 - `thread/settings/update` — experimental; queue a partial update to a loaded thread’s next-turn settings without starting a turn or adding transcript items. Omitted fields leave settings unchanged; `serviceTier: null` clears the tier; deprecated `multiAgentMode` is ignored, while Ultra reasoning effort enables proactive multi-agent behavior; `sandboxPolicy` and `permissions` cannot be combined. Parent-owned Multi-Agent V2 subagents reject direct settings updates. Returns `{}` when the update is accepted and emits `thread/settings/updated` with the full effective settings only if they actually change. `turn/start` settings overrides emit the same notification when they change the stored settings.
 - `thread/memoryMode/set` — experimental; set a thread’s persisted memory eligibility to `"enabled"` or `"disabled"` for either a loaded thread or a stored rollout; returns `{}` on success.
-- `memory/reset` — experimental; clear the current `CODEX_HOME/memories` directory and reset persisted memory stage data in sqlite while preserving existing thread memory modes; returns `{}` on success.
+- `memory/reset` — experimental; clear the current `SUFFICE_HOME/memories` directory and reset persisted memory stage data in sqlite while preserving existing thread memory modes; returns `{}` on success.
 - `thread/goal/set` — create or update the single persisted goal for a materialized thread; returns the current goal and emits `thread/goal/updated`. Parent-owned Multi-Agent V2 subagents reject goal updates, including while unloaded.
 - `thread/goal/get` — fetch the current persisted goal for a materialized thread; returns `goal: null` when no goal exists. Available even for parent-owned Multi-Agent V2 subagents.
 - `thread/goal/clear` — clear the current persisted goal for a materialized thread; returns whether a goal was removed and emits `thread/goal/cleared` when state changes. Parent-owned Multi-Agent V2 subagents reject goal clearing, including while unloaded.
@@ -219,24 +219,24 @@ Example with notification opt-out:
 - `thread/backgroundTerminals/terminate` — terminate one running background terminal by app-server `processId` (experimental; requires `capabilities.experimentalApi`); returns whether a process was terminated.
 - `thread/rollback` — deprecated and will be removed soon. Drop the last N turns from the agent’s in-memory context and persist a rollback marker in the rollout so future resumes see the pruned history; returns the updated `thread` (with `turns` populated) on success. Paginated threads do not support rollback. Parent-owned Multi-Agent V2 subagents reject direct rollback requests.
 - `thread/revert` — replace a loaded paginated thread's durable history with the prefix strictly before `beforeTurnId` while preserving its thread id. The operation interrupts an active turn if needed, leaves older rollout files immutable, reloads the thread, returns updated thread metadata with empty `turns` plus pagination cursors, and emits `thread/reverted`. It does not revert local file changes. Parent-owned Multi-Agent V2 subagents reject direct revert requests.
-- `turn/start` — add user input or a named standalone function-call output to a thread and begin Codex generation; responds with the initial `turn` object and streams `turn/started`, `item/*`, and `turn/completed` notifications. For standalone outputs, provide `toolOutput` with an empty `input` array. Optional `turnTrigger` classifies who or what started a new turn and is sent as `turn_trigger` in Responses request metadata; it is ignored if the request steers an active turn. `clientUserMessageId` is optional; when supplied, the corresponding `userMessage` item echoes it as `clientId`. Experimental `runtimeWorkspaceRoots` supplies the default roots for newly resolved environment selections. Explicit `environments[].runtimeWorkspaceRoots` override that fallback with environment-native absolute paths. Prefer experimental `permissions` profile selection by id for permission overrides; the legacy `sandboxPolicy` field is still accepted but cannot be combined with `permissions`. For `collaborationMode`, `settings.developer_instructions: null` means "use built-in instructions for the selected mode". Deprecated experimental `multiAgentMode` is ignored; Ultra reasoning effort selects proactive behavior. Parent-owned Multi-Agent V2 subagents reject direct turns.
+- `turn/start` — add user input or a named standalone function-call output to a thread and begin Suffice generation; responds with the initial `turn` object and streams `turn/started`, `item/*`, and `turn/completed` notifications. For standalone outputs, provide `toolOutput` with an empty `input` array. Optional `turnTrigger` classifies who or what started a new turn and is sent as `turn_trigger` in Responses request metadata; it is ignored if the request steers an active turn. `clientUserMessageId` is optional; when supplied, the corresponding `userMessage` item echoes it as `clientId`. Experimental `runtimeWorkspaceRoots` supplies the default roots for newly resolved environment selections. Explicit `environments[].runtimeWorkspaceRoots` override that fallback with environment-native absolute paths. Prefer experimental `permissions` profile selection by id for permission overrides; the legacy `sandboxPolicy` field is still accepted but cannot be combined with `permissions`. For `collaborationMode`, `settings.developer_instructions: null` means "use built-in instructions for the selected mode". Deprecated experimental `multiAgentMode` is ignored; Ultra reasoning effort selects proactive behavior. Parent-owned Multi-Agent V2 subagents reject direct turns.
 - `thread/inject_items` — append raw Responses API items to a loaded thread’s model-visible history without starting a turn; returns `{}` on success. Parent-owned Multi-Agent V2 subagents reject direct item injection.
 - `turn/settings/update` — experimental; publish a narrow model-settings patch to the exact live task identified by `threadId` and `turnId`, regardless of task kind. Requires `step_model_switching`; returns `status: "applied"` or `status: "targetUnavailable"`, or a request error if rejected. Future-thread settings and already captured steps are unchanged. Parent-owned Multi-Agent V2 subagents reject direct settings updates.
 - `turn/steer` — add user input to an already in-flight regular turn without starting a new turn; returns the active `turnId` that accepted the input. `clientUserMessageId` is optional; when supplied, the corresponding `userMessage` item echoes it as `clientId`. Review and manual compaction turns reject `turn/steer`. Parent-owned Multi-Agent V2 subagents reject direct steering.
 - `turn/interrupt` — request cancellation of an in-flight turn by `(thread_id, turn_id)`; success is an empty `{}` response and the turn finishes with `status: "interrupted"`. Also available for parent-owned Multi-Agent V2 subagents.
-- `thread/realtime/start` — start a thread-scoped realtime session (experimental); pass `outputModality: "text"` or `outputModality: "audio"` to choose model output, optionally pass `model` and `version` to override configured realtime selection for this session only, pass `includeStartupContext: false` to omit Codex's generated startup context, and optionally pass `initialItems` to seed V3 with complete role-bearing text messages at session creation. Pass `realtimeStartInstructions` and `realtimeEndInstructions` to control the developer instructions given to the backing Codex model when this session starts and ends. Version `"v1"` uses legacy Bidi `conversation.handoff.*`, `"v2"` uses the Realtime Voice API, and `"v3"` preserves V1 Codex Voice behavior while using Frameless Bidi `delegation.*`. For V3 automatic Codex text, `codexResponseHandoffMode` accepts `"thinking"` (the default; all output uses channel-less thinking appends), `"commentary"` (all output uses the commentary channel), or `"bemTags"` (the raw BEM envelope selects the API channel: BEM `analysis` and `commentary` use `commentary`, while BEM `final` and unparsable output use `speakable`). The BEM envelope remains in the appended text for the frontend model to interpret. V1 and V2 ignore this setting. For V3, pass `delegationAckFiller: false` to suppress the Realtime API's delegation acknowledgement filler or `true` to restore it; omitting the field preserves the Realtime API's default. V1 and V2 ignore `delegationAckFiller`. V3 handoffs do not prepend the legacy `"Agent Final Message"` label. Pass `clientManagedHandoffs: true` to disable automatic Codex response delivery so only the client's explicit append calls produce handoffs. Pass `codexResponsesAsItems: true` to send automatic Codex responses as realtime conversation items instead, and optionally pass `codexResponseItemPrefix` to prepend experiment instructions to those items. Returns `{}` and streams `thread/realtime/*` notifications. Omit `transport` for the websocket transport, or pass `{ "type": "webrtc", "sdp": "..." }` to create a Bidi WebRTC session from a browser-generated SDP offer; the remote answer SDP is emitted as `thread/realtime/sdp`. Conversation `version: "v2"` requests remain unsupported for WebRTC. Parent-owned Multi-Agent V2 subagents reject this request.
+- `thread/realtime/start` — start a thread-scoped realtime session (experimental); pass `outputModality: "text"` or `outputModality: "audio"` to choose model output, optionally pass `model` and `version` to override configured realtime selection for this session only, pass `includeStartupContext: false` to omit Suffice's generated startup context, and optionally pass `initialItems` to seed V3 with complete role-bearing text messages at session creation. Pass `realtimeStartInstructions` and `realtimeEndInstructions` to control the developer instructions given to the backing Suffice model when this session starts and ends. Version `"v1"` uses legacy Bidi `conversation.handoff.*`, `"v2"` uses the Realtime Voice API, and `"v3"` preserves V1 Suffice Voice behavior while using Frameless Bidi `delegation.*`. For V3 automatic Suffice text, `codexResponseHandoffMode` accepts `"thinking"` (the default; all output uses channel-less thinking appends), `"commentary"` (all output uses the commentary channel), or `"bemTags"` (the raw BEM envelope selects the API channel: BEM `analysis` and `commentary` use `commentary`, while BEM `final` and unparsable output use `speakable`). The BEM envelope remains in the appended text for the frontend model to interpret. V1 and V2 ignore this setting. For V3, pass `delegationAckFiller: false` to suppress the Realtime API's delegation acknowledgement filler or `true` to restore it; omitting the field preserves the Realtime API's default. V1 and V2 ignore `delegationAckFiller`. V3 handoffs do not prepend the legacy `"Agent Final Message"` label. Pass `clientManagedHandoffs: true` to disable automatic Suffice response delivery so only the client's explicit append calls produce handoffs. Pass `codexResponsesAsItems: true` to send automatic Suffice responses as realtime conversation items instead, and optionally pass `codexResponseItemPrefix` to prepend experiment instructions to those items. Returns `{}` and streams `thread/realtime/*` notifications. Omit `transport` for the websocket transport, or pass `{ "type": "webrtc", "sdp": "..." }` to create a Bidi WebRTC session from a browser-generated SDP offer; the remote answer SDP is emitted as `thread/realtime/sdp`. Conversation `version: "v2"` requests remain unsupported for WebRTC. Parent-owned Multi-Agent V2 subagents reject this request.
 - `thread/realtime/appendAudio` — append an input audio chunk to the active realtime session (experimental); returns `{}`. Parent-owned Multi-Agent V2 subagents reject this request.
 - `thread/realtime/appendText` — append text input to the active realtime session with a required `role` of `user`, `developer`, or `assistant` (experimental); returns `{}`. Older clients that omit `role` default to `user`. Parent-owned Multi-Agent V2 subagents reject this request.
 - `thread/realtime/appendSpeech` — append text that the realtime model should speak to the user (experimental); returns `{}`. Parent-owned Multi-Agent V2 subagents reject this request.
 - `thread/realtime/stop` — stop the active realtime session for the thread (experimental); returns `{}`. Parent-owned Multi-Agent V2 subagents reject this request.
 - `thread/timeline/list` — page ordinary turn items, durable realtime facts, and turn boundaries together in rollout order (experimental). Entries are tagged `item`, `realtime`, `turnStarted`, or `turnCompleted`. Turn boundaries carry lifecycle metadata without duplicating the turn's items; completed boundaries also cover interrupted and failed turns. Each response contains an opaque continuation cursor and `activeRealtimeSessionAtPageStart`, allowing clients to render any bounded page without loading earlier thread history. Entries at the same rollout position have stable ordering and can span pages. Existing `thread/items/list` remains unchanged.
-- `review/start` — kick off Codex’s automated reviewer for a thread; responds like `turn/start`. Inline reviews emit `item/started`/`item/completed` notifications with `enteredReviewMode` and `exitedReviewMode` items, plus a final assistant `agentMessage` containing the review. Detached reviews stream ordinary turn items on the new review thread. Parent-owned Multi-Agent V2 subagents reject both inline and detached reviews.
+- `review/start` — kick off Suffice’s automated reviewer for a thread; responds like `turn/start`. Inline reviews emit `item/started`/`item/completed` notifications with `enteredReviewMode` and `exitedReviewMode` items, plus a final assistant `agentMessage` containing the review. Detached reviews stream ordinary turn items on the new review thread. Parent-owned Multi-Agent V2 subagents reject both inline and detached reviews.
 - `command/exec` — run a single command under the server sandbox without starting a thread/turn (handy for utilities and validation).
 - `command/exec/write` — write base64-decoded stdin bytes to a running `command/exec` session or close stdin; returns `{}`.
 - `command/exec/resize` — resize a running PTY-backed `command/exec` session by `processId`; returns `{}`.
 - `command/exec/terminate` — terminate a running `command/exec` session by `processId`; returns `{}`.
 - `command/exec/outputDelta` — notification emitted for base64-encoded stdout/stderr chunks from a streaming `command/exec` session.
-- `process/spawn` — experimental; spawn a standalone process without the Codex sandbox on the host where the app server is running; returns after the process starts and emits `process/outputDelta` and `process/exited` notifications.
+- `process/spawn` — experimental; spawn a standalone process without the Suffice sandbox on the host where the app server is running; returns after the process starts and emits `process/outputDelta` and `process/exited` notifications.
 - `process/writeStdin` — experimental; write base64-decoded stdin bytes to a running `process/spawn` session or close stdin; returns `{}`.
 - `process/resizePty` — experimental; resize a running PTY-backed `process/spawn` session by `processHandle`; returns `{}`.
 - `process/kill` — experimental; terminate a running `process/spawn` session by `processHandle`; returns `{}`.
@@ -261,7 +261,7 @@ Example with notification opt-out:
 - `environment/info` — experimental; connect to a configured environment by `environmentId` and return its detected `shell` plus its default `cwd` as a canonical environment-native `file:` URI. Connection failures are returned as request errors.
 - `environment/status` — experimental; read the current status for one configured `environmentId`. Ready remote environments are probed over their existing exec-server connection without starting or reconnecting environments; the response reports `ready`, `pending`, `disconnected`, or `unknown`.
 - `thread/environment/connected` and `thread/environment/disconnected` — experimental; report exec-server connection transitions observed after thread startup for selected environments. Current connection state is not replayed.
-- `collaborationMode/list` — list available collaboration mode presets (experimental, no pagination). Built-in presets do not select a model; the Plan preset selects medium reasoning effort. This response omits built-in developer instructions; clients should either pass `settings.developer_instructions: null` when setting a mode to use Codex's built-in instructions, or provide their own instructions explicitly.
+- `collaborationMode/list` — list available collaboration mode presets (experimental, no pagination). Built-in presets do not select a model; the Plan preset selects medium reasoning effort. This response omits built-in developer instructions; clients should either pass `settings.developer_instructions: null` when setting a mode to use Suffice's built-in instructions, or provide their own instructions explicitly.
 - `skills/list` — list skills for one or more `cwd` values (optional `forceReload`).
 - `skills/extraRoots/set` — replace the app-server process runtime extra standalone skill roots. The roots are not persisted; missing directories are accepted and simply load no skills.
 - `hooks/list` — list discovered hooks for one or more `cwd` values.
@@ -291,7 +291,7 @@ Example with notification opt-out:
 - `tool/requestUserInput` — prompt the user with 1–3 short questions for a tool call and return their answers (experimental).
 - `config/mcpServer/reload` — reload MCP server config from disk and queue a refresh for loaded threads (applied on each thread's next active turn); returns `{}`. Use this after editing `config.toml` without restarting the server.
 - `mcpServerStatus/list` — enumerate configured MCP servers with their tools, auth status, server info, owning `pluginId` (`null` for servers not contributed by a plugin), and nullable `runtimeStatus` from the current thread’s published connections, plus resources/resource templates for `full` detail; supports optional `threadId` and cursor+limit pagination. If `threadId` is omitted, the server reads from the latest global config directly and `runtimeStatus` is `null`. Runtime status is also `null` when the latest server registration differs from the thread’s published configuration. Runtime status is observed without starting or reconnecting the thread’s servers; it can be `notStarted`, `starting`, `connected`, `authenticationRequired`, `failed`, `cancelled`, or `disabled`. Inventory may be cached or collected separately and does not prove that the thread is connected. Older servers omit `runtimeStatus`; clients should treat that as unknown. If `detail` is omitted, the server defaults to `full`. An `unknown` auth status means OAuth support could not be determined; `unsupported` means OAuth is known not to be supported.
-- `mcpServer/resource/read` — read a resource from a configured MCP server by optional `threadId`, `server`, and `uri`, returning text/blob resource `contents`. Pass `originCallId` with `threadId` to scope a Codex app widget to the app and account of the completed tool call that produced it; successful scoped reads return the same `originCallId`. Optional `connectorId` restricts other hosted app resources to their originating connector. If `threadId` is omitted, the server reads from the latest MCP config directly.
+- `mcpServer/resource/read` — read a resource from a configured MCP server by optional `threadId`, `server`, and `uri`, returning text/blob resource `contents`. Pass `originCallId` with `threadId` to scope a Suffice app widget to the app and account of the completed tool call that produced it; successful scoped reads return the same `originCallId`. Optional `connectorId` restricts other hosted app resources to their originating connector. If `threadId` is omitted, the server reads from the latest MCP config directly.
 - `mcpServer/event/stream/start` (experimental) — subscribe to an MCP event by `threadId`, `server`, `subscriptionId`, event `name`, `arguments`, and optional `_meta`.
 - `mcpServer/event/stream/stop` (experimental) — stop the caller's event subscription by `subscriptionId`.
 - `mcpServer/tool/call` — call a tool on a thread's configured MCP server by `threadId`, `server`, `tool`, optional `arguments`, and optional `_meta`, returning the MCP tool result. Parent-owned Multi-Agent V2 subagents reject direct tool calls.
@@ -336,7 +336,7 @@ snapshot and any base-user entry; a base-user entry is not required for cleanup.
 
 ### Example: Start or resume a thread
 
-Start a fresh thread when you need a new Codex conversation.
+Start a fresh thread when you need a new Suffice conversation.
 
 ```json
 { "method": "thread/start", "id": 10, "params": {
@@ -782,7 +782,7 @@ Experimental: use `thread/memoryMode/set` to change whether a thread remains eli
 { "id": 26, "result": {} }
 ```
 
-Experimental: use `memory/reset` to clear local memory artifacts and sqlite-backed memory stage data for the current Codex home. This preserves existing thread memory modes; use `thread/memoryMode/set` separately when a thread's future memory eligibility should change.
+Experimental: use `memory/reset` to clear local memory artifacts and sqlite-backed memory stage data for the current Suffice home. This preserves existing thread memory modes; use `thread/memoryMode/set` separately when a thread's future memory eligibility should change.
 
 ```json
 { "method": "memory/reset", "id": 27 }
@@ -968,7 +968,7 @@ For example, allow up to eight hours for a workflow command:
 
 ### Example: Start a turn (send user input)
 
-Turns attach user input (text, images, or audio) to a thread and trigger Codex generation. The `input` field is a list of discriminated unions:
+Turns attach user input (text, images, or audio) to a thread and trigger Suffice generation. The `input` field is a list of discriminated unions:
 
 - `{"type":"text","text":"Explain this diff"}`
 - `{"type":"image","url":"data:image/png;base64,…"}`
@@ -983,7 +983,7 @@ You can optionally specify config overrides on the new turn. If specified, these
 
 `serviceTierForTurn` overrides the tier only when the request starts a new turn, without changing the thread's saved tier. Use `"default"` for standard speed, or omit it (or pass `null`) to inherit the thread's tier. It is ignored when the request steers an active turn. The existing `serviceTier` field still changes the tier for subsequent turns, including when both fields are supplied.
 
-Experimental `cyberAccessProgram` also applies only to the new turn. It accepts `standard`, `daybreakBlue`, or `daybreakRed`; omission preserves automatic backend behavior. For ChatGPT-authenticated requests through the built-in OpenAI provider, Codex sends the corresponding `standard`, `daybreak_blue`, or `daybreak_red` value in `access_programs.cyber` on Responses and remote-compaction requests. WebSocket `response.create` messages carry the choice per request, so changing it does not require reconnecting. The server still enforces workspace authorization and model restrictions. API-key and custom-provider requests omit this field. This field does not change the saved model or grant access.
+Experimental `cyberAccessProgram` also applies only to the new turn. It accepts `standard`, `daybreakBlue`, or `daybreakRed`; omission preserves automatic backend behavior. For ChatGPT-authenticated requests through the built-in OpenAI provider, Suffice sends the corresponding `standard`, `daybreak_blue`, or `daybreak_red` value in `access_programs.cyber` on Responses and remote-compaction requests. WebSocket `response.create` messages carry the choice per request, so changing it does not require reconnecting. The server still enforces workspace authorization and model restrictions. API-key and custom-provider requests omit this field. This field does not change the saved model or grant access.
 
 Child agents use the invoking turn's choice when spawned or started on a new follow-up, including after a reload. Input delivered into an already-running child turn does not change that turn's choice.
 
@@ -1053,7 +1053,7 @@ Invoke a skill explicitly by including `$<skill-name>` in the text input and add
     "threadId": "thr_123",
     "input": [
         { "type": "text", "text": "$skill-creator Add a new skill for triaging flaky CI and include step-by-step usage." },
-        { "type": "skill", "name": "skill-creator", "path": "/Users/me/.codex/skills/skill-creator/SKILL.md" }
+        { "type": "skill", "name": "skill-creator", "path": "/Users/me/.suffice/skills/skill-creator/SKILL.md" }
     ]
 } }
 { "id": 33, "result": { "turn": {
@@ -1167,7 +1167,7 @@ const offer = await pc.createOffer();
 await pc.setLocalDescription(offer);
 ```
 
-Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend_prompt` for the backend instructions and the thread conversation id as the default Realtime API session identifier. This `realtimeSessionId` value refers to the upstream Realtime API session, not a Codex session/thread-group id. The start response is `{}`; the remote answer SDP arrives later as `thread/realtime/sdp` and should be passed to `setRemoteDescription()`:
+Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend_prompt` for the backend instructions and the thread conversation id as the default Realtime API session identifier. This `realtimeSessionId` value refers to the upstream Realtime API session, not a Suffice session/thread-group id. The start response is `{}`; the remote answer SDP arrives later as `thread/realtime/sdp` and should be passed to `setRemoteDescription()`:
 
 ```json
 { "method": "thread/realtime/start", "id": 40, "params": {
@@ -1197,29 +1197,29 @@ Clients that create and negotiate the realtime call themselves can instead pass 
 { "id": 41, "result": {} }
 ```
 
-The existing-call transport attaches Codex to the call over its sideband WebSocket without creating
+The existing-call transport attaches Suffice to the call over its sideband WebSocket without creating
 another call or emitting `thread/realtime/sdp`. The client owns the SDP negotiation and the initial
-realtime session configuration. Codex startup context is disabled by default for existing calls;
+realtime session configuration. Suffice startup context is disabled by default for existing calls;
 `includeStartupContext: true`, `prompt`, nonempty `initialItems`, `model`, `voice`, and
 `delegationAckFiller` are rejected because they would change the client-owned session. Supply
 `realtimeSessionId` when the upstream session ID is known; otherwise the
 `thread/realtime/started` notification reports `realtimeSessionId: null`.
 
-Omit `prompt` to use Codex's default realtime backend prompt. Send `prompt: null` or
+Omit `prompt` to use Suffice's default realtime backend prompt. Send `prompt: null` or
 `prompt: ""` when the session should start without that default backend prompt.
 Pass `realtimeStartInstructions` to provide the developer instructions given to
-the backing Codex model when the thread enters realtime mode, and
+the backing Suffice model when the thread enters realtime mode, and
 `realtimeEndInstructions` to provide its developer instructions when the session
-ends. These instructions configure Codex, not the realtime frontend model. They
+ends. These instructions configure Suffice, not the realtime frontend model. They
 are emitted on realtime state transitions, rather than repeated on every turn.
 Each instructions field is limited to 8,192 estimated tokens. Omitting either
-field preserves Codex's existing default instructions.
+field preserves Suffice's existing default instructions.
 Clients may also pass `model` on `thread/realtime/start` to select a
 different realtime session configuration without changing thread or user config.
 Clients may pass `version` to select the realtime protocol for this session
 only. WebRTC uses AVAS and supports legacy Bidi `"v1"` or Frameless Bidi
 `"v3"`; Realtime Voice `"v2"` is rejected for WebRTC.
-Pass `includeStartupContext: false` to skip Codex's startup context for this
+Pass `includeStartupContext: false` to skip Suffice's startup context for this
 session while still using the selected backend prompt.
 For V3, clients may pass `initialItems` to seed the session with complete text
 messages before live input begins:
@@ -1251,13 +1251,13 @@ For V3, pass `delegationAckFiller: false` to suppress the Realtime API's
 delegation acknowledgement filler during WebRTC session creation, or pass `true`
 to restore the legacy acknowledgement. Omitting `delegationAckFiller` preserves
 the Realtime API's default. V1 and V2 ignore this setting.
-Pass `clientManagedHandoffs: true` to suppress automatic Codex response handoffs
+Pass `clientManagedHandoffs: true` to suppress automatic Suffice response handoffs
 and items. The client can then choose which updates to deliver with
 `thread/realtime/appendText` or `thread/realtime/appendSpeech`.
-Pass `codexResponsesAsItems: true` to inject automatic Codex responses with
+Pass `codexResponsesAsItems: true` to inject automatic Suffice responses with
 `conversation.item.create` instead of the protocol's default speakable output
 path. When using that mode, `codexResponseItemPrefix` can prepend short
-experiment instructions to each automatic Codex response item. Omit
+experiment instructions to each automatic Suffice response item. Omit
 `codexResponsesAsItems`, or pass `false`, to preserve the default speakable
 behavior. In V3, automatic handoffs default to
 `codexResponseHandoffMode: "thinking"`, which omits the context append `channel`
@@ -1398,10 +1398,10 @@ manual compaction), the request fails with an `invalid request` error.
 
 ### Example: Request a code review
 
-Use `review/start` to run Codex’s reviewer on the currently checked-out project. The request takes the thread id plus a `target` describing what should be reviewed:
+Use `review/start` to run Suffice’s reviewer on the currently checked-out project. The request takes the thread id plus a `target` describing what should be reviewed:
 
 - `{"type":"uncommittedChanges"}` — staged, unstaged, and untracked files.
-- `{"type":"baseBranch","branch":"main"}` — diff against the provided branch’s upstream (see prompt for the exact `git merge-base`/`git diff` instructions Codex will run).
+- `{"type":"baseBranch","branch":"main"}` — diff against the provided branch’s upstream (see prompt for the exact `git merge-base`/`git diff` instructions Suffice will run).
 - `{"type":"commit","sha":"abc1234","title":"Optional subject"}` — review a specific commit.
 - `{"type":"custom","instructions":"Free-form reviewer instructions"}` — fallback prompt equivalent to the legacy manual review request.
 - `delivery` (`"inline"` or `"detached"`, default `"inline"`) — where the review runs:
@@ -1433,7 +1433,7 @@ For a detached review, use `"delivery": "detached"`. The response is the same sh
 
 Detached review is unsupported when the parent thread is paginated.
 
-For an inline review, Codex streams the usual `turn/started` notification followed by an `item/started`
+For an inline review, Suffice streams the usual `turn/started` notification followed by an `item/started`
 with an `enteredReviewMode` item so clients can show progress:
 
 ```json
@@ -1492,7 +1492,7 @@ Run a standalone command (argv vector) in the server’s sandbox without creatin
 ```
 
 - Prefer using `process/spawn` when you want an explicitly unsandboxed process execution API with immediate spawn acknowledgement, handle-based control, output notifications, and an exit notification.
-- For clients that are already sandboxed externally, set the legacy `sandboxPolicy` to `{"type":"externalSandbox","networkAccess":"enabled"}` (or omit `networkAccess` to keep it restricted). Codex will not enforce its own sandbox in this mode; it tells the model it has full file-system access and passes the `networkAccess` state through `environment_context`.
+- For clients that are already sandboxed externally, set the legacy `sandboxPolicy` to `{"type":"externalSandbox","networkAccess":"enabled"}` (or omit `networkAccess` to keep it restricted). Suffice will not enforce its own sandbox in this mode; it tells the model it has full file-system access and passes the `networkAccess` state through `environment_context`.
 
 Notes:
 
@@ -1503,7 +1503,7 @@ Notes:
 - When omitted, `outputBytesCap` falls back to the server default of 1 MiB per stream.
 - `disableOutputCap: true` disables stdout/stderr capture truncation for that `command/exec` request. It cannot be combined with `outputBytesCap`.
 - `disableTimeout: true` disables the timeout entirely for that `command/exec` request. It cannot be combined with `timeoutMs`.
-- `processId` is optional for buffered execution. When omitted, Codex generates an internal id for lifecycle tracking, but `tty`, `streamStdin`, and `streamStdoutStderr` must stay disabled and follow-up `command/exec/write` / `command/exec/terminate` calls are not available for that command.
+- `processId` is optional for buffered execution. When omitted, Suffice generates an internal id for lifecycle tracking, but `tty`, `streamStdin`, and `streamStdoutStderr` must stay disabled and follow-up `command/exec/write` / `command/exec/terminate` calls are not available for that command.
 - `size` is only valid when `tty: true`. It sets the initial PTY size in character cells.
 - Buffered Windows sandbox execution accepts `processId` for correlation, but `command/exec/write` and `command/exec/terminate` are still unsupported for those requests.
 - Buffered Windows sandbox execution also requires the default output cap; custom `outputBytesCap` and `disableOutputCap` are unsupported there.
@@ -1565,7 +1565,7 @@ Streaming stdin/stdout uses base64 so PTY sessions can carry arbitrary bytes:
 
 ### Example: Process lifecycle execution
 
-Use `process/spawn` to start a standalone argv-based process without the Codex sandbox on the host where the app server is running. The `process/*` API is experimental and requires `initialize.params.capabilities.experimentalApi: true`. The spawn response means the process has started and the `processHandle` is registered; completion is reported later through `process/exited`.
+Use `process/spawn` to start a standalone argv-based process without the Suffice sandbox on the host where the app server is running. The `process/*` API is experimental and requires `initialize.params.capabilities.experimentalApi: true`. The spawn response means the process has started and the `processHandle` is registered; completion is reported later through `process/exited`.
 
 ```json
 { "method": "process/spawn", "id": 40, "params": {
@@ -1740,7 +1740,7 @@ The fuzzy file search session API emits per-query notifications:
 
 The thread realtime API emits thread-scoped notifications for session lifecycle and streaming media:
 
-- `thread/realtime/started` — `{ threadId, realtimeSessionId }` once realtime starts for the thread (experimental). `realtimeSessionId` is the upstream Realtime API session identifier, not a Codex session/thread-group id.
+- `thread/realtime/started` — `{ threadId, realtimeSessionId }` once realtime starts for the thread (experimental). `realtimeSessionId` is the upstream Realtime API session identifier, not a Suffice session/thread-group id.
 - `thread/realtime/itemAdded` — `{ threadId, item }` for raw non-audio realtime items that do not have a dedicated typed app-server notification, including `handoff_request` (experimental). `item` is forwarded as raw JSON while the upstream websocket item schema remains unstable.
 - `thread/realtime/transcript/delta` — `{ threadId, role, delta }` for live realtime transcript deltas (experimental).
 - `thread/realtime/transcript/done` — `{ threadId, role, text }` when realtime emits the final full text for a transcript part (experimental).
@@ -1884,7 +1884,7 @@ persisted rollout errors, so unavailable details after a restart remain a termin
 
 ## Approvals
 
-Certain actions (shell commands or modifying files) may require explicit user approval depending on the user's config. When `turn/start` is used, the app-server drives an approval flow by sending a server-initiated JSON-RPC request to the client. The client must respond to tell Codex whether to proceed. UIs should present these requests inline with the active turn so users can review the proposed command or diff before choosing.
+Certain actions (shell commands or modifying files) may require explicit user approval depending on the user's config. When `turn/start` is used, the app-server drives an approval flow by sending a server-initiated JSON-RPC request to the client. The client must respond to tell Suffice whether to proceed. UIs should present these requests inline with the active turn so users can review the proposed command or diff before choosing.
 
 - Requests include `threadId` and `turnId`—use them to scope UI state to the active conversation.
 - Respond with a single `{ "decision": ... }` payload. Command approvals support `accept`, `acceptForSession`, `acceptWithExecpolicyAmendment`, `applyNetworkPolicyAmendment`, `decline`, or `cancel`. The server resumes or declines the work and ends the item with `item/completed`.
@@ -1927,7 +1927,7 @@ When the client responds to `item/tool/requestUserInput`, the server emits `serv
 
 ### Attestation generation
 
-Desktop hosts that provide upstream attestation should set `capabilities.requestAttestation` during `initialize` and handle the server-initiated `attestation/generate` request. App-server issues it just in time before ChatGPT Codex requests that forward `x-oai-attestation`; the client responds with `{ "token": "v1.<opaque>" }`, where `token` is an opaque client-owned value. When app-server receives a client response, it forwards a consistent outer envelope such as `{ "v": 1, "s": 0, "t": "v1.<opaque>" }`, where `t` contains the client token unchanged. If app-server attempts attestation but fails within its own boundary, it sends the same envelope shape with an app-server status code and without `t` (`1 = timeout`, `2 = request failed`, `3 = request canceled`, `4 = malformed response`). If no initialized client opted into attestation, app-server omits `x-oai-attestation` for that upstream request.
+Desktop hosts that provide upstream attestation should set `capabilities.requestAttestation` during `initialize` and handle the server-initiated `attestation/generate` request. App-server issues it just in time before ChatGPT Suffice requests that forward `x-oai-attestation`; the client responds with `{ "token": "v1.<opaque>" }`, where `token` is an opaque client-owned value. When app-server receives a client response, it forwards a consistent outer envelope such as `{ "v": 1, "s": 0, "t": "v1.<opaque>" }`, where `t` contains the client token unchanged. If app-server attempts attestation but fails within its own boundary, it sends the same envelope shape with an app-server status code and without `t` (`1 = timeout`, `2 = request failed`, `3 = request canceled`, `4 = malformed response`). If no initialized client opted into attestation, app-server omits `x-oai-attestation` for that upstream request.
 
 ### Current time
 
@@ -2083,7 +2083,7 @@ Invoke a skill by including `$<skill-name>` in the text input. Add a `skill` inp
       {
         "type": "skill",
         "name": "skill-creator",
-        "path": "/Users/me/.codex/skills/skill-creator/SKILL.md"
+        "path": "/Users/me/.suffice/skills/skill-creator/SKILL.md"
       }
     ]
   }
@@ -2115,12 +2115,12 @@ Use `skills/extraRoots/set` to replace additional standalone skill roots for the
         "skills": [
             {
               "name": "skill-creator",
-              "description": "Create or update a Codex skill",
+              "description": "Create or update a Suffice skill",
               "enabled": true,
               "pluginId": null,
               "interface": {
                 "displayName": "Skill Creator",
-                "shortDescription": "Create or update a Codex skill",
+                "shortDescription": "Create or update a Suffice skill",
                 "iconSmall": "icon.svg",
                 "iconLarge": "icon-large.svg",
                 "brandColor": "#111111",
@@ -2158,7 +2158,7 @@ To enable or disable a skill by absolute path:
   "method": "skills/config/write",
   "id": 27,
   "params": {
-    "path": "/Users/alice/.codex/skills/skill-creator/SKILL.md",
+    "path": "/Users/alice/.suffice/skills/skill-creator/SKILL.md",
     "name": null,
     "enabled": false
   }
@@ -2181,7 +2181,7 @@ To enable or disable a skill by name:
 
 Use `hooks/list` to fetch discovered hooks for one or more `cwds`. Each result is evaluated with that `cwd`'s effective config, so feature gates and discovered config layers can differ within a single response.
 
-For linked Git worktrees, project hook declarations come from the matching `.codex/` folders in the root checkout rather than from divergent hook declarations stored only in the linked worktree. This keeps each repo on one authoritative project-hook definition and one trust state.
+For linked Git worktrees, project hook declarations come from the matching `.suffice/` folders in the root checkout rather than from divergent hook declarations stored only in the linked worktree. This keeps each repo on one authoritative project-hook definition and one trust state.
 
 Hooks are returned even when disabled so clients can render and re-enable them. User-controlled state lives under `hooks.state`. Managed hooks are non-configurable, and user entries for managed hook keys are ignored during loading.
 
@@ -2208,7 +2208,7 @@ MCP tool hooks appear with `handlerType: "mcpTool"`. Their `server` and `tool` f
     "data": [{
       "cwd": "/Users/me/project",
       "hooks": [{
-        "key": "/Users/me/.codex/config.toml:pre_tool_use:0:0",
+        "key": "/Users/me/.suffice/config.toml:pre_tool_use:0:0",
         "eventName": "pre_tool_use",
         "handlerType": "command",
         "async": false,
@@ -2218,7 +2218,7 @@ MCP tool hooks appear with `handlerType: "mcpTool"`. Their `server` and `tool` f
         "timeoutSec": 5,
         "statusMessage": "running hook",
         "additionalContextLimit": null,
-        "sourcePath": "/Users/me/.codex/config.toml",
+        "sourcePath": "/Users/me/.suffice/config.toml",
         "source": "user",
         "pluginId": null,
         "displayOrder": 0,
@@ -2243,7 +2243,7 @@ To disable a non-managed hook, upsert a state entry at `hooks.state` with `confi
     "edits": [{
       "keyPath": "hooks.state",
       "value": {
-        "/Users/me/.codex/config.toml:pre_tool_use:0:0": {
+        "/Users/me/.suffice/config.toml:pre_tool_use:0:0": {
           "enabled": false
         }
       },
@@ -2453,12 +2453,12 @@ The JSON-RPC auth/account surface exposes request/response methods plus server-i
 
 ### Authentication modes
 
-Codex supports these authentication modes. The current mode is surfaced in `account/updated` (`authMode`), which also includes the current ChatGPT `planType` when available, and can be inferred from `account/read`. Self-serve Business ProLite accounts use the `self_serve_business_prolite` plan type; Enterprise automation accounts use `enterprise_cbp_automation`.
+Suffice supports these authentication modes. The current mode is surfaced in `account/updated` (`authMode`), which also includes the current ChatGPT `planType` when available, and can be inferred from `account/read`. Self-serve Business ProLite accounts use the `self_serve_business_prolite` plan type; Enterprise automation accounts use `enterprise_cbp_automation`.
 
 - **API key (`apiKey`)**: Caller supplies an OpenAI API key via `account/login/start` with `type: "apiKey"`. The API key is saved and used for API requests.
-- **ChatGPT managed (`chatgpt`)** (recommended): Codex owns the ChatGPT OAuth flow and refresh tokens. Start via `account/login/start` with `type: "chatgpt"` for the browser flow or `type: "chatgptDeviceCode"` for device code; Codex persists tokens to disk and refreshes them automatically.
-- **Codex managed Amazon Bedrock auth (experimental)**: Caller supplies an Amazon Bedrock API key using `type: "amazonBedrock"` or AWS access keys using `type: "amazonBedrockAccessKeys"` via `account/login/start`. The client must enable the `experimentalApi` initialization capability. Codex replaces the current primary auth with the Bedrock credential and writes `model_provider = "amazon-bedrock"` to the user config.
-- **Personal access token (`personalAccessToken`)**: Codex uses a ChatGPT-backed personal access token loaded outside the app-server login RPCs, such as with `codex login --with-access-token` or `CODEX_ACCESS_TOKEN`.
+- **ChatGPT managed (`chatgpt`)** (recommended): Suffice owns the ChatGPT OAuth flow and refresh tokens. Start via `account/login/start` with `type: "chatgpt"` for the browser flow or `type: "chatgptDeviceCode"` for device code; Suffice persists tokens to disk and refreshes them automatically.
+- **Suffice managed Amazon Bedrock auth (experimental)**: Caller supplies an Amazon Bedrock API key using `type: "amazonBedrock"` or AWS access keys using `type: "amazonBedrockAccessKeys"` via `account/login/start`. The client must enable the `experimentalApi` initialization capability. Suffice replaces the current primary auth with the Bedrock credential and writes `model_provider = "amazon-bedrock"` to the user config.
+- **Personal access token (`personalAccessToken`)**: Suffice uses a ChatGPT-backed personal access token loaded outside the app-server login RPCs, such as with `suffice login --with-access-token` or `CODEX_ACCESS_TOKEN`.
 
 ### API Overview
 
@@ -2500,8 +2500,8 @@ Field notes:
 
 - `refreshToken` (bool): set `true` to force a token refresh.
 - `email` is `null` when the ChatGPT account does not have an email address.
-- `requiresOpenaiAuth` reflects the active provider; when `false`, Codex can run without OpenAI credentials.
-- Amazon Bedrock reports `usesCodexManagedCredentials: true` when it uses a Bedrock API key or AWS access keys managed by Codex. It reports `false` for external credential paths, including the AWS credential chain and configured command auth. This identifies whether Codex-managed credentials are selected; it does not validate that the credential source can resolve credentials.
+- `requiresOpenaiAuth` reflects the active provider; when `false`, Suffice can run without OpenAI credentials.
+- Amazon Bedrock reports `usesCodexManagedCredentials: true` when it uses a Bedrock API key or AWS access keys managed by Suffice. It reports `false` for external credential paths, including the AWS credential chain and configured command auth. This identifies whether Suffice-managed credentials are selected; it does not validate that the credential source can resolve credentials.
 
 ### 2) Log in with an API key
 
@@ -2533,7 +2533,7 @@ Field notes:
 2. Open `authUrl` in a browser; the app-server hosts the local callback.
    By default, a successful callback redirects to the local success page. Clients may set
    `useHostedLoginSuccessPage: true` to redirect successful callbacks that do not require
-   organization setup to the hosted Codex success page instead. When hosted login success is
+   organization setup to the hosted Suffice success page instead. When hosted login success is
    enabled, clients may set `appBrand` to `"codex"` or `"chatgpt"` to select the matching hosted
    page artwork; omitted or `null` values default to `"codex"`.
 3. Wait for notifications:
@@ -2588,7 +2588,7 @@ To log in with AWS access keys instead:
 The session token is optional. Both flows store credentials in the configured auth backend
 (`auth.json` or keyring), replace any previously stored login, and select
 `model_provider = "amazon-bedrock"`; access-key login also writes the selected AWS region to the
-active user config. Neither flow changes `$CODEX_HOME/.env`. Existing loaded sessions keep their
+active user config. Neither flow changes `$SUFFICE_HOME/.env`. Existing loaded sessions keep their
 current provider selection, so clients should restart the app-server before sending more model
 requests. This limitation will be addressed in a follow-up.
 
@@ -2630,13 +2630,13 @@ Set up a named AWS profile:
 To select credentials already visible in the environment, use
 `{ "type": "environment", "region": "us-west-2" }`. The provider
 resolves available environment credentials through its normal authentication chain. Selecting
-profile or environment credentials leaves existing keys in `$CODEX_HOME/.env` unchanged.
+profile or environment credentials leaves existing keys in `$SUFFICE_HOME/.env` unchanged.
 
 Successful setup writes `model_provider = "amazon-bedrock"` and the selected AWS region to the
 active user config, and additionally writes the selected profile for profile-based setup. Clients
 should restart the app-server before sending more model requests. Logging out while an Amazon
 Bedrock provider is selected clears the user-configured provider, profile, and region, removes
-any Codex-managed credentials, and leaves AWS-managed credentials and `$CODEX_HOME/.env` unchanged.
+any Suffice-managed credentials, and leaves AWS-managed credentials and `$SUFFICE_HOME/.env` unchanged.
 
 ### 4) Log in with ChatGPT (device code flow)
 
@@ -2669,10 +2669,10 @@ any Codex-managed credentials, and leaves AWS-managed credentials and `$CODEX_HO
 
 When `model_provider` is `"amazon-bedrock"` or `"amazon-bedrock-runtime"`, logout clears that
 provider selection and its configured AWS profile and region, regardless of whether the
-credentials are Codex-managed or AWS-managed. If the selected model is Bedrock-specific, logout
+credentials are Suffice-managed or AWS-managed. If the selected model is Bedrock-specific, logout
 also clears `model`; `model_reasoning_effort` and other generic settings are preserved.
-Codex-managed credentials are removed; AWS profiles, environment credentials, and
-`$CODEX_HOME/.env` are left untouched.
+Suffice-managed credentials are removed; AWS profiles, environment credentials, and
+`$SUFFICE_HOME/.env` are left untouched.
 
 ### 7) Rate limits (ChatGPT)
 
@@ -2763,7 +2763,7 @@ Some app-server methods and fields are intentionally gated behind an experimenta
 
 ### Generating stable vs experimental client schemas
 
-`codex app-server` schema generation defaults to the stable API surface (experimental fields and methods filtered out). Pass `--experimental` to include experimental methods/fields in generated TypeScript or JSON schema:
+`suffice app-server` schema generation defaults to the stable API surface (experimental fields and methods filtered out). Pass `--experimental` to include experimental methods/fields in generated TypeScript or JSON schema:
 
 ```bash
 # Stable-only output (default)

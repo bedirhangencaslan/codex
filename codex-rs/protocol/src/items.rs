@@ -353,9 +353,9 @@ pub struct WebSearchItem {
     pub action: WebSearchAction,
     /// Structured search results returned out-of-band by standalone web search.
     ///
-    /// These stay as opaque JSON at the Codex transport boundary so new result
+    /// These stay as opaque JSON at the Suffice transport boundary so new result
     /// fields and result types can pass through without changing model-visible
-    /// context or requiring a Codex release.
+    /// context or requiring a Suffice release.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub results: Option<Vec<JsonValue>>,
@@ -766,8 +766,8 @@ mod tests {
 
         for path in [
             "",
-            "/home/user/.codex/plugins/cache/sample/scripts/run.py",
-            "C:/Users/user/.codex/plugins/cache/sample/scripts/run.py",
+            "/home/user/.suffice/plugins/cache/sample/scripts/run.py",
+            "C:/Users/user/.suffice/plugins/cache/sample/scripts/run.py",
             "scripts/C:/run.py",
             r"\\server\share\sample\scripts\run.py",
             r"scripts\run.py",

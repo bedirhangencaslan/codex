@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn denied_git_marketplace_does_not_clone_or_create_install_root() {
-        let codex_home = TempDir::new().expect("create Codex home");
+        let codex_home = TempDir::new().expect("create Suffice home");
         let requirements = requirements(
             r#"
 [marketplaces]
@@ -431,7 +431,7 @@ url = "https://github.com/example/allowed.git"
 
     fn write_marketplace_source(source: &Path, marker: &str) -> std::io::Result<()> {
         fs::create_dir_all(source.join(".agents/plugins"))?;
-        fs::create_dir_all(source.join("plugins/sample/.codex-plugin"))?;
+        fs::create_dir_all(source.join("plugins/sample/.suffice-plugin"))?;
         fs::write(
             source.join(".agents/plugins/marketplace.json"),
             r#"{
@@ -448,7 +448,7 @@ url = "https://github.com/example/allowed.git"
 }"#,
         )?;
         fs::write(
-            source.join("plugins/sample/.codex-plugin/plugin.json"),
+            source.join("plugins/sample/.suffice-plugin/plugin.json"),
             r#"{"name":"sample"}"#,
         )?;
         fs::write(source.join("plugins/sample/marker.txt"), marker)?;

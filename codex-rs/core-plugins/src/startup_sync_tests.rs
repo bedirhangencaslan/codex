@@ -122,7 +122,7 @@ fn pretrust_git_sync_ignores_repository_local_transport_config() {
     let codex_home = fixture.path().join("codex-home");
     let repository = fixture.path().join("untrusted-project");
     let marker = fixture.path().join("transport-config-ran");
-    std::fs::create_dir_all(&codex_home).expect("create Codex home");
+    std::fs::create_dir_all(&codex_home).expect("create Suffice home");
     std::fs::create_dir_all(&repository).expect("create repository");
     run_git(&repository, &["init", "--quiet"]);
 
@@ -220,7 +220,7 @@ async fn ordinary_clone_rejects_tracked_embedded_bare_repository() {
         &source,
         &[
             "-c",
-            "user.name=Codex Tests",
+            "user.name=Suffice Tests",
             "-c",
             "user.email=codex-tests@example.com",
             "commit",
@@ -323,7 +323,7 @@ fn write_file(path: &Path, contents: &str) {
 fn write_curated_plugin(root: &Path, plugin_name: &str) {
     let plugin_root = root.join("plugins").join(plugin_name);
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         &format!(r#"{{"name":"{plugin_name}"}}"#),
     );
 }
@@ -535,7 +535,7 @@ fn assert_curated_gmail_repo(repo_path: &Path) {
     assert!(repo_path.join(".agents/plugins/marketplace.json").is_file());
     assert!(
         repo_path
-            .join("plugins/gmail/.codex-plugin/plugin.json")
+            .join("plugins/gmail/.suffice-plugin/plugin.json")
             .is_file()
     );
 }
@@ -635,11 +635,11 @@ if [ "$1" = "-C" ] && [ "$3" = "fetch" ]; then
   exit 0
 fi
 if [ "$1" = "-C" ] && [ "$3" = "reset" ]; then
-  mkdir -p "$2/.agents/plugins" "$2/plugins/gmail/.codex-plugin"
+  mkdir -p "$2/.agents/plugins" "$2/plugins/gmail/.suffice-plugin"
   cat > "$2/.agents/plugins/marketplace.json" <<'EOF'
 {{"name":"openai-curated","plugins":[{{"name":"gmail","source":{{"source":"local","path":"./plugins/gmail"}}}}]}}
 EOF
-  printf '%s\n' '{{"name":"gmail"}}' > "$2/plugins/gmail/.codex-plugin/plugin.json"
+  printf '%s\n' '{{"name":"gmail"}}' > "$2/plugins/gmail/.suffice-plugin/plugin.json"
   exit 0
 fi
 if [ "$1" = "-C" ] && [ "$3" = "clean" ]; then
@@ -714,7 +714,7 @@ fn sync_openai_plugins_repo_via_git_succeeds_with_local_rewritten_remote() {
     let work_repo = repo_root.path().join("work/plugins");
     let remote_repo = repo_root.path().join("remotes/openai/plugins.git");
     std::fs::create_dir_all(work_repo.join(".agents/plugins")).expect("create marketplace dir");
-    std::fs::create_dir_all(work_repo.join("plugins/gmail/.codex-plugin"))
+    std::fs::create_dir_all(work_repo.join("plugins/gmail/.suffice-plugin"))
         .expect("create plugin dir");
     std::fs::write(
         work_repo.join(".agents/plugins/marketplace.json"),
@@ -722,7 +722,7 @@ fn sync_openai_plugins_repo_via_git_succeeds_with_local_rewritten_remote() {
     )
     .expect("write marketplace");
     std::fs::write(
-        work_repo.join("plugins/gmail/.codex-plugin/plugin.json"),
+        work_repo.join("plugins/gmail/.suffice-plugin/plugin.json"),
         r#"{"name":"gmail"}"#,
     )
     .expect("write plugin manifest");
@@ -733,7 +733,7 @@ fn sync_openai_plugins_repo_via_git_succeeds_with_local_rewritten_remote() {
         &work_repo,
         &[
             "-c",
-            "user.name=Codex Test",
+            "user.name=Suffice Test",
             "-c",
             "user.email=codex@example.com",
             "commit",
@@ -816,7 +816,7 @@ fn sync_openai_plugins_repo_via_git_succeeds_with_local_rewritten_remote() {
         &work_repo,
         &[
             "-c",
-            "user.name=Codex Test",
+            "user.name=Suffice Test",
             "-c",
             "user.email=codex@example.com",
             "commit",
@@ -842,7 +842,7 @@ fn sync_openai_plugins_repo_via_git_succeeds_with_local_rewritten_remote() {
     assert_eq!(synced_sha, updated_sha);
     assert!(
         curated_plugins_repo_path(tmp.path())
-            .join("plugins/linear/.codex-plugin/plugin.json")
+            .join("plugins/linear/.suffice-plugin/plugin.json")
             .is_file()
     );
     assert_eq!(
@@ -1101,8 +1101,8 @@ if [ "$1" = "-C" ] && [ "$3" = "fetch" ]; then
   exit 0
 fi
 if [ "$1" = "-C" ] && [ "$3" = "reset" ]; then
-  mkdir -p "$2/plugins/linear/.codex-plugin"
-  printf '%s\n' '{{"name":"linear"}}' > "$2/plugins/linear/.codex-plugin/plugin.json"
+  mkdir -p "$2/plugins/linear/.suffice-plugin"
+  printf '%s\n' '{{"name":"linear"}}' > "$2/plugins/linear/.suffice-plugin/plugin.json"
   exit 0
 fi
 if [ "$1" = "-C" ] && [ "$3" = "clean" ]; then
@@ -1219,7 +1219,7 @@ async fn sync_openai_plugins_repo_skips_export_archive_when_snapshot_exists() {
     write_openai_curated_marketplace(&curated_root, &["linear"]);
     write_curated_plugin_sha(tmp.path());
 
-    let plugin_manifest_path = curated_root.join("plugins/linear/.codex-plugin/plugin.json");
+    let plugin_manifest_path = curated_root.join("plugins/linear/.suffice-plugin/plugin.json");
     let original_manifest =
         std::fs::read_to_string(&plugin_manifest_path).expect("read existing plugin manifest");
 
@@ -1326,7 +1326,7 @@ fn curated_repo_zipball_bytes(sha: &str) -> Vec<u8> {
         .expect("write marketplace");
     writer
         .start_file(
-            format!("{root}/plugins/gmail/.codex-plugin/plugin.json"),
+            format!("{root}/plugins/gmail/.suffice-plugin/plugin.json"),
             options,
         )
         .expect("start plugin manifest entry");
@@ -1374,7 +1374,7 @@ fn curated_repo_backup_archive_zip_bytes(sha: &str) -> Vec<u8> {
         )
         .expect("write marketplace");
     writer
-        .start_file("plugins/plugins/gmail/.codex-plugin/plugin.json", options)
+        .start_file("plugins/plugins/gmail/.suffice-plugin/plugin.json", options)
         .expect("start plugin manifest entry");
     writer
         .write_all(br#"{"name":"gmail"}"#)

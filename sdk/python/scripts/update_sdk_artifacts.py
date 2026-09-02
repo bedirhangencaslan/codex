@@ -106,7 +106,7 @@ def pinned_runtime_version() -> str:
 
 
 def pinned_runtime_codex_path() -> Path:
-    """Return the bundled Codex binary from the installed pinned runtime wheel."""
+    """Return the bundled Suffice binary from the installed pinned runtime wheel."""
     expected_version = pinned_runtime_version()
     try:
         installed_version = importlib.metadata.version(RUNTIME_DISTRIBUTION_NAME)
@@ -132,7 +132,7 @@ def pinned_runtime_codex_path() -> Path:
 
     codex_path = bundled_codex_path()
     if not codex_path.exists():
-        raise RuntimeError(f"Pinned Codex runtime binary not found at {codex_path}.")
+        raise RuntimeError(f"Pinned Suffice runtime binary not found at {codex_path}.")
     return codex_path
 
 
@@ -248,7 +248,7 @@ def stage_python_runtime_package(
 
 def _extract_codex_package_archive(package_archive: Path, runtime_package_root: Path) -> None:
     if not package_archive.name.endswith(".tar.gz"):
-        raise RuntimeError(f"Expected a .tar.gz Codex package archive: {package_archive}")
+        raise RuntimeError(f"Expected a .tar.gz Suffice package archive: {package_archive}")
 
     runtime_package_root.mkdir(parents=True, exist_ok=True)
     with tarfile.open(package_archive, "r:gz") as archive:
@@ -275,7 +275,7 @@ def _validate_codex_package_layout(package_dir: Path, package_archive: Path) -> 
         missing_entries.append(str(Path("bin") / runtime_code_mode_host_name()))
     if missing_entries:
         missing = ", ".join(missing_entries)
-        raise RuntimeError(f"Missing Codex package layout entries in {package_archive}: {missing}")
+        raise RuntimeError(f"Missing Suffice package layout entries in {package_archive}: {missing}")
 
 
 def _flatten_string_enum_one_of(definition: dict[str, Any]) -> bool:
@@ -1063,7 +1063,7 @@ def _render_codex_block(
         *_approval_mode_start_signature_lines(),
         *_kw_signature_lines(thread_start_fields),
         "    ) -> Thread:",
-        '        """Create a new Codex conversation thread."""',
+        '        """Create a new Suffice conversation thread."""',
         _approval_mode_assignment_line("_approval_mode_settings"),
         "        params = ThreadStartParams(",
         *_approval_mode_model_arg_lines(),
@@ -1142,7 +1142,7 @@ def _render_async_codex_block(
         *_approval_mode_start_signature_lines(),
         *_kw_signature_lines(thread_start_fields),
         "    ) -> AsyncThread:",
-        '        """Create a new Codex conversation thread."""',
+        '        """Create a new Suffice conversation thread."""',
         "        await self._ensure_initialized()",
         _approval_mode_assignment_line("_approval_mode_settings"),
         "        params = ThreadStartParams(",
@@ -1317,7 +1317,7 @@ def generate_public_api_flat_methods() -> None:
     source = public_api_path.read_text()
     source = _replace_generated_block(
         source,
-        "Codex.flat_methods",
+        "Suffice.flat_methods",
         _render_codex_block(
             thread_start_fields,
             thread_list_fields,
@@ -1400,13 +1400,13 @@ def build_parser() -> argparse.ArgumentParser:
     stage_runtime_parser.add_argument(
         "package_archive",
         type=Path,
-        help="Path to a Codex package .tar.gz archive for this platform.",
+        help="Path to a Suffice package .tar.gz archive for this platform.",
     )
     stage_runtime_parser.add_argument(
         "--codex-version",
         required=True,
         help=(
-            "Codex release version to write into the staged runtime package. "
+            "Suffice release version to write into the staged runtime package. "
             "Accepts PEP 440 versions or release tags such as "
             "rust-v0.116.0-alpha.1.2."
         ),

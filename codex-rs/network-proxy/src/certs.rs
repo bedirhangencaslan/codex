@@ -185,7 +185,7 @@ pub(crate) struct ManagedMitmCaTrustBundle {
 
 fn managed_ca_dir() -> Result<PathBuf> {
     let codex_home =
-        find_codex_home().context("failed to resolve CODEX_HOME for managed MITM CA")?;
+        find_codex_home().context("failed to resolve SUFFICE_HOME for managed MITM CA")?;
     Ok(codex_home.join(MANAGED_MITM_CA_DIR).to_path_buf())
 }
 
@@ -454,7 +454,7 @@ fn is_generated_managed_ca_artifact_path(path: &Path, proxy_dir: &Path, prefix: 
     format!("{:x}", Sha256::digest(trust_bundle)) == expected_hash
 }
 
-/// Returns whether `path` points at a current Codex-generated MITM CA bundle.
+/// Returns whether `path` points at a current Suffice-generated MITM CA bundle.
 pub fn is_managed_mitm_ca_trust_bundle_path(path: &str) -> bool {
     let Ok(proxy_dir) = managed_ca_dir() else {
         return false;

@@ -531,9 +531,9 @@ async fn capability_sections_render_in_order_with_host_repo_and_plugin_skills() 
     )?;
     let host_skill_path = dunce::canonicalize(host_skill_path)?;
     let plugin_root = codex_home.path().join("plugins/cache/test/sample/local");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","description":"inspect sample data"}"#,
     )?;
     let plugin_skill_dir = plugin_root.join("skills/sample-search");
@@ -773,10 +773,10 @@ async fn explicit_skill_prompt_precedes_plugin_instructions() -> Result<()> {
     let codex_home = Arc::new(TempDir::new()?);
     let plugin_root = codex_home.path().join("plugins/cache/test/sample/local");
     let skill_dir = plugin_root.join("skills/sample-search");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::create_dir_all(&skill_dir)?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","description":"inspect sample data"}"#,
     )?;
     std::fs::write(
@@ -3112,7 +3112,7 @@ async fn production_turn_fairly_shortens_extension_catalog_descriptions() -> Res
     let warning = event_rx.try_recv()?.into_warning();
     assert_eq!(
         warning.message,
-        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+        "Skill descriptions were shortened to fit the skills context budget. Suffice can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
     );
 
     Ok(())

@@ -97,7 +97,7 @@ async fn first_layer_config_error_from_entries(layers: &[ConfigLayerEntry]) -> O
 /// hooks, rules, deny-read permissions, and remote sandbox config:
 ///
 /// - system    `/etc/codex/requirements.toml` (Unix) or
-///   `%ProgramData%\OpenAI\Codex\requirements.toml` (Windows)
+///   `%ProgramData%\OpenAI\Suffice\requirements.toml` (Windows)
 /// - cloud:    enterprise-managed cloud config bundle requirements
 /// - legacy:   `/etc/codex/managed_config.toml` (Unix) reinterpreted as
 ///   requirements.toml
@@ -108,16 +108,16 @@ async fn first_layer_config_error_from_entries(layers: &[ConfigLayerEntry]) -> O
 ///
 /// Configuration is built up from multiple layers in the following order:
 ///
-/// - package:  optional default configuration supplied with the Codex package
+/// - package:  optional default configuration supplied with the Suffice package
 /// - admin:    managed preferences (*)
 /// - system    `/etc/codex/config.toml` (Unix) or
-///   `%ProgramData%\OpenAI\Codex\config.toml` (Windows)
+///   `%ProgramData%\OpenAI\Suffice\config.toml` (Windows)
 /// - cloud     enterprise-managed cloud config bundle fragments
-/// - user      `${CODEX_HOME}/config.toml`
-/// - profile   `${CODEX_HOME}/<name>.config.toml`, when selected
+/// - user      `${SUFFICE_HOME}/config.toml`
+/// - profile   `${SUFFICE_HOME}/<name>.config.toml`, when selected
 /// - cwd       `${PWD}/config.toml` (loaded but disabled when the directory is untrusted)
-/// - tree      parent directories up to root looking for `./.codex/config.toml` (loaded but disabled when untrusted)
-/// - repo      `$(git rev-parse --show-toplevel)/.codex/config.toml` (loaded but disabled when untrusted)
+/// - tree      parent directories up to root looking for `./.suffice/config.toml` (loaded but disabled when untrusted)
+/// - repo      `$(git rev-parse --show-toplevel)/.suffice/config.toml` (loaded but disabled when untrusted)
 /// - runtime   e.g., --config flags, model selector in UI
 ///
 /// (*) Only available on macOS via managed device profiles.
@@ -175,7 +175,7 @@ pub async fn load_config_layers_state(
         let config = toml::from_str(raw_toml).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("invalid embedded packaged defaults; this is a Codex build error: {error}"),
+                format!("invalid embedded packaged defaults; this is a Suffice build error: {error}"),
             )
         })?;
         ConfigLayerEntry::new_with_raw_toml(
@@ -825,7 +825,7 @@ fn windows_codex_system_dir() -> PathBuf {
         );
         PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS)
     });
-    program_data.join("OpenAI").join("Codex")
+    program_data.join("OpenAI").join("Suffice")
 }
 
 #[cfg(windows)]
@@ -978,7 +978,7 @@ fn legacy_requirements_to_toml_value(legacy: LegacyManagedConfigToml) -> io::Res
     }
     if let Some(sandbox_mode) = sandbox_mode {
         let required_mode: SandboxModeRequirement = sandbox_mode.into();
-        // Allowing read-only is a requirement for Codex to function correctly.
+        // Allowing read-only is a requirement for Suffice to function correctly.
         // So in this backfill path, we append read-only if it's not already specified.
         let mut allowed_modes = vec![SandboxModeRequirement::ReadOnly];
         if required_mode != SandboxModeRequirement::ReadOnly {
@@ -1133,7 +1133,7 @@ impl ProjectTrustContext {
         }
 
         let relative_dir = dir.as_path().strip_prefix(checkout_root.as_path()).ok()?;
-        Some(repo_root.join(relative_dir).join(".codex"))
+        Some(repo_root.join(relative_dir).join(".suffice"))
     }
 }
 
@@ -1722,7 +1722,7 @@ async fn discover_project_layers(
     let mut layers = Vec::new();
     let mut startup_warnings = Vec::new();
     for dir in dirs {
-        let dot_codex_abs = dir.join(".codex");
+        let dot_codex_abs = dir.join(".suffice");
         let dot_codex_uri = PathUri::from_abs_path(&dot_codex_abs);
         if !fs
             .get_metadata(&dot_codex_uri, Default::default(), /*sandbox*/ None)
@@ -2029,7 +2029,7 @@ foo = "xyzzy"
         let expected = windows_program_data_dir_from_known_folder()
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS))
             .join("OpenAI")
-            .join("Codex")
+            .join("Suffice")
             .join("requirements.toml");
         assert_eq!(
             windows_system_requirements_toml_file()
@@ -2041,7 +2041,7 @@ foo = "xyzzy"
             windows_system_requirements_toml_file()
                 .expect("requirements.toml path")
                 .as_path()
-                .ends_with(Path::new("OpenAI").join("Codex").join("requirements.toml"))
+                .ends_with(Path::new("OpenAI").join("Suffice").join("requirements.toml"))
         );
     }
 
@@ -2051,7 +2051,7 @@ foo = "xyzzy"
         let expected = windows_program_data_dir_from_known_folder()
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS))
             .join("OpenAI")
-            .join("Codex")
+            .join("Suffice")
             .join("config.toml");
         assert_eq!(
             windows_system_config_toml_file()
@@ -2063,7 +2063,7 @@ foo = "xyzzy"
             windows_system_config_toml_file()
                 .expect("config.toml path")
                 .as_path()
-                .ends_with(Path::new("OpenAI").join("Codex").join("config.toml"))
+                .ends_with(Path::new("OpenAI").join("Suffice").join("config.toml"))
         );
     }
 }

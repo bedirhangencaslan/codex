@@ -104,7 +104,7 @@ impl WriteStdinHandler {
                     UnifiedExecError::StdinApproval(ToolError::Rejected(reason)) => {
                         format!("write_stdin rejected: {reason}")
                     }
-                    UnifiedExecError::StdinApproval(ToolError::Codex(err)) => {
+                    UnifiedExecError::StdinApproval(ToolError::Suffice(err)) => {
                         format!("write_stdin approval failed: {err}")
                     }
                     err => format!("write_stdin failed: {err}"),

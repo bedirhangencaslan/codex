@@ -26,7 +26,7 @@ pub const DEFAULT_PLUGIN_VERSION: &str = "local";
 pub const PLUGINS_CACHE_DIR: &str = "plugins/cache";
 pub const PLUGINS_DATA_DIR: &str = "plugins/data";
 const AGENT_PLUGINS_DATA_DIR: &str = "agent-plugins";
-const REMOTE_PLUGIN_INSTALL_METADATA_FILE: &str = ".codex-remote-plugin-install.json";
+const REMOTE_PLUGIN_INSTALL_METADATA_FILE: &str = ".suffice-remote-plugin-install.json";
 const REMOTE_PLUGIN_INSTALL_METADATA_SCHEMA_VERSION: u8 = 1;
 const DEFAULT_AGENT_PLUGIN_VERSION: &str = "1.0.0";
 
@@ -111,7 +111,7 @@ impl PluginStore {
             AbsolutePathBuf::from_absolute_path_checked(codex_home.join(PLUGINS_DATA_DIR))
                 .map_err(|err| PluginStoreError::io("failed to resolve plugin data root", err))?;
         let codex_home = AbsolutePathBuf::from_absolute_path_checked(codex_home)
-            .map_err(|err| PluginStoreError::io("failed to resolve Codex home", err))?;
+            .map_err(|err| PluginStoreError::io("failed to resolve Suffice home", err))?;
 
         Ok(Self {
             codex_home,
@@ -522,7 +522,7 @@ fn plugin_manifest_for_source(
             .ok_or_else(|| PluginStoreError::Invalid("missing or invalid plugin.json".to_string())),
         InstallManifest::Fallback(contents) => parse_plugin_manifest(
             source_path,
-            &source_path.join(".codex-plugin/plugin.json"),
+            &source_path.join(".suffice-plugin/plugin.json"),
             contents,
         )
         .map_err(|err| PluginStoreError::Invalid(format!("failed to parse plugin.json: {err}"))),
@@ -649,7 +649,7 @@ fn replace_plugin_root_atomically(
             (relative_path, contents)
         }
         InstallManifest::Fallback(contents) => (
-            PathBuf::from(".codex-plugin/plugin.json"),
+            PathBuf::from(".suffice-plugin/plugin.json"),
             contents.as_bytes().to_vec(),
         ),
     };
@@ -657,7 +657,7 @@ fn replace_plugin_root_atomically(
     if let InstallManifest::Fallback(contents) = manifest {
         // Inject the generated manifest into Store's existing atomic copy so install does not
         // mutate the original source or require a second staging directory.
-        let manifest_path = staged_version_root.join(".codex-plugin/plugin.json");
+        let manifest_path = staged_version_root.join(".suffice-plugin/plugin.json");
         let Some(manifest_parent) = manifest_path.parent() else {
             return Err(PluginStoreError::Invalid(
                 "plugin manifest path has no parent".to_string(),

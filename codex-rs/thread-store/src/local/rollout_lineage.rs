@@ -97,7 +97,7 @@ impl LocalThreadStore {
                 LineageRepresentation::PlainForReference => super::helpers::scoped_rollout_path(
                     self.config.codex_home.clone(),
                     rollout_path.as_path(),
-                    "Codex home",
+                    "Suffice home",
                 )?,
             };
             let meta = codex_rollout::read_session_meta_line(rollout_path.as_path())

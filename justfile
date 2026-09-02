@@ -36,7 +36,7 @@ file-search *args:
 code-mode-host *args:
     cargo run --bin codex-code-mode-host -- {args}
 
-# Assemble a local Codex package.
+# Assemble a local Suffice package.
 [no-cd]
 assemble-codex-package *args:
     {{ python }} {{ justfile_directory() }}/scripts/build_codex_package.py {args}
@@ -118,7 +118,7 @@ bench-e2e-smoke:
     # Compile exec-platform Rust tools through those release-only cfg paths too.
     bazel test --compilation_mode=fastbuild --@rules_rust//rust/settings:extra_rustc_flag=-Cdebug-assertions=no --@rules_rust//rust/settings:extra_exec_rustc_flag=-Cdebug-assertions=no --cache_test_results=no --test_output=streamed --test_arg=--test //codex-rs:e2e-benchmarks
 
-# Build and run Codex from source using Bazel.
+# Build and run Suffice from source using Bazel.
 # On Unix, use `[no-cd]` and `--run_under="cd $PWD &&"` to ensure Bazel runs
 # the command in the current working directory.
 [no-cd]

@@ -13,7 +13,7 @@ use std::path::PathBuf;
 pub use settings::DEFAULT_WORKTREE_KEEP_COUNT;
 pub use settings::WorktreeSettings;
 
-/// Creates and identifies worktrees using the existing Codex Desktop contract.
+/// Creates and identifies worktrees using the existing Suffice Desktop contract.
 #[derive(Clone, Debug)]
 pub struct WorktreeManager {
     settings: WorktreeSettings,

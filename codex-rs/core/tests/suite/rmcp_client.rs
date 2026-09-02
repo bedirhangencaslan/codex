@@ -1313,7 +1313,7 @@ async fn apps_enabled_turn_skips_pending_optional_mcp_without_cached_tools() -> 
                 .codex
                 .next_event()
                 .await
-                .context("event stream ended before Codex Apps became ready")?;
+                .context("event stream ended before Suffice Apps became ready")?;
             if let EventMsg::McpStartupUpdate(update) = event.msg
                 && update.server == CODEX_APPS_MCP_SERVER_NAME
                 && matches!(update.status, McpStartupStatus::Ready)
@@ -1323,7 +1323,7 @@ async fn apps_enabled_turn_skips_pending_optional_mcp_without_cached_tools() -> 
         }
     })
     .await
-    .context("Codex Apps should finish starting before the first turn")??;
+    .context("Suffice Apps should finish starting before the first turn")??;
 
     tokio::time::timeout(Duration::from_secs(5), fixture.submit_turn("hello"))
         .await
@@ -3225,7 +3225,7 @@ impl RemoteStreamableHttpServer {
 }
 
 impl StreamableHttpTestServer {
-    /// Returns the MCP endpoint URL that Codex should connect to.
+    /// Returns the MCP endpoint URL that Suffice should connect to.
     fn url(&self) -> &str {
         &self.server_url
     }
@@ -3262,7 +3262,7 @@ enum HeadersHelperMode {
     RotatingAuthorization,
 }
 
-/// What this tests: Codex can discover and call a Streamable HTTP MCP tool in
+/// What this tests: Suffice can discover and call a Streamable HTTP MCP tool in
 /// both local and remote-aware placements, and the tool observes the expected
 /// environment value from the server process that actually handled the request.
 #[test_case(HeadersHelperMode::None; "plain")]
@@ -3282,7 +3282,7 @@ async fn streamable_http_tool_call_round_trip(mode: HeadersHelperMode) -> anyhow
         return Ok(());
     }
 
-    // Phase 1: script the model responses so Codex will call the MCP echo tool
+    // Phase 1: script the model responses so Suffice will call the MCP echo tool
     // and then complete the turn after the tool result is returned.
     let server = responses::start_mock_server().await;
 
@@ -3353,7 +3353,7 @@ async fn streamable_http_tool_call_round_trip(mode: HeadersHelperMode) -> anyhow
         }
     });
 
-    // Phase 3: configure Codex with the Streamable HTTP MCP server and build a
+    // Phase 3: configure Suffice with the Streamable HTTP MCP server and build a
     // fixture that selects remote MCP placement only when the remote test
     // environment is active.
     let fixture = test_codex()
@@ -3401,7 +3401,7 @@ async fn streamable_http_tool_call_round_trip(mode: HeadersHelperMode) -> anyhow
         ))
         .await?;
 
-    // Phase 5: assert Codex begins the expected tool invocation.
+    // Phase 5: assert Suffice begins the expected tool invocation.
     let begin_event = wait_for_event(&fixture.codex, |ev| {
         matches!(ev, EventMsg::McpToolCallBegin(_))
     })
@@ -3638,8 +3638,8 @@ auth = "chatgpt"
     Ok(())
 }
 
-/// This test writes to a fallback credentials file in CODEX_HOME.
-/// Ideally, we wouldn't need to serialize the test but it's much more cumbersome to wire CODEX_HOME through the code.
+/// This test writes to a fallback credentials file in SUFFICE_HOME.
+/// Ideally, we wouldn't need to serialize the test but it's much more cumbersome to wire SUFFICE_HOME through the code.
 #[test]
 #[serial(codex_home)]
 fn streamable_http_with_oauth_round_trip() -> anyhow::Result<()> {
@@ -3667,7 +3667,7 @@ fn streamable_http_with_oauth_round_trip() -> anyhow::Result<()> {
 async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
     skip_if_no_network!(Ok(()));
 
-    // Phase 1: script the model responses so Codex will call the OAuth-backed
+    // Phase 1: script the model responses so Suffice will call the OAuth-backed
     // MCP echo tool and then finish the turn after receiving the result.
     let server = responses::start_mock_server().await;
 
@@ -3738,10 +3738,10 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
     };
     let server_url = http_server.url().to_string();
 
-    // Phase 3: seed an isolated CODEX_HOME with fallback OAuth tokens for this
+    // Phase 3: seed an isolated SUFFICE_HOME with fallback OAuth tokens for this
     // server so the test does not share credentials with other suite cases.
     let temp_home = Arc::new(tempdir()?);
-    let _codex_home_guard = EnvVarGuard::set("CODEX_HOME", temp_home.path().as_os_str());
+    let _codex_home_guard = EnvVarGuard::set("SUFFICE_HOME", temp_home.path().as_os_str());
     let unset_authorization_env_var = format!(
         "CODEX_TEST_UNSET_MCP_OAUTH_AUTHORIZATION_{}",
         std::process::id()
@@ -3772,7 +3772,7 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
         OAuthCredentialExpiry::Valid,
     )?;
 
-    // Phase 4: configure Codex with the OAuth-backed Streamable HTTP MCP
+    // Phase 4: configure Suffice with the OAuth-backed Streamable HTTP MCP
     // server and build the fixture in the active local or remote-aware mode.
     let fixture = test_codex()
         .with_model_info_override("gpt-5.4", |model| model.supports_search_tool = false)
@@ -3802,7 +3802,7 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
         .await?;
     // Phase 5: replace rejected credentials as an external OAuth login would.
     let recovery_hint = if credential_config.is_local_environment() {
-        format!("Run `codex mcp login {server_name}`.")
+        format!("Run `suffice mcp login {server_name}`.")
     } else {
         "Use your client's MCP OAuth sign-in flow.".to_string()
     };
@@ -3987,7 +3987,7 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
         ))
         .await?;
 
-    // Phase 7: assert Codex begins the expected tool invocation.
+    // Phase 7: assert Suffice begins the expected tool invocation.
     let begin_event = wait_for_event(&fixture.codex, |ev| {
         matches!(
             ev,
@@ -4174,7 +4174,7 @@ async fn start_remote_streamable_http_test_server(
     let server_url = format!("http://{}:{}/mcp", container_ip, remote_bind_addr.port());
     // The orchestrator can see the Docker container IP, but the behavior under
     // test is whether the remote-side MCP client can reach it. Probe through
-    // remote HTTP before handing the URL to the Codex fixture.
+    // remote HTTP before handing the URL to the Suffice fixture.
     wait_for_remote_streamable_http_server(&server_url, Duration::from_secs(5)).await?;
     if expected_token.is_some() {
         wait_for_streamable_http_metadata(&server_url, Duration::from_secs(5)).await?;

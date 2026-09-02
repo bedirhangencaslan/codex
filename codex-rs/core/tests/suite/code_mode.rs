@@ -5649,7 +5649,7 @@ async fn code_mode_can_call_hidden_dynamic_tools() -> Result<()> {
         .start_thread(StartThreadOptions {
             dynamic_tools: vec![DynamicToolSpec::Namespace(DynamicToolNamespaceSpec {
                 name: "codex_app".to_string(),
-                description: "Codex app tools.".to_string(),
+                description: "Suffice app tools.".to_string(),
                 tools: vec![DynamicToolNamespaceTool::Function(
                     DynamicToolFunctionSpec {
                         name: "hidden_dynamic_tool".to_string(),
@@ -5790,7 +5790,7 @@ text(
             .get("description")
             .and_then(Value::as_str)
             .is_some_and(|description| {
-                description.contains("Codex app tools.")
+                description.contains("Suffice app tools.")
                     && description.contains("A hidden dynamic tool.")
                     && description.contains("declare const tools:")
                     && description.contains("codex_app__hidden_dynamic_tool(args:")

@@ -1,4 +1,4 @@
-//! An enterprise IdP session is independent of Codex account authentication.
+//! An enterprise IdP session is independent of Suffice account authentication.
 
 use std::sync::Arc;
 

@@ -759,7 +759,7 @@ async fn local_plugin_skill_availability_reaches_tool_suggestion_candidates(
     let curated_root = curated_plugins_repo_path(codex_home.path());
     let plugin_root = curated_root.join("plugins/sample");
     std::fs::create_dir_all(curated_root.join(".agents/plugins"))?;
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::create_dir_all(plugin_root.join("skills/search"))?;
     std::fs::write(
         curated_root.join(".agents/plugins/marketplace.json"),
@@ -772,7 +772,7 @@ async fn local_plugin_skill_availability_reaches_tool_suggestion_candidates(
 }"#,
     )?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","description":"Search sample data"}"#,
     )?;
     std::fs::write(

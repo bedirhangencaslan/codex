@@ -68,7 +68,7 @@ impl App {
                     (!workload_identity_selected).then(|| SelectionItem {
                         name: "Start background server".to_string(),
                         description: Some(
-                            "Open `codex agents` in another terminal afterward.".to_string(),
+                            "Open `suffice agents` in another terminal afterward.".to_string(),
                         ),
                         actions: vec![Box::new(|tx| tx.send(AppEvent::StartAgentsDaemon))],
                         dismiss_on_select: true,
@@ -724,7 +724,7 @@ impl App {
                     .file_stem()
                     .is_some_and(|name| name == "codex-tui")
                 {
-                    current_executable.with_file_name("codex")
+                    current_executable.with_file_name("suffice")
                 } else {
                     current_executable
                 };

@@ -287,7 +287,7 @@ mod tests {
         config.cwd = home.join("workspace").join("project").abs();
 
         let paths = [
-            home.join(".codex").join("AGENTS.md"),
+            home.join(".suffice").join("AGENTS.md"),
             home.join("workspace").join("AGENTS.md"),
             config.cwd.join("AGENTS.md").to_path_buf(),
             config.cwd.join("nested").join("AGENTS.md").to_path_buf(),
@@ -298,7 +298,7 @@ mod tests {
 
         insta::assert_snapshot!(
             summary.replace('\\', "/"),
-            @"~/.codex/AGENTS.md, ../AGENTS.md, AGENTS.md, nested/AGENTS.md"
+            @"~/.suffice/AGENTS.md, ../AGENTS.md, AGENTS.md, nested/AGENTS.md"
         );
     }
 

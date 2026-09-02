@@ -961,9 +961,9 @@ async fn plugin_read_returns_canonical_openai_curated_marketplace_name() -> Resu
     let codex_home = TempDir::new()?;
     let repo_root = codex_home.path().join(".tmp/plugins");
     write_plugin_marketplace(&repo_root, "openai-curated", "demo-plugin", "./demo-plugin")?;
-    std::fs::create_dir_all(repo_root.join("demo-plugin/.codex-plugin"))?;
+    std::fs::create_dir_all(repo_root.join("demo-plugin/.suffice-plugin"))?;
     std::fs::write(
-        repo_root.join("demo-plugin/.codex-plugin/plugin.json"),
+        repo_root.join("demo-plugin/.suffice-plugin/plugin.json"),
         r#"{
   "name": "demo-plugin",
   "description": "OpenAI curated plugin"
@@ -1034,11 +1034,11 @@ async fn plugin_read_returns_share_context_for_shared_local_plugin() -> Result<(
         "demo-plugin",
         "./demo-plugin",
     )?;
-    std::fs::create_dir_all(repo_root.path().join("demo-plugin/.codex-plugin"))?;
+    std::fs::create_dir_all(repo_root.path().join("demo-plugin/.suffice-plugin"))?;
     std::fs::write(
         repo_root
             .path()
-            .join("demo-plugin/.codex-plugin/plugin.json"),
+            .join("demo-plugin/.suffice-plugin/plugin.json"),
         r#"{"name":"demo-plugin","version":"1.2.3"}"#,
     )?;
     std::fs::write(
@@ -1176,11 +1176,11 @@ async fn plugin_read_keeps_remote_version_when_share_principals_are_missing() ->
         "demo-plugin",
         "./demo-plugin",
     )?;
-    std::fs::create_dir_all(repo_root.path().join("demo-plugin/.codex-plugin"))?;
+    std::fs::create_dir_all(repo_root.path().join("demo-plugin/.suffice-plugin"))?;
     std::fs::write(
         repo_root
             .path()
-            .join("demo-plugin/.codex-plugin/plugin.json"),
+            .join("demo-plugin/.suffice-plugin/plugin.json"),
         r#"{"name":"demo-plugin","version":"1.2.3"}"#,
     )?;
     std::fs::write(
@@ -1437,7 +1437,7 @@ async fn plugin_read_returns_plugin_details_with_bundle_contents() -> Result<()>
     let plugin_root = repo_root.path().join("plugins/demo-plugin");
     std::fs::create_dir_all(repo_root.path().join(".git"))?;
     std::fs::create_dir_all(repo_root.path().join(".agents/plugins"))?;
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::create_dir_all(plugin_root.join("hooks"))?;
     std::fs::create_dir_all(plugin_root.join("skills/thread-summarizer"))?;
     std::fs::create_dir_all(plugin_root.join("skills/chatgpt-only"))?;
@@ -1462,7 +1462,7 @@ async fn plugin_read_returns_plugin_details_with_bundle_contents() -> Result<()>
 }"#,
     )?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r##"{
   "name": "demo-plugin",
   "description": "Longer manifest description",
@@ -2017,7 +2017,7 @@ async fn plugin_read_accepts_legacy_string_default_prompt() -> Result<()> {
     let plugin_root = repo_root.path().join("plugins/demo-plugin");
     std::fs::create_dir_all(repo_root.path().join(".git"))?;
     std::fs::create_dir_all(repo_root.path().join(".agents/plugins"))?;
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
         repo_root.path().join(".agents/plugins/marketplace.json"),
         r#"{
@@ -2034,7 +2034,7 @@ async fn plugin_read_accepts_legacy_string_default_prompt() -> Result<()> {
 }"#,
     )?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r##"{
   "name": "demo-plugin",
   "interface": {
@@ -2260,7 +2260,7 @@ fn write_installed_plugin(
         .join("plugins/cache")
         .join(marketplace_name)
         .join(plugin_name)
-        .join("local/.codex-plugin");
+        .join("local/.suffice-plugin");
     std::fs::create_dir_all(&plugin_root)?;
     std::fs::write(
         plugin_root.join("plugin.json"),
@@ -2417,9 +2417,9 @@ fn write_plugin_source(
     app_ids: &[&str],
 ) -> Result<()> {
     let plugin_root = repo_root.join(plugin_name);
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         format!(r#"{{"name":"{plugin_name}"}}"#),
     )?;
 

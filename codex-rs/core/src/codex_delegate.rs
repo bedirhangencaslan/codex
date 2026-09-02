@@ -46,7 +46,7 @@ pub(crate) struct GuardianReadOnlyHistoryTools(
     pub(crate) Vec<Arc<dyn for<'call> codex_tools::ToolExecutor<codex_tools::ToolCall<'call>>>>,
 );
 
-/// Start an interactive sub-Codex thread and return its runtime and IO channels.
+/// Start an interactive sub-Suffice thread and return its runtime and IO channels.
 ///
 /// Delegates never request approvals, and the returned IO yields their public events.
 /// Its submission channel accepts additional `Op`s for the sub-agent.
@@ -66,7 +66,7 @@ pub(crate) async fn run_codex_thread_interactive(
 ) -> Result<(Arc<Session>, SessionIo), CodexErr> {
     if config.permissions.approval_policy.value() != AskForApproval::Never {
         return Err(CodexErr::InvalidRequest(
-            "Codex delegates require approval policy `never`".to_string(),
+            "Suffice delegates require approval policy `never`".to_string(),
         ));
     }
     config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);

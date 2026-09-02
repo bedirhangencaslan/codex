@@ -84,7 +84,7 @@ pub enum LoginAccountParams {
     #[ts(rename = "chatgptDeviceCode")]
     ChatgptDeviceCode,
     /// [UNSTABLE] FOR OPENAI INTERNAL USE ONLY - DO NOT USE.
-    /// The access token must contain the same scopes that Codex-managed ChatGPT auth tokens have.
+    /// The access token must contain the same scopes that Suffice-managed ChatGPT auth tokens have.
     #[experimental("account/login/start.chatgptAuthTokens")]
     #[serde(rename = "chatgptAuthTokens", rename_all = "camelCase")]
     #[ts(rename = "chatgptAuthTokens", rename_all = "camelCase")]
@@ -96,7 +96,7 @@ pub enum LoginAccountParams {
         chatgpt_account_id: String,
         /// Optional plan type supplied by the client.
         ///
-        /// When `null`, Codex attempts to derive the plan type from access-token
+        /// When `null`, Suffice attempts to derive the plan type from access-token
         /// claims. If unavailable, the plan defaults to `unknown`.
         #[ts(optional = nullable)]
         chatgpt_plan_type: Option<String>,
@@ -125,7 +125,7 @@ pub enum LoginAccountParams {
 #[ts(export_to = "v2/")]
 pub enum LoginAppBrand {
     #[default]
-    Codex,
+    Suffice,
     Chatgpt,
 }
 
@@ -269,7 +269,7 @@ pub struct LogoutAccountResponse {}
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub enum ChatgptAuthTokensRefreshReason {
-    /// Codex attempted a backend request and received `401 Unauthorized`.
+    /// Suffice attempted a backend request and received `401 Unauthorized`.
     Unauthorized,
 }
 
@@ -278,7 +278,7 @@ pub enum ChatgptAuthTokensRefreshReason {
 #[ts(export_to = "v2/")]
 pub struct ChatgptAuthTokensRefreshParams {
     pub reason: ChatgptAuthTokensRefreshReason,
-    /// Workspace/account identifier that Codex was previously using.
+    /// Workspace/account identifier that Suffice was previously using.
     ///
     /// Clients that manage multiple accounts/workspaces can use this as a hint
     /// to refresh the token for the correct workspace.
@@ -314,7 +314,7 @@ impl fmt::Debug for ChatgptAuthTokensRefreshResponse {
 pub struct GetAccountRateLimitsResponse {
     /// Backward-compatible single-bucket view; mirrors the historical payload.
     pub rate_limits: RateLimitSnapshot,
-    /// Multi-bucket view keyed by metered `limit_id` (for example, `codex`).
+    /// Multi-bucket view keyed by metered `limit_id` (for example, `suffice`).
     pub rate_limits_by_limit_id: Option<HashMap<String, RateLimitSnapshot>>,
     pub rate_limit_reset_credits: Option<RateLimitResetCreditsSummary>,
 }

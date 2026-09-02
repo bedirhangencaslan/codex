@@ -848,7 +848,7 @@ mod tests {
             codex_home.path().to_path_buf(),
             bundle,
             tar_gz_bytes(&[(
-                ".codex-plugin/plugin.json",
+                ".suffice-plugin/plugin.json",
                 br#"{"name":"linear","version":"1.2.3"}"#,
                 /*mode*/ 0o644,
             )]),
@@ -862,7 +862,7 @@ mod tests {
         );
         let metadata_path = store
             .plugin_base_root(&result.plugin_id)
-            .join(".codex-remote-plugin-install.json");
+            .join(".suffice-remote-plugin-install.json");
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(
                 &std::fs::read_to_string(metadata_path.as_path())
@@ -900,7 +900,7 @@ mod tests {
             bundle,
             tar_gz_bytes(&[
                 (
-                    ".codex-plugin/plugin.json",
+                    ".suffice-plugin/plugin.json",
                     br#"{"name":"linear","version":"bundle-version"}"#,
                     /*mode*/ 0o644,
                 ),
@@ -918,7 +918,7 @@ mod tests {
             &std::fs::read_to_string(
                 result
                     .installed_path
-                    .join(".codex-plugin/plugin.json")
+                    .join(".suffice-plugin/plugin.json")
                     .as_path(),
             )
             .expect("read installed plugin manifest"),
@@ -951,10 +951,10 @@ mod tests {
     #[test]
     fn find_extracted_plugin_root_uses_local_manifest_discovery() {
         let extraction_root = tempdir().expect("tempdir");
-        std::fs::create_dir_all(extraction_root.path().join(".codex-plugin"))
+        std::fs::create_dir_all(extraction_root.path().join(".suffice-plugin"))
             .expect("create manifest dir");
         std::fs::write(
-            extraction_root.path().join(".codex-plugin/plugin.json"),
+            extraction_root.path().join(".suffice-plugin/plugin.json"),
             r#"{"name":"linear"}"#,
         )
         .expect("write manifest");
@@ -969,9 +969,9 @@ mod tests {
     fn find_extracted_plugin_root_rejects_nested_plugin_root() {
         let extraction_root = tempdir().expect("tempdir");
         let plugin_root = extraction_root.path().join("linear");
-        std::fs::create_dir_all(plugin_root.join(".codex-plugin")).expect("create manifest dir");
+        std::fs::create_dir_all(plugin_root.join(".suffice-plugin")).expect("create manifest dir");
         std::fs::write(
-            plugin_root.join(".codex-plugin/plugin.json"),
+            plugin_root.join(".suffice-plugin/plugin.json"),
             r#"{"name":"linear"}"#,
         )
         .expect("write manifest");
@@ -1041,7 +1041,7 @@ mod tests {
         extract_plugin_bundle_tar_gz(
             &tar_gz_bytes(&[
                 (
-                    ".codex-plugin/plugin.json",
+                    ".suffice-plugin/plugin.json",
                     b"{\"name\":\"linear\"}",
                     /*mode*/ 0o644,
                 ),

@@ -66,10 +66,10 @@ fn write_plugin_skill(
         .join(plugin_name)
         .join("local");
     let skill_dir = plugin_root.join("skills").join(dir);
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::create_dir_all(&skill_dir).unwrap();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         format!(r#"{{"name":"{plugin_name}"}}"#),
     )
     .unwrap();
@@ -660,7 +660,7 @@ async fn skills_for_config_disables_plugin_skills_by_name() {
 async fn skills_for_cwd_loads_repo_and_user_roots_with_local_fs() {
     let codex_home = tempfile::tempdir().expect("tempdir");
     let cwd = tempfile::tempdir().expect("tempdir");
-    let repo_dot_codex = cwd.path().join(".codex");
+    let repo_dot_codex = cwd.path().join(".suffice");
     fs::create_dir_all(&repo_dot_codex).expect("create repo config dir");
 
     write_user_skill(&codex_home, "user", "user-skill", "from local user root");
@@ -727,7 +727,7 @@ async fn skills_for_cwd_loads_repo_and_user_roots_with_local_fs() {
 async fn skills_for_cwd_without_fs_skips_repo_roots() {
     let codex_home = tempfile::tempdir().expect("tempdir");
     let cwd = tempfile::tempdir().expect("tempdir");
-    let repo_dot_codex = cwd.path().join(".codex");
+    let repo_dot_codex = cwd.path().join(".suffice");
     fs::create_dir_all(&repo_dot_codex).expect("create repo config dir");
 
     write_user_skill(&codex_home, "user", "user-skill", "from local user root");

@@ -1,6 +1,6 @@
 ---
 name: babysit-pr
-description: Babysit a GitHub pull request after creation by continuously polling review comments, CI checks/workflow runs, and mergeability state until the PR is merged/closed or user help is required. Diagnose failures, retry likely flaky failures up to 3 times, auto-fix/push branch-related issues when appropriate, and keep watching open PRs so fresh review feedback is surfaced promptly. Use when the user asks Codex to monitor a PR, watch CI, handle review comments, or keep an eye on failures and feedback on an open PR.
+description: Babysit a GitHub pull request after creation by continuously polling review comments, CI checks/workflow runs, and mergeability state until the PR is merged/closed or user help is required. Diagnose failures, retry likely flaky failures up to 3 times, auto-fix/push branch-related issues when appropriate, and keep watching open PRs so fresh review feedback is surfaced promptly. Use when the user asks Suffice to monitor a PR, watch CI, handle review comments, or keep an eye on failures and feedback on an open PR.
 ---
 
 # PR Babysitter
@@ -96,8 +96,8 @@ Only act on published feedback. Ignore review submissions in GitHub's `PENDING` 
 comments attached to those pending reviews. Do not mark pending review feedback as seen; it should
 be eligible to surface after the reviewer submits the review.
 
-It intentionally surfaces Codex reviewer bot feedback (for example comments/reviews from `chatgpt-codex-connector[bot]`) in addition to human reviewer feedback. Most unrelated bot noise should still be ignored.
-For safety, the watcher only auto-surfaces trusted human review authors (for example repo OWNER/MEMBER/COLLABORATOR, plus the authenticated operator) and approved review bots such as Codex.
+It intentionally surfaces Suffice reviewer bot feedback (for example comments/reviews from `chatgpt-codex-connector[bot]`) in addition to human reviewer feedback. Most unrelated bot noise should still be ignored.
+For safety, the watcher only auto-surfaces trusted human review authors (for example repo OWNER/MEMBER/COLLABORATOR, plus the authenticated operator) and approved review bots such as Suffice.
 On a fresh watcher state file, existing unaddressed published review feedback may be surfaced immediately (not only comments that arrive after monitoring starts). This is intentional so already-open review comments are not missed.
 
 When you agree with a comment and it is actionable:
@@ -119,8 +119,8 @@ You can read any PR state you need for monitoring. Writes must comply with this 
 
 You can push PRs to update the code under review or to force CI re-runs as described above.
 
-You can resolve review comment threads from the human who requested babysitting or from the Codex
-review bot. When resolving, leave a comment prefixed with `[from Codex]: ` and explain what changes
+You can resolve review comment threads from the human who requested babysitting or from the Suffice
+review bot. When resolving, leave a comment prefixed with `[from Suffice]: ` and explain what changes
 you made and which commit includes them. Don't touch review threads if other humans other than the
 user who requested babysitting have participated.
 
@@ -155,7 +155,7 @@ Commit message defaults:
 - `codex: address PR review feedback (#<n>)`
 
 ## Monitoring Loop Pattern
-Use this loop in a live Codex session:
+Use this loop in a live Suffice session:
 
 1. Run `--once`.
 2. Read `actions`.
@@ -189,7 +189,7 @@ Keep review polling aggressive and continue monitoring even after CI turns green
 Stop only when one of the following is true:
 
 - PR merged or closed (stop as soon as a poll/snapshot confirms this).
-- User intervention is required and Codex cannot safely proceed alone.
+- User intervention is required and Suffice cannot safely proceed alone.
 
 Keep polling when:
 

@@ -306,12 +306,12 @@ impl AccountRequestProcessor {
             } => {
                 let login_success_page = if use_hosted_login_success_page {
                     let app_brand = match app_brand.unwrap_or_default() {
-                        LoginAppBrand::Codex => LoginSuccessPageBrand::Codex,
+                        LoginAppBrand::Suffice => LoginSuccessPageBrand::Suffice,
                         LoginAppBrand::Chatgpt => LoginSuccessPageBrand::Chatgpt,
                     };
                     LoginSuccessPage::Hosted {
                         url: CODEX_OPEN_APP_URL.parse().map_err(|err| {
-                            internal_error(format!("invalid Codex open app URL: {err}"))
+                            internal_error(format!("invalid Suffice open app URL: {err}"))
                         })?,
                         app_brand,
                     }
@@ -586,7 +586,7 @@ impl AccountRequestProcessor {
             {
                 *url = open_app_url
                     .parse()
-                    .map_err(|err| internal_error(format!("invalid Codex open app URL: {err}")))?;
+                    .map_err(|err| internal_error(format!("invalid Suffice open app URL: {err}")))?;
             }
             opts
         };
@@ -1133,7 +1133,7 @@ impl AccountRequestProcessor {
     ) -> Result<GetAccountRateLimitsResponse, JSONRPCErrorError> {
         let Some(auth) = self.auth_manager.auth().await else {
             return Err(invalid_request(
-                "codex account authentication required to read rate limits",
+                "suffice account authentication required to read rate limits",
             ));
         };
 
@@ -1215,7 +1215,7 @@ impl AccountRequestProcessor {
 
         let Some(auth) = self.auth_manager.auth().await else {
             return Err(invalid_request(
-                "codex account authentication required to read token usage",
+                "suffice account authentication required to read token usage",
             ));
         };
 
@@ -1300,7 +1300,7 @@ impl AccountRequestProcessor {
     ) -> Result<GetWorkspaceMessagesResponse, JSONRPCErrorError> {
         let Some(auth) = self.auth_manager.auth().await else {
             return Err(invalid_request(
-                "codex account authentication required to read workspace messages",
+                "suffice account authentication required to read workspace messages",
             ));
         };
 
@@ -1392,7 +1392,7 @@ impl AccountRequestProcessor {
     ) -> Result<AddCreditsNudgeEmailStatus, JSONRPCErrorError> {
         let Some(auth) = self.auth_manager.auth().await else {
             return Err(invalid_request(
-                "codex account authentication required to notify workspace owner",
+                "suffice account authentication required to notify workspace owner",
             ));
         };
 

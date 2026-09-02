@@ -668,10 +668,10 @@ fn write_curated_metrics_plugin(codex_home: &Path) -> Result<PathBuf> {
         &curated_plugin_cache_version(TEST_CURATED_PLUGIN_SHA),
     );
     let script_path = plugin_root.join("scripts/run.sh");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::create_dir_all(script_path.parent().expect("script path has parent"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","version":"0.1.0"}"#,
     )?;
     std::fs::write(
@@ -717,7 +717,7 @@ async fn assert_plugin_measurement_analytics(remote: bool, background: bool) -> 
     skip_if_no_network!(Ok(()));
     skip_if_remote!(
         Ok(()),
-        "trusted plugin metrics fixture uses a local Codex home cache"
+        "trusted plugin metrics fixture uses a local Suffice home cache"
     );
     skip_if_wine_exec!(Ok(()), "plugin metrics fixture is Unix-only");
 

@@ -37,7 +37,7 @@ impl RetryConfig {
 
 /// Wire protocol a provider speaks on its inference route.
 ///
-/// Codex is Responses-native. `Chat` exists for providers that only expose an
+/// Suffice is Responses-native. `Chat` exists for providers that only expose an
 /// OpenAI-compatible `/chat/completions` endpoint (Z.ai/GLM, most OSS servers);
 /// requests and SSE frames are translated at the `ResponsesClient` boundary so
 /// the rest of the codebase never sees the difference.

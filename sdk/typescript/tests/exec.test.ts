@@ -69,7 +69,7 @@ describe("CodexExec", () => {
     expect(result.status).toBe("rejected");
     if (result.status === "rejected") {
       expect(result.error).toBeInstanceOf(Error);
-      expect(result.error.message).toMatch(/Codex Exec exited/);
+      expect(result.error.message).toMatch(/Suffice Exec exited/);
     }
   });
 
@@ -158,7 +158,7 @@ describe("CodexExec", () => {
   ];
 
   it.each(configOverrideCases)(
-    "passes $name to the Codex CLI",
+    "passes $name to the Suffice CLI",
     async ({ config, configOverrides, expectedOverrides }) => {
       const { CodexExec } = await import("../src/exec");
       spawnMock.mockClear();
@@ -261,7 +261,7 @@ describe("CodexExec", () => {
     ]);
   });
 
-  it("allows overriding the env passed to the Codex CLI", async () => {
+  it("allows overriding the env passed to the Suffice CLI", async () => {
     const { CodexExec } = await import("../src/exec");
     spawnMock.mockClear();
     const child = new FakeChildProcess();
@@ -277,7 +277,7 @@ describe("CodexExec", () => {
 
     try {
       const exec = new CodexExec("codex", {
-        CODEX_HOME: "/tmp/codex-home",
+        SUFFICE_HOME: "/tmp/codex-home",
         CUSTOM_ENV: "custom",
       });
 
@@ -298,7 +298,7 @@ describe("CodexExec", () => {
         throw new Error("Spawn args missing");
       }
 
-      expect(spawnEnv.CODEX_HOME).toBe("/tmp/codex-home");
+      expect(spawnEnv.SUFFICE_HOME).toBe("/tmp/codex-home");
       expect(spawnEnv.CUSTOM_ENV).toBe("custom");
       expect(spawnEnv.CODEX_ENV_SHOULD_NOT_LEAK).toBeUndefined();
       expect(spawnEnv.CODEX_API_KEY).toBe("test");

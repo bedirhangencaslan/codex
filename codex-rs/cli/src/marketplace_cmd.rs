@@ -30,7 +30,7 @@ use crate::plugin_cmd::configured_marketplace_sources;
 use crate::plugin_cmd::load_cli_auth_manager;
 
 #[derive(Debug, Parser)]
-#[command(bin_name = "codex plugin marketplace")]
+#[command(bin_name = "suffice plugin marketplace")]
 pub struct MarketplaceCli {
     #[clap(flatten)]
     pub config_overrides: CliConfigOverrides,
@@ -44,7 +44,7 @@ enum MarketplaceSubcommand {
     /// Add a local or Git marketplace to the configured marketplace sources.
     Add(AddMarketplaceArgs),
 
-    /// List plugin marketplaces Codex is currently considering and their roots.
+    /// List plugin marketplaces Suffice is currently considering and their roots.
     List(ListMarketplaceArgs),
 
     /// Refresh configured Git marketplace snapshots.
@@ -58,7 +58,7 @@ enum MarketplaceSubcommand {
 
 #[derive(Debug, Parser)]
 #[command(
-    bin_name = "codex plugin marketplace add",
+    bin_name = "suffice plugin marketplace add",
     after_help = "Examples:\n  codex plugin marketplace add ./path/to/marketplace\n  codex plugin marketplace add owner/repo --ref main\n  codex plugin marketplace add https://github.com/owner/repo --sparse plugins/foo"
 )]
 struct AddMarketplaceArgs {
@@ -84,7 +84,7 @@ struct AddMarketplaceArgs {
 }
 
 #[derive(Debug, Parser)]
-#[command(bin_name = "codex plugin marketplace list")]
+#[command(bin_name = "suffice plugin marketplace list")]
 struct ListMarketplaceArgs {
     /// Output marketplace list as JSON.
     #[arg(long = "json")]
@@ -93,7 +93,7 @@ struct ListMarketplaceArgs {
 
 #[derive(Debug, Parser)]
 #[command(
-    bin_name = "codex plugin marketplace upgrade",
+    bin_name = "suffice plugin marketplace upgrade",
     after_help = "Examples:\n  codex plugin marketplace upgrade\n  codex plugin marketplace upgrade debug"
 )]
 struct UpgradeMarketplaceArgs {
@@ -108,7 +108,7 @@ struct UpgradeMarketplaceArgs {
 
 #[derive(Debug, Parser)]
 #[command(
-    bin_name = "codex plugin marketplace remove",
+    bin_name = "suffice plugin marketplace remove",
     after_help = "Example:\n  codex plugin marketplace remove debug"
 )]
 struct RemoveMarketplaceArgs {

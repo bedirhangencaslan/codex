@@ -461,7 +461,7 @@ impl Client {
 
     /// Fetch the selected cloud-managed config bundle from codex-backend.
     ///
-    /// `GET /api/codex/config/bundle` (Codex API style) or
+    /// `GET /api/codex/config/bundle` (Suffice API style) or
     /// `GET /wham/config/bundle` (ChatGPT backend-api style).
     pub async fn get_config_bundle(
         &self,
@@ -476,9 +476,9 @@ impl Client {
             .map_err(RequestError::from)
     }
 
-    /// Fetch authenticated Codex user settings from the active backend route.
+    /// Fetch authenticated Suffice user settings from the active backend route.
     ///
-    /// Uses `GET /api/codex/settings/user` for Codex API hosts and
+    /// Uses `GET /api/codex/settings/user` for Suffice API hosts and
     /// `GET /wham/settings/user` for ChatGPT `backend-api` hosts.
     pub async fn get_user_settings(
         &self,

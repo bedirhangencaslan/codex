@@ -20,7 +20,7 @@ use wiremock::matchers::query_param;
 
 #[tokio::test]
 async fn agent_plugin_capabilities_do_not_require_runtime_data_directory() {
-    let codex_home = TempDir::new().expect("Codex home");
+    let codex_home = TempDir::new().expect("Suffice home");
     let store = PluginStore::new(codex_home.path().to_path_buf());
     let plugin_id = PluginId::parse("example@test").expect("plugin id");
     let root = store.plugin_root(&plugin_id, "1.0.0");
@@ -75,7 +75,7 @@ async fn capabilities_union_cached_versions_and_sync_reports_removal() -> anyhow
     let plugin_id = PluginId::parse("example@openai-curated-remote")?;
     let old_root = store.plugin_root(&plugin_id, "1.0.0");
     for (path, contents) in [
-        (".codex-plugin/plugin.json", r#"{"name":"example"}"#),
+        (".suffice-plugin/plugin.json", r#"{"name":"example"}"#),
         (
             ".mcp.json",
             r#"{"mcpServers":{"example":{"command":"unused"}}}"#,
@@ -97,7 +97,7 @@ async fn capabilities_union_cached_versions_and_sync_reports_removal() -> anyhow
     // Accumulate the old and new declarations without involving bundle transport.
     let new_root = store.plugin_root(&plugin_id, "2.0.0");
     write_file(
-        new_root.join(".codex-plugin/plugin.json").as_path(),
+        new_root.join(".suffice-plugin/plugin.json").as_path(),
         r#"{"name":"example"}"#,
     );
     write_file(

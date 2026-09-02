@@ -1,17 +1,17 @@
 {
-  "name": "@openai/codex",
+  "name": "@suffice/cli",
   "version": "0.0.0-dev",
-  "description": "Codex CLI is a coding agent from OpenAI that runs locally on your computer.",
+  "description": "Suffice is a coding agent that runs locally on your computer.",
   "license": "Apache-2.0",
   "bin": {
-    "codex": "bin/codex.js"
+    "suffice": "bin/suffice.js"
   },
   "type": "module",
   "engines": {
     "node": ">=16"
   },
   "files": [
-    "bin/codex.js"
+    "bin/suffice.js"
   ],
   "repository": {
     "type": "git",

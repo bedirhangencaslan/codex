@@ -130,7 +130,7 @@ pub async fn fetch_remote_featured_plugin_ids(
         .map_err(RemotePluginFetchError::InvalidBaseUrl)?;
     url.query_pairs_mut().append_pair(
         "platform",
-        product.unwrap_or(Product::Codex).to_app_platform(),
+        product.unwrap_or(Product::Suffice).to_app_platform(),
     );
     let url = url.to_string();
     let mut request = config

@@ -14,7 +14,7 @@ _NORMALIZED_CODEX_VERSION_PATTERN = re.compile(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Resolve a Python runtime package version to its Codex release tag."
+        description="Resolve a Python runtime package version to its Suffice release tag."
     )
     parser.add_argument("python_version")
     parser.add_argument("--github-output", type=Path, required=True)
@@ -78,7 +78,7 @@ def normalize_codex_version(version: str) -> str:
     normalized = re.sub(r"-rc\.?([0-9]+)$", r"rc\1", normalized)
 
     if _NORMALIZED_CODEX_VERSION_PATTERN.fullmatch(normalized) is None:
-        raise RuntimeError(f"Could not normalize Codex version {version!r} to a PEP 440 version")
+        raise RuntimeError(f"Could not normalize Suffice version {version!r} to a PEP 440 version")
     return normalized
 
 

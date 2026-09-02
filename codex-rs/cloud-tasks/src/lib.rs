@@ -230,7 +230,7 @@ async fn resolve_environment_id(ctx: &BackendContext, requested: &str) -> anyhow
         .collect::<Vec<_>>();
     match label_matches.as_slice() {
         [] => Err(anyhow!(
-            "environment '{trimmed}' not found; run `codex cloud` to list available environments"
+            "environment '{trimmed}' not found; run `suffice cloud` to list available environments"
         )),
         [single] => Ok(single.id.clone()),
         [first, rest @ ..] => {
@@ -239,7 +239,7 @@ async fn resolve_environment_id(ctx: &BackendContext, requested: &str) -> anyhow
                 Ok(first_id.clone())
             } else {
                 Err(anyhow!(
-                    "environment label '{trimmed}' is ambiguous; run `codex cloud` to pick the desired environment id"
+                    "environment label '{trimmed}' is ambiguous; run `suffice cloud` to pick the desired environment id"
                 ))
             }
         }
@@ -749,7 +749,7 @@ fn spawn_apply(
 
 // (no standalone patch summarizer needed – UI displays raw diffs)
 
-/// Entry point for the `codex cloud` subcommand.
+/// Entry point for the `suffice cloud` subcommand.
 pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()> {
     if let Some(command) = cli.command {
         return match command {

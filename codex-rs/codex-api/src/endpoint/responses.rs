@@ -26,7 +26,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use tracing::instrument;
 
-/// Responses-compatible inference routes supported by Codex backend.
+/// Responses-compatible inference routes supported by Suffice backend.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ResponsesEndpoint {
     /// Regular user-owned model inference.

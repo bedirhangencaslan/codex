@@ -83,9 +83,9 @@ fn expected_source(index: usize) -> ExecutorPluginHookSource {
         mcp_environment_id: None,
         mcp_metadata: None,
         plugin_root: PathUri::parse("file:///plugins/computer-use").expect("plugin root"),
-        manifest_path: PathUri::parse("file:///plugins/computer-use/.codex-plugin/plugin.json")
+        manifest_path: PathUri::parse("file:///plugins/computer-use/.suffice-plugin/plugin.json")
             .expect("manifest path"),
-        source_relative_path: format!(".codex-plugin/plugin.json#hooks[{index}]"),
+        source_relative_path: format!(".suffice-plugin/plugin.json#hooks[{index}]"),
         hooks: HookEventsToml {
             stop: vec![MatcherGroup {
                 matcher: None,
@@ -126,7 +126,7 @@ fn discovers_allowlisted_executor_plugin_hook_sources() {
     let snapshot = snapshot_for_manifest(
         "computer-use@openai-bundled",
         "executor-a",
-        "file:///plugins/computer-use/.codex-plugin/plugin.json",
+        "file:///plugins/computer-use/.suffice-plugin/plugin.json",
         manifest,
     );
 
@@ -173,7 +173,7 @@ fn filters_mixed_handlers_without_rewriting_allowed_groups() {
     let snapshot = snapshot_for_manifest(
         "computer-use@openai-bundled",
         "executor-a",
-        "file:///plugins/computer-use/.codex-plugin/plugin.json",
+        "file:///plugins/computer-use/.suffice-plugin/plugin.json",
         manifest,
     );
 
@@ -194,7 +194,7 @@ fn preserves_allowlisted_executor_plugin_hook_options() {
     let snapshot = snapshot_for_manifest(
         "computer-use@openai-bundled",
         "executor-a",
-        "file:///plugins/computer-use/.codex-plugin/plugin.json",
+        "file:///plugins/computer-use/.suffice-plugin/plugin.json",
         manifest,
     );
 
@@ -313,7 +313,7 @@ fn resolves_apps_hook_metadata_from_the_registered_connector() {
         let snapshot = snapshot_for_manifest(
             "browser@openai-curated-remote",
             "executor-a",
-            "file:///plugins/computer-use/.codex-plugin/plugin.json",
+            "file:///plugins/computer-use/.suffice-plugin/plugin.json",
             manifest,
         );
         let tool_info = connector_id.map(|connector_id| {
@@ -401,7 +401,7 @@ fn ignores_unallowlisted_executor_plugin_hooks() {
         let snapshot = snapshot_for_manifest(
             plugin_id,
             "executor-a",
-            "file:///plugins/computer-use/.codex-plugin/plugin.json",
+            "file:///plugins/computer-use/.suffice-plugin/plugin.json",
             manifest,
         );
 
@@ -418,7 +418,7 @@ fn ignores_file_backed_executor_plugin_hooks() {
     let file_backed = snapshot_for_manifest(
         "computer-use@openai-bundled",
         "executor-a",
-        "file:///plugins/computer-use/.codex-plugin/plugin.json",
+        "file:///plugins/computer-use/.suffice-plugin/plugin.json",
         json!({
             "name": "computer-use",
             "hooks": "./hooks/hooks.json"

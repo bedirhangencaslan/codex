@@ -534,10 +534,10 @@ def test_source_sdk_package_declares_stable_documentation() -> None:
         in pyproject["project"]["classifiers"],
         "license": pyproject["project"]["license"],
         "documentation": pyproject["project"]["urls"]["Documentation"],
-        "readme_is_stable": "# OpenAI Codex Python SDK\n" in readme,
+        "readme_is_stable": "# Suffice Python SDK\n" in readme,
         "local_license_file": (ROOT / "LICENSE").exists(),
     } == {
-        "description": "Python SDK for Codex",
+        "description": "Python SDK for Suffice",
         "is_stable": True,
         "license": "Apache-2.0",
         "documentation": "https://github.com/openai/codex/tree/main/sdk/python/docs",
@@ -812,7 +812,7 @@ def test_stage_runtime_release_rejects_incomplete_package_layout(tmp_path: Path)
     package_archive = tmp_path / "codex-package.tar.gz"
     _write_package_archive(package_dir, package_archive)
 
-    with pytest.raises(RuntimeError, match="Missing Codex package layout entries"):
+    with pytest.raises(RuntimeError, match="Missing Suffice package layout entries"):
         script.stage_python_runtime_package(tmp_path / "runtime-stage", "1.2.3", package_archive)
 
 

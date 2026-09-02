@@ -771,7 +771,7 @@ async fn refresh_codex_apps_after_connector_auth(sess: &Arc<Session>, turn_conte
             );
         }
         Err(err) => {
-            tracing::warn!("failed to refresh Codex Apps tools after connector auth: {err:#}");
+            tracing::warn!("failed to refresh Suffice Apps tools after connector auth: {err:#}");
         }
     }
 }
@@ -1462,7 +1462,7 @@ async fn maybe_request_mcp_tool_approval(
         match sess.request_approval(action, approval_context).await {
             Ok(decision) => decision,
             Err(ToolError::Rejected(rejection)) => ReviewDecision::denied(rejection),
-            Err(ToolError::Codex(_)) => ReviewDecision::Abort,
+            Err(ToolError::Suffice(_)) => ReviewDecision::Abort,
         },
     )
 }

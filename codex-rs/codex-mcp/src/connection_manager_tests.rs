@@ -212,7 +212,7 @@ fn create_codex_apps_tools_cache_context(
 fn store_current_tools(cache_context: &ConnectorRuntimeContext<ToolInfo>, tools: Vec<ToolInfo>) {
     let _ = cache_context.publish_if_newest_accepted(
         cache_context.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh),
-        &create_test_server_info("Codex Apps"),
+        &create_test_server_info("Suffice Apps"),
         tools,
     );
 }
@@ -755,7 +755,7 @@ async fn create_test_manager_with_ready_apps_client(
 
     let managed_client = ManagedClient {
         client,
-        server_info: create_test_server_info("Codex Apps"),
+        server_info: create_test_server_info("Suffice Apps"),
         tools: vec![tool],
         tool_timeout: Some(Duration::from_secs(5)),
         server_instructions: None,
@@ -778,7 +778,7 @@ async fn create_test_manager_with_ready_apps_client(
             .boxed()
             .shared(),
             is_codex_apps_mcp_server: true,
-            cached_server_info: Some(create_test_server_info("Codex Apps")),
+            cached_server_info: Some(create_test_server_info("Suffice Apps")),
             codex_apps_tools_cache_context: Some(cache_context),
             tool_catalog_cache_context: None,
             startup_complete: Arc::new(std::sync::atomic::AtomicBool::new(true)),
@@ -1195,7 +1195,7 @@ async fn assert_disabled_permissions_surface_requested_user_input(
     assert_eq!(reviewer.review_count.load(Ordering::SeqCst), 0);
 
     let codex_protocol::mcp::RequestId::String(request_id) = request.id else {
-        panic!("expected Codex-owned string request ID");
+        panic!("expected Suffice-owned string request ID");
     };
     let user_response = ElicitationResponse {
         action: ElicitationAction::Accept,
@@ -1461,7 +1461,7 @@ async fn shared_elicitation_router_targets_the_exact_pending_request() {
         codex_protocol::mcp::RequestId::String(request_b_id),
     ) = (request_a.id, request_b.id)
     else {
-        panic!("expected Codex-owned string request IDs");
+        panic!("expected Suffice-owned string request IDs");
     };
     assert_ne!(request_a_id, request_b_id);
 
@@ -1557,7 +1557,7 @@ async fn cancelled_elicitation_is_removed_without_affecting_other_pending_reques
         codex_protocol::mcp::RequestId::String(pending_id),
     ) = (cancelled_request.id, pending_request.id)
     else {
-        panic!("expected Codex-owned string request IDs");
+        panic!("expected Suffice-owned string request IDs");
     };
 
     cancelled.abort();
@@ -2396,7 +2396,7 @@ async fn list_available_server_infos_uses_cache_while_client_is_pending() {
         &permission_profile,
         /*prefix_mcp_tool_names*/ true,
     );
-    let server_info = create_test_server_info("Codex Apps");
+    let server_info = create_test_server_info("Suffice Apps");
     manager.insert_test_client(
         CODEX_APPS_MCP_SERVER_NAME.to_string(),
         AsyncManagedClient {
@@ -3126,8 +3126,8 @@ async fn capture_binding_resolves_concurrently_and_rechecks_cached_clients() {
     });
     tokio::time::timeout(Duration::from_secs(1), apps_started)
         .await
-        .expect("Codex Apps startup should begin")
-        .expect("signal Codex Apps startup");
+        .expect("Suffice Apps startup should begin")
+        .expect("signal Suffice Apps startup");
 
     let manager_for_binding = Arc::clone(&manager);
     let binding = tokio::spawn(async move { capture_binding(&manager_for_binding).await });
@@ -3138,8 +3138,8 @@ async fn capture_binding_resolves_concurrently_and_rechecks_cached_clients() {
     .await
     .expect("both uncached servers should start before either is released");
 
-    release_apps.send(()).expect("release Codex Apps startup");
-    assert!(startup.await.expect("Codex Apps startup task"));
+    release_apps.send(()).expect("release Suffice Apps startup");
+    assert!(startup.await.expect("Suffice Apps startup task"));
     release_first.send(()).expect("release first server");
     release_second.send(()).expect("release second server");
 
@@ -3580,7 +3580,7 @@ async fn list_all_tools_uses_shared_codex_apps_cache_when_client_startup_fails()
             "calendar_create_event",
         )],
     );
-    let server_info = create_test_server_info("Codex Apps");
+    let server_info = create_test_server_info("Suffice Apps");
     let failed_client = futures::future::ready::<Result<ManagedClient, StartupOutcomeError>>(Err(
         StartupOutcomeError::Failed {
             error: "startup failed".to_string(),
@@ -4003,7 +4003,7 @@ fn hosted_actor_credentials_are_only_available_to_host_owned_mcp_servers() {
     let local_server = EffectiveMcpServer::configured(local_config.clone());
     let local_provider =
         chatgpt_auth_provider_for_server(&local_server, Some(Arc::clone(&provider)))
-            .expect("host-owned Codex Apps must retain hosted authentication");
+            .expect("host-owned Suffice Apps must retain hosted authentication");
     assert_eq!(
         local_provider
             .to_auth_headers()
@@ -4419,7 +4419,7 @@ fn mcp_init_error_display_prompts_for_github_pat() {
 fn mcp_init_error_display_prompts_for_login_when_auth_required() {
     let server_name = "example";
     let expected = format!(
-        "The {server_name} MCP server is not logged in. Run `codex mcp login {server_name}`."
+        "The {server_name} MCP server is not logged in. Run `suffice mcp login {server_name}`."
     );
     let executor_config: McpServerConfig = serde_json::from_value(serde_json::json!({
         "url": "https://example.com/mcp",
@@ -4471,7 +4471,7 @@ fn mcp_init_error_display_identifies_oauth_reauthentication() {
     .expect("executor MCP configuration should deserialize");
 
     for (config, recovery_hint) in [
-        (None, "Run `codex mcp login example`."),
+        (None, "Run `suffice mcp login example`."),
         (
             Some(&executor_config),
             "Use your client's MCP OAuth sign-in flow.",

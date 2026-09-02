@@ -429,7 +429,7 @@ fn effective_originator_prefers_thread_scoped_sources_before_env_originator() {
         assert_eq!(
             effective_originator_value(
                 metrics_service_name,
-                Some("Codex Desktop".to_string()),
+                Some("Suffice Desktop".to_string()),
                 persisted_originator.map(str::to_string),
                 inherited_originator.map(str::to_string),
                 "codex_cli_rs".to_string(),
@@ -1417,16 +1417,16 @@ async fn start_thread_seeds_extension_data_for_mcp_and_lifecycle_contributors() 
     );
     let codex_apps_server = codex_mcp::configured_mcp_servers(&first_resolved.config)
         .remove(codex_mcp::CODEX_APPS_MCP_SERVER_NAME)
-        .expect("Codex Apps server should be configured");
+        .expect("Suffice Apps server should be configured");
     let codex_apps_headers = match codex_apps_server.transport {
         codex_config::McpServerTransportConfig::StreamableHttp { http_headers, .. } => http_headers,
         codex_config::McpServerTransportConfig::Stdio { .. } => {
-            panic!("Codex Apps server should use streamable HTTP")
+            panic!("Suffice Apps server should use streamable HTTP")
         }
     };
     assert_eq!(
         codex_apps_headers
-            .expect("Codex Apps headers should be configured")
+            .expect("Suffice Apps headers should be configured")
             .get("originator"),
         Some(&"codex_work_desktop".to_string())
     );

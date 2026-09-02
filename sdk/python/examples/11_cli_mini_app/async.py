@@ -31,7 +31,7 @@ def _format_usage(usage: object) -> str:
 
 
 async def main() -> None:
-    print("Codex async mini CLI. Type /exit to quit.")
+    print("Suffice async mini CLI. Type /exit to quit.")
 
     async with AsyncCodex(config=runtime_config()) as codex:
         thread = await codex.thread_start(

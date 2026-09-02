@@ -113,7 +113,7 @@ pub enum SandboxMode {
     DangerFullAccess,
 }
 
-/// Validated plain profile-v2 name used to select `$CODEX_HOME/<name>.config.toml`.
+/// Validated plain profile-v2 name used to select `$SUFFICE_HOME/<name>.config.toml`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileV2Name(String);
 
@@ -701,7 +701,7 @@ impl ModeKind {
     }
 }
 
-/// Collaboration mode for a Codex session.
+/// Collaboration mode for a Suffice session.
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "lowercase")]
 pub struct CollaborationMode {

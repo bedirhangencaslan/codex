@@ -688,7 +688,7 @@ async fn executor_plugin_hook_fixture(
     for (plugin_id, manifest) in plugins {
         let plugin_root =
             test.workspace_path_uri(manifest["name"].as_str().context("plugin name")?)?;
-        let plugin_directory = plugin_root.join(".codex-plugin")?;
+        let plugin_directory = plugin_root.join(".suffice-plugin")?;
         let manifest_path = plugin_directory.join("plugin.json")?;
         filesystem
             .create_directory(

@@ -397,7 +397,7 @@ impl ToolEmitter {
                 };
                 (event, result)
             }
-            Err(ToolError::Codex(err)) => match err.details() {
+            Err(ToolError::Suffice(err)) => match err.details() {
                 CodexErrorDetails::Sandbox(SandboxErr::Timeout { output }) => {
                     let output = output.as_ref().clone();
                     let response = self.format_exec_output_for_model(&output, ctx);
@@ -737,7 +737,7 @@ mod tests {
             ..Default::default()
         };
         assert_failed_apply_patch_tracks_committed_delta(
-            Err(ToolError::Codex(CodexErr::Sandbox(SandboxErr::Denied {
+            Err(ToolError::Suffice(CodexErr::Sandbox(SandboxErr::Denied {
                 output: Box::new(output),
                 network_policy_decision: None,
             }))),

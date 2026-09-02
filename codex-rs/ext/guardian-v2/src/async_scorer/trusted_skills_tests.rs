@@ -27,8 +27,8 @@ fn rendered_paths(paths: Vec<String>) -> Vec<String> {
 #[test]
 fn renders_verified_skill_paths() {
     assert_eq!(
-        rendered_paths(vec!["/home/user/.codex/skills/demo/SKILL.md".to_owned()]),
-        vec!["/home/user/.codex/skills/demo/SKILL.md"],
+        rendered_paths(vec!["/home/user/.suffice/skills/demo/SKILL.md".to_owned()]),
+        vec!["/home/user/.suffice/skills/demo/SKILL.md"],
     );
 }
 
@@ -37,7 +37,7 @@ fn bounds_escaped_skill_paths_without_corrupting_json_or_utf8() {
     let paths = (0..MAX_TRUSTED_SKILLS)
         .map(|index| {
             format!(
-                "/home/user/.codex/skills/{index:03}/{}SKILL.md",
+                "/home/user/.suffice/skills/{index:03}/{}SKILL.md",
                 "\u{0001}é".repeat(80)
             )
         })
@@ -53,12 +53,12 @@ fn bounds_escaped_skill_paths_without_corrupting_json_or_utf8() {
 fn preserves_multiple_invoked_skill_paths() {
     assert_eq!(
         rendered_paths(vec![
-            "/home/user/.codex/skills/first/SKILL.md".to_owned(),
-            "/home/user/.codex/skills/second/SKILL.md".to_owned(),
+            "/home/user/.suffice/skills/first/SKILL.md".to_owned(),
+            "/home/user/.suffice/skills/second/SKILL.md".to_owned(),
         ]),
         vec![
-            "/home/user/.codex/skills/first/SKILL.md",
-            "/home/user/.codex/skills/second/SKILL.md",
+            "/home/user/.suffice/skills/first/SKILL.md",
+            "/home/user/.suffice/skills/second/SKILL.md",
         ],
     );
 }
@@ -139,7 +139,7 @@ async fn rejects_skills_that_escape_user_roots_through_symlinks() -> Result<()> 
 fn invoked_skill_paths_are_deduplicated_and_bounded() {
     let mut skills = TrustedSkillInvocations::default();
     for index in 0..MAX_TRUSTED_SKILLS.saturating_mul(2) {
-        let path = format!("/home/user/.codex/skills/{index:03}/SKILL.md");
+        let path = format!("/home/user/.suffice/skills/{index:03}/SKILL.md");
         skills.record(path.clone());
         skills.record(path);
     }
@@ -147,7 +147,7 @@ fn invoked_skill_paths_are_deduplicated_and_bounded() {
     assert_eq!(
         skills.into_paths(),
         (0..MAX_TRUSTED_SKILLS)
-            .map(|index| format!("/home/user/.codex/skills/{index:03}/SKILL.md"))
+            .map(|index| format!("/home/user/.suffice/skills/{index:03}/SKILL.md"))
             .collect::<Vec<_>>()
     );
 

@@ -200,7 +200,7 @@ pub struct ThreadSectionAppearance {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct Thread {
-    /// Identifier for this thread. Codex-generated thread IDs are UUIDv7.
+    /// Identifier for this thread. Suffice-generated thread IDs are UUIDv7.
     pub id: String,
     /// Optional implementation-specific thread data.
     #[experimental("thread.extra")]
@@ -353,7 +353,7 @@ impl<'de> Deserialize<'de> for Thread {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct Turn {
-    /// Identifier for this turn. Codex-generated turn IDs are UUIDv7.
+    /// Identifier for this turn. Suffice-generated turn IDs are UUIDv7.
     pub id: String,
     /// Thread items currently included in this turn payload.
     pub items: Vec<ThreadItem>,

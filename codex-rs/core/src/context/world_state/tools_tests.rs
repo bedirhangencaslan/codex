@@ -11,7 +11,7 @@ fn renders_first_line_of_namespace_descriptions() {
     let tools = ToolsState::new([
         (
             "app".to_string(),
-            "  control the Codex App  \nAdditional instructions.".to_string(),
+            "  control the Suffice App  \nAdditional instructions.".to_string(),
         ),
         (
             "gmail".to_string(),
@@ -27,14 +27,14 @@ fn renders_first_line_of_namespace_descriptions() {
 
     assert_eq!(
         rendered,
-        "<tools>\nDeferred tool namespaces:\n- app: control the Codex App\n- gmail: access your Google Gmail Account &amp; labels\n- hotline\n</tools>"
+        "<tools>\nDeferred tool namespaces:\n- app: control the Suffice App\n- gmail: access your Google Gmail Account &amp; labels\n- hotline\n</tools>"
     );
 }
 
 #[test]
 fn renders_added_removed_and_updated_namespace_descriptions() {
     let tools = ToolsState::new([
-        ("app".to_string(), "control the Codex App".to_string()),
+        ("app".to_string(), "control the Suffice App".to_string()),
         (
             "gmail".to_string(),
             "access your Google Gmail Account".to_string(),
@@ -55,7 +55,7 @@ fn renders_added_removed_and_updated_namespace_descriptions() {
 
     assert_eq!(
         rendered,
-        "<tools>\nAdded deferred tool namespaces:\n- app: control the Codex App\n- gmail: access your Google Gmail Account\nRemoved deferred tool namespaces:\n- hotline: access hotline information\n</tools>"
+        "<tools>\nAdded deferred tool namespaces:\n- app: control the Suffice App\n- gmail: access your Google Gmail Account\nRemoved deferred tool namespaces:\n- hotline: access hotline information\n</tools>"
     );
 }
 

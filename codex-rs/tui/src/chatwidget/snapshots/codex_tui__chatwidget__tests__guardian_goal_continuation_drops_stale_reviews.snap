@@ -6,6 +6,6 @@ expression: normalize_snapshot_paths(rendered)
   └ rm -rf '/tmp/current-review'
 
 
-› Ask Codex to do anything
+› Ask Suffice to do anything
 
   glm-5.3-flash default · /tmp/project

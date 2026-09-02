@@ -151,7 +151,7 @@ fn event_target(value: &str) -> Option<&'static str> {
     match name {
         "codex-windows-sandbox-setup.exe" => Some("sandbox_setup"),
         "codex-command-runner.exe" => Some("command_runner"),
-        "codex.exe" => Some("codex"),
+        "suffice.exe" => Some("suffice"),
         "codex-desktop.exe" => Some("codex_desktop"),
         "chatgpt.exe" | "electron.exe" if trusted => Some("codex_desktop"),
         "rg.exe" if trusted => Some("ripgrep"),
@@ -199,15 +199,15 @@ fn classify(channels: &[Option<Vec<Evidence>>]) -> DoctorCheck {
     }
     let summary = match (status, visible) {
         (CheckStatus::Ok, _) if channels.contains(&None) => "security event coverage is incomplete",
-        (CheckStatus::Ok, _) => "no locally visible recent Codex security enforcement was found",
+        (CheckStatus::Ok, _) => "no locally visible recent Suffice security enforcement was found",
         (CheckStatus::Warning, false) => "security event channels could not be inspected",
-        (CheckStatus::Warning, true) => "recent Codex security audit or detection requires review",
-        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined a Codex executable",
+        (CheckStatus::Warning, true) => "recent Suffice security audit or detection requires review",
+        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined a Suffice executable",
     };
     let mut check = desktop_check("desktop.security.enforcement", status, summary).details(details);
     if status != CheckStatus::Ok {
         check = check.remediation(
-            "ask your organization's security administrator to review endpoint security events and the approved Codex application policy",
+            "ask your organization's security administrator to review endpoint security events and the approved Suffice application policy",
         );
     }
     check

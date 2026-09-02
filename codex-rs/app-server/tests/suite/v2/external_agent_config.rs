@@ -149,7 +149,7 @@ async fn external_agent_config_import_skips_repository_redirect_after_detection(
     let codex_home = TempDir::new()?;
     let repository = TempDir::new()?;
     let repo_root = repository.path();
-    let repo_config_dir = repo_root.join(".codex");
+    let repo_config_dir = repo_root.join(".suffice");
     let global_config = codex_home.path().join("config.toml");
     std::fs::create_dir(repo_root.join(".git"))?;
     std::fs::create_dir(&repo_config_dir)?;
@@ -447,7 +447,7 @@ async fn external_agent_config_import_source_remains_attribution_only() -> Resul
     assert_eq!(completed.item_type_results[0].failures, Vec::new());
     assert_eq!(
         std::fs::read_to_string(codex_home.path().join("AGENTS.md"))?,
-        "Codex guidance"
+        "Suffice guidance"
     );
 
     Ok(())
@@ -508,7 +508,7 @@ async fn external_agent_config_secondary_source_imports_session_and_plugin_end_t
             .parent()
             .expect("configured marketplace manifest parent"),
     )?;
-    std::fs::create_dir_all(configured_plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(configured_plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
         marketplace_root.join(".cursor-plugin/marketplace.json"),
         r#"{
@@ -531,7 +531,7 @@ async fn external_agent_config_secondary_source_imports_session_and_plugin_end_t
 }"#,
     )?;
     std::fs::write(
-        configured_plugin_root.join(".codex-plugin/plugin.json"),
+        configured_plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","version":"0.1.0"}"#,
     )?;
     std::fs::write(
@@ -1577,7 +1577,7 @@ async fn external_agent_config_import_reinstalls_plugins_from_known_marketplaces
     let marketplace_root = codex_home.path().join("marketplace");
     let plugin_root = marketplace_root.join("plugins").join("sample");
     std::fs::create_dir_all(marketplace_root.join(".agents/plugins"))?;
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
         marketplace_root.join(".agents/plugins/marketplace.json"),
         r#"{
@@ -1594,7 +1594,7 @@ async fn external_agent_config_import_reinstalls_plugins_from_known_marketplaces
 }"#,
     )?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","version":"0.1.0"}"#,
     )?;
     let source_home = external_agent_home(codex_home.path());

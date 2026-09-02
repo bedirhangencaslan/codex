@@ -157,7 +157,7 @@ impl MarketplacePluginSource {
 pub struct MarketplacePluginPolicy {
     pub installation: MarketplacePluginInstallPolicy,
     pub authentication: MarketplacePluginAuthPolicy,
-    // TODO: Surface or enforce product gating at the Codex/plugin consumer boundary instead of
+    // TODO: Surface or enforce product gating at the Suffice/plugin consumer boundary instead of
     // only carrying it through core marketplace metadata.
     pub products: Option<Vec<Product>>,
 }
@@ -1056,7 +1056,7 @@ fn resolve_marketplace_interface(
 }
 
 fn fallback_plugin_manifest_path(plugin_root: &Path) -> PathBuf {
-    plugin_root.join(".codex-plugin/plugin.json")
+    plugin_root.join(".suffice-plugin/plugin.json")
 }
 
 fn marketplace_plugin_manifest_fallback(

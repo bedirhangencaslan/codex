@@ -337,7 +337,7 @@ mod agent {
             .features
             .disable(Feature::SkillMcpDependencyInstall);
 
-        // Preserve the parent's explicit choice to skip Codex-managed sandboxing.
+        // Preserve the parent's explicit choice to skip Suffice-managed sandboxing.
         match parent_permission_profile {
             PermissionProfile::Disabled => agent_config
                 .permissions

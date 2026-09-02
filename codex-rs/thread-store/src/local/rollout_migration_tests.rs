@@ -307,7 +307,7 @@ async fn list_active_summary_turns(store: &LocalThreadStore, thread_id: ThreadId
 
 #[tokio::test]
 async fn migration_publishes_canonical_projected_history_and_is_idempotent() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -365,7 +365,7 @@ async fn migration_publishes_canonical_projected_history_and_is_idempotent() {
 
 #[tokio::test]
 async fn migration_projects_explicit_and_implicit_legacy_completed_items() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let exec = exec_completion("explicit", "call-1");
     let reasoning = serde_json::from_value(json!({
@@ -428,7 +428,7 @@ async fn migration_projects_explicit_and_implicit_legacy_completed_items() {
 
 #[tokio::test]
 async fn migration_preserves_image_generation_failure_metadata() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let expected_item = ImageGenerationItem {
         id: "image-call".to_string(),
@@ -485,7 +485,7 @@ async fn migration_preserves_image_generation_failure_metadata() {
 
 #[tokio::test]
 async fn migration_keeps_late_completions_in_their_original_turn() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -540,7 +540,7 @@ async fn migration_keeps_late_completions_in_their_original_turn() {
 
 #[tokio::test]
 async fn migration_hoists_delayed_session_meta_before_paginated_history() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(home.path(), thread_id, SessionSource::Cli, Vec::new());
     let existing = fs::read_to_string(&path).expect("read legacy rollout");
@@ -597,7 +597,7 @@ async fn migration_hoists_delayed_session_meta_before_paginated_history() {
 
 #[tokio::test]
 async fn migration_preserves_valid_final_record_without_newline() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -638,7 +638,7 @@ async fn migration_preserves_valid_final_record_without_newline() {
 
 #[tokio::test]
 async fn migration_applies_historical_rollbacks_before_sqlite_projection() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -690,7 +690,7 @@ async fn migration_applies_historical_rollbacks_before_sqlite_projection() {
 
 #[tokio::test]
 async fn migration_rolls_back_response_and_inter_agent_user_boundaries() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let response_thread_id = ThreadId::new();
     let response_path = write_rollout(
         home.path(),
@@ -780,7 +780,7 @@ async fn migration_rolls_back_response_and_inter_agent_user_boundaries() {
 
 #[tokio::test]
 async fn migration_drops_trailing_context_when_rollback_arrives_before_next_turn() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -820,7 +820,7 @@ async fn migration_drops_trailing_context_when_rollback_arrives_before_next_turn
 
 #[tokio::test]
 async fn migration_coalesces_response_first_user_message_rollback_boundary() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -851,7 +851,7 @@ async fn migration_coalesces_response_first_user_message_rollback_boundary() {
 
 #[tokio::test]
 async fn migration_does_not_coalesce_distinct_adjacent_user_records() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -887,7 +887,7 @@ async fn migration_does_not_coalesce_distinct_adjacent_user_records() {
 
 #[tokio::test]
 async fn migration_keeps_late_completions_for_surviving_turns_across_rollback() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1003,7 +1003,7 @@ async fn migration_keeps_late_completions_for_surviving_turns_across_rollback() 
 
 #[tokio::test]
 async fn migration_rolls_back_inter_agent_metadata_with_its_delivery() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let delivery = InterAgentCommunication::new(
         AgentPath::root(),
@@ -1043,7 +1043,7 @@ async fn migration_rolls_back_inter_agent_metadata_with_its_delivery() {
 
 #[tokio::test]
 async fn migration_rolls_back_pre_compaction_turns_from_sqlite_history() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let RolloutItem::Compacted(mut checkpoint) = compacted(vec![
         input_response_message("user", "old question"),
@@ -1122,7 +1122,7 @@ async fn migration_rolls_back_pre_compaction_turns_from_sqlite_history() {
 
 #[tokio::test]
 async fn migration_preserves_reverse_replay_anchor_after_pre_compaction_rollback() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1156,7 +1156,7 @@ async fn migration_preserves_reverse_replay_anchor_after_pre_compaction_rollback
 
 #[tokio::test]
 async fn migration_keeps_empty_replay_anchor_from_rolled_back_turn() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1197,7 +1197,7 @@ async fn migration_keeps_empty_replay_anchor_from_rolled_back_turn() {
 
 #[tokio::test]
 async fn migration_uses_turn_context_to_select_reverse_replay_anchor() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1267,7 +1267,7 @@ async fn migration_uses_turn_context_to_select_reverse_replay_anchor() {
 
 #[tokio::test]
 async fn migration_applies_cumulative_and_overflowing_rollbacks() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1319,7 +1319,7 @@ async fn migration_applies_cumulative_and_overflowing_rollbacks() {
 
 #[tokio::test]
 async fn migration_drops_copied_user_fork_metadata_without_creating_a_history_base() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let parent_id = ThreadId::new();
     let copied_metadata = SessionMeta {
@@ -1396,7 +1396,7 @@ async fn migration_drops_copied_user_fork_metadata_without_creating_a_history_ba
 
 #[tokio::test]
 async fn migration_compacts_subagent_prefix_and_does_not_project_it() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1510,7 +1510,7 @@ async fn migration_compacts_subagent_prefix_and_does_not_project_it() {
 
 #[tokio::test]
 async fn migration_keeps_small_uncompacted_subagent_replay_as_prefix() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1547,7 +1547,7 @@ async fn migration_keeps_small_uncompacted_subagent_replay_as_prefix() {
 
 #[tokio::test]
 async fn migration_projects_memory_consolidation_as_ordinary_history() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1579,7 +1579,7 @@ async fn migration_projects_memory_consolidation_as_ordinary_history() {
 
 #[tokio::test]
 async fn dry_run_reports_migration_order() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let root_id = ThreadId::new();
     let root = write_rollout(
         home.path(),
@@ -1690,7 +1690,7 @@ async fn dry_run_reports_migration_order() {
 
 #[tokio::test]
 async fn migration_preserves_compressed_rollouts_during_publish_and_recovery() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -1748,7 +1748,7 @@ async fn migration_preserves_compressed_rollouts_during_publish_and_recovery() {
 
 #[tokio::test]
 async fn migration_migrates_archived_rollouts_without_unarchiving_them() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let active_path = write_rollout(
         home.path(),
@@ -1792,7 +1792,7 @@ async fn migration_migrates_archived_rollouts_without_unarchiving_them() {
 
 #[tokio::test]
 async fn migration_retries_a_rollout_moved_after_path_discovery() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let active_path = write_rollout(
         home.path(),
@@ -1823,7 +1823,7 @@ async fn migration_retries_a_rollout_moved_after_path_discovery() {
 
 #[tokio::test]
 async fn migration_preserves_legacy_displayed_thread_names() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let title_thread_id = ThreadId::new();
     write_rollout(
         home.path(),
@@ -1897,7 +1897,7 @@ async fn migration_preserves_legacy_displayed_thread_names() {
 
 #[tokio::test]
 async fn migration_repairs_a_missing_paginated_name_when_rerun() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     write_rollout(
         home.path(),
@@ -1955,7 +1955,7 @@ async fn migration_repairs_a_missing_paginated_name_when_rerun() {
 #[cfg(unix)]
 #[tokio::test]
 async fn decompression_temporaries_are_owner_only() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let compressed_path = compress_rollout(&write_rollout(
         home.path(),
@@ -1981,7 +1981,7 @@ async fn decompression_temporaries_are_owner_only() {
 
 #[tokio::test]
 async fn migration_skips_threads_with_an_active_writer() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -2010,7 +2010,7 @@ async fn migration_skips_threads_with_an_active_writer() {
 
 #[tokio::test]
 async fn migration_apply_conflicts_with_rollout_maintenance() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -2035,7 +2035,7 @@ async fn migration_apply_conflicts_with_rollout_maintenance() {
 
 #[tokio::test]
 async fn migration_recovers_a_published_rollout_with_missing_projection() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -2090,7 +2090,7 @@ async fn migration_recovers_a_published_rollout_with_missing_projection() {
 
 #[tokio::test]
 async fn migration_recovers_pending_rollouts_before_new_work() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let pending_thread_id = ThreadId::new();
     write_rollout(
         home.path(),
@@ -2151,7 +2151,7 @@ async fn migration_recovers_pending_rollouts_before_new_work() {
 
 #[tokio::test]
 async fn migration_recovers_a_compressed_published_rollout() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -2228,7 +2228,7 @@ async fn migration_recovers_a_compressed_published_rollout() {
 
 #[tokio::test]
 async fn migration_skips_oversized_jsonl_records() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),
@@ -2268,7 +2268,7 @@ async fn migration_skips_oversized_jsonl_records() {
 
 #[tokio::test]
 async fn migration_skips_empty_rollout_files() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let directory = home.path().join("sessions/2025/01/03");
     fs::create_dir_all(&directory).expect("create rollout directory");
@@ -2300,7 +2300,7 @@ async fn migration_skips_empty_rollout_files() {
 
 #[tokio::test]
 async fn migration_reports_missing_sqlite_metadata() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     write_rollout(
         home.path(),
@@ -2330,7 +2330,7 @@ async fn migration_reports_missing_sqlite_metadata() {
 
 #[tokio::test]
 async fn migration_reports_invalid_session_metadata() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let directory = home.path().join("sessions/2025/01/03");
     fs::create_dir_all(&directory).expect("create rollout directory");
@@ -2351,7 +2351,7 @@ async fn migration_reports_invalid_session_metadata() {
 
 #[tokio::test]
 async fn migration_skips_malformed_lines_and_trailing_partial_tail() {
-    let home = TempDir::new().expect("create Codex home");
+    let home = TempDir::new().expect("create Suffice home");
     let thread_id = ThreadId::new();
     let path = write_rollout(
         home.path(),

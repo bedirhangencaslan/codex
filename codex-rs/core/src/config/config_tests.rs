@@ -982,7 +982,7 @@ model_provider = "custom-openai"
 
 [model_providers.custom-openai]
 name = "OpenAI"
-http_headers = { "X-OpenAI-Internal-Codex-Residency" = "request-override", "x-provider-header" = "preserved" }
+http_headers = { "X-OpenAI-Internal-Suffice-Residency" = "request-override", "x-provider-header" = "preserved" }
 env_http_headers = { "x-openai-internal-codex-residency" = "CODEX_TEST_UNSET_RESIDENCY_HEADER", "x-provider-env-header" = "CODEX_TEST_UNSET_PROVIDER_HEADER" }
 "#,
         )
@@ -1020,7 +1020,7 @@ env_http_headers = { "x-openai-internal-codex-residency" = "CODEX_TEST_UNSET_RES
             .as_ref()
             .expect("environment-backed headers should remain configured");
         assert_eq!(
-            static_headers.get("X-OpenAI-Internal-Codex-Residency"),
+            static_headers.get("X-OpenAI-Internal-Suffice-Residency"),
             Some(&"request-override".into())
         );
         assert_eq!(
@@ -3096,7 +3096,7 @@ async fn workspace_profile_applies_rules_to_runtime_and_profile_workspace_roots(
     let profile_root = temp_dir.path().join("shared");
     for root in [&cwd, &runtime_root, &profile_root] {
         std::fs::create_dir_all(root.join(".git"))?;
-        std::fs::create_dir_all(root.join(".codex"))?;
+        std::fs::create_dir_all(root.join(".suffice"))?;
     }
 
     let config = Config::load_from_base_config_with_overrides(
@@ -3121,7 +3121,7 @@ async fn workspace_profile_applies_rules_to_runtime_and_profile_workspace_roots(
                                 FilesystemPermissionToml::Scoped(BTreeMap::from([
                                     (".".to_string(), FileSystemAccessMode::Write),
                                     (".git".to_string(), FileSystemAccessMode::Read),
-                                    (".codex".to_string(), FileSystemAccessMode::Read),
+                                    (".suffice".to_string(), FileSystemAccessMode::Read),
                                 ])),
                             )]),
                         }),
@@ -3171,8 +3171,8 @@ async fn workspace_profile_applies_rules_to_runtime_and_profile_workspace_roots(
             "expected .git carveout under {root:?}, policy: {policy:?}"
         );
         assert!(
-            !policy.can_write_path_with_cwd(&root.join(".codex"), cwd.as_path()),
-            "expected .codex carveout under {root:?}, policy: {policy:?}"
+            !policy.can_write_path_with_cwd(&root.join(".suffice"), cwd.as_path()),
+            "expected .suffice carveout under {root:?}, policy: {policy:?}"
         );
     }
     assert_eq!(
@@ -3434,7 +3434,7 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
             "expected trusted project fallback to use :workspace, policy: {policy:?}"
         );
         assert!(
-            !policy.can_write_path_with_cwd(&cwd.path().join(".codex"), cwd.path()),
+            !policy.can_write_path_with_cwd(&cwd.path().join(".suffice"), cwd.path()),
             "expected :workspace metadata carveouts, policy: {policy:?}"
         );
     }
@@ -3493,7 +3493,7 @@ async fn empty_config_defaults_to_builtin_profile_for_untrusted_project() -> std
             "expected untrusted project fallback to use :workspace, policy: {policy:?}"
         );
         assert!(
-            !policy.can_write_path_with_cwd(&cwd.path().join(".codex"), cwd.path()),
+            !policy.can_write_path_with_cwd(&cwd.path().join(".suffice"), cwd.path()),
             "expected :workspace metadata carveouts, policy: {policy:?}"
         );
     }
@@ -3575,7 +3575,7 @@ async fn implicit_builtin_workspace_profile_preserves_add_dir_metadata_carveouts
     let codex_home = TempDir::new()?;
     let cwd = TempDir::new()?;
     let extra_root = TempDir::new()?;
-    for subpath in [".git", ".agents", ".codex"] {
+    for subpath in [".git", ".agents", ".suffice"] {
         std::fs::create_dir_all(extra_root.path().join(subpath))?;
     }
     let project_key = cwd.path().to_string_lossy().to_string();
@@ -3609,7 +3609,7 @@ async fn implicit_builtin_workspace_profile_preserves_add_dir_metadata_carveouts
         policy.can_write_path_with_cwd(extra_root.as_path(), cwd.path()),
         "expected implicit :workspace to preserve additional writable roots, policy: {policy:?}"
     );
-    for subpath in [".git", ".agents", ".codex"] {
+    for subpath in [".git", ".agents", ".suffice"] {
         assert!(
             !policy.can_write_path_with_cwd(&extra_root.join(subpath), cwd.path()),
             "expected implicit :workspace to preserve legacy metadata carveout for {subpath}, \
@@ -3945,7 +3945,7 @@ async fn permissions_profiles_allow_unknown_special_paths() -> std::io::Result<(
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Configured filesystem path `:future_special_path` is not recognized by this version of Codex and will be ignored."
+            "Configured filesystem path `:future_special_path` is not recognized by this version of Suffice and will be ignored."
         )),
         "{:?}",
         config.startup_warnings
@@ -3986,7 +3986,7 @@ async fn permissions_profiles_allow_unknown_special_paths_with_nested_entries()
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Configured filesystem path `:future_special_path` with nested entry `docs` is not recognized by this version of Codex and will be ignored."
+            "Configured filesystem path `:future_special_path` with nested entry `docs` is not recognized by this version of Suffice and will be ignored."
         )),
         "{:?}",
         config.startup_warnings
@@ -4017,7 +4017,7 @@ async fn permissions_profiles_allow_missing_filesystem_with_warning() -> std::io
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Codex."
+            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Suffice."
         )),
         "{:?}",
         config.startup_warnings
@@ -4045,7 +4045,7 @@ async fn permissions_profiles_allow_empty_filesystem_with_warning() -> std::io::
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Codex."
+            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Suffice."
         )),
         "{:?}",
         config.startup_warnings
@@ -4751,7 +4751,7 @@ exclude_slash_tmp = true
                             missing_path_behavior: None,
                         })
                 );
-                for subpath in [".git", ".agents", ".codex"] {
+                for subpath in [".git", ".agents", ".suffice"] {
                     assert!(
                         file_system_policy
                             .entries
@@ -5249,7 +5249,7 @@ async fn rebuild_preserving_session_layers_refreshes_requirements() -> std::io::
     let codex_home = TempDir::new()?;
     let user_file = AbsolutePathBuf::resolve_path_against_base(CONFIG_TOML_FILE, codex_home.path());
     let project_dot_codex =
-        AbsolutePathBuf::resolve_path_against_base("project/.codex", codex_home.path());
+        AbsolutePathBuf::resolve_path_against_base("project/.suffice", codex_home.path());
     let mcp_requirements = BTreeMap::from([
         (
             "session_overrides_user".to_string(),
@@ -5461,9 +5461,9 @@ async fn rebuild_preserving_session_layers_refreshes_plugin_derived_mcp_config()
         .path()
         .join("plugins/cache")
         .join("test/sample/local");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )?;
     std::fs::write(
@@ -5570,9 +5570,9 @@ async fn to_mcp_config_omits_plugin_id_when_user_server_shadows_plugin_mcp() -> 
         .path()
         .join("plugins/cache")
         .join("test/sample/local");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )?;
     std::fs::write(
@@ -5630,9 +5630,9 @@ async fn selected_plugin_wins_after_discovered_plugin_requirements() -> anyhow::
         .path()
         .join("plugins/cache")
         .join("test/sample/local");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )?;
     std::fs::write(
@@ -5738,9 +5738,9 @@ async fn to_mcp_config_empty_mcp_requirements_disable_plugin_mcps() -> anyhow::R
         .path()
         .join("plugins/cache")
         .join("test/sample/local");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )?;
     std::fs::write(
@@ -6387,7 +6387,7 @@ trust_level = "trusted"
 "#,
         ),
     )?;
-    let project_config_dir = workspace.path().join(".codex");
+    let project_config_dir = workspace.path().join(".suffice");
     std::fs::create_dir_all(&project_config_dir)?;
     std::fs::write(
         project_config_dir.join(CONFIG_TOML_FILE),
@@ -8450,7 +8450,7 @@ trust_level = "trusted"
     )
     .await?;
 
-    let standalone_agents_dir = repo_root.path().join(".codex").join("agents");
+    let standalone_agents_dir = repo_root.path().join(".suffice").join("agents");
     tokio::fs::create_dir_all(&standalone_agents_dir).await?;
     tokio::fs::write(
         standalone_agents_dir.join("researcher.toml"),
@@ -8622,7 +8622,7 @@ trust_level = "trusted"
     )
     .await?;
 
-    let standalone_agents_dir = repo_root.path().join(".codex").join("agents");
+    let standalone_agents_dir = repo_root.path().join(".suffice").join("agents");
     tokio::fs::create_dir_all(&standalone_agents_dir).await?;
     tokio::fs::write(
         standalone_agents_dir.join("researcher.toml"),
@@ -8824,7 +8824,7 @@ trust_level = "trusted"
 
     let root_agent = repo_root
         .path()
-        .join(".codex")
+        .join(".suffice")
         .join("agents")
         .join("root.toml");
     std::fs::create_dir_all(
@@ -8844,7 +8844,7 @@ developer_instructions = "Research carefully"
     let nested_agent = repo_root
         .path()
         .join("packages")
-        .join(".codex")
+        .join(".suffice")
         .join("agents")
         .join("review")
         .join("nested.toml");
@@ -8866,7 +8866,7 @@ developer_instructions = "Review carefully"
     let sibling_agent = repo_root
         .path()
         .join("packages")
-        .join(".codex")
+        .join(".suffice")
         .join("agents")
         .join("writer.toml");
     std::fs::create_dir_all(
@@ -8984,7 +8984,7 @@ model = "gpt-4.1"
     )
     .await?;
 
-    let standalone_agents_dir = repo_root.path().join(".codex").join("agents");
+    let standalone_agents_dir = repo_root.path().join(".suffice").join("agents");
     tokio::fs::create_dir_all(&standalone_agents_dir).await?;
     tokio::fs::write(
         standalone_agents_dir.join("researcher.toml"),
@@ -9117,7 +9117,7 @@ model = "gpt-5.2"
     )
     .await?;
 
-    let standalone_agents_dir = repo_root.path().join(".codex").join("agents");
+    let standalone_agents_dir = repo_root.path().join(".suffice").join("agents");
     tokio::fs::create_dir_all(&standalone_agents_dir).await?;
     tokio::fs::write(
         standalone_agents_dir.join("researcher.toml"),
@@ -10731,7 +10731,7 @@ sandbox_mode = "danger-full-access"
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert_eq!(
         err.to_string(),
-        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Codex would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
+        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
     );
     Ok(())
 }
@@ -10765,7 +10765,7 @@ default_permissions = "dev"
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert_eq!(
         err.to_string(),
-        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Codex would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
+        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
     );
     Ok(())
 }
@@ -12354,7 +12354,7 @@ disabled_tools = [
         ),
     )?;
 
-    let project_config_dir = workspace.path().join(".codex");
+    let project_config_dir = workspace.path().join(".suffice");
     std::fs::create_dir_all(&project_config_dir)?;
     std::fs::write(
         project_config_dir.join(CONFIG_TOML_FILE),

@@ -2,14 +2,14 @@
 source: cli/src/doctor/output.rs
 expression: "render_human_report(&report, detailed_no_color_unicode_options())"
 ---
-Codex Doctor v0.0.0
+Suffice Doctor v0.0.0
 
 Notes
    ↑ desktop      build 123 available (ready to install)
    ⚠ terminal     narrow terminal
-   ✗ auth         token expired - Run `codex login`.
+   ✗ auth         token expired - Run `suffice login`.
    ⚠ git          this worktree is not on a Windows Dev Drive - create a trusted Windows Dev Drive: https://learn.microsoft.com/en-us/windows/dev-drive/
-   ⚠ security     Microsoft Defender can interfere with Codex. Verify Codex exclusions.
+   ⚠ security     Microsoft Defender can interfere with Suffice. Verify Suffice exclusions.
 ─────────────────────────────────────────────────────────────
 
 Environment
@@ -23,11 +23,11 @@ Environment
       GH_PAGER                 less
       LESS                     -FRX
   ✓ disk         sufficient free disk space (42.0 GiB)
-  ⚠ security     Microsoft Defender can interfere with Codex. Verify Codex exclusions.
+  ⚠ security     Microsoft Defender can interfere with Suffice. Verify Suffice exclusions.
       endpoint products        Microsoft Defender
-      exclusion targets        verified Codex app and required helpers
-    ▸ Codex exclusions         not verified (expected Codex application and helper exclusions)
-    → Microsoft Defender: Add a certificate or executable-path exclusion for Codex and its helpers. If Attack Surface Reduction blocks Codex, add a rule exclusion. If Controlled Folder Access blocks Codex, allow the app.
+      exclusion targets        verified Suffice app and required helpers
+    ▸ Suffice exclusions         not verified (expected Suffice application and helper exclusions)
+    → Microsoft Defender: Add a certificate or executable-path exclusion for Suffice and its helpers. If Attack Surface Reduction blocks Suffice, add a rule exclusion. If Controlled Folder Access blocks Suffice, allow the app.
   ✓ runtime      running local build on darwin-arm64
   ✓ install      consistent
       managed by               npm: no · bun: no · pnpm: no · package root —
@@ -45,14 +45,14 @@ Environment
   ✓ state        state paths inspectable
 
 Configuration
-  ✗ auth         token expired — Run `codex login`.
+  ✗ auth         token expired — Run `suffice login`.
       OPENAI_API_KEY           present
 
 Desktop App
   ✓ desktop      the desktop application is installed
       version                  1.2.3
       running                  true
-      log directory            $HOME/Library/Logs/com.openai.codex
+      log directory            $HOME/Library/Logs/com.openai.suffice
   ✓ desktop      the desktop app-server initialized successfully
 
 Updates

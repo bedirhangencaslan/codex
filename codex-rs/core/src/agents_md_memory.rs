@@ -1,7 +1,7 @@
 //! Refreshes the project's durable memory in `AGENTS.md` right before compaction.
 //!
 //! Compaction is the moment a conversation's detail is about to be thrown away, which makes it
-//! the natural moment to persist whatever is worth keeping past the end of the session. Codex
+//! the natural moment to persist whatever is worth keeping past the end of the session. Suffice
 //! already loads `AGENTS.md` as user instructions at the start of every session, so a file the
 //! agent keeps current is what carries today's conversation into tomorrow's.
 //!
@@ -68,7 +68,7 @@ pub(crate) async fn refresh_agents_md_before_compaction(
 /// The memory file to update, spelled the way the agent should spell it: relative to the turn's
 /// working directory.
 ///
-/// Discovery is Codex's own, so `AGENTS.override.md` and `project_doc_fallback_filenames` are
+/// Discovery is Suffice's own, so `AGENTS.override.md` and `project_doc_fallback_filenames` are
 /// honoured. The deepest hit is the one closest to cwd, and the one a future session loads last.
 /// With no file on disk yet there is nothing to discover, so name the default and let the agent
 /// create it.

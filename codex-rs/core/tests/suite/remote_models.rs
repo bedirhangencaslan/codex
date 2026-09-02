@@ -113,7 +113,7 @@ async fn remote_models_get_model_info_uses_longest_matching_prefix() -> Result<(
         TruncationPolicyConfig::bytes(/*limit*/ 10_000),
     );
     let specific = ModelInfo {
-        display_name: "GPT 5.3 Codex".to_string(),
+        display_name: "GPT 5.3 Suffice".to_string(),
         model_messages: Some(ModelMessages {
             persistent_instructions: None,
             tools: None,

@@ -1,4 +1,4 @@
-//! The main Codex TUI chat surface.
+//! The main Suffice TUI chat surface.
 //!
 //! `ChatWidget` consumes protocol events, builds and updates history cells, and drives rendering
 //! for both the main viewport and overlay UIs.
@@ -2030,7 +2030,7 @@ impl Drop for ChatWidget {
     }
 }
 
-const PLACEHOLDER: &str = "Ask Codex to do anything";
+const PLACEHOLDER: &str = "Ask Suffice to do anything";
 const SIDE_PLACEHOLDER: &str = "Ask a follow-up question";
 
 // Extract the first bold (Markdown) element in the form **...** from `s`.

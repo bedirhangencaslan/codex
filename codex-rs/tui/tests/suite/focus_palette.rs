@@ -99,12 +99,12 @@ impl PtyCodex {
             .arg("analytics.enabled=false")
             .env("TERM", "xterm-256color")
             .env("OPENAI_API_KEY", "focus-palette-test")
-            .env("CODEX_HOME", codex_home.path())
+            .env("SUFFICE_HOME", codex_home.path())
             .stdin(stdin)
             .stdout(stdout)
             .stderr(slave)
             .spawn()
-            .context("start Codex in focus-test pseudo-terminal")?;
+            .context("start Suffice in focus-test pseudo-terminal")?;
 
         Ok(Self {
             master,
@@ -126,20 +126,20 @@ impl PtyCodex {
             self.read_output(Duration::from_millis(/*millis*/ 50))?;
             self.answer_startup_queries()?;
 
-            if self.palette_answered && self.screen_contains("OpenAI Codex") {
+            if self.palette_answered && self.screen_contains("Suffice") {
                 return Ok(());
             }
 
             if let Some(status) = self.child.try_wait()? {
                 bail!(
-                    "Codex exited before the focus test started ({status}); screen:\n{}",
+                    "Suffice exited before the focus test started ({status}); screen:\n{}",
                     self.screen_contents(),
                 );
             }
         }
 
         bail!(
-            "Codex did not initialize within {:?}; screen:\n{}",
+            "Suffice did not initialize within {:?}; screen:\n{}",
             STARTUP_TIMEOUT,
             self.screen_contents(),
         );
@@ -258,7 +258,7 @@ fn write_test_config(codex_home: &Path, repo_root: &Path) -> Result<()> {
          [projects.\"{repo_root}\"]\ntrust_level = \"trusted\"\n"
     );
     std::fs::write(codex_home.join("config.toml"), config)
-        .context("write focus-test Codex configuration")?;
+        .context("write focus-test Suffice configuration")?;
     std::fs::write(
         codex_home.join("auth.json"),
         r#"{"OPENAI_API_KEY":"focus-palette-test","tokens":null,"last_refresh":null}"#,

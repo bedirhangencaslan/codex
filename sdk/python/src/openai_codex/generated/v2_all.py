@@ -1992,7 +1992,7 @@ class ChatgptAuthTokensLoginAccountParams(BaseModel):
         str | None,
         Field(
             alias="chatgptPlanType",
-            description="Optional plan type supplied by the client.\n\nWhen `null`, Codex attempts to derive the plan type from access-token claims. If unavailable, the plan defaults to `unknown`.",
+            description="Optional plan type supplied by the client.\n\nWhen `null`, Suffice attempts to derive the plan type from access-token claims. If unavailable, the plan defaults to `unknown`.",
         ),
     ] = None
     type: Annotated[
@@ -8362,7 +8362,7 @@ class WebSearchThreadItem(BaseModel):
     results: Annotated[
         list | None,
         Field(
-            description="Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a Codex release."
+            description="Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a Suffice release."
         ),
     ] = None
     type: Annotated[Literal["webSearch"], Field(title="WebSearchThreadItemType")]
@@ -9135,7 +9135,7 @@ class GetAccountRateLimitsResponse(BaseModel):
         dict[str, Any] | None,
         Field(
             alias="rateLimitsByLimitId",
-            description="Multi-bucket view keyed by metered `limit_id` (for example, `codex`).",
+            description="Multi-bucket view keyed by metered `limit_id` (for example, `suffice`).",
         ),
     ] = None
 
@@ -9663,7 +9663,7 @@ class Turn(BaseModel):
         TurnError | None, Field(description="Only populated when the Turn's status is failed.")
     ] = None
     id: Annotated[
-        str, Field(description="Identifier for this turn. Codex-generated turn IDs are UUIDv7.")
+        str, Field(description="Identifier for this turn. Suffice-generated turn IDs are UUIDv7.")
     ]
     items: Annotated[
         list[ThreadItem], Field(description="Thread items currently included in this turn payload.")
@@ -10044,7 +10044,7 @@ class Thread(BaseModel):
         ),
     ] = None
     id: Annotated[
-        str, Field(description="Identifier for this thread. Codex-generated thread IDs are UUIDv7.")
+        str, Field(description="Identifier for this thread. Suffice-generated thread IDs are UUIDv7.")
     ]
     model_provider: Annotated[
         str,

@@ -1,4 +1,4 @@
-//! Implements the `codex doctor` diagnostic report.
+//! Implements the `suffice doctor` diagnostic report.
 //!
 //! Doctor is intentionally read-mostly: checks inspect the current installation,
 //! configuration, authentication, terminal, state paths, and bounded reachability
@@ -160,7 +160,7 @@ const TMUX_OPTION_NAMES: &[&str] = &[
 const NARROW_TERMINAL_COLUMNS: u16 = 80;
 const NARROW_TERMINAL_ROWS: u16 = 24;
 
-/// Options for building a local Codex diagnostic report.
+/// Options for building a local Suffice diagnostic report.
 ///
 /// The command always runs the full diagnostic set. Human output includes
 /// detailed diagnostics by default; --summary keeps the terminal output compact.
@@ -595,7 +595,7 @@ async fn load_config(
         .harness_overrides(overrides)
         .build()
         .await
-        .context("failed to load Codex config")
+        .context("failed to load Suffice config")
 }
 
 fn config_overrides_from_interactive(
@@ -630,7 +630,7 @@ fn config_overrides_from_interactive(
     }
 }
 
-/// JSON support report emitted by `codex doctor --json`.
+/// JSON support report emitted by `suffice doctor --json`.
 ///
 /// The report is keyed by check id so support tooling can fetch paths like
 /// `checks["terminal.metadata"]` without scanning arrays. Human rendering can
@@ -929,7 +929,7 @@ fn installation_check(show_details: bool) -> DoctorCheck {
                 status = status.max(CheckStatus::Warning);
                 summary = "npm-managed launch is missing package-root provenance".to_string();
                 remediation = Some(
-                    "Reinstall or update Codex so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
+                    "Reinstall or update Suffice so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
                         .to_string(),
                 );
             }
@@ -1159,7 +1159,7 @@ where
 
 fn config_check(config: &Config) -> DoctorCheck {
     let mut details = Vec::new();
-    details.push(format!("CODEX_HOME: {}", config.codex_home.display()));
+    details.push(format!("SUFFICE_HOME: {}", config.codex_home.display()));
     details.push(format!("cwd: {}", config.cwd.display()));
     details.push(format!(
         "model: {}",
@@ -1341,7 +1341,7 @@ fn auth_check(config: &Config) -> DoctorCheck {
             "auth.credentials",
             "auth",
             CheckStatus::Fail,
-            "no Codex credentials were found",
+            "no Suffice credentials were found",
         )
         .details(details)
         .remediation("Run codex login or provide an API key through a supported auth env var."),
@@ -2185,7 +2185,7 @@ fn non_empty_trimmed(value: String) -> Option<String> {
 
 async fn state_check(config: &Config, command: &DoctorCommand) -> DoctorCheck {
     let mut details = Vec::new();
-    path_readiness(&mut details, "CODEX_HOME", &config.codex_home);
+    path_readiness(&mut details, "SUFFICE_HOME", &config.codex_home);
     path_readiness(&mut details, "log dir", &config.log_dir);
     path_readiness(&mut details, "sqlite home", config.sqlite_config().home());
     let mut status = CheckStatus::Ok;
@@ -2561,14 +2561,14 @@ fn fallback_state_check() -> DoctorCheck {
             "state.paths",
             "state",
             CheckStatus::Ok,
-            "CODEX_HOME was resolved without config",
+            "SUFFICE_HOME was resolved without config",
         )
-        .detail(format!("CODEX_HOME: {}", path.display())),
+        .detail(format!("SUFFICE_HOME: {}", path.display())),
         Err(err) => DoctorCheck::new(
             "state.paths",
             "state",
             CheckStatus::Warning,
-            "CODEX_HOME could not be resolved",
+            "SUFFICE_HOME could not be resolved",
         )
         .detail(err.to_string()),
     }
@@ -3570,7 +3570,7 @@ mod tests {
         let check = provider_specific_auth_check(
             /*requires_openai_auth*/ false,
             Some("PROVIDER_API_KEY"),
-            Some("Set PROVIDER_API_KEY before running Codex."),
+            Some("Set PROVIDER_API_KEY before running Suffice."),
             Vec::new(),
             |_| false,
         )
@@ -3583,7 +3583,7 @@ mod tests {
         );
         assert_eq!(
             check.remediation,
-            Some("Set PROVIDER_API_KEY before running Codex.".to_string())
+            Some("Set PROVIDER_API_KEY before running Suffice.".to_string())
         );
     }
 

@@ -11,13 +11,13 @@ fn write_plugin_with_version(
     manifest_version: Option<&str>,
 ) {
     let plugin_root = root.join(dir_name);
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::create_dir_all(plugin_root.join("skills")).unwrap();
     let version = manifest_version
         .map(|manifest_version| format!(r#","version":"{manifest_version}""#))
         .unwrap_or_default();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         format!(r#"{{"name":"{manifest_name}"{version}}}"#),
     )
     .unwrap();
@@ -68,7 +68,7 @@ fn install_copies_plugin_into_default_marketplace() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".codex-plugin/plugin.json").is_file());
+    assert!(installed_path.join(".suffice-plugin/plugin.json").is_file());
     assert!(installed_path.join("skills/SKILL.md").is_file());
 }
 
@@ -76,9 +76,9 @@ fn install_copies_plugin_into_default_marketplace() {
 fn install_accepts_manifest_mcp_server_objects() {
     let tmp = tempdir().unwrap();
     let plugin_root = tmp.path().join("counter-sample");
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "counter-sample",
   "version": "1.1.1",
@@ -109,7 +109,7 @@ fn install_accepts_manifest_mcp_server_objects() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".codex-plugin/plugin.json").is_file());
+    assert!(installed_path.join(".suffice-plugin/plugin.json").is_file());
 }
 
 #[cfg(unix)]
@@ -117,7 +117,7 @@ fn install_accepts_manifest_mcp_server_objects() {
 fn install_rejects_symlinked_manifest_that_hides_lower_precedence_mcp_server() {
     let tmp = tempdir().unwrap();
     let plugin_root = tmp.path().join("manifest-switch");
-    let codex_path = plugin_root.join(".codex-plugin/plugin.json");
+    let codex_path = plugin_root.join(".suffice-plugin/plugin.json");
     let claude_path = plugin_root.join(".claude-plugin/plugin.json");
     fs::create_dir_all(codex_path.parent().unwrap()).unwrap();
     fs::create_dir_all(claude_path.parent().unwrap()).unwrap();
@@ -161,7 +161,7 @@ fn install_rejects_symlinked_manifest_directory() {
     )
     .unwrap();
     fs::write(&claude_path, r#"{"name":"manifest-switch"}"#).unwrap();
-    std::os::unix::fs::symlink(&manifest_directory, plugin_root.join(".codex-plugin")).unwrap();
+    std::os::unix::fs::symlink(&manifest_directory, plugin_root.join(".suffice-plugin")).unwrap();
     let plugin_id = PluginId::new("manifest-switch".to_string(), "debug".to_string()).unwrap();
 
     let err = PluginStore::new(tmp.path().to_path_buf())
@@ -275,7 +275,7 @@ fn install_with_version_uses_requested_cache_version() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".codex-plugin/plugin.json").is_file());
+    assert!(installed_path.join(".suffice-plugin/plugin.json").is_file());
 }
 
 #[test]
@@ -301,7 +301,7 @@ fn remote_plugin_install_metadata_follows_installed_cache_lifecycle() {
     let metadata_path = store.remote_plugin_install_metadata_path(&plugin_id);
     assert_eq!(
         metadata_path.as_path().file_name(),
-        Some(std::ffi::OsStr::new(".codex-remote-plugin-install.json"))
+        Some(std::ffi::OsStr::new(".suffice-remote-plugin-install.json"))
     );
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(
@@ -413,7 +413,7 @@ fn install_prefers_on_disk_manifest_version_over_fallback() {
             installed_path: AbsolutePathBuf::try_from(installed_path.clone()).unwrap(),
         }
     );
-    assert!(installed_path.join(".codex-plugin/plugin.json").is_file());
+    assert!(installed_path.join(".suffice-plugin/plugin.json").is_file());
 }
 
 #[test]
@@ -433,7 +433,7 @@ fn install_stages_fallback_manifest_when_source_has_no_manifest() {
         .expect("install plugin with fallback manifest");
 
     assert_eq!(
-        fs::read_to_string(result.installed_path.join(".codex-plugin/plugin.json")).unwrap(),
+        fs::read_to_string(result.installed_path.join(".suffice-plugin/plugin.json")).unwrap(),
         manifest,
     );
 }
@@ -497,7 +497,7 @@ fn agent_plugin_install_does_not_migrate_commands() {
     assert!(
         !result
             .installed_path
-            .join(".codex-plugin/migrated-command-skills")
+            .join(".suffice-plugin/migrated-command-skills")
             .exists()
     );
 }

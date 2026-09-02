@@ -225,7 +225,7 @@ impl ToolRuntime<ApplyPatchRequest, ApplyPatchRuntimeOutput> for ApplyPatchRunti
             if attempt.sandbox != SandboxType::None {
                 record_filesystem_sandbox_violation(attempt.sandbox, &output);
             }
-            return Err(ToolError::Codex(CodexErr::Sandbox(SandboxErr::Denied {
+            return Err(ToolError::Suffice(CodexErr::Sandbox(SandboxErr::Denied {
                 output: Box::new(output),
                 network_policy_decision: None,
             })));

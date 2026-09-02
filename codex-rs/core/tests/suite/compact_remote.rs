@@ -2028,7 +2028,7 @@ async fn remote_compact_filters_deferred_dynamic_tools() -> Result<()> {
     });
     let dynamic_tools = vec![DynamicToolSpec::Namespace(DynamicToolNamespaceSpec {
         name: "codex_app".to_string(),
-        description: "Codex app tools.".to_string(),
+        description: "Suffice app tools.".to_string(),
         tools: vec![
             DynamicToolNamespaceTool::Function(DynamicToolFunctionSpec {
                 name: hidden_tool.to_string(),
@@ -2732,7 +2732,7 @@ async fn remote_compact_trims_tool_search_output_to_empty_tools_array() -> Resul
     });
     let dynamic_tool = DynamicToolSpec::Namespace(DynamicToolNamespaceSpec {
         name: "codex_app".to_string(),
-        description: "Codex app tools.".to_string(),
+        description: "Suffice app tools.".to_string(),
         tools: vec![DynamicToolNamespaceTool::Function(
             DynamicToolFunctionSpec {
                 name: tool_name.to_string(),

@@ -250,7 +250,7 @@ where
         }
 
         // The SDK emits DEBUG timer meta-events every second per process; these
-        // were over 30% of retained logs in measured high-fanout Codex environments.
+        // were over 30% of retained logs in measured high-fanout Suffice environments.
         if target == "opentelemetry_sdk"
             && matches!(
                 *metadata.level(),

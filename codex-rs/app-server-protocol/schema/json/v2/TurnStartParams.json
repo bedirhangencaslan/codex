@@ -105,7 +105,7 @@
       "type": "object"
     },
     "CollaborationMode": {
-      "description": "Collaboration mode for a Codex session.",
+      "description": "Collaboration mode for a Suffice session.",
       "properties": {
         "mode": {
           "$ref": "#/definitions/ModeKind"
@@ -121,7 +121,7 @@
       "type": "object"
     },
     "CyberAccessProgram": {
-      "description": "Requested cyber treatment for a ChatGPT-authenticated Codex turn. Authorization and model-tier restrictions remain server-owned.",
+      "description": "Requested cyber treatment for a ChatGPT-authenticated Suffice turn. Authorization and model-tier restrictions remain server-owned.",
       "enum": [
         "standard",
         "daybreakBlue",

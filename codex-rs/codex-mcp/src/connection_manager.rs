@@ -1,4 +1,4 @@
-//! Aggregates MCP server connections for Codex.
+//! Aggregates MCP server connections for Suffice.
 //!
 //! [`McpConnectionSet`] is the private connection set behind
 //! [`crate::McpRuntime`] and [`crate::McpBinding`]. It coordinates startup status
@@ -316,7 +316,7 @@ impl McpConnectionSet {
             );
             let resolved_environment =
                 runtime_context.resolve_server_environment(&server_name, &configured_config);
-            // For built-in Codex Apps, `CODEX_CONNECTORS_TOKEN` is a debug
+            // For built-in Suffice Apps, `CODEX_CONNECTORS_TOKEN` is a debug
             // override: it supplies runtime auth but bypasses the shared tools
             // cache.
             let uses_env_bearer_token = match &configured_config.transport {
@@ -332,7 +332,7 @@ impl McpConnectionSet {
                 codex_apps_tools_cache
                     .context(codex_home.clone(), codex_apps_tools_cache_key.clone())
             });
-            // The reserved Codex Apps registration follows the shared
+            // The reserved Suffice Apps registration follows the shared
             // AuthManager across refreshes. In the hosted-plugin path, this
             // is the ChatGPT /ps/mcp connection. User-configured MCP
             // registrations keep their existing configured auth path.
@@ -343,7 +343,7 @@ impl McpConnectionSet {
             } else {
                 static_chatgpt_auth_provider.clone()
             };
-            // If Codex Apps has an env bearer token, that is its auth path. Do
+            // If Suffice Apps has an env bearer token, that is its auth path. Do
             // not also attach the ambient CodexAuth provider.
             let runtime_auth_provider =
                 if server_name == CODEX_APPS_MCP_SERVER_NAME && uses_env_bearer_token {
@@ -938,7 +938,7 @@ impl McpConnectionSet {
     }
 
     /// Returns presentation metadata from the current connection.
-    /// Codex Apps metadata may come from its existing cache; regular MCP server information is
+    /// Suffice Apps metadata may come from its existing cache; regular MCP server information is
     /// connection-specific, so pending regular clients are awaited.
     pub(crate) async fn list_available_server_infos(&self) -> HashMap<String, McpServerInfo> {
         let mut server_infos = HashMap::new();

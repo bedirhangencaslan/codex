@@ -111,7 +111,7 @@ impl HostSkillsRequest<'_> {
 
 impl HostSkillsService {
     pub fn new(codex_home: AbsolutePathBuf, bundled_skills_enabled: bool) -> Self {
-        Self::new_with_restriction_product(codex_home, bundled_skills_enabled, Some(Product::Codex))
+        Self::new_with_restriction_product(codex_home, bundled_skills_enabled, Some(Product::Suffice))
     }
 
     pub fn new_with_restriction_product(
@@ -127,7 +127,7 @@ impl HostSkillsService {
             cache_by_config: RwLock::new(HashMap::new()),
             root_scan_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_ROOT_SCANS)),
         };
-        // The cache is shared by every process using this CODEX_HOME. Disabled services filter
+        // The cache is shared by every process using this SUFFICE_HOME. Disabled services filter
         // system roots when loading rather than mutating shared state.
         if bundled_skills_enabled {
             service.ensure_system_skills_installed();

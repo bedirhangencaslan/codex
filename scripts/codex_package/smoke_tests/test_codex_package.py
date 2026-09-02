@@ -31,7 +31,7 @@ from app_server_harness import (
     ev_response_created,
     sse,
 )
-from openai_codex import ApprovalMode, Codex, CodexConfig, Sandbox
+from openai_codex import ApprovalMode, Suffice, CodexConfig, Sandbox
 
 from fixtures import SmokePackage
 
@@ -114,7 +114,7 @@ def test_app_server_runs_code_mode_through_python_sdk(
         )
     )
     responses_server.enqueue_assistant_message("Done", response_id="code-mode-done")
-    with Codex(config=config) as client:
+    with Suffice(config=config) as client:
         turn = client.thread_start(
             ephemeral=True,
             approval_mode=ApprovalMode.deny_all,

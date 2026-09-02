@@ -62,7 +62,7 @@ fn init_params() -> InitializeRequestParams {
         Some(ElicitationCapability::new().with_form(FormElicitationCapability::new()));
     InitializeRequestParams::new(
         capabilities,
-        Implementation::new("codex-test", "0.0.0-test").with_title("Codex rmcp recovery test"),
+        Implementation::new("codex-test", "0.0.0-test").with_title("Suffice rmcp recovery test"),
     )
     .with_protocol_version(ProtocolVersion::V_2025_06_18)
 }
@@ -341,7 +341,7 @@ pub(crate) async fn spawn_exec_server() -> anyhow::Result<ExecServerProcess> {
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .kill_on_drop(true)
-        .env("CODEX_HOME", codex_home.path())
+        .env("SUFFICE_HOME", codex_home.path())
         .spawn()?;
 
     let websocket_url = read_exec_server_listen_url(&mut child).await?;
@@ -359,7 +359,7 @@ pub(crate) async fn spawn_exec_server() -> anyhow::Result<ExecServerProcess> {
     })
 }
 
-/// Reads the websocket URL printed by `codex exec-server --listen`.
+/// Reads the websocket URL printed by `suffice exec-server --listen`.
 async fn read_exec_server_listen_url(child: &mut Child) -> anyhow::Result<String> {
     let stdout = child
         .stdout

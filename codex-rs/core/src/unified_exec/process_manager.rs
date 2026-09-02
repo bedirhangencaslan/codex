@@ -98,7 +98,7 @@ const UNIFIED_EXEC_ENV: [(&str, &str); 10] = [
     ("CODEX_CI", "1"),
 ];
 const NETWORK_ACCESS_DENIED_MESSAGE: &str =
-    "Network access was denied by the Codex sandbox network proxy.";
+    "Network access was denied by the Suffice sandbox network proxy.";
 const LATE_NETWORK_DENIAL_GRACE_PERIOD: Duration = Duration::from_millis(100);
 const INTERRUPT: &str = "\u{3}";
 
@@ -322,7 +322,7 @@ async fn finish_deferred_network_approval_for_session(
 fn network_approval_error_message(err: ToolError) -> String {
     match err {
         ToolError::Rejected(message) => message,
-        ToolError::Codex(err) => err.to_string(),
+        ToolError::Suffice(err) => err.to_string(),
     }
 }
 
@@ -1189,7 +1189,7 @@ impl UnifiedExecProcessManager {
         } else {
             attempt.env_for(command, options, network, environment_id)
         }
-        .map_err(ToolError::Codex)?;
+        .map_err(ToolError::Suffice)?;
         let network_policy_decider = network_proxy_launch
             .as_ref()
             .filter(|launch| launch.policy_decision_timeout_ms.is_some())
@@ -1212,7 +1212,7 @@ impl UnifiedExecProcessManager {
         .await
         .map_err(|err| match err {
             UnifiedExecError::SandboxDenied { output, .. } => {
-                ToolError::Codex(CodexErr::Sandbox(SandboxErr::Denied {
+                ToolError::Suffice(CodexErr::Sandbox(SandboxErr::Denied {
                     output: Box::new(output),
                     network_policy_decision: None,
                 }))
@@ -1425,7 +1425,7 @@ impl UnifiedExecProcessManager {
             .await
             .map(|result| (result.output, result.deferred_network_approval))
             .map_err(|err| match err {
-                ToolError::Codex(err) => match err.details() {
+                ToolError::Suffice(err) => match err.details() {
                     CodexErrorDetails::Sandbox(SandboxErr::Denied { output, .. }) => {
                         let output = output.as_ref().clone();
                         let message = if output.aggregated_output.text.is_empty() {

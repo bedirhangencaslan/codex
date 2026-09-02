@@ -29,7 +29,7 @@ use wiremock::matchers::path;
 
 fn codex_command(codex_home: &Path) -> Result<assert_cmd::Command> {
     let mut cmd = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
-    cmd.env("CODEX_HOME", codex_home);
+    cmd.env("SUFFICE_HOME", codex_home);
     Ok(cmd)
 }
 
@@ -239,7 +239,7 @@ async fn debug_prompt_input_follows_authenticated_attribution_setting() -> Resul
         assert!(output.status.success());
         let prompt = String::from_utf8(output.stdout)?;
         assert_eq!(
-            prompt.contains("Co-authored-by: Codex <noreply@openai.com>"),
+            prompt.contains("Co-authored-by: Suffice <noreply@openai.com>"),
             enabled
         );
         assert!(!prompt.contains("attribution is disabled for the current workspace"));

@@ -1,7 +1,7 @@
 //! TUI keymap config schema and canonical key-spec normalization.
 //!
 //! This module defines the on-disk `[tui.keymap]` contract used by
-//! `~/.codex/config.toml` and normalizes user-entered key specs into canonical
+//! `~/.suffice/config.toml` and normalizes user-entered key specs into canonical
 //! forms consumed by runtime keymap resolution in `codex-rs/tui/src/keymap.rs`.
 //!
 //! Responsibilities:
@@ -533,7 +533,7 @@ fn normalize_keybinding_stroke(raw: &str) -> Result<String, String> {
     if lower.is_empty() {
         return Err(
             "keybinding cannot be empty. Use values like `ctrl-a` or `shift-enter`.\n\
-See the Codex keymap documentation for supported actions and examples."
+See the Suffice keymap documentation for supported actions and examples."
                 .to_string(),
         );
     }
@@ -659,7 +659,7 @@ fn normalize_key_name(key: &str, original: &str) -> Result<String, String> {
         "unknown key `{key}` in keybinding `{original}`. \
 Use a printable character (for example `a`), function keys (`f1`-`f{MAX_FUNCTION_KEY}`), \
 or one of: enter, tab, backspace, esc, delete, arrows, home/end, page-up/page-down, space, minus.\n\
-See the Codex keymap documentation for supported actions and examples."
+See the Suffice keymap documentation for supported actions and examples."
     ))
 }
 

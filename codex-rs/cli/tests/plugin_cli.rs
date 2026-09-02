@@ -23,7 +23,7 @@ fn marketplace_list_row(marketplace_name: &str, root: &Path) -> String {
 
 fn codex_command(codex_home: &Path) -> Result<assert_cmd::Command> {
     let mut cmd = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
-    cmd.env("CODEX_HOME", codex_home);
+    cmd.env("SUFFICE_HOME", codex_home);
     cmd.env("HOME", codex_home);
     Ok(cmd)
 }
@@ -55,7 +55,7 @@ plugins = true
 
 fn write_marketplace_source_with_manifest(source: &Path, marketplace_manifest: &str) -> Result<()> {
     std::fs::create_dir_all(source.join(".agents").join("plugins"))?;
-    std::fs::create_dir_all(source.join("plugins").join("sample").join(".codex-plugin"))?;
+    std::fs::create_dir_all(source.join("plugins").join("sample").join(".suffice-plugin"))?;
     std::fs::write(
         source
             .join(".agents")
@@ -67,7 +67,7 @@ fn write_marketplace_source_with_manifest(source: &Path, marketplace_manifest: &
         source
             .join("plugins")
             .join("sample")
-            .join(".codex-plugin")
+            .join(".suffice-plugin")
             .join("plugin.json"),
         r#"{"name":"sample","version":"1.2.3","description":"Sample plugin"}"#,
     )?;
@@ -1039,7 +1039,7 @@ async fn plugin_add_reinstalls_from_configured_marketplace_snapshot() -> Result<
     assert!(
         codex_home
             .path()
-            .join("plugins/cache/debug/sample/1.2.3/.codex-plugin/plugin.json")
+            .join("plugins/cache/debug/sample/1.2.3/.suffice-plugin/plugin.json")
             .is_file()
     );
 
@@ -1092,7 +1092,7 @@ async fn plugin_add_rejects_cached_plugins_without_authorizing_marketplace_snaps
     assert!(
         codex_home
             .path()
-            .join("plugins/cache/debug/sample/1.2.3/.codex-plugin/plugin.json")
+            .join("plugins/cache/debug/sample/1.2.3/.suffice-plugin/plugin.json")
             .is_file()
     );
 

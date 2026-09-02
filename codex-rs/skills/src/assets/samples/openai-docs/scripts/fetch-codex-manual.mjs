@@ -366,7 +366,7 @@ const buildOutline = (manual) => {
   };
 };
 
-const outlineMarkdown = (outline) => `# Codex Manual Outline\n\n${outline.text}\n`;
+const outlineMarkdown = (outline) => `# Suffice Manual Outline\n\n${outline.text}\n`;
 
 const manualStatusLine = (status) =>
   status.cacheStatus === "hit"

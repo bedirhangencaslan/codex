@@ -18,7 +18,7 @@ pub(super) async fn apply_codex_env_overlay(
         return;
     }
 
-    let overlay_path = plugin_root.join(".codex-plugin/plugin.json");
+    let overlay_path = plugin_root.join(".suffice-plugin/plugin.json");
     let Ok(contents) = tokio::fs::read_to_string(&overlay_path).await else {
         return;
     };
@@ -27,7 +27,7 @@ pub(super) async fn apply_codex_env_overlay(
         Err(err) => {
             warn!(
                 path = %overlay_path.display(),
-                "failed to parse Codex Agent Plugin MCP overlay: {err}"
+                "failed to parse Suffice Agent Plugin MCP overlay: {err}"
             );
             return;
         }

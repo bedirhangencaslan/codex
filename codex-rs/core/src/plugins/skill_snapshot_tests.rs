@@ -23,7 +23,7 @@ async fn host_skills_service_reuses_plugin_manager_skill_snapshot() {
         .path()
         .join("plugins/cache/openai-curated-remote/sample/local");
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","description":"sample plugin"}"#,
     );
     let skill_path = plugin_root.join("skills/SKILL.md");
@@ -55,7 +55,7 @@ enabled = false
     ));
     let plugins_manager = PluginsManager::new_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         AuthManager::from_auth_for_testing(CodexAuth::create_dummy_chatgpt_auth_for_testing()),
         skills_service.clone(),
     );

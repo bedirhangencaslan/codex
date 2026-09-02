@@ -114,9 +114,9 @@ fn expected_mcp_turn_metadata(turn_context: &TurnContext) -> serde_json::Value {
 
 fn write_sample_plugin_mcp(codex_home: &std::path::Path) {
     let plugin_root = codex_home.join("plugins/cache/test/sample/local");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin")).expect("create plugin manifest dir");
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin")).expect("create plugin manifest dir");
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample"
 }"#,
@@ -2383,8 +2383,8 @@ async fn maybe_persist_mcp_tool_approval_writes_project_config_for_project_serve
     let codex_home = session.codex_home().await;
     let project_dir = tempdir().expect("tempdir");
     std::fs::write(project_dir.path().join(".git"), "gitdir: nowhere").expect("seed git marker");
-    let project_codex_dir = project_dir.path().join(".codex");
-    std::fs::create_dir_all(&project_codex_dir).expect("create project .codex dir");
+    let project_codex_dir = project_dir.path().join(".suffice");
+    std::fs::create_dir_all(&project_codex_dir).expect("create project .suffice dir");
     std::fs::write(
         project_codex_dir.join(CONFIG_TOML_FILE),
         "[mcp_servers.docs]\ncommand = \"docs-server\"\n",

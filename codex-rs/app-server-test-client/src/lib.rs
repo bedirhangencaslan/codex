@@ -108,14 +108,14 @@ const APP_SERVER_GRACEFUL_SHUTDOWN_POLL_INTERVAL: Duration = Duration::from_mill
 const DEFAULT_ANALYTICS_ENABLED: bool = true;
 const OTEL_SERVICE_NAME: &str = "codex-app-server-test-client";
 const TRACE_DISABLED_MESSAGE: &str =
-    "Not enabled - enable tracing in $CODEX_HOME/config.toml to get a trace URL!";
+    "Not enabled - enable tracing in $SUFFICE_HOME/config.toml to get a trace URL!";
 
-/// Minimal launcher that initializes the Codex app-server and logs the handshake.
+/// Minimal launcher that initializes the Suffice app-server and logs the handshake.
 #[derive(Parser)]
-#[command(author = "Codex", version, about = "Bootstrap Codex app-server", long_about = None)]
+#[command(author = "Suffice", version, about = "Bootstrap Suffice app-server", long_about = None)]
 struct Cli {
-    /// Path to the `codex` CLI binary. When set, requests use stdio by
-    /// spawning `codex app-server` as a child process.
+    /// Path to the `suffice` CLI binary. When set, requests use stdio by
+    /// spawning `suffice app-server` as a child process.
     #[arg(long, env = "CODEX_BIN", global = true)]
     codex_bin: Option<PathBuf>,
 
@@ -126,7 +126,7 @@ struct Cli {
     #[arg(long, env = "CODEX_APP_SERVER_URL", global = true)]
     url: Option<String>,
 
-    /// Forwarded to the `codex` CLI as `--config key=value`. Repeatable.
+    /// Forwarded to the `suffice` CLI as `--config key=value`. Repeatable.
     ///
     /// Example:
     ///   `--config 'model_providers.mock.base_url="http://localhost:4010/v2"'`
@@ -154,21 +154,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum CliCommand {
-    /// Start `codex app-server` on a websocket endpoint in the background.
+    /// Start `suffice app-server` on a websocket endpoint in the background.
     ///
     /// Logs are written to:
     ///   `/tmp/codex-app-server-test-client/`
     Serve {
-        /// WebSocket listen URL passed to `codex app-server --listen`.
+        /// WebSocket listen URL passed to `suffice app-server --listen`.
         #[arg(long, default_value = "ws://127.0.0.1:4222")]
         listen: String,
         /// Kill any process listening on the same port before starting.
         #[arg(long, default_value_t = false)]
         kill: bool,
     },
-    /// Send a user message through the Codex app-server.
+    /// Send a user message through the Suffice app-server.
     SendMessage {
-        /// User message to send to Codex.
+        /// User message to send to Suffice.
         user_message: String,
     },
     /// Send a user message through the app-server V2 thread/turn APIs.
@@ -176,14 +176,14 @@ enum CliCommand {
         /// Opt into experimental app-server methods and fields.
         #[arg(long)]
         experimental_api: bool,
-        /// User message to send to Codex.
+        /// User message to send to Suffice.
         user_message: String,
     },
     /// Resume a V2 thread by id, then send a user message.
     ResumeMessageV2 {
         /// Existing thread id to resume.
         thread_id: String,
-        /// User message to send to Codex.
+        /// User message to send to Suffice.
         user_message: String,
     },
     /// Resume a V2 thread and continuously stream notifications/events.
@@ -236,7 +236,7 @@ enum CliCommand {
         /// Use the device-code login flow instead of the browser callback flow.
         #[arg(long, default_value_t = false, conflicts_with = "amazon_bedrock")]
         device_code: bool,
-        /// Use a Codex-managed Amazon Bedrock API key.
+        /// Use a Suffice-managed Amazon Bedrock API key.
         #[arg(long, default_value_t = false, conflicts_with = "device_code")]
         amazon_bedrock: bool,
         /// Amazon Bedrock API key.
@@ -248,12 +248,12 @@ enum CliCommand {
     },
     /// Log out of the current account and wait for the account update.
     TestLogout,
-    /// Fetch the current account rate limits from the Codex app-server.
+    /// Fetch the current account rate limits from the Suffice app-server.
     GetAccountRateLimits,
-    /// List the available models from the Codex app-server.
+    /// List the available models from the Suffice app-server.
     #[command(name = "model-list")]
     ModelList,
-    /// List stored threads from the Codex app-server.
+    /// List stored threads from the Suffice app-server.
     #[command(name = "thread-list")]
     ThreadList {
         /// Number of threads to return.
@@ -1656,11 +1656,11 @@ impl CodexClient {
         let stdin = codex_app_server
             .stdin
             .take()
-            .context("codex app-server stdin unavailable")?;
+            .context("suffice app-server stdin unavailable")?;
         let stdout = codex_app_server
             .stdout
             .take()
-            .context("codex app-server stdout unavailable")?;
+            .context("suffice app-server stdout unavailable")?;
 
         Ok(Self {
             transport: ClientTransport::Stdio {
@@ -1747,7 +1747,7 @@ impl CodexClient {
             params: InitializeParams {
                 client_info: ClientInfo {
                     name: "codex-toy-app-server".to_string(),
-                    title: Some("Codex Toy App Server".to_string()),
+                    title: Some("Suffice Toy App Server".to_string()),
                     version: env!("CARGO_PKG_VERSION").to_string(),
                 },
                 capabilities: Some(InitializeCapabilities {
@@ -2303,7 +2303,7 @@ impl CodexClient {
                         .context("failed to flush payload to codex app-server")?;
                     return Ok(());
                 }
-                bail!("codex app-server stdin closed")
+                bail!("suffice app-server stdin closed")
             }
             ClientTransport::WebSocket { socket, url } => {
                 socket
@@ -2322,7 +2322,7 @@ impl CodexClient {
                     .read_line(&mut response_line)
                     .context("failed to read from codex app-server")?;
                 if bytes == 0 {
-                    bail!("codex app-server closed stdout");
+                    bail!("suffice app-server closed stdout");
                 }
                 Ok(response_line)
             }

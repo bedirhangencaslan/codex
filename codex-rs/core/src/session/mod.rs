@@ -1399,7 +1399,7 @@ impl Session {
                         EventMsg::Warning(WarningEvent {
                             message: format!(
                                 "This session was recorded with model `{prev}` but is resuming with `{curr}`. \
-                         Consider switching back to `{prev}` as it may affect Codex performance."
+                         Consider switching back to `{prev}` as it may affect Suffice performance."
                             ),
                         }),
                     )
@@ -2684,7 +2684,7 @@ impl Session {
         let Ok(native_environment_cwd) = environment.cwd.to_abs_path() else {
             warn!(
                 cwd = %environment.cwd,
-                "request_permissions requires a cwd native to the Codex host"
+                "request_permissions requires a cwd native to the Suffice host"
             );
             return Some(RequestPermissionsResponse {
                 permissions: RequestPermissionProfile::default(),
@@ -2925,7 +2925,7 @@ impl Session {
                         warn!(
                             cwd = %entry.environment.cwd,
                             %err,
-                            "request_permissions requires a cwd native to the Codex host"
+                            "request_permissions requires a cwd native to the Suffice host"
                         );
                         RequestPermissionsResponse {
                             permissions: RequestPermissionProfile::default(),

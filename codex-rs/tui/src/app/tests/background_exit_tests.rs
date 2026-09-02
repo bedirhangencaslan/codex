@@ -60,7 +60,7 @@ async fn embedded_exit_keeps_the_session_summary() {
         total_tokens: 2,
         ..Default::default()
     };
-    exit_info.resume_hint = Some("codex resume THREAD_ID".to_string());
+    exit_info.resume_hint = Some("suffice resume THREAD_ID".to_string());
     assert_eq!(
         exit_info.format_exit_messages(/*color_enabled*/ false),
         vec![
@@ -133,9 +133,9 @@ async fn daemon_ctrl_c_shows_background_exit_menu_and_escape_dismisses_it() -> R
       Task is still running
       Choose what happens to the current task.
 
-    › 1. Cancel task        Stop the current task and stay in Codex
-      2. Run in background  Exit Codex and leave the task running
-      3. Exit               Stop the current task and exit Codex
+    › 1. Cancel task        Stop the current task and stay in Suffice
+      2. Run in background  Exit Suffice and leave the task running
+      3. Exit               Stop the current task and exit Suffice
 
       Press enter to confirm or esc to go back
     ");
@@ -367,8 +367,8 @@ async fn daemon_ctrl_c_hides_background_exit_for_running_background_side_thread(
       Task is still running
       Choose what happens to the current task.
 
-    › 1. Cancel task  Stop the current task and stay in Codex
-      2. Exit         Stop the current task and exit Codex
+    › 1. Cancel task  Stop the current task and stay in Suffice
+      2. Exit         Stop the current task and exit Suffice
 
       Press enter to confirm or esc to go back
     ");

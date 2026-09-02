@@ -5,7 +5,7 @@ build-backend = "uv_build"
 [project]
 name = "openai-codex"
 version = "0.0.0-dev"
-description = "Python SDK for Codex"
+description = "Python SDK for Suffice"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

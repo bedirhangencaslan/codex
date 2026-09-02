@@ -1,8 +1,8 @@
-//! Registry of model providers supported by Codex.
+//! Registry of model providers supported by Suffice.
 //!
 //! Providers can be defined in two places:
-//!   1. Built-in defaults compiled into the binary so Codex works out-of-the-box.
-//!   2. User-defined entries inside `~/.codex/config.toml` under the `model_providers`
+//!   1. Built-in defaults compiled into the binary so Suffice works out-of-the-box.
+//!   2. User-defined entries inside `~/.suffice/config.toml` under the `model_providers`
 //!      key. These override or extend the defaults at runtime.
 
 use codex_api::Provider as ApiProvider;
@@ -562,7 +562,7 @@ pub fn built_in_model_providers(
         P::create_amazon_bedrock_runtime_provider(/*aws*/ None);
 
     // We do not want to be in the business of adjucating which third-party
-    // providers are bundled with Codex CLI, so we only include the OpenAI and
+    // providers are bundled with Suffice CLI, so we only include the OpenAI and
     // open source ("oss") providers by default. Users are encouraged to add to
     // `model_providers` in config.toml to add their own providers.
     [

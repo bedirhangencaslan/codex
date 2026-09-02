@@ -290,7 +290,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
         let (mut env, managed_network_context, network_proxy_launch) = match managed_network {
             Some(network) if environment_is_remote => {
                 let mut launch = network.remote_launch_config().await.map_err(|err| {
-                    ToolError::Codex(CodexErr::Io(io::Error::other(err.to_string())))
+                    ToolError::Suffice(CodexErr::Io(io::Error::other(err.to_string())))
                 })?;
                 if routes_approval_policy_to_guardian(
                     ctx.step_context.settings.approval_policy(),
@@ -320,7 +320,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
                             .info()
                             .await
                             .map_err(|err| {
-                                ToolError::Codex(CodexErr::Io(io::Error::other(format!(
+                                ToolError::Suffice(CodexErr::Io(io::Error::other(format!(
                                     "failed to query exec-server capabilities: {err}"
                                 ))))
                             })?;
@@ -340,7 +340,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
                         Some(&req.turn_environment.selection.environment_id),
                     )
                     .map_err(|err| {
-                        ToolError::Codex(CodexErr::Io(io::Error::other(format!(
+                        ToolError::Suffice(CodexErr::Io(io::Error::other(format!(
                             "failed to prepare network proxy for environment `{}`: {err}",
                             req.turn_environment.selection.environment_id
                         ))))
@@ -449,7 +449,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
                 ToolError::Rejected(_) => {
                     ToolError::Rejected("missing command line for PTY".to_string())
                 }
-                error @ ToolError::Codex(_) => error,
+                error @ ToolError::Suffice(_) => error,
             })?;
             let options = unified_exec_options(attempt.network_denial_cancellation_token.clone());
             let mut exec_env = attempt
@@ -459,7 +459,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
                     managed_network,
                     Some(&req.turn_environment.selection.environment_id),
                 )
-                .map_err(ToolError::Codex)?;
+                .map_err(ToolError::Suffice)?;
             exec_env.exec_server_env_config = req.exec_server_env_config.clone();
             match zsh_fork::maybe_prepare_unified_exec(req, attempt, ctx, exec_env, zsh_fork_config)
                 .await?
@@ -485,7 +485,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
                         .await
                         .map_err(|err| match err {
                             UnifiedExecError::SandboxDenied { output, .. } => {
-                                ToolError::Codex(CodexErr::Sandbox(SandboxErr::Denied {
+                                ToolError::Suffice(CodexErr::Sandbox(SandboxErr::Denied {
                                     output: Box::new(output),
                                     network_policy_decision: None,
                                 }))
@@ -516,7 +516,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecAttempt> for UnifiedExecRunt
             ToolError::Rejected(_) => {
                 ToolError::Rejected("missing command line for PTY".to_string())
             }
-            error @ ToolError::Codex(_) => error,
+            error @ ToolError::Suffice(_) => error,
         })?;
         let options = unified_exec_options(attempt.network_denial_cancellation_token.clone());
         let process = self

@@ -1,4 +1,4 @@
-//! Diagnoses whether Codex update paths target the running installation.
+//! Diagnoses whether Suffice update paths target the running installation.
 //!
 //! Update diagnostics combine cached version metadata, install-channel hints,
 //! and bounded latest-version probes. For npm-managed launches, this module also
@@ -100,7 +100,7 @@ pub(super) fn updates_check(config: &Config) -> DoctorCheck {
                 status = status.max(CheckStatus::Warning);
                 summary = "npm update target could not be proven".to_string();
                 remediation = Some(
-                    "Reinstall or update Codex so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
+                    "Reinstall or update Suffice so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
                         .to_string(),
                 );
             }
@@ -338,7 +338,7 @@ fn windows_store_update(
         serde_json::from_slice(manifest).map_err(|_| "invalid Windows Store update manifest")?;
     if manifest.schema_version == 0
         || manifest.store_product_id != "9PLM9XGG6VKS"
-        || manifest.package_identity != "OpenAI.Codex"
+        || manifest.package_identity != "OpenAI.Suffice"
     {
         return Err("Windows Store update manifest does not target the production application");
     }
@@ -587,7 +587,7 @@ mod tests {
             "schemaVersion": 1,
             "buildVersion": "26.803.5235.1",
             "storeProductId": "9PLM9XGG6VKS",
-            "packageIdentity": "OpenAI.Codex",
+            "packageIdentity": "OpenAI.Suffice",
         });
         assert_eq!(
             windows_store_update(&serde_json::to_vec(&manifest).unwrap(), "26.803.5235.0"),

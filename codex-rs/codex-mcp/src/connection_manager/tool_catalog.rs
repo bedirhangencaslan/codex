@@ -362,7 +362,7 @@ impl McpConnectionSet {
         )
     }
 
-    /// Force-refresh Codex Apps tools and publish one new exact catalog revision.
+    /// Force-refresh Suffice Apps tools and publish one new exact catalog revision.
     #[expect(
         clippy::await_holding_invalid_type,
         reason = "catalog publication must remain serialized with captured tool calls"
@@ -413,7 +413,7 @@ impl McpConnectionSet {
                 client_tools.clone(),
             ),
             (None, None) => client_tools.clone(),
-            _ => unreachable!("Codex Apps fetch ticket requires cache context"),
+            _ => unreachable!("Suffice Apps fetch ticket requires cache context"),
         };
         *self.codex_apps_tools_override.write().await = Some(client_tools);
         *tool_catalog_revision += 1;

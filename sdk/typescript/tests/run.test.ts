@@ -16,7 +16,7 @@ import {
 } from "./responsesProxy";
 import { createMockClient, createTestClient } from "./testCodex";
 
-describe("Codex", () => {
+describe("Suffice", () => {
   it("returns thread events", async () => {
     const { url, close } = await startResponsesTestProxy({
       statusCode: 200,
@@ -826,7 +826,7 @@ describe("Codex", () => {
 });
 
 /**
- * Given a list of args to `codex` and a `key`, collects all `--config`
+ * Given a list of args to `suffice` and a `key`, collects all `--config`
  * overrides for that key.
  */
 function collectConfigValues(args: string[] | undefined, key: string): string[] {

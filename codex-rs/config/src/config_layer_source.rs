@@ -1,10 +1,10 @@
 use codex_utils_absolute_path::AbsolutePathBuf;
 use serde_json::Value as JsonValue;
 
-/// Provenance for one layer in the effective Codex configuration.
+/// Provenance for one layer in the effective Suffice configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigLayerSource {
-    /// Default configuration supplied with the installed Codex package.
+    /// Default configuration supplied with the installed Suffice package.
     PackagedDefaults { file: AbsolutePathBuf },
     /// Managed preferences delivered by MDM.
     Mdm { domain: String, key: String },
@@ -17,7 +17,7 @@ pub enum ConfigLayerSource {
         file: AbsolutePathBuf,
         profile: Option<String>,
     },
-    /// Configuration loaded from a project's `.codex` directory.
+    /// Configuration loaded from a project's `.suffice` directory.
     Project { dot_codex_folder: AbsolutePathBuf },
     /// Overrides supplied for the current session.
     SessionFlags,

@@ -246,7 +246,7 @@ fn ensure_supported_platform() -> Result<()> {
 #[cfg(not(unix))]
 fn ensure_supported_platform() -> Result<()> {
     Err(anyhow!(
-        "codex app-server daemon lifecycle is only supported on Unix platforms"
+        "suffice app-server daemon lifecycle is only supported on Unix platforms"
     ))
 }
 
@@ -261,7 +261,7 @@ struct Daemon {
 
 impl Daemon {
     fn from_environment() -> Result<Self> {
-        let codex_home = find_codex_home().context("failed to resolve CODEX_HOME")?;
+        let codex_home = find_codex_home().context("failed to resolve SUFFICE_HOME")?;
         let socket_path = app_server_control_socket_path(codex_home.as_path())?
             .as_path()
             .to_path_buf();
@@ -671,8 +671,8 @@ impl Daemon {
 
         let managed_codex_path = self.managed_codex_bin.display();
         Err(anyhow!(
-            "managed standalone Codex install not found at {managed_codex_path}\n\n\
-             This command requires the standalone install managed by the Codex installer, because \
+            "managed standalone Suffice install not found at {managed_codex_path}\n\n\
+             This command requires the standalone install managed by the Suffice installer, because \
              the daemon starts and updates app-server from that fixed path.\n\n\
              Install it with:\n  curl -fsSL https://chatgpt.com/codex/install.sh | sh\n\n\
              Then rerun the command you just tried."

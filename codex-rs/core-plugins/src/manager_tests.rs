@@ -129,7 +129,7 @@ async fn plugins_manager_reads_auth_mode_from_auth_manager() {
     let auth_manager = test_auth_manager(/*auth_mode*/ None);
     let manager = test_plugins_manager_with_auth_manager(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Arc::clone(&auth_manager),
     );
 
@@ -143,7 +143,7 @@ async fn plugins_manager_reads_auth_mode_from_auth_manager() {
 
     let manager_with_auth = test_plugins_manager_with_options(
         tmp.path().join("auth"),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     assert_eq!(manager_with_auth.auth_mode(), Some(AuthMode::Chatgpt));
@@ -163,7 +163,7 @@ fn curated_repo_sync_stays_deferred_for_remote_chatgpt_catalog() {
     );
     let manager = Arc::new(test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     ));
 
@@ -199,7 +199,7 @@ fn marketplace_source_refresh_notifies_only_after_installed_cache_changes() {
 
 #[tokio::test]
 async fn marketplace_policy_projection_disables_installed_plugin_and_invalidates_cache() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create Suffice home");
     write_plugin(
         &codex_home.path().join("plugins/cache/company"),
         "sample/local",
@@ -249,7 +249,7 @@ url = "https://github.com/example/other.git"
 
 #[tokio::test]
 async fn plugin_read_rejects_marketplace_blocked_by_requirements() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create Suffice home");
     let marketplace_root = codex_home.path().join("marketplace");
     write_plugin(&marketplace_root, "sample", "sample");
     write_file(
@@ -294,7 +294,7 @@ restrict_to_allowed_sources = true
 
 #[test]
 fn marketplace_policy_filters_discovered_marketplaces_by_configured_name() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create Suffice home");
     let repo_root = codex_home.path().join("repo");
     let subdirectory = repo_root.join("worktree/subdirectory");
     fs::create_dir_all(&subdirectory).expect("create input subdirectory");
@@ -382,7 +382,7 @@ fn write_auth_projection_plugin(codex_home: &Path, name: &str, include_app: bool
         .join(name)
         .join("local");
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         &format!(r#"{{"name":"{name}"}}"#),
     );
     write_file(
@@ -456,7 +456,7 @@ async fn plugin_auth_projection_hides_apps_without_chatgpt_auth() {
     let config = auth_projection_config(codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::ApiKey),
     );
 
@@ -484,7 +484,7 @@ async fn plugin_auth_projection_hides_matching_mcp_with_chatgpt_apps_route() {
     let config = auth_projection_config(codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
 
@@ -525,7 +525,7 @@ async fn plugin_auth_projection_hides_dual_surface_mcp_with_agent_identity_apps_
     let config = auth_projection_config(codex_home.path()).await;
     let manager = test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         auth_manager_with_agent_identity()
             .await
             .expect("create test Agent Identity auth manager"),
@@ -552,7 +552,7 @@ async fn plugin_auth_projection_keeps_non_conflicting_mcp_with_chatgpt_apps_rout
     let config = auth_projection_config(codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
 
@@ -588,7 +588,7 @@ async fn plugin_auth_projection_preserves_duplicate_connector_declaration_names(
         .join("sample")
         .join("local");
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
     write_file(
@@ -635,7 +635,7 @@ enabled = true
     let config = load_config(codex_home.path(), codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
 
@@ -671,7 +671,7 @@ async fn plugin_auth_projection_reprojects_cached_plugins_when_auth_changes() {
     set_test_auth_mode(&auth_manager, Some(AuthMode::Chatgpt)).await;
     let manager = test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Arc::clone(&auth_manager),
     );
 
@@ -748,13 +748,13 @@ fn write_plugin_with_version(
     manifest_version: Option<&str>,
 ) {
     let plugin_root = root.join(dir_name);
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::create_dir_all(plugin_root.join("skills")).unwrap();
     let version = manifest_version
         .map(|manifest_version| format!(r#","version":"{manifest_version}""#))
         .unwrap_or_default();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         format!(r#"{{"name":"{manifest_name}"{version}}}"#),
     )
     .unwrap();
@@ -778,7 +778,7 @@ fn write_plugin(root: &Path, dir_name: &str, manifest_name: &str) {
 fn init_git_repo(repo: &Path) {
     run_git(repo, &["init"]);
     run_git(repo, &["config", "user.email", "codex-test@example.com"]);
-    run_git(repo, &["config", "user.name", "Codex Test"]);
+    run_git(repo, &["config", "user.name", "Suffice Test"]);
     run_git(repo, &["add", "."]);
     run_git(repo, &["commit", "-m", "initial"]);
 }
@@ -827,7 +827,7 @@ async fn load_plugins_from_config(
 ) -> PluginLoadOutcome {
     write_file(&codex_home.join(CONFIG_TOML_FILE), config_toml);
     let config = load_config(codex_home, codex_home).await;
-    test_plugins_manager_with_options(codex_home.to_path_buf(), Some(Product::Codex), auth_mode)
+    test_plugins_manager_with_options(codex_home.to_path_buf(), Some(Product::Suffice), auth_mode)
         .plugins_for_config(&config)
         .await
 }
@@ -898,7 +898,7 @@ async fn load_plugins_loads_default_skills_and_mcp_servers() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample",
   "description": "Plugin that includes the sample MCP server and Skills"
@@ -1031,7 +1031,7 @@ async fn load_plugins_loads_manifest_mcp_server_objects() {
         .join("test/counter-sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "counter-sample",
   "version": "1.1.1",
@@ -1098,7 +1098,7 @@ async fn load_plugins_applies_plugin_mcp_server_policy() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample"
 }"#,
@@ -1200,7 +1200,7 @@ approval_mode = "approve"
     let config = load_config(codex_home.path(), codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     manager.write_remote_installed_plugins_cache(vec![remote_installed_linear_plugin()]);
@@ -1300,7 +1300,7 @@ async fn installed_agent_plugin_telemetry_metadata_uses_portable_capabilities() 
             r#"{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"portable":{"type":"stdio","command":"echo"}}}"#,
         );
         write_file(
-            &plugin_root.join(".codex-plugin/plugin.json"),
+            &plugin_root.join(".suffice-plugin/plugin.json"),
             r#"{"apps":"./.app.json"}"#,
         );
         write_file(
@@ -1529,7 +1529,7 @@ enabled = true
     let config = load_config(codex_home.path(), codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     manager.write_remote_installed_plugins_cache(vec![
@@ -1566,7 +1566,7 @@ enabled = true
     let config = load_config(codex_home.path(), codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     manager.write_remote_installed_plugins_cache(vec![remote_installed_plugin("linear")]);
@@ -1604,7 +1604,7 @@ enabled = true
     let config = load_config(codex_home.path(), codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     manager.write_remote_installed_plugins_cache(vec![
@@ -1645,7 +1645,7 @@ enabled = true
     set_test_auth_mode(&auth_manager, Some(AuthMode::Chatgpt)).await;
     let manager = test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Arc::clone(&auth_manager),
     );
     manager.write_remote_installed_plugins_cache(vec![remote_installed_plugin("remote-only")]);
@@ -1803,7 +1803,7 @@ async fn load_plugins_resolves_disabled_skill_names_against_loaded_plugin_skills
     let skill_path = plugin_root.join("skills/sample-search/SKILL.md");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
     write_file(
@@ -1844,7 +1844,7 @@ async fn load_plugins_ignores_unknown_disabled_skill_names() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
     write_file(
@@ -1890,7 +1890,7 @@ async fn plugin_telemetry_metadata_uses_default_mcp_config_path() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample"
 }"#,
@@ -1937,7 +1937,7 @@ async fn plugin_capability_summary_uses_manifest_mcp_server_objects() {
         .join("test/counter-sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "counter-sample",
   "version": "1.1.1",
@@ -1980,7 +1980,7 @@ async fn capability_summary_sanitizes_plugin_descriptions_to_one_line() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample",
   "description": "Plugin that\n includes   the sample\tserver"
@@ -2018,7 +2018,7 @@ async fn capability_summary_truncates_overlong_plugin_descriptions() {
     let too_long = "x".repeat(MAX_CAPABILITY_SUMMARY_DESCRIPTION_LEN + 1);
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         &format!(
             r#"{{
   "name": "sample",
@@ -2073,7 +2073,7 @@ async fn load_plugins_uses_manifest_configured_component_paths() {
             .join("test/sample/local");
 
         write_file(
-            &plugin_root.join(".codex-plugin/plugin.json"),
+            &plugin_root.join(".suffice-plugin/plugin.json"),
             &format!(
                 r#"{{
   "name": "sample",
@@ -2203,7 +2203,7 @@ async fn install_plugin_materializes_default_command_skills() {
     let source_root = codex_home.path().join("source/sample");
 
     write_file(
-        &source_root.join(".codex-plugin/plugin.json"),
+        &source_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample",
   "skills": "./custom-skills/"
@@ -2227,7 +2227,7 @@ async fn install_plugin_materializes_default_command_skills() {
         &format!("---\ndescription: Oversized\n---\n{}", "x".repeat(4_000)),
     );
     write_file(
-        &source_root.join(".codex-plugin/migrated-command-skills/undeclared-command/SKILL.md"),
+        &source_root.join(".suffice-plugin/migrated-command-skills/undeclared-command/SKILL.md"),
         "---\nname: undeclared-command\ndescription: undeclared command\n---\n",
     );
     let result = PluginStore::new(codex_home.path().to_path_buf())
@@ -2238,7 +2238,7 @@ async fn install_plugin_materializes_default_command_skills() {
         .unwrap();
     let migrated_skill = result
         .installed_path
-        .join(".codex-plugin/migrated-command-skills/source-command-pr-review/SKILL.md");
+        .join(".suffice-plugin/migrated-command-skills/source-command-pr-review/SKILL.md");
     let expected_migrated_skill = "---\nname: \"source-command-pr-review\"\ndescription: \"Review a pull request\"\n---\n\n# source-command-pr-review\n\nUse this skill when the user asks to run the migrated source command `pr-review`.\n\n## Command Template\n\nInspect the proposed changes.\n";
     assert_eq!(
         fs::read_to_string(&migrated_skill).unwrap(),
@@ -2247,13 +2247,13 @@ async fn install_plugin_materializes_default_command_skills() {
     assert!(
         !result
             .installed_path
-            .join(".codex-plugin/migrated-command-skills/undeclared-command")
+            .join(".suffice-plugin/migrated-command-skills/undeclared-command")
             .exists()
     );
     assert!(
         !result
             .installed_path
-            .join(".codex-plugin/migrated-command-skills/source-command-oversized")
+            .join(".suffice-plugin/migrated-command-skills/source-command-oversized")
             .exists()
     );
 
@@ -2290,7 +2290,7 @@ async fn install_plugin_materializes_default_command_skills() {
             .unwrap(),
             AbsolutePathBuf::from_absolute_path_checked(
                 fs::canonicalize(result.installed_path.join(
-                    ".codex-plugin/migrated-command-skills/source-command-summarize/SKILL.md"
+                    ".suffice-plugin/migrated-command-skills/source-command-summarize/SKILL.md"
                 ))
                 .unwrap()
             )
@@ -2304,7 +2304,7 @@ fn install_plugin_ignores_invalid_commands_manifest_field() {
     let codex_home = TempDir::new().unwrap();
     let source_root = codex_home.path().join("source/sample");
     write_file(
-        &source_root.join(".codex-plugin/plugin.json"),
+        &source_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","commands":{}}"#,
     );
     write_file(
@@ -2322,7 +2322,7 @@ fn install_plugin_ignores_invalid_commands_manifest_field() {
     assert!(
         !result
             .installed_path
-            .join(".codex-plugin/migrated-command-skills")
+            .join(".suffice-plugin/migrated-command-skills")
             .exists()
     );
 }
@@ -2332,7 +2332,7 @@ fn install_plugin_ignores_command_migration_errors() {
     let codex_home = TempDir::new().unwrap();
     let source_root = codex_home.path().join("source/sample");
     write_file(
-        &source_root.join(".codex-plugin/plugin.json"),
+        &source_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample","commands":"./commands/review.md"}"#,
     );
     fs::create_dir_all(source_root.join("commands")).unwrap();
@@ -2427,7 +2427,7 @@ async fn load_plugins_ignores_manifest_component_paths_without_dot_slash() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample",
   "skills": "custom-skills",
@@ -2543,7 +2543,7 @@ async fn load_plugins_ignores_invalid_manifest_skills_shape() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "sample",
   "skills": { "path": "./custom-skills/" }
@@ -2581,7 +2581,7 @@ async fn load_plugins_preserves_disabled_plugins_without_effective_contributions
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
     write_file(
@@ -2643,7 +2643,7 @@ async fn effective_apps_dedupes_connector_ids_across_plugins() {
         .join("test/plugin-b/local");
 
     write_file(
-        &plugin_a_root.join(".codex-plugin/plugin.json"),
+        &plugin_a_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"plugin-a"}"#,
     );
     write_file(
@@ -2657,7 +2657,7 @@ async fn effective_apps_dedupes_connector_ids_across_plugins() {
 }"#,
     );
     write_file(
-        &plugin_b_root.join(".codex-plugin/plugin.json"),
+        &plugin_b_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"plugin-b"}"#,
     );
     write_file(
@@ -2715,7 +2715,7 @@ async fn effective_apps_preserves_app_config_order() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
     write_file(
@@ -2882,7 +2882,7 @@ async fn load_plugins_returns_empty_when_feature_disabled() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
     write_file(
@@ -3052,7 +3052,7 @@ enabled = true
         let config = load_config(codex_home.path(), codex_home.path()).await;
         let manager = test_plugins_manager_with_options(
             codex_home.path().to_path_buf(),
-            Some(Product::Codex),
+            Some(Product::Suffice),
             Some(AuthMode::Chatgpt),
         );
         if let Some(installed_plugins) = installed_plugins {
@@ -3179,7 +3179,7 @@ async fn plugins_for_config_discards_in_flight_load_after_account_change() {
     let auth_manager = test_auth_manager(Some(AuthMode::ChatgptAuthTokens));
     let manager = Arc::new(test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Arc::clone(&auth_manager),
     ));
     manager.write_remote_installed_plugins_cache(vec![remote_installed_plugin("remote-only")]);
@@ -3223,7 +3223,7 @@ async fn load_plugins_rejects_invalid_plugin_keys() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
 
@@ -3314,7 +3314,7 @@ async fn install_plugin_updates_config_with_relative_path_and_plugin_key() {
 
 #[tokio::test]
 async fn strict_install_requires_allowed_local_marketplace_to_be_added_first() {
-    let codex_home = TempDir::new().expect("create Codex home");
+    let codex_home = TempDir::new().expect("create Suffice home");
     let marketplace_root = codex_home.path().join("company-marketplace");
     write_plugin(&marketplace_root, "sample", "sample");
     write_file(
@@ -3551,7 +3551,7 @@ async fn install_plugin_writes_marketplace_manifest_fallback_when_missing_plugin
             auth_policy: MarketplacePluginAuthPolicy::OnInstall,
         }
     );
-    assert!(!plugin_root.join(".codex-plugin/plugin.json").exists());
+    assert!(!plugin_root.join(".suffice-plugin/plugin.json").exists());
     assert!(
         !tmp.path()
             .join("plugins/.marketplace-plugin-source-staging")
@@ -3577,7 +3577,7 @@ async fn install_plugin_writes_marketplace_manifest_fallback_when_missing_plugin
     assert_eq!(interface.developer_name.as_deref(), Some("Byron Grogan"));
     assert_eq!(interface.category.as_deref(), Some("code-review"));
     let fallback_json: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(installed_path.join(".codex-plugin/plugin.json")).unwrap(),
+        &fs::read_to_string(installed_path.join(".suffice-plugin/plugin.json")).unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -3588,7 +3588,7 @@ async fn install_plugin_writes_marketplace_manifest_fallback_when_missing_plugin
     assert_eq!(
         fs::read_to_string(
             installed_path
-                .join(".codex-plugin/migrated-command-skills/source-command-review/SKILL.md")
+                .join(".suffice-plugin/migrated-command-skills/source-command-review/SKILL.md")
         )
         .unwrap(),
         "---\nname: \"source-command-review\"\ndescription: \"Review code\"\n---\n\n# source-command-review\n\nUse this skill when the user asks to run the migrated source command `review`.\n\n## Command Template\n\nReview the current change.\n"
@@ -3651,7 +3651,7 @@ async fn install_plugin_supports_git_subdir_marketplace_sources() {
             auth_policy: MarketplacePluginAuthPolicy::OnInstall,
         }
     );
-    assert!(installed_path.join(".codex-plugin/plugin.json").is_file());
+    assert!(installed_path.join(".suffice-plugin/plugin.json").is_file());
 }
 
 #[tokio::test]
@@ -3705,7 +3705,7 @@ async fn install_plugin_supports_relative_git_subdir_marketplace_sources() {
             auth_policy: MarketplacePluginAuthPolicy::OnInstall,
         }
     );
-    assert!(installed_path.join(".codex-plugin/plugin.json").is_file());
+    assert!(installed_path.join(".suffice-plugin/plugin.json").is_file());
 }
 
 #[tokio::test]
@@ -4072,7 +4072,7 @@ async fn read_plugin_for_config_filters_mcp_servers_for_codex_backend_auth() {
 }"#,
     );
     write_file(
-        &repo_root.join("sample-plugin/.codex-plugin/plugin.json"),
+        &repo_root.join("sample-plugin/.suffice-plugin/plugin.json"),
         r#"{"name":"sample-plugin"}"#,
     );
     write_file(
@@ -4101,7 +4101,7 @@ plugins = true
 
     let chatgpt_outcome = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     )
     .read_plugin_for_config(&config, &request)
@@ -4118,7 +4118,7 @@ plugins = true
 
     let api_key_outcome = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::ApiKey),
     )
     .read_plugin_for_config(&config, &request)
@@ -4132,7 +4132,7 @@ plugins = true
 
     let no_auth_outcome = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         /*auth_mode*/ None,
     )
     .read_plugin_for_config(&config, &request)
@@ -4184,7 +4184,7 @@ plugins = true
     let config = load_config(tmp.path(), &repo_root).await;
     let manager = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     let outcome = manager
@@ -4271,7 +4271,7 @@ async fn agent_plugin_read_and_tool_suggestions_use_portable_capabilities_only()
         r#"{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"portable":{"type":"stdio","command":"echo"}}}"#,
     );
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"apps":"./.app.json","hooks":"./hooks/hooks.json"}"#,
     );
     write_file(
@@ -4353,7 +4353,7 @@ async fn read_plugin_for_config_does_not_fallback_from_invalid_plugin_manifest()
   ]
 }"#,
     );
-    write_file(&plugin_root.join(".codex-plugin/plugin.json"), "{");
+    write_file(&plugin_root.join(".suffice-plugin/plugin.json"), "{");
     write_file(
         &tmp.path().join(CONFIG_TOML_FILE),
         r#"[features]
@@ -4402,7 +4402,7 @@ async fn read_plugin_for_config_uses_user_layer_skill_settings_only() {
 }"#,
     );
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"enabled-plugin"}"#,
     );
     write_file(
@@ -4419,7 +4419,7 @@ enabled = true
 "#,
     );
     write_file(
-        &repo_root.join(".codex/config.toml"),
+        &repo_root.join(".suffice/config.toml"),
         r#"[[skills.config]]
 name = "enabled-plugin:sample-search"
 enabled = false
@@ -4549,7 +4549,7 @@ async fn read_plugin_for_config_installed_git_source_reads_from_cache_without_cl
     );
     let cached_plugin_root = tmp.path().join("plugins/cache/debug/toolkit/local");
     write_file(
-        &cached_plugin_root.join(".codex-plugin/plugin.json"),
+        &cached_plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{
   "name": "toolkit",
   "description": "Cached toolkit plugin",
@@ -4628,7 +4628,7 @@ enabled = false
     let config = load_config(tmp.path(), &repo_root).await;
     let outcome = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     )
     .read_plugin_for_config(
@@ -4726,7 +4726,7 @@ async fn list_marketplaces_installed_git_source_reads_metadata_from_cache_withou
     );
     let cached_plugin_root = tmp.path().join("plugins/cache/debug/toolkit/local");
     write_file(
-        &cached_plugin_root.join(".codex-plugin/plugin.json"),
+        &cached_plugin_root.join(".suffice-plugin/plugin.json"),
         r##"{
   "name": "toolkit",
   "interface": {
@@ -4833,7 +4833,7 @@ plugins = true
 "#,
     );
     fs::create_dir_all(curated_root.join(".agents/plugins")).unwrap();
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::write(
         curated_root.join(".agents/plugins/marketplace.json"),
         r#"{
@@ -4851,7 +4851,7 @@ plugins = true
     )
     .unwrap();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"linear"}"#,
     )
     .unwrap();
@@ -4859,7 +4859,7 @@ plugins = true
     let config = load_config(tmp.path(), tmp.path()).await;
     let marketplaces = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     )
     .list_marketplaces_for_config(&config, &[], /*include_openai_curated*/ true)
@@ -4980,7 +4980,7 @@ plugins = true
     let config = load_config(tmp.path(), tmp.path()).await;
     let manager = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::ApiKey),
     );
     let marketplaces = manager
@@ -5081,7 +5081,7 @@ plugins = true
         config.model_provider_id = resolved_provider.to_string();
         let marketplaces = test_plugins_manager_with_options(
             tmp.path().to_path_buf(),
-            Some(Product::Codex),
+            Some(Product::Suffice),
             auth_mode,
         )
         .list_marketplaces_for_config(&config, &[], /*include_openai_curated*/ true)
@@ -5118,7 +5118,7 @@ plugins = true
     let config = load_config(tmp.path(), tmp.path()).await;
     let manager = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     let marketplaces = manager
@@ -5157,7 +5157,7 @@ plugins = true
     let config = load_config(tmp.path(), tmp.path()).await;
     let manager = test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::BedrockApiKey),
     );
     let outcome = manager
@@ -5192,7 +5192,7 @@ source = "/tmp/debug"
 "#,
     );
     fs::create_dir_all(marketplace_root.join(".agents/plugins")).unwrap();
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::write(
         marketplace_root.join(".agents/plugins/marketplace.json"),
         r#"{
@@ -5210,7 +5210,7 @@ source = "/tmp/debug"
     )
     .unwrap();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )
     .unwrap();
@@ -5270,7 +5270,7 @@ async fn configured_marketplace_upgrade_invalidates_cached_tool_suggest_metadata
     );
     write_curated_plugin(&remote_repo, "sample");
     write_file(
-        &remote_repo.join("plugins/sample/.codex-plugin/plugin.json"),
+        &remote_repo.join("plugins/sample/.suffice-plugin/plugin.json"),
         r#"{"name":"sample","description":"Before upgrade"}"#,
     );
     init_git_repo(&remote_repo);
@@ -5320,7 +5320,7 @@ source = "{remote_repo_url}"
     );
 
     write_file(
-        &remote_repo.join("plugins/sample/.codex-plugin/plugin.json"),
+        &remote_repo.join("plugins/sample/.suffice-plugin/plugin.json"),
         r#"{"name":"sample","description":"After upgrade"}"#,
     );
     run_git(&remote_repo, &["add", "."]);
@@ -5362,7 +5362,7 @@ source = "/tmp/debug"
 "#,
     );
     fs::create_dir_all(marketplace_root.join(".agents/plugins")).unwrap();
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::write(
         marketplace_root.join(".agents/plugins/marketplace.json"),
         r#"{
@@ -5380,7 +5380,7 @@ source = "/tmp/debug"
     )
     .unwrap();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )
     .unwrap();
@@ -5420,7 +5420,7 @@ plugins = true
 "#,
     );
     fs::create_dir_all(marketplace_root.join(".agents/plugins")).unwrap();
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    fs::create_dir_all(plugin_root.join(".suffice-plugin")).unwrap();
     fs::write(
         marketplace_root.join(".agents/plugins/marketplace.json"),
         r#"{
@@ -5438,7 +5438,7 @@ plugins = true
     )
     .unwrap();
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )
     .unwrap();
@@ -6889,18 +6889,18 @@ async fn load_plugins_uses_project_config_files() {
         .join("test/sample/local");
 
     write_file(
-        &plugin_root.join(".codex-plugin/plugin.json"),
+        &plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     );
     write_file(
-        &project_root.join(".codex/config.toml"),
+        &project_root.join(".suffice/config.toml"),
         &plugin_config_toml(/*enabled*/ true, /*plugins_feature_enabled*/ true),
     );
 
     let stack = ConfigLayerStack::new(
         vec![ConfigLayerEntry::new(
             ConfigLayerSource::Project {
-                dot_codex_folder: AbsolutePathBuf::try_from(project_root.join(".codex")).unwrap(),
+                dot_codex_folder: AbsolutePathBuf::try_from(project_root.join(".suffice")).unwrap(),
             },
             toml::from_str(&plugin_config_toml(
                 /*enabled*/ true, /*plugins_feature_enabled*/ true,
@@ -6917,7 +6917,7 @@ async fn load_plugins_uses_project_config_files() {
         crate::remote_plugin_id_resolver::RemoteInstalledPluginsSnapshot::default(),
         &PluginStore::new(codex_home.path().to_path_buf()),
         /*plugin_skill_snapshots*/ None,
-        Some(Product::Codex),
+        Some(Product::Suffice),
         /*remote_global_catalog_active*/ false,
         test_skill_root_loader().as_ref(),
     )
@@ -7028,7 +7028,7 @@ enabled = true
     let auth_manager = test_auth_manager(Some(AuthMode::Chatgpt));
     let manager = test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Arc::clone(&auth_manager),
     );
 
@@ -7182,12 +7182,12 @@ remote_plugin = true
     config.chatgpt_base_url = format!("{}/backend-api", server.uri());
     let first_manager = std::sync::Arc::new(test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     ));
     let second_manager = std::sync::Arc::new(test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     ));
     let auth = CodexAuth::create_dummy_chatgpt_auth_for_testing();
@@ -7237,7 +7237,7 @@ async fn reconcile_remote_installed_plugins_reports_cached_state_changes() {
     let auth = auth_manager.auth_cached().expect("test ChatGPT auth");
     let manager = test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         auth_manager,
     );
     let change = RemotePluginChange {
@@ -7402,7 +7402,7 @@ remote_plugin = true
     let auth = auth_manager.auth_cached().expect("test ChatGPT auth");
     let manager = std::sync::Arc::new(test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         auth_manager,
     ));
     let mut previous_malformed = remote_installed_plugin_in_marketplace(
@@ -7444,7 +7444,7 @@ remote_plugin = true
     let linear_metadata = plugin_cache_root
         .join(REMOTE_GLOBAL_MARKETPLACE_NAME)
         .join("linear")
-        .join(".codex-remote-plugin-install.json");
+        .join(".suffice-remote-plugin-install.json");
     assert!(renamed_malformed_cache.exists());
     assert!(previous_malformed_cache.exists());
     assert!(!linear_metadata.exists());

@@ -14,7 +14,7 @@
 //! keystore that always encrypts secrets when they are transferred across the bus. If DBus isn't installed the keystore will fall back to the json
 //! file because we don't use the "vendored" feature.
 //!
-//! If the keyring is not available or fails, we fall back to CODEX_HOME/.credentials.json which is consistent with other coding CLI agents.
+//! If the keyring is not available or fails, we fall back to SUFFICE_HOME/.credentials.json which is consistent with other coding CLI agents.
 
 mod ema_identity;
 mod issuer_binding;
@@ -82,7 +82,7 @@ pub(crate) use self::resolved_store::ResolvedOAuthTokens;
 pub(crate) use self::resolved_store::resolve_oauth_tokens_from_store_policy;
 use self::resolved_store::try_resolve_oauth_tokens_from_store_policy;
 
-const KEYRING_SERVICE: &str = "Codex MCP Credentials";
+const KEYRING_SERVICE: &str = "Suffice MCP Credentials";
 const MCP_OAUTH_SECRET_PREFIX: &str = "MCP_OAUTH";
 const REFRESH_SKEW_MILLIS: u64 = 30_000;
 
@@ -988,7 +988,7 @@ fn compute_store_key(server_name: &str, server_url: &str) -> Result<String> {
     payload.insert("headers".to_string(), Value::Object(JsonMap::new()));
     let payload = if enterprise_owned {
         // The OS keyring is shared across homes. Keep enterprise sessions
-        // isolated by Codex profile as well as authenticated user and workspace.
+        // isolated by Suffice profile as well as authenticated user and workspace.
         let codex_home = find_codex_home()?;
         fs::create_dir_all(&codex_home)?;
         payload.insert(

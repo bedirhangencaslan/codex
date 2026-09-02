@@ -1,5 +1,5 @@
 //! Translation of OpenAI-compatible `/chat/completions` SSE frames into the
-//! Responses-shaped [`ResponseEvent`] stream the rest of Codex consumes.
+//! Responses-shaped [`ResponseEvent`] stream the rest of Suffice consumes.
 //!
 //! See `crate::requests::chat` for the outbound half of the bridge.
 
@@ -242,7 +242,7 @@ async fn flush_items(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, t
 /// Flushes anything still buffered and closes the turn.
 ///
 /// Deferred until `[DONE]` (or stream end) because the usage chunk arrives after
-/// `finish_reason`, and dropping it would leave Codex blind to token cost.
+/// `finish_reason`, and dropping it would leave Suffice blind to token cost.
 async fn complete(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
     flush_items(tx_event, turn).await;
     let _ = tx_event

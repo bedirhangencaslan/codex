@@ -100,10 +100,10 @@ async fn trusts_connector_declared_by_home_owned_plugin() -> Result<()> {
         .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
         .with_pre_build_hook(|home| {
             let plugin_root = home.join("plugins/cache/test/trusted/local");
-            std::fs::create_dir_all(plugin_root.join(".codex-plugin"))
+            std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))
                 .expect("create plugin manifest directory");
             std::fs::write(
-                plugin_root.join(".codex-plugin/plugin.json"),
+                plugin_root.join(".suffice-plugin/plugin.json"),
                 r#"{"name":"trusted","description":"Trusted plugin instructions"}"#,
             )
             .expect("write plugin manifest");
@@ -216,9 +216,9 @@ async fn rejects_paths_that_escape_codex_home_through_symlinks() -> Result<()> {
     assert!(!is_home_owned_path(&link, &canonical_home));
 
     let plugin_root = test.home.path().join("trusted-plugin");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin").join("plugin.json"),
+        plugin_root.join(".suffice-plugin").join("plugin.json"),
         r#"{"name":"trusted"}"#,
     )?;
     let outside_apps = test.cwd.path().join("outside-app.json");

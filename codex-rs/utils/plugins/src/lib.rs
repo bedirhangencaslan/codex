@@ -1,4 +1,4 @@
-//! Plugin path resolution, plaintext mention sigils, and MCP connector helpers shared across Codex
+//! Plugin path resolution, plaintext mention sigils, and MCP connector helpers shared across Suffice
 //! crates.
 
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -41,7 +41,7 @@ pub struct PluginSkillRoot {
 }
 
 /// Directory containing private plugin metadata.
-const PLUGIN_METADATA_DIR: &str = ".codex-plugin";
+const PLUGIN_METADATA_DIR: &str = ".suffice-plugin";
 /// Directory containing commands converted into skills during plugin installation.
 const MIGRATED_COMMAND_SKILLS_DIR: &str = "migrated-command-skills";
 

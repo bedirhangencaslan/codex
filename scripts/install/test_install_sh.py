@@ -29,10 +29,10 @@ class InstallShTest(unittest.TestCase):
             ],
         )
         self.assertIn(
-            f"Could not fetch GitHub release metadata for Codex {VERSION}",
+            f"Could not fetch GitHub release metadata for Suffice {VERSION}",
             result.stderr,
         )
-        self.assertNotIn("Could not find Codex package", result.stderr)
+        self.assertNotIn("Could not find Suffice package", result.stderr)
 
     def test_exact_release_opt_out_uses_github_metadata_once(self) -> None:
         result, requests = run_installer(VERSION, use_mirror=False)
@@ -502,7 +502,7 @@ class InstallShTest(unittest.TestCase):
                     f"rust-v{VERSION}",
                 ],
             )
-            self.assertNotIn("Downloading Codex CLI", second_result.stdout)
+            self.assertNotIn("Downloading Suffice CLI", second_result.stdout)
 
 
 def run_installer(
@@ -653,7 +653,7 @@ def run_installer_in(
     env = os.environ.copy()
     env.update(
         {
-            "CODEX_HOME": str(root / "codex-home"),
+            "SUFFICE_HOME": str(root / "codex-home"),
             "CODEX_INSTALL_DIR": str(root / "install-bin"),
             "CODEX_NON_INTERACTIVE": "1",
             "CODEX_RELEASE": release,

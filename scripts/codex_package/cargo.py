@@ -1,4 +1,4 @@
-"""Cargo builds for source-built Codex package artifacts."""
+"""Cargo builds for source-built Suffice package artifacts."""
 
 import os
 import subprocess

@@ -1,7 +1,7 @@
 //! Translation from a Responses-shaped request into an OpenAI-compatible
 //! `/chat/completions` body.
 //!
-//! Codex speaks the Responses API everywhere above this module. Providers that
+//! Suffice speaks the Responses API everywhere above this module. Providers that
 //! only expose Chat Completions (Z.ai/GLM, most OSS servers) get their request
 //! rewritten here, and their SSE frames rewritten back in `crate::sse::chat`.
 
@@ -147,7 +147,7 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
         "model": request.model,
         "messages": messages,
         "stream": true,
-        // Without this the provider omits `usage`, and Codex cannot track cost
+        // Without this the provider omits `usage`, and Suffice cannot track cost
         // or drive the auto-compaction trigger.
         "stream_options": {"include_usage": true},
     });
@@ -190,12 +190,12 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
     body
 }
 
-/// Projects Codex's effort ladder onto the three rungs GLM-5.3 accepts.
+/// Projects Suffice's effort ladder onto the three rungs GLM-5.3 accepts.
 ///
 /// `low`, `high` and `max` are the only legal values; anything else is rejected outright,
 /// and omitting the field entirely silently selects `max`, the most expensive rung. So a
 /// config still carrying an effort written for another provider must be clamped rather than
-/// forwarded or dropped. Clamping at the wire boundary leaves the rest of Codex free to keep
+/// forwarded or dropped. Clamping at the wire boundary leaves the rest of Suffice free to keep
 /// its own wider ladder.
 fn glm_reasoning_effort(effort: &ReasoningEffort) -> &'static str {
     match effort {

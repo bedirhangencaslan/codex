@@ -113,7 +113,7 @@ pub struct AdditionalContextEntry {
     pub kind: AdditionalContextKind,
 }
 
-/// Requested cyber treatment for a ChatGPT-authenticated Codex turn.
+/// Requested cyber treatment for a ChatGPT-authenticated Suffice turn.
 /// Authorization and model-tier restrictions remain server-owned.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
@@ -160,7 +160,7 @@ pub struct TurnStartParams {
     pub turn_trigger: Option<String>,
     #[ts(optional = nullable)]
     pub tool_output: Option<Box<TurnToolOutput>>,
-    /// Optional metadata to enrich Codex's ResponsesAPI turn metadata.
+    /// Optional metadata to enrich Suffice's ResponsesAPI turn metadata.
     ///
     /// Entries are flattened into the JSON string sent as
     /// `client_metadata["x-codex-turn-metadata"]` on ResponsesAPI HTTP and websocket requests.
@@ -280,7 +280,7 @@ pub struct TurnSteerParams {
     #[ts(optional = nullable)]
     pub client_user_message_id: Option<String>,
     pub input: Vec<UserInput>,
-    /// Optional metadata to enrich Codex's ResponsesAPI turn metadata.
+    /// Optional metadata to enrich Suffice's ResponsesAPI turn metadata.
     ///
     /// Entries are flattened into the JSON string sent as
     /// `client_metadata["x-codex-turn-metadata"]` on ResponsesAPI HTTP and websocket requests.

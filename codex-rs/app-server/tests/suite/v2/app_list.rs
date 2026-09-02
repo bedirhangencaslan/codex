@@ -1699,9 +1699,9 @@ fn write_plugin_app_fixture(codex_home: &Path, plugin_name: &str, app_id: &str) 
         .join("test")
         .join(plugin_name)
         .join("local");
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         format!(r#"{{"name":"{plugin_name}"}}"#),
     )?;
     std::fs::write(

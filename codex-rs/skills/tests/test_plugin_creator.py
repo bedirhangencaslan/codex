@@ -48,7 +48,7 @@ class PluginCreatorSecurityTests(unittest.TestCase):
         )
 
     def write_plugin(self, name: object) -> Path:
-        manifest_path = self.plugin_root / ".codex-plugin" / "plugin.json"
+        manifest_path = self.plugin_root / ".suffice-plugin" / "plugin.json"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(
             json.dumps({"name": name, "version": "1.0.0"}),

@@ -26,11 +26,11 @@ const TOKIO_WORKER_STACK_SIZE_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Arg0DispatchPaths {
-    /// Stable path to the current Codex executable for child re-execs.
+    /// Stable path to the current Suffice executable for child re-execs.
     ///
     /// Prefer this over [`std::env::current_exe()`] in code that may run under
     /// a test harness, where `current_exe()` can point at the harness binary
-    /// instead of the real Codex CLI.
+    /// instead of the real Suffice CLI.
     pub codex_self_exe: Option<PathBuf>,
     pub codex_linux_sandbox_exe: Option<PathBuf>,
     pub main_execve_wrapper_exe: Option<PathBuf>,
@@ -184,7 +184,7 @@ fn prepare_path_env_var_with_aliases(
     match prepare_aliases(path_for_aliases) {
         Ok((path_entry, updated_path_env_var)) => (Some(path_entry), Some(updated_path_env_var)),
         Err(err) => {
-            // It is possible that Codex will proceed successfully even if
+            // It is possible that Suffice will proceed successfully even if
             // creating helper aliases fails, so warn the user and move on.
             eprintln!("WARNING: proceeding, even though we could not create PATH aliases: {err}");
             (None, package_path)
@@ -192,7 +192,7 @@ fn prepare_path_env_var_with_aliases(
     }
 }
 
-/// While we want to deploy the Codex CLI as a single executable for simplicity,
+/// While we want to deploy the Suffice CLI as a single executable for simplicity,
 /// we also want to expose some of its functionality as distinct CLIs, so we use
 /// the "arg0 trick" to determine which CLI to dispatch. This effectively allows
 /// us to simulate deploying multiple executables as a single binary on Mac and
@@ -202,7 +202,7 @@ fn prepare_path_env_var_with_aliases(
 /// `codex-linux-sandbox` we *directly* execute
 /// [`codex_linux_sandbox::run_main`] (which never returns). Otherwise we:
 ///
-/// 1.  Load `.env` values from `~/.codex/.env` before creating any threads.
+/// 1.  Load `.env` values from `~/.suffice/.env` before creating any threads.
 /// 2.  Spawn a main runtime thread with a controlled stack size.
 /// 3.  Construct a Tokio multi-thread runtime.
 /// 4.  Capture the current executable path and derive the
@@ -296,7 +296,7 @@ fn build_runtime() -> anyhow::Result<tokio::runtime::Runtime> {
 
 const ILLEGAL_ENV_VAR_PREFIX: &str = "CODEX_";
 
-/// Load env vars from ~/.codex/.env.
+/// Load env vars from ~/.suffice/.env.
 ///
 /// Security: Do not allow `.env` files to create or modify any variables
 /// with names starting with `CODEX_`.
@@ -330,7 +330,7 @@ where
 ///
 /// Returns the temporary directory guard and the PATH value that prepends the
 /// temporary directory so `apply_patch` can be on the PATH without requiring the
-/// user to install a separate executable, simplifying the deployment of Codex
+/// user to install a separate executable, simplifying the deployment of Suffice
 /// CLI.
 /// Note: In debug builds the temp-dir guard is disabled to ease local testing.
 ///
@@ -354,7 +354,7 @@ fn prepare_path_entry_for_codex_aliases(
     }
 
     std::fs::create_dir_all(&codex_home)?;
-    // Use a CODEX_HOME-scoped temp root to avoid cluttering the top-level directory.
+    // Use a SUFFICE_HOME-scoped temp root to avoid cluttering the top-level directory.
     let temp_root = codex_home.join("tmp").join("arg0");
     std::fs::create_dir_all(&temp_root)?;
     #[cfg(unix)]
@@ -608,7 +608,7 @@ mod tests {
     fn windows_batch_alias_preserves_unicode_executable_paths() -> anyhow::Result<()> {
         let root = TempDir::new()?;
         let profile = root.path().join("用户");
-        let alias_directory = profile.join(".codex").join("tmp").join("arg0");
+        let alias_directory = profile.join(".suffice").join("tmp").join("arg0");
         let executable_directory = profile.join("bin");
         fs::create_dir_all(&alias_directory)?;
         fs::create_dir_all(&executable_directory)?;
@@ -641,7 +641,7 @@ mod tests {
         assert_eq!(
             super::windows_batch_executable_path(
                 Path::new(r"D:\Tools\codex.exe"),
-                Path::new(r"C:\Users\person\.codex\tmp\arg0"),
+                Path::new(r"C:\Users\person\.suffice\tmp\arg0"),
             ),
             r"D:\Tools\codex.exe",
         );

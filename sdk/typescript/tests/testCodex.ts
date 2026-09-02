@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { Codex } from "../src/codex";
+import { Suffice } from "../src/codex";
 import type { CodexConfigObject } from "../src/codexOptions";
 
 export const codexExecPath =
@@ -18,7 +18,7 @@ type CreateTestClientOptions = {
 
 export type TestClient = {
   cleanup: () => void;
-  client: Codex;
+  client: Suffice;
 };
 
 export function createMockClient(url: string): TestClient {
@@ -43,7 +43,7 @@ export function createTestClient(options: CreateTestClientOptions = {}): TestCli
 
   return {
     cleanup: () => {},
-    client: new Codex({
+    client: new Suffice({
       codexPathOverride: codexExecPath,
       baseUrl: options.baseUrl,
       apiKey: options.apiKey,
@@ -80,7 +80,7 @@ function mergeTestConfig(
   return {
     ...mergedConfig,
     // Disable plugins in SDK integration tests so background curated-plugin
-    // sync does not race temp CODEX_HOME cleanup.
+    // sync does not race temp SUFFICE_HOME cleanup.
     features:
       featureOverrides && typeof featureOverrides === "object" && !Array.isArray(featureOverrides)
         ? { ...featureOverrides, plugins: false }

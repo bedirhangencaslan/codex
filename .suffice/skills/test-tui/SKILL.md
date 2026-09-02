@@ -1,9 +1,9 @@
 ---
 name: test-tui
-description: Guide for testing Codex TUI interactively
+description: Guide for testing Suffice TUI interactively
 ---
 
-You can start and use Codex TUI to verify changes. 
+You can start and use Suffice TUI to verify changes. 
 
 Important notes:
 

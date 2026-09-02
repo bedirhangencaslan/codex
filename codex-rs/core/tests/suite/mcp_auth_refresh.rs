@@ -127,7 +127,7 @@ async fn hosted_plugin_runtime_ps_mcp_tool_calls_use_current_auth_manager_token(
         .await?;
 
     // The manager and its static fallback were created before the auth update,
-    // so this tool call only sees the new token if the Codex Apps provider
+    // so this tool call only sees the new token if the Suffice Apps provider
     // reads the shared AuthManager at request time.
     let tool_result = runtime
         .latest_call_tool(
@@ -159,7 +159,7 @@ async fn hosted_plugin_runtime_ps_mcp_tool_calls_use_current_auth_manager_token(
                         body.get("method").and_then(Value::as_str) == Some("tools/call")
                     })
         })
-        .expect("Codex Apps should receive a tool call");
+        .expect("Suffice Apps should receive a tool call");
     assert_eq!(
         tool_call_request
             .headers

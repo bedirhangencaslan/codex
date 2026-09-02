@@ -1,3 +1,3 @@
-# Getting started with Codex CLI
+# Getting started with Suffice CLI
 
-For an overview of Codex CLI features, see [this documentation](https://developers.openai.com/codex/cli/features#running-in-interactive-mode).
+For an overview of Suffice CLI features, see [this documentation](https://developers.openai.com/codex/cli/features#running-in-interactive-mode).

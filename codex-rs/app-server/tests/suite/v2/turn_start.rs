@@ -124,7 +124,7 @@ fn body_contains(req: &wiremock::Request, text: &str) -> bool {
 }
 
 async fn run_local_image_turn(detail: Option<ImageDetail>) -> Result<Vec<Value>> {
-    // Two Codex turns hit the mock model (session start + turn/start).
+    // Two Suffice turns hit the mock model (session start + turn/start).
     let responses = vec![
         create_final_assistant_message_sse_response("Done")?,
         create_final_assistant_message_sse_response("Done")?,
@@ -597,7 +597,7 @@ async fn turn_start_sends_originator_header() -> Result<()> {
         DEFAULT_READ_TIMEOUT,
         mcp.initialize_with_client_info(ClientInfo {
             name: TEST_ORIGINATOR.to_string(),
-            title: Some("Codex VS Code Extension".to_string()),
+            title: Some("Suffice VS Code Extension".to_string()),
             version: "0.1.0".to_string(),
         }),
     )
@@ -2102,7 +2102,7 @@ async fn turn_start_rejects_unknown_environment_before_starting_turn() -> Result
 #[tokio::test]
 async fn turn_start_emits_notifications_and_accepts_model_override() -> Result<()> {
     // Provide a mock server and config so model wiring is valid.
-    // Three Codex turns hit the mock model (session start + two turn/start calls).
+    // Three Suffice turns hit the mock model (session start + two turn/start calls).
     let responses = vec![
         create_final_assistant_message_sse_response("Done")?,
         create_final_assistant_message_sse_response("Done")?,
@@ -5322,7 +5322,7 @@ async fn command_execution_notifications_include_trusted_plugin_id() -> Result<(
     let script_path = plugin_root.join("scripts/run.sh");
     let synced_root = codex_home.path().join(".tmp/plugins");
     for path in [
-        plugin_root.join(".codex-plugin"),
+        plugin_root.join(".suffice-plugin"),
         script_path
             .parent()
             .expect("script path should have parent")
@@ -5332,7 +5332,7 @@ async fn command_execution_notifications_include_trusted_plugin_id() -> Result<(
         std::fs::create_dir_all(path)?;
     }
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         r#"{"name":"google-calendar","version":"0.1.0"}"#,
     )?;
     std::fs::write(&script_path, "echo hi\n")?;

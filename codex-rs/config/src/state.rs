@@ -41,7 +41,7 @@ impl From<LoaderOverrides> for ConfigLoadOptions {
 /// LoaderOverrides overrides managed configuration inputs (primarily for tests).
 #[derive(Debug, Default, Clone)]
 pub struct LoaderOverrides {
-    /// Optional configuration file supplied with the installed Codex package.
+    /// Optional configuration file supplied with the installed Suffice package.
     pub packaged_defaults_path: Option<AbsolutePathBuf>,
     pub user_config_path: Option<AbsolutePathBuf>,
     pub user_config_profile: Option<ProfileV2Name>,
@@ -215,7 +215,7 @@ impl ConfigLayerEntry {
         }
     }
 
-    // Get the `.codex/` folder associated with this config layer, if any.
+    // Get the `.suffice/` folder associated with this config layer, if any.
     pub fn config_folder(&self) -> Option<AbsolutePathBuf> {
         match &self.name {
             ConfigLayerSource::PackagedDefaults { .. } => None,
@@ -230,7 +230,7 @@ impl ConfigLayerEntry {
         }
     }
 
-    /// Returns the `.codex/` folder that should be used for hook declarations.
+    /// Returns the `.suffice/` folder that should be used for hook declarations.
     ///
     /// Project layers normally use their own config folder. Linked Git worktrees
     /// can instead point hook discovery at the matching folder from the root
@@ -310,7 +310,7 @@ impl ConfigLayerStack {
     ///
     /// This does not merge other config layers or apply any requirements. When
     /// a profile-v2 layer is active, this returns that profile layer rather than
-    /// the base `$CODEX_HOME/config.toml` layer because the active layer is the
+    /// the base `$SUFFICE_HOME/config.toml` layer because the active layer is the
     /// writable target for profile-aware edits.
     pub fn get_active_user_layer(&self) -> Option<&ConfigLayerEntry> {
         self.layers

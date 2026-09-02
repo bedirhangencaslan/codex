@@ -46,7 +46,7 @@ describe("MCP client conformance", () => {
         path.join(path.dirname(conformancePackage), "dist", "index.js"),
         "pinned official CLI",
       );
-      const codexBinary = requireFile(codexExecPath, "built Codex binary");
+      const codexBinary = requireFile(codexExecPath, "built Suffice binary");
       const baseline = requireFile(
         path.join(directory, "regression-baseline-v1.json"),
         "committed regression baseline",
@@ -103,7 +103,7 @@ describe("MCP client conformance", () => {
     "does not introduce production reviewer or catalog-boundary regressions",
     () => {
       const directory = conformanceDirectory();
-      const codexBinary = requireFile(codexExecPath, "built Codex binary");
+      const codexBinary = requireFile(codexExecPath, "built Suffice binary");
       const reviewer = requireFile(
         path.join(directory, "review_regressions.py"),
         "production reviewer regression runner",

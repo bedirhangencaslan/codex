@@ -44,7 +44,7 @@ fn approval_resolution_aborts_turn_when_approval_is_aborted() {
 
     assert!(matches!(
         resolution.into_tool_result(&model_info_from_slug("acting-model")),
-        Err(ToolError::Codex(error))
+        Err(ToolError::Suffice(error))
             if matches!(
                 error.details(),
                 codex_protocol::error::CodexErrorDetails::TurnAborted

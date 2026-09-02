@@ -4,33 +4,33 @@ expression: "snapshots.join(\"\\n---\\n\")"
 ---
 empty (48 columns):
 ╭───────────────────────────────────────╮
-│ >_ OpenAI Codex (v<VERSION>)              │
+│ >_ Suffice (v<VERSION>)              │
 │                                       │
 │ model:     loading   /model to change │
 │ directory: loading                    │
 ╰───────────────────────────────────────╯
 
 
-› Ask Codex to do anything
+› Ask Suffice to do anything
 
   ? for shortcuts
 ---
 resuming (48 columns):
 ╭───────────────────────────────────────╮
-│ >_ OpenAI Codex (v<VERSION>)              │
+│ >_ Suffice (v<VERSION>)              │
 │                                       │
 │ model:     loading   /model to change │
 │ directory: loading                    │
 ╰───────────────────────────────────────╯
   Resuming session…
 
-› Ask Codex to do anything
+› Ask Suffice to do anything
 
   ? for shortcuts
 ---
 forking (48 columns):
 ╭───────────────────────────────────────╮
-│ >_ OpenAI Codex (v<VERSION>)              │
+│ >_ Suffice (v<VERSION>)              │
 │                                       │
 │ model:     loading   /model to change │
 │ directory: loading                    │
@@ -43,7 +43,7 @@ forking (48 columns):
 ---
 multiline (48 columns):
 ╭───────────────────────────────────────╮
-│ >_ OpenAI Codex (v<VERSION>)              │
+│ >_ Suffice (v<VERSION>)              │
 │                                       │
 │ model:     loading   /model to change │
 │ directory: loading                    │

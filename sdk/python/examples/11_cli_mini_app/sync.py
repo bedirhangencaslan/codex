@@ -10,14 +10,14 @@ from _bootstrap import ensure_local_sdk_src, runtime_config
 ensure_local_sdk_src()
 
 from openai_codex import (
-    Codex,
+    Suffice,
 )
 from openai_codex.types import (
     ThreadTokenUsageUpdatedNotification,
     TurnCompletedNotification,
 )
 
-print("Codex mini CLI. Type /exit to quit.")
+print("Suffice mini CLI. Type /exit to quit.")
 
 
 def _format_usage(usage: object) -> str:
@@ -30,7 +30,7 @@ def _format_usage(usage: object) -> str:
     )
 
 
-with Codex(config=runtime_config()) as codex:
+with Suffice(config=runtime_config()) as codex:
     thread = codex.thread_start(model="gpt-5.4", config={"model_reasoning_effort": "high"})
     print("Thread:", thread.id)
 

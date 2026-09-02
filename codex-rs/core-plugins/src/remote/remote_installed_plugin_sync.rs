@@ -518,7 +518,7 @@ mod tests {
             .join(REMOTE_GLOBAL_MARKETPLACE_NAME)
             .join("linear")
             .join("1.2.3")
-            .join(".codex-plugin")
+            .join(".suffice-plugin")
             .join("plugin.json");
         std::fs::create_dir_all(cached_manifest.parent().expect("manifest parent"))
             .expect("create cached plugin manifest parent");
@@ -598,7 +598,7 @@ mod tests {
         .expect("valid plugin id");
         let metadata_path = PluginStore::new(codex_home.path().to_path_buf())
             .plugin_base_root(&plugin_id)
-            .join(".codex-remote-plugin-install.json");
+            .join(".suffice-remote-plugin-install.json");
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(
                 &std::fs::read_to_string(metadata_path.as_path())
@@ -658,7 +658,7 @@ mod tests {
                     .join(marketplace_name)
                     .join(cached_plugin_name)
                     .join("1.2.3")
-                    .join(".codex-plugin")
+                    .join(".suffice-plugin")
                     .join("plugin.json");
                 std::fs::create_dir_all(manifest.parent().expect("manifest parent"))
                     .expect("create cached plugin manifest parent");
@@ -773,12 +773,12 @@ mod tests {
                 .join(plugin_name);
             assert!(
                 plugin_root
-                    .join("1.2.3/.codex-plugin/plugin.json")
+                    .join("1.2.3/.suffice-plugin/plugin.json")
                     .is_file()
             );
             assert_eq!(
                 serde_json::from_str::<serde_json::Value>(
-                    &std::fs::read_to_string(plugin_root.join(".codex-remote-plugin-install.json"))
+                    &std::fs::read_to_string(plugin_root.join(".suffice-remote-plugin-install.json"))
                         .expect("read remote plugin install metadata")
                 )
                 .expect("parse remote plugin install metadata"),
@@ -807,7 +807,7 @@ mod tests {
             .join(REMOTE_GLOBAL_MARKETPLACE_NAME)
             .join("linear")
             .join("1.2.3")
-            .join(".codex-plugin")
+            .join(".suffice-plugin")
             .join("plugin.json");
         std::fs::create_dir_all(cached_manifest.parent().expect("manifest parent"))
             .expect("create cached plugin manifest parent");
@@ -892,7 +892,7 @@ mod tests {
             .join(REMOTE_CREATED_BY_ME_MARKETPLACE_NAME)
             .join("created-by-me-plugin")
             .join("1.2.3")
-            .join(".codex-plugin")
+            .join(".suffice-plugin")
             .join("plugin.json");
         std::fs::create_dir_all(
             created_by_me_cached_manifest
@@ -911,7 +911,7 @@ mod tests {
             .join(REMOTE_WORKSPACE_SHARED_WITH_ME_PRIVATE_MARKETPLACE_NAME)
             .join("private-plugin")
             .join("1.2.3")
-            .join(".codex-plugin")
+            .join(".suffice-plugin")
             .join("plugin.json");
         std::fs::create_dir_all(cached_manifest.parent().expect("manifest parent"))
             .expect("create cached plugin manifest parent");
@@ -923,7 +923,7 @@ mod tests {
             .join(REMOTE_WORKSPACE_SHARED_WITH_ME_MARKETPLACE_NAME)
             .join("shared-plugin")
             .join("1.2.3")
-            .join(".codex-plugin")
+            .join(".suffice-plugin")
             .join("plugin.json");
         std::fs::create_dir_all(canonical_cached_manifest.parent().expect("manifest parent"))
             .expect("create canonical cached plugin manifest parent");

@@ -384,7 +384,7 @@ impl LocalThreadStore {
             let error = match codex_rollout::read_session_meta_line(&path).await {
                 Ok(metadata) => break metadata,
                 Err(error) if !retried_moved_path && error.kind() == io::ErrorKind::NotFound => {
-                    // A different Codex process can archive or compress this rollout after path
+                    // A different Suffice process can archive or compress this rollout after path
                     // discovery but before we take its writer lock. Retry the same rollout under
                     // its current root/suffix before treating the missing snapshot path as failed.
                     if let Some(current_path) =
@@ -805,7 +805,7 @@ impl LocalThreadStore {
                 || current_source_metadata.modified().ok() != source_modified
             {
                 return Err(ThreadStoreError::Conflict {
-                    message: "rollout changed while migration was staging it; close older Codex processes and retry".to_string(),
+                    message: "rollout changed while migration was staging it; close older Suffice processes and retry".to_string(),
                 });
             }
 

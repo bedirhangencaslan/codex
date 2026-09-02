@@ -96,7 +96,7 @@ pub(super) async fn resolve_auth_method(
         BedrockAuthSource::ManagedBearerToken => {
             let Some(CodexAuth::BedrockApiKey(auth)) = managed_auth else {
                 return Err(CodexErr::Fatal(
-                    "selected Codex-managed Amazon Bedrock API key is no longer available"
+                    "selected Suffice-managed Amazon Bedrock API key is no longer available"
                         .to_string(),
                 ));
             };
@@ -129,7 +129,7 @@ pub(super) async fn resolve_auth_method(
         BedrockAuthSource::ManagedAccessKeys => {
             let Some(CodexAuth::BedrockAccessKeys(auth)) = managed_auth else {
                 return Err(CodexErr::Fatal(
-                    "selected Codex-managed Amazon Bedrock access keys are no longer available"
+                    "selected Suffice-managed Amazon Bedrock access keys are no longer available"
                         .to_string(),
                 ));
             };
@@ -245,7 +245,7 @@ fn remove_headers_not_preserved_by_bedrock_mantle(headers: &mut HeaderMap) {
     // The Bedrock Mantle front door does not preserve legacy OpenAI
     // compatibility headers that use snake_case, such as `session_id` and
     // `thread_id`, before SigV4 verification. Signing that header class makes
-    // richer Codex agent requests fail even though raw Responses requests work.
+    // richer Suffice agent requests fail even though raw Responses requests work.
     let headers_to_remove = headers
         .keys()
         .filter(|name| name.as_str().contains('_'))

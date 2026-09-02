@@ -1,3 +1,3 @@
-# Codex CLI
+# Suffice CLI
 
-[**Codex CLI Documentation**](https://developers.openai.com/codex/cli)
+[**Suffice CLI Documentation**](https://developers.openai.com/codex/cli)

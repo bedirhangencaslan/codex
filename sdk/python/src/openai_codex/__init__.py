@@ -1,12 +1,12 @@
-"""Python SDK for running Codex workflows.
+"""Python SDK for running Suffice workflows.
 
-Start with :class:`Codex` for synchronous applications or
+Start with :class:`Suffice` for synchronous applications or
 :class:`AsyncCodex` for async applications. Most programs create a thread and
 run a turn::
 
-    from openai_codex import Codex, Sandbox
+    from openai_codex import Suffice, Sandbox
 
-    with Codex() as codex:
+    with Suffice() as codex:
         thread = codex.thread_start(sandbox=Sandbox.workspace_write)
         result = thread.run("Describe this project.")
         print(result.final_response)
@@ -21,7 +21,7 @@ from .api import (
     AsyncThread,
     AsyncTurnHandle,
     ChatgptLoginHandle,
-    Codex,
+    Suffice,
     DeviceCodeLoginHandle,
     ImageInput,
     Input,
@@ -56,7 +56,7 @@ from .retry import retry_on_overload
 __all__ = [
     "__version__",
     "CodexConfig",
-    "Codex",
+    "Suffice",
     "AsyncCodex",
     "ApprovalMode",
     "Sandbox",
