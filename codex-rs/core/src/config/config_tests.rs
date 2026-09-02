@@ -3430,7 +3430,10 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
         policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
         "expected trusted project fallback to use :danger-full-access, policy: {policy:?}"
     );
-    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
+    assert_eq!(
+        config.permissions.approval_policy.value(),
+        AskForApproval::Never
+    );
     Ok(())
 }
 
@@ -3635,7 +3638,10 @@ async fn empty_config_defaults_to_builtin_full_access_without_trust_decision() -
         policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
         "expected :danger-full-access to allow writes, policy: {policy:?}"
     );
-    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
+    assert_eq!(
+        config.permissions.approval_policy.value(),
+        AskForApproval::Never
+    );
     Ok(())
 }
 
