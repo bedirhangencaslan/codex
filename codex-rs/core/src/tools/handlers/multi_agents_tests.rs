@@ -1412,6 +1412,7 @@ async fn multi_agent_v2_list_agents_filters_by_relative_path_prefix() {
     let (mut session, mut turn) = make_session_and_context().await;
     let manager = thread_manager();
     let mut config = (*turn.config).clone();
+    config.multi_agent_v2.max_concurrent_threads_per_session = 4;
     let _ = config.features.enable(Feature::MultiAgentV2);
     set_turn_config(&mut turn, config.clone());
     let root = manager
@@ -3513,6 +3514,7 @@ async fn multi_agent_v2_wait_agent_wakes_on_any_mailbox_notification() {
     session.services.agent_control = manager.agent_control();
     session.thread_id = root.thread_id;
     let mut config = (*turn.config).clone();
+    config.multi_agent_v2.max_concurrent_threads_per_session = 4;
     config
         .features
         .enable(Feature::MultiAgentV2)
@@ -3699,6 +3701,7 @@ async fn multi_agent_v2_interrupt_agent_accepts_task_name_target() {
     session.services.agent_control = manager.agent_control();
     session.thread_id = root.thread_id;
     let mut config = (*turn.config).clone();
+    config.multi_agent_v2.max_concurrent_threads_per_session = 4;
     config
         .features
         .enable(Feature::MultiAgentV2)
@@ -4133,6 +4136,7 @@ async fn tool_handlers_cascade_close_and_resume_and_keep_explicitly_closed_subtr
     let (_session, turn) = make_session_and_context().await;
     let mut config = turn.config.as_ref().clone();
     config.agent_max_depth = 3;
+    config.agent_max_threads = Some(8);
     config
         .permissions
         .set_permission_profile(PermissionProfile::workspace_write())

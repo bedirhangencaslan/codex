@@ -79,6 +79,21 @@ async fn test_config_with_cli_overrides(
     mut cli_overrides: Vec<(String, TomlValue)>,
 ) -> (TempDir, Config) {
     let home = TempDir::new().expect("create temp dir");
+    // Most tests here build agent trees rather than exercise the spawn limit, so give them
+    // room for several agents unless the test pins the limit itself.
+    const SPAWN_LIMIT_KEYS: [&str; 2] = [
+        "agents.max_concurrent_threads_per_session",
+        "agents.max_threads",
+    ];
+    if !cli_overrides
+        .iter()
+        .any(|(key, _)| SPAWN_LIMIT_KEYS.contains(&key.as_str()))
+    {
+        cli_overrides.push((
+            "agents.max_concurrent_threads_per_session".to_string(),
+            TomlValue::Integer(6),
+        ));
+    }
     cli_overrides.push((
         "model".to_string(),
         TomlValue::String("gpt-5.5".to_string()),
