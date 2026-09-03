@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use codex_history::ResponseItemEnvelope;
 use codex_protocol::models::FunctionCallOutputBody;
 use codex_protocol::models::ResponseItem;
+use codex_utils_output_truncation::approx_token_count;
 
 /// Lines kept from the start, so the model can still tell what ran.
 const KEEP_HEAD_LINES: usize = 5;
@@ -102,6 +103,21 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
     ),
 ];
 
+/// What shrinking took out of one request's prompt, and what it was not allowed to take out.
+///
+/// The removed sizes are what an unshrunk prompt would have carried on top of the one that was
+/// sent. `shrinkable_before_break` is the opposite number: output the allowlist recognized but
+/// the cache gate refused to touch, which is the size of the saving this design declines to
+/// take. Both are needed to price the mechanism; neither changes what is sent.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct ShrinkReport {
+    pub(crate) outputs: usize,
+    pub(crate) tokens_removed: i64,
+    pub(crate) lines_removed: usize,
+    pub(crate) shrinkable_before_break: usize,
+    pub(crate) call_ids: Vec<String>,
+}
+
 /// Replaces the middle of successful, noisy tool output with an explicit marker.
 ///
 /// `prefix_break` is the index the prompt cache is already invalidated from, or `None` when the
@@ -115,17 +131,15 @@ pub(crate) fn shrink_completed_outputs(
     items: &mut [ResponseItemEnvelope],
     prefix_break: Option<usize>,
     is_completed: impl Fn(&ResponseItemEnvelope) -> bool,
-) {
-    let Some(prefix_break) = prefix_break else {
-        return;
-    };
+) -> ShrinkReport {
+    let mut report = ShrinkReport::default();
     // The call ids are collected from the whole history: a call may sit in the untouched prefix
     // while its output sits after the break.
     let shrinkable = shrinkable_call_ids(items);
     if shrinkable.is_empty() {
-        return;
+        return report;
     }
-    for envelope in items.iter_mut().skip(prefix_break) {
+    for (index, envelope) in items.iter_mut().enumerate() {
         if !is_completed(envelope) {
             continue;
         }
@@ -140,19 +154,29 @@ pub(crate) fn shrink_completed_outputs(
         if output.success != Some(true) {
             continue;
         }
-        if !call_id
-            .as_deref()
-            .is_some_and(|call_id| shrinkable.contains(call_id))
-        {
+        let Some(call_id) = call_id.as_deref().filter(|id| shrinkable.contains(*id)) else {
             continue;
-        }
+        };
         let FunctionCallOutputBody::Text(text) = &mut output.body else {
             continue;
         };
-        if let Some(shrunk) = shrink_text(text) {
-            *text = shrunk;
+        let Some((shrunk, lines_removed)) = shrink_text(text) else {
+            continue;
+        };
+        if !prefix_break.is_some_and(|prefix_break| index >= prefix_break) {
+            report.shrinkable_before_break += 1;
+            continue;
         }
+        report.outputs += 1;
+        report.lines_removed += lines_removed;
+        report.tokens_removed = report.tokens_removed.saturating_add(
+            i64::try_from(approx_token_count(text).saturating_sub(approx_token_count(&shrunk)))
+                .unwrap_or(i64::MAX),
+        );
+        report.call_ids.push(call_id.to_string());
+        *text = shrunk;
     }
+    report
 }
 
 /// Collects the call ids whose command is on the allowlist.
@@ -257,9 +281,9 @@ fn program_name(program: &str) -> &str {
 
 /// Keeps the head and tail of `text`, replacing the middle with an explicit marker.
 ///
-/// Returns `None` when the text is small enough that shrinking would not be worth the lost
-/// detail.
-fn shrink_text(text: &str) -> Option<String> {
+/// Returns the shrunk text and the number of lines it dropped, or `None` when the text is small
+/// enough that shrinking would not be worth the lost detail.
+fn shrink_text(text: &str) -> Option<(String, usize)> {
     let lines: Vec<&str> = text.lines().collect();
     if lines.len() < MIN_LINES_TO_SHRINK {
         return None;
@@ -269,10 +293,13 @@ fn shrink_text(text: &str) -> Option<String> {
     let tail = lines[lines.len() - KEEP_TAIL_LINES..].join("\n");
     // The marker names the exit status and the actor. A model that cannot tell whether the
     // command succeeded, or whether the command itself printed nothing, will run it again.
-    Some(format!(
-        "{head}\n\n[system] exit 0 - the harness trimmed this output, the command did not. \
-         {removed} middle lines removed; re-running the command produces the same trimmed \
-         result.\n\n{tail}"
+    Some((
+        format!(
+            "{head}\n\n[system] exit 0 - the harness trimmed this output, the command did not. \
+             {removed} middle lines removed; re-running the command produces the same trimmed \
+             result.\n\n{tail}"
+        ),
+        removed,
     ))
 }
 

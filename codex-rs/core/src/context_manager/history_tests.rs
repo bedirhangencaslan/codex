@@ -656,6 +656,84 @@ fn retained_reasoning_keeps_the_prompt_byte_identical() {
     );
 }
 
+#[test]
+fn the_report_names_what_the_prompt_no_longer_carries() {
+    let noisy = format!("cargo build\n{}", "Compiling something\n".repeat(100));
+    let call = ResponseItem::FunctionCall {
+        id: None,
+        name: "shell".to_string(),
+        namespace: None,
+        arguments: serde_json::json!({ "command": "cargo build" }).to_string(),
+        encrypted_function_args: None,
+        call_id: "call-1".to_string(),
+        internal_chat_message_metadata_passthrough: None,
+    };
+    let output = ResponseItem::FunctionCallOutput {
+        id: None,
+        call_id: Some("call-1".to_string()),
+        name: None,
+        namespace: None,
+        output: FunctionCallOutputPayload {
+            body: FunctionCallOutputBody::Text(noisy),
+            success: Some(true),
+        },
+        internal_chat_message_metadata_passthrough: None,
+    };
+    let asked = user_msg("do the thing");
+    let mut history = ContextManager::new();
+    history.replace_annotated(vec![
+        ResponseItemEnvelope::new(asked),
+        ResponseItemEnvelope {
+            item: reasoning_msg("worth keeping"),
+            metadata: Some(CodexHarnessMetadata {
+                reasoning_turn: Some("turn-1".to_string()),
+                reasoning_retained: Some(true),
+                ..Default::default()
+            }),
+        },
+        ResponseItemEnvelope {
+            item: reasoning_msg("cheaper to drop than to carry"),
+            metadata: Some(CodexHarnessMetadata {
+                reasoning_turn: Some("turn-1".to_string()),
+                reasoning_retained: Some(false),
+                ..Default::default()
+            }),
+        },
+        ResponseItemEnvelope::new(call),
+        ResponseItemEnvelope {
+            item: output,
+            metadata: Some(CodexHarnessMetadata {
+                tool_output_turn: Some("turn-1".to_string()),
+                ..Default::default()
+            }),
+        },
+    ]);
+
+    let (items, report) = history
+        .clone()
+        .for_prompt_measured(&default_input_modalities(), Some("turn-2"));
+
+    // The dropped reasoning is the second item, so that is where the prefix stops matching.
+    assert_eq!(report.prefix_break, Some(2));
+    assert_eq!(report.dropped_reasoning_items, 1);
+    // Reasoning reads as zero tokens through the history-wide estimator. A zero here would
+    // silently price the most expensive thing this harness drops at nothing.
+    assert!(report.dropped_reasoning_tokens > 0, "{report:?}");
+    assert_eq!(report.retained_reasoning_items, 1);
+    assert!(report.retained_reasoning_tokens > 0, "{report:?}");
+    assert!(report.prefix_break_tokens > 0, "{report:?}");
+    // The output sits past the break, so shrinking it rides on a re-prefill already paid for.
+    assert_eq!(report.shrink.outputs, 1);
+    assert_eq!(report.shrink.shrinkable_before_break, 0);
+    assert!(report.shrink.tokens_removed > 0, "{report:?}");
+
+    // Measuring must not move a single byte of what is sent.
+    assert_eq!(
+        history.for_prompt(&default_input_modalities(), Some("turn-2")),
+        items
+    );
+}
+
 #[test_case(None, 100, 5, true; "model policy")]
 #[test_case(Some(200), 100, 200, false; "configured override")]
 #[test_case(Some(100), 85, 100, true; "saved limit has no additional allowance")]
@@ -728,7 +806,7 @@ fn for_prompt_annotated_preserves_metadata_while_normalizing_item() {
     let mut history = ContextManager::new();
     history.replace_annotated(vec![envelope.clone()]);
 
-    let normalized =
+    let (normalized, _) =
         history.for_prompt_annotated(&[InputModality::Text], /*active_turn_id*/ None);
 
     assert_eq!(normalized.len(), 1);

@@ -4,6 +4,7 @@ use crate::context::world_state::PersistentModeState;
 use crate::context::world_state::WorldState;
 use crate::context::world_state::WorldStateSnapshot;
 use crate::context_manager::normalize;
+use crate::context_manager::tool_output::ShrinkReport;
 use crate::context_manager::tool_output::shrink_completed_outputs;
 use crate::event_mapping::has_non_contextual_dev_message_content;
 use crate::event_mapping::is_contextual_dev_message_content;
@@ -248,10 +249,21 @@ impl ContextManager {
         input_modalities: &[InputModality],
         active_turn_id: Option<&str>,
     ) -> Vec<ResponseItem> {
-        self.for_prompt_annotated(input_modalities, active_turn_id)
+        self.for_prompt_measured(input_modalities, active_turn_id).0
+    }
+
+    /// Same prompt as [`Self::for_prompt`], plus an account of what building it removed.
+    pub(crate) fn for_prompt_measured(
+        self,
+        input_modalities: &[InputModality],
+        active_turn_id: Option<&str>,
+    ) -> (Vec<ResponseItem>, ContextFilterReport) {
+        let (items, report) = self.for_prompt_annotated(input_modalities, active_turn_id);
+        let items = items
             .into_iter()
             .map(ResponseItemEnvelope::into_item)
-            .collect()
+            .collect();
+        (items, report)
     }
 
     /// Freezes the keep/drop verdict on reasoning whose turn has ended, and reports how much
@@ -304,49 +316,75 @@ impl ContextManager {
         mut self,
         input_modalities: &[InputModality],
         active_turn_id: Option<&str>,
-    ) -> Vec<ResponseItemEnvelope> {
-        let prefix_break = self.drop_completed_turn_scoped_items(active_turn_id);
+    ) -> (Vec<ResponseItemEnvelope>, ContextFilterReport) {
+        let mut report = ContextFilterReport::default();
+        self.drop_completed_turn_scoped_items(active_turn_id, &mut report);
         self.normalize_history(input_modalities);
         let mut items = Arc::unwrap_or_clone(self.items);
-        shrink_completed_outputs(&mut items, prefix_break, |envelope| {
+        report.shrink = shrink_completed_outputs(&mut items, report.prefix_break, |envelope| {
             let owner = envelope
                 .metadata
                 .as_ref()
                 .and_then(|metadata| metadata.tool_output_turn.as_deref());
             !belongs_to_active_turn(active_turn_id, owner)
         });
-        items
+        // The re-prefill the break costs is the part of the prompt that follows it, measured on
+        // the prompt as finally sent rather than on the history it was built from.
+        if let Some(prefix_break) = report.prefix_break {
+            report.prefix_break_tokens = items
+                .iter()
+                .skip(prefix_break)
+                .map(|envelope| measured_item_token_count(&envelope.item))
+                .fold(0i64, i64::saturating_add);
+        }
+        (items, report)
     }
 
-    /// Drops turn-scoped items and returns the index the prompt cache is invalidated from.
+    /// Drops turn-scoped items and records what that removed, including the index the prompt
+    /// cache is invalidated from.
     ///
     /// Removing an item rewrites the prompt from its position to the end, so the index of the
     /// first removal is exactly where the surviving prefix stops being byte-identical.
-    fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) -> Option<usize> {
-        let is_completed = |envelope: &ResponseItemEnvelope| {
-            let metadata = envelope.metadata.as_ref();
-            let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
-            if invisible_owner.is_some() && !belongs_to_active_turn(active_turn_id, invisible_owner)
-            {
-                return true;
+    fn drop_completed_turn_scoped_items(
+        &mut self,
+        active_turn_id: Option<&str>,
+        report: &mut ContextFilterReport,
+    ) {
+        let mut position = 0;
+        Arc::make_mut(&mut self.items).retain(|envelope| {
+            let index = position;
+            position += 1;
+            let tokens = measured_item_token_count(&envelope.item);
+            match dropped_reason(envelope, active_turn_id) {
+                Some(reason) => {
+                    report.prefix_break.get_or_insert(index);
+                    match reason {
+                        DropReason::Invisible => {
+                            report.dropped_invisible_items += 1;
+                            report.dropped_invisible_tokens =
+                                report.dropped_invisible_tokens.saturating_add(tokens);
+                            if let Some(call_id) = call_id_of(&envelope.item) {
+                                report.dropped_call_ids.push(call_id.to_string());
+                            }
+                        }
+                        DropReason::Reasoning => {
+                            report.dropped_reasoning_items += 1;
+                            report.dropped_reasoning_tokens =
+                                report.dropped_reasoning_tokens.saturating_add(tokens);
+                        }
+                    }
+                    false
+                }
+                None => {
+                    if matches!(envelope.item, ResponseItem::Reasoning { .. }) {
+                        report.retained_reasoning_items += 1;
+                        report.retained_reasoning_tokens =
+                            report.retained_reasoning_tokens.saturating_add(tokens);
+                    }
+                    true
+                }
             }
-            if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
-                return false;
-            }
-            if belongs_to_active_turn(
-                active_turn_id,
-                metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
-            ) {
-                return false;
-            }
-            // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the
-            // cached prefix than the re-prefill dropping it would cost. Reasoning that predates
-            // that verdict, or that was never stamped, is dropped as it always was.
-            metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true)
-        };
-        let first_dropped = self.items.iter().position(is_completed)?;
-        Arc::make_mut(&mut self.items).retain(|envelope| !is_completed(envelope));
-        Some(first_dropped)
+        });
     }
 
     /// Iterates over raw response items without exposing their history envelopes.
@@ -639,6 +677,83 @@ impl ContextManager {
             }
         }
         cut_idx
+    }
+}
+
+/// What building one request's prompt removed from history, and what that cost.
+///
+/// Adding the dropped and shrunk sizes back onto the prompt that was sent reconstructs the
+/// prompt an unfiltered harness would have sent, which is what makes the turn-scoped filters
+/// priceable without issuing a second request. Producing this changes nothing about the prompt.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct ContextFilterReport {
+    /// Index the surviving prefix stops being byte-identical from, or `None` when nothing was
+    /// removed and the prompt cache keeps the whole prefix.
+    pub(crate) prefix_break: Option<usize>,
+    /// Prompt tokens after the break, which this request re-prefills at the uncached rate.
+    pub(crate) prefix_break_tokens: i64,
+    pub(crate) dropped_invisible_items: usize,
+    pub(crate) dropped_invisible_tokens: i64,
+    pub(crate) dropped_reasoning_items: usize,
+    pub(crate) dropped_reasoning_tokens: i64,
+    pub(crate) retained_reasoning_items: usize,
+    pub(crate) retained_reasoning_tokens: i64,
+    pub(crate) dropped_call_ids: Vec<String>,
+    pub(crate) shrink: ShrinkReport,
+}
+
+/// Why an item recorded in history does not reach the model.
+enum DropReason {
+    /// Recorded by an invisible turn that has since finished.
+    Invisible,
+    /// Reasoning from a finished turn that was priced as cheaper to drop than to carry.
+    Reasoning,
+}
+
+/// Whether a turn-scoped item is dropped from this request, and on which of the two grounds.
+fn dropped_reason(
+    envelope: &ResponseItemEnvelope,
+    active_turn_id: Option<&str>,
+) -> Option<DropReason> {
+    let metadata = envelope.metadata.as_ref();
+    let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
+    if invisible_owner.is_some() && !belongs_to_active_turn(active_turn_id, invisible_owner) {
+        return Some(DropReason::Invisible);
+    }
+    if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
+        return None;
+    }
+    if belongs_to_active_turn(
+        active_turn_id,
+        metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
+    ) {
+        return None;
+    }
+    // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the cached
+    // prefix than the re-prefill dropping it would cost. Reasoning that predates that verdict,
+    // or that was never stamped, is dropped as it always was.
+    (metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true))
+        .then_some(DropReason::Reasoning)
+}
+
+/// Size of one item as the prompt carries it.
+///
+/// [`estimate_item_token_count`] reports reasoning as zero, because everywhere else in this
+/// codebase reasoning is something the server bills rather than something the prompt carries.
+/// Here the prompt is exactly what is being measured, so reasoning is measured directly.
+fn measured_item_token_count(item: &ResponseItem) -> i64 {
+    match item {
+        ResponseItem::Reasoning { .. } => crate::reasoning_retention::reasoning_tokens(item),
+        item => estimate_item_token_count(item),
+    }
+}
+
+/// The tool call an item belongs to, so a dropped item can be paired with its output.
+fn call_id_of(item: &ResponseItem) -> Option<&str> {
+    match item {
+        ResponseItem::FunctionCall { call_id, .. } => Some(call_id.as_str()),
+        ResponseItem::FunctionCallOutput { call_id, .. } => call_id.as_deref(),
+        _ => None,
     }
 }
 

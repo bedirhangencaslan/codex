@@ -50,7 +50,7 @@ pub(crate) struct RetentionInputs {
 /// re-billed and must not be counted as if it were. What is left of the budget is a fraction of
 /// a window; the user's measured density turns that fraction into the count of requests that a
 /// retained token would actually be re-billed on.
-fn horizon(inputs: &RetentionInputs) -> i64 {
+pub(crate) fn horizon(inputs: &RetentionInputs) -> i64 {
     let windows_remaining = inputs.budget_remaining.max(0) as f64 / WINDOW_TOKENS as f64;
     ((windows_remaining * inputs.requests_per_window).round() as i64)
         .clamp(MIN_HORIZON, MAX_HORIZON)
@@ -196,7 +196,7 @@ fn belongs_to_active_turn(active_turn_id: Option<&str>, owner: Option<&str>) -> 
 /// The history-wide estimator reports reasoning as zero tokens, because for most of this
 /// codebase reasoning is something the server bills rather than something the prompt carries.
 /// Here it is precisely the thing being priced, so it is measured directly.
-fn reasoning_tokens(item: &ResponseItem) -> i64 {
+pub(crate) fn reasoning_tokens(item: &ResponseItem) -> i64 {
     let ResponseItem::Reasoning {
         summary, content, ..
     } = item
