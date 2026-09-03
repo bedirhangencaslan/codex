@@ -277,6 +277,7 @@ use crate::bottom_pane::BottomPaneParams;
 use crate::bottom_pane::CancellationEvent;
 use crate::bottom_pane::CollaborationModeIndicator;
 use crate::bottom_pane::ColumnWidthMode;
+use crate::bottom_pane::ContextTokenBreakdown;
 use crate::bottom_pane::DOUBLE_PRESS_QUIT_SHORTCUT_ENABLED;
 use crate::bottom_pane::ExecApprovalRequest;
 use crate::bottom_pane::ExperimentalFeatureItem;
@@ -1151,8 +1152,9 @@ impl ChatWidget {
                 self.token_usage_pending = true;
                 self.bottom_pane
                     .set_context_window_pending(/*pending*/ true);
-                self.bottom_pane
-                    .set_context_window(/*percent*/ None, /*used_tokens*/ None);
+                self.bottom_pane.set_context_window(
+                    /*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None,
+                );
                 self.bottom_pane.set_response_speed(/*speed*/ None);
                 self.token_info = None;
             }
@@ -1165,10 +1167,29 @@ impl ChatWidget {
             .set_context_window_pending(/*pending*/ false);
         let percent = self.context_remaining_percent(&info);
         let used_tokens = self.context_used_tokens(&info, percent.is_some());
-        self.bottom_pane.set_context_window(percent, used_tokens);
+        let breakdown = Self::context_token_breakdown(&info);
+        self.bottom_pane
+            .set_context_window(percent, used_tokens, breakdown);
         let speed = ResponseSpeed::from_readiness(info.last_token_usage.context_readiness());
         self.bottom_pane.set_response_speed(speed);
         self.token_info = Some(info);
+    }
+
+    /// Describes the last request so the composer can show what the next one will send.
+    ///
+    /// `last_token_usage` is the only per-request snapshot available here; the
+    /// session totals answer a different question and would overstate both the
+    /// context size and the cached share.
+    fn context_token_breakdown(info: &TokenUsageInfo) -> Option<ContextTokenBreakdown> {
+        let last = &info.last_token_usage;
+        if last.is_zero() {
+            return None;
+        }
+        Some(ContextTokenBreakdown {
+            context_tokens: last.tokens_in_context_window(),
+            new_input_tokens: last.non_cached_input(),
+            cached_input_tokens: last.cached_input(),
+        })
     }
 
     fn context_remaining_percent(&self, info: &TokenUsageInfo) -> Option<i64> {
@@ -1191,8 +1212,9 @@ impl ChatWidget {
             match saved {
                 Some(info) => self.apply_token_info(info),
                 None => {
-                    self.bottom_pane
-                        .set_context_window(/*percent*/ None, /*used_tokens*/ None);
+                    self.bottom_pane.set_context_window(
+                        /*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None,
+                    );
                     self.token_info = None;
                 }
             }

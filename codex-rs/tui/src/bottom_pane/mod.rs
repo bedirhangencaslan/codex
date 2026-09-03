@@ -116,6 +116,7 @@ mod skill_popup;
 mod skills_toggle_view;
 pub(crate) mod slash_commands;
 pub(crate) use footer::CollaborationModeIndicator;
+pub(crate) use footer::ContextTokenBreakdown;
 pub(crate) use footer::GoalStatusIndicator;
 pub(crate) use footer::ResponseSpeed;
 #[cfg(test)]
@@ -255,6 +256,7 @@ pub(crate) struct BottomPane {
     pending_thread_approvals: PendingThreadApprovals,
     context_window_percent: Option<i64>,
     context_window_used_tokens: Option<i64>,
+    context_token_breakdown: Option<ContextTokenBreakdown>,
     keymap: RuntimeKeymap,
 }
 
@@ -321,6 +323,7 @@ impl BottomPane {
             animations_enabled,
             context_window_percent: None,
             context_window_used_tokens: None,
+            context_token_breakdown: None,
             keymap,
         }
     }
@@ -1130,16 +1133,27 @@ impl BottomPane {
         }
     }
 
-    pub(crate) fn set_context_window(&mut self, percent: Option<i64>, used_tokens: Option<i64>) {
-        if self.context_window_percent == percent && self.context_window_used_tokens == used_tokens
+    pub(crate) fn set_context_window(
+        &mut self,
+        percent: Option<i64>,
+        used_tokens: Option<i64>,
+        breakdown: Option<ContextTokenBreakdown>,
+    ) {
+        if self.context_window_percent == percent
+            && self.context_window_used_tokens == used_tokens
+            && self.context_token_breakdown == breakdown
         {
             return;
         }
 
         self.context_window_percent = percent;
         self.context_window_used_tokens = used_tokens;
-        self.composer
-            .set_context_window(percent, self.context_window_used_tokens);
+        self.context_token_breakdown = breakdown;
+        self.composer.set_context_window(
+            percent,
+            self.context_window_used_tokens,
+            self.context_token_breakdown,
+        );
         self.request_redraw();
     }
 

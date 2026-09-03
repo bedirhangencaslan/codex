@@ -232,6 +232,7 @@ use super::effort_status_line::EFFORT_STATUS_LINE_FRAME_TICK;
 use super::effort_status_line::EffortStatusLineTransition;
 use super::file_search_popup::FileSearchPopup;
 use super::footer::CollaborationModeIndicator;
+use super::footer::ContextTokenBreakdown;
 use super::footer::FooterKeyHints;
 use super::footer::FooterMode;
 use super::footer::FooterProps;
@@ -640,6 +641,7 @@ impl ChatComposer {
                 flash: None,
                 context_window_percent: None,
                 context_window_used_tokens: None,
+                context_token_breakdown: None,
                 context_window_pending: false,
                 collaboration_mode_indicator: None,
                 goal_status_indicator: None,
@@ -1451,6 +1453,7 @@ impl ChatComposer {
             context_window_line(
                 self.footer.context_window_percent,
                 self.footer.context_window_used_tokens,
+                self.footer.context_token_breakdown,
             )
         };
         if let Some(vim_mode) = self.vim_mode_indicator_span() {
@@ -4369,14 +4372,21 @@ impl ChatComposer {
         self.queue_submissions = queue_submissions;
     }
 
-    pub(crate) fn set_context_window(&mut self, percent: Option<i64>, used_tokens: Option<i64>) {
+    pub(crate) fn set_context_window(
+        &mut self,
+        percent: Option<i64>,
+        used_tokens: Option<i64>,
+        breakdown: Option<ContextTokenBreakdown>,
+    ) {
         if self.footer.context_window_percent == percent
             && self.footer.context_window_used_tokens == used_tokens
+            && self.footer.context_token_breakdown == breakdown
         {
             return;
         }
         self.footer.context_window_percent = percent;
         self.footer.context_window_used_tokens = used_tokens;
+        self.footer.context_token_breakdown = breakdown;
     }
 
     pub(crate) fn set_context_window_pending(&mut self, pending: bool) {
@@ -5773,7 +5783,11 @@ mod tests {
         ) {
             composer.set_collaboration_modes_enabled(/*enabled*/ true);
             composer.set_collaboration_mode_indicator(indicator);
-            composer.set_context_window(Some(context_percent), /*used_tokens*/ None);
+            composer.set_context_window(
+                Some(context_percent),
+                /*used_tokens*/ None,
+                /*breakdown*/ None,
+            );
         }
 
         // Empty textarea, agent idle: shortcuts hint can show, and cycle hint is hidden.

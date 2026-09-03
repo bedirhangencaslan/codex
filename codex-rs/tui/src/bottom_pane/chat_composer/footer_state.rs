@@ -5,6 +5,7 @@ use std::time::Instant;
 use ratatui::text::Line;
 
 use crate::bottom_pane::footer::CollaborationModeIndicator;
+use crate::bottom_pane::footer::ContextTokenBreakdown;
 use crate::bottom_pane::footer::FooterMode;
 use crate::bottom_pane::footer::GoalStatusIndicator;
 use crate::bottom_pane::footer::ResponseSpeed;
@@ -23,6 +24,7 @@ pub(super) struct FooterState {
     pub(super) flash: Option<FooterFlash>,
     pub(super) context_window_percent: Option<i64>,
     pub(super) context_window_used_tokens: Option<i64>,
+    pub(super) context_token_breakdown: Option<ContextTokenBreakdown>,
     pub(super) context_window_pending: bool,
     pub(super) collaboration_mode_indicator: Option<CollaborationModeIndicator>,
     pub(super) goal_status_indicator: Option<GoalStatusIndicator>,

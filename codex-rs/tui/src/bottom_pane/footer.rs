@@ -1034,18 +1034,56 @@ fn build_columns(entries: Vec<Line<'static>>) -> Vec<Line<'static>> {
         .collect()
 }
 
-pub(crate) fn context_window_line(percent: Option<i64>, used_tokens: Option<i64>) -> Line<'static> {
-    if let Some(percent) = percent {
+/// Live context accounting rendered beside the remaining-context percentage.
+///
+/// Every figure describes the most recent request: how large the context it
+/// carried was, and how that request's input split between freshly billed and
+/// cache-served tokens. The next request replays the same prefix, so the split
+/// also predicts what the next one will send and what it will cost.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ContextTokenBreakdown {
+    pub(crate) context_tokens: i64,
+    pub(crate) new_input_tokens: i64,
+    pub(crate) cached_input_tokens: i64,
+}
+
+impl ContextTokenBreakdown {
+    fn cached_percent(&self) -> i64 {
+        let input = self
+            .new_input_tokens
+            .saturating_add(self.cached_input_tokens);
+        if input <= 0 {
+            return 0;
+        }
+        ((self.cached_input_tokens as f64 / input as f64) * 100.0).round() as i64
+    }
+}
+
+pub(crate) fn context_window_line(
+    percent: Option<i64>,
+    used_tokens: Option<i64>,
+    breakdown: Option<ContextTokenBreakdown>,
+) -> Line<'static> {
+    let mut spans = if let Some(percent) = percent {
         let percent = percent.clamp(0, 100);
-        return Line::from(vec![Span::from(format!("{percent}% context left")).dim()]);
-    }
-
-    if let Some(tokens) = used_tokens {
+        vec![Span::from(format!("{percent}% context left")).dim()]
+    } else if let Some(tokens) = used_tokens {
         let used_fmt = format_tokens_compact(tokens);
-        return Line::from(vec![Span::from(format!("{used_fmt} used")).dim()]);
+        vec![Span::from(format!("{used_fmt} used")).dim()]
+    } else {
+        vec![Span::from("100% context left").dim()]
+    };
+
+    if let Some(breakdown) = breakdown {
+        let context_fmt = format_tokens_compact(breakdown.context_tokens);
+        let new_fmt = format_tokens_compact(breakdown.new_input_tokens);
+        let cached_fmt = format_tokens_compact(breakdown.cached_input_tokens);
+        spans.push(Span::from(format!(" · {context_fmt} ctx")).dim());
+        spans.push(Span::from(format!(" · {}% cached", breakdown.cached_percent())).dim());
+        spans.push(Span::from(format!(" · next {new_fmt} new + {cached_fmt} cached")).dim());
     }
 
-    Line::from(vec![Span::from("100% context left").dim()])
+    Line::from(spans)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1334,7 +1372,7 @@ mod tests {
             /*width*/ 80,
             &props,
             /*collaboration_mode_indicator*/ None,
-            context_window_line(percent, used_tokens),
+            context_window_line(percent, used_tokens, /*breakdown*/ None),
         );
     }
 
@@ -1522,7 +1560,7 @@ mod tests {
             width,
             props,
             collaboration_mode_indicator,
-            context_window_line(/*percent*/ None, /*used_tokens*/ None),
+            context_window_line(/*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None),
         );
     }
 
@@ -1580,7 +1618,7 @@ mod tests {
             props,
             collaboration_mode_indicator,
             ide_context_active,
-            context_window_line(/*percent*/ None, /*used_tokens*/ None),
+            context_window_line(/*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None),
         );
         assert_snapshot!(name, terminal.backend());
     }
@@ -1914,7 +1952,7 @@ mod tests {
             /*width*/ 120,
             &props,
             Some(CollaborationModeIndicator::Plan),
-            context_window_line(Some(50), /*used_tokens*/ None),
+            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
         );
 
         snapshot_footer_with_indicators(
@@ -1945,7 +1983,7 @@ mod tests {
             /*width*/ 120,
             &props,
             Some(CollaborationModeIndicator::Plan),
-            context_window_line(Some(50), /*used_tokens*/ None),
+            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
         );
 
         let props = FooterProps {
@@ -1969,7 +2007,7 @@ mod tests {
             /*width*/ 120,
             &props,
             /*collaboration_mode_indicator*/ None,
-            context_window_line(Some(50), /*used_tokens*/ None),
+            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
         );
 
         let props = FooterProps {
@@ -1994,7 +2032,7 @@ mod tests {
             /*width*/ 40,
             &props,
             Some(CollaborationModeIndicator::Plan),
-            context_window_line(Some(50), /*used_tokens*/ None),
+            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
         );
 
         let props = FooterProps {
@@ -2056,7 +2094,7 @@ mod tests {
             /*width*/ 80,
             &props,
             Some(CollaborationModeIndicator::Plan),
-            context_window_line(Some(50), /*used_tokens*/ None),
+            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
         );
         let collapsed = screen.split_whitespace().collect::<Vec<_>>().join(" ");
         assert!(
@@ -2111,5 +2149,32 @@ mod tests {
             .key;
 
         assert_eq!(actual_key, expected_key);
+    }
+
+    #[test]
+    fn context_window_line_reports_context_size_and_cache_split() {
+        let line = context_window_line(
+            Some(60),
+            /*used_tokens*/ None,
+            Some(ContextTokenBreakdown {
+                context_tokens: 75_958,
+                new_input_tokens: 215,
+                cached_input_tokens: 75_520,
+            }),
+        );
+
+        let text: String = line.spans.iter().map(|span| span.content.as_ref()).collect();
+        assert_eq!(
+            text,
+            "60% context left · 76K ctx · 100% cached · next 215 new + 75.5K cached"
+        );
+    }
+
+    #[test]
+    fn context_window_line_without_breakdown_is_unchanged() {
+        let line = context_window_line(Some(60), /*used_tokens*/ None, /*breakdown*/ None);
+
+        let text: String = line.spans.iter().map(|span| span.content.as_ref()).collect();
+        assert_eq!(text, "60% context left");
     }
 }
