@@ -8,6 +8,7 @@ use crate::context_manager::tool_output::shrink_completed_outputs;
 use crate::event_mapping::has_non_contextual_dev_message_content;
 use crate::event_mapping::is_contextual_dev_message_content;
 use crate::event_mapping::is_contextual_user_message_content;
+use crate::reasoning_retention::RetentionInputs;
 use crate::session::turn_context::TurnContext;
 use crate::utils::json::serialized_json_bytes;
 use base64::Engine;
@@ -59,6 +60,11 @@ pub(crate) struct ContextManager {
     /// running, then dropped from the prompt forever. So once that turn ends this amount is still
     /// part of the reported usage but no longer part of the next request's input.
     turn_reasoning_output_tokens: Option<(String, i64)>,
+    /// Active context size the last time reasoning retention was priced.
+    last_decision_context_tokens: Option<i64>,
+    /// Running (sum, count) of context growth between those pricing points, so the horizon a
+    /// retention decision amortises over is observed rather than guessed.
+    turn_growth: (i64, u32),
     /// Reference context snapshot used for diffing and producing model-visible
     /// settings update items.
     ///
@@ -120,6 +126,8 @@ impl ContextManager {
                 &None, &None, /*model_context_window*/ None,
             ),
             turn_reasoning_output_tokens: None,
+            last_decision_context_tokens: None,
+            turn_growth: (0, 0),
             reference_context_item: None,
             world_state_baseline: None,
         }
@@ -250,26 +258,63 @@ impl ContextManager {
             .collect()
     }
 
+    /// Freezes the keep/drop verdict on reasoning whose turn has ended.
+    ///
+    /// `context_tokens` is the active context size right now; successive calls turn it into the
+    /// mean per-turn growth, which is what says how many more requests this prefix has to live
+    /// through before compaction rewrites it anyway.
+    pub(crate) fn freeze_reasoning_retention(
+        &mut self,
+        active_turn_id: Option<&str>,
+        budget_remaining: i64,
+        context_tokens: i64,
+    ) {
+        let turn_growth_tokens = self.observe_turn_growth(context_tokens);
+        crate::reasoning_retention::freeze_reasoning_retention(
+            Arc::make_mut(&mut self.items).as_mut_slice(),
+            active_turn_id,
+            RetentionInputs {
+                budget_remaining,
+                turn_growth_tokens,
+            },
+        );
+    }
+
+    fn observe_turn_growth(&mut self, context_tokens: i64) -> Option<i64> {
+        if let Some(previous) = self.last_decision_context_tokens.replace(context_tokens) {
+            let growth = context_tokens.saturating_sub(previous);
+            // Compaction and rollback shrink the context; only forward growth says anything
+            // about what the next turn will add.
+            if growth > 0 {
+                self.turn_growth.0 = self.turn_growth.0.saturating_add(growth);
+                self.turn_growth.1 = self.turn_growth.1.saturating_add(1);
+            }
+        }
+        (self.turn_growth.1 > 0).then(|| self.turn_growth.0 / i64::from(self.turn_growth.1))
+    }
+
     /// Returns normalized history envelopes for internal consumers that must retain metadata.
     ///
     /// Two kinds of item are scoped to the turn that produced them and are dropped once
-    /// that turn finishes: everything recorded by an invisible turn, and every reasoning
-    /// item. The still-running turn named by `active_turn_id` keeps its own items, so the
-    /// model can act on the request it is answering and follow its own thinking across the
-    /// tool-call loop. Passing `None` means no turn is running, which drops all of them.
+    /// that turn finishes: everything recorded by an invisible turn, and reasoning that was
+    /// priced as cheaper to drop than to keep. The still-running turn named by `active_turn_id`
+    /// keeps its own items, so the model can act on the request it is answering and follow its
+    /// own thinking across the tool-call loop. Passing `None` means no turn is running, which
+    /// drops all of them.
     ///
-    /// Tool output from a finished turn survives, but noisy build and test output is
-    /// shrunk to its head and tail. That happens at the same boundary, so it costs no
-    /// prompt-cache invalidation beyond what dropping reasoning already costs.
+    /// Tool output from a finished turn survives, but noisy build and test output is shrunk to
+    /// its head and tail. Shrinking rewrites the output in place, so it is only free from the
+    /// first dropped item onwards, where the prompt cache is already invalidated. When nothing
+    /// was dropped, nothing is shrunk and the prefix stays byte-identical.
     pub(crate) fn for_prompt_annotated(
         mut self,
         input_modalities: &[InputModality],
         active_turn_id: Option<&str>,
     ) -> Vec<ResponseItemEnvelope> {
-        self.drop_completed_turn_scoped_items(active_turn_id);
+        let prefix_break = self.drop_completed_turn_scoped_items(active_turn_id);
         self.normalize_history(input_modalities);
         let mut items = Arc::unwrap_or_clone(self.items);
-        shrink_completed_outputs(&mut items, |envelope| {
+        shrink_completed_outputs(&mut items, prefix_break, |envelope| {
             let owner = envelope
                 .metadata
                 .as_ref()
@@ -279,7 +324,11 @@ impl ContextManager {
         items
     }
 
-    fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) {
+    /// Drops turn-scoped items and returns the index the prompt cache is invalidated from.
+    ///
+    /// Removing an item rewrites the prompt from its position to the end, so the index of the
+    /// first removal is exactly where the surviving prefix stops being byte-identical.
+    fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) -> Option<usize> {
         let is_completed = |envelope: &ResponseItemEnvelope| {
             let metadata = envelope.metadata.as_ref();
             let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
@@ -287,17 +336,23 @@ impl ContextManager {
             {
                 return true;
             }
-            // Reasoning that predates this metadata, or that was never stamped, has no
-            // owning turn to compare against and is treated as finished.
-            matches!(envelope.item, ResponseItem::Reasoning { .. })
-                && !belongs_to_active_turn(
-                    active_turn_id,
-                    metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
-                )
+            if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
+                return false;
+            }
+            if belongs_to_active_turn(
+                active_turn_id,
+                metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
+            ) {
+                return false;
+            }
+            // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the
+            // cached prefix than the re-prefill dropping it would cost. Reasoning that predates
+            // that verdict, or that was never stamped, is dropped as it always was.
+            metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true)
         };
-        if self.items.iter().any(is_completed) {
-            Arc::make_mut(&mut self.items).retain(|envelope| !is_completed(envelope));
-        }
+        let first_dropped = self.items.iter().position(is_completed)?;
+        Arc::make_mut(&mut self.items).retain(|envelope| !is_completed(envelope));
+        Some(first_dropped)
     }
 
     /// Iterates over raw response items without exposing their history envelopes.

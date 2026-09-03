@@ -7,8 +7,8 @@
 //!
 //! Shrinking happens on the copy of history built for a request, never on stored history, so
 //! the transcript and the UI keep the real output. It applies only to turns that have
-//! finished, which is the same boundary where reasoning drops out, so it costs no additional
-//! prompt-cache invalidation.
+//! finished, and only from the point where the prompt cache is already invalidated by a
+//! dropped item, so it never costs a re-prefill of its own.
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -104,17 +104,28 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
 
 /// Replaces the middle of successful, noisy tool output with an explicit marker.
 ///
+/// `prefix_break` is the index the prompt cache is already invalidated from, or `None` when the
+/// prompt is byte-identical to the last one. Shrinking rewrites the output in place and so
+/// invalidates the cache from there to the end; doing it before the break would pay for a
+/// re-prefill in order to save tokens, which is the trade this harness exists to avoid.
+///
 /// `is_completed` reports whether an item's turn has finished. Output from the running turn
 /// is left alone, because the model is still acting on it.
 pub(crate) fn shrink_completed_outputs(
     items: &mut [ResponseItemEnvelope],
+    prefix_break: Option<usize>,
     is_completed: impl Fn(&ResponseItemEnvelope) -> bool,
 ) {
+    let Some(prefix_break) = prefix_break else {
+        return;
+    };
+    // The call ids are collected from the whole history: a call may sit in the untouched prefix
+    // while its output sits after the break.
     let shrinkable = shrinkable_call_ids(items);
     if shrinkable.is_empty() {
         return;
     }
-    for envelope in items.iter_mut() {
+    for envelope in items.iter_mut().skip(prefix_break) {
         if !is_completed(envelope) {
             continue;
         }

@@ -369,6 +369,10 @@ pub(crate) async fn run_turn(
                 .record_step_world_state_if_changed(&world_state, step_context.as_ref())
                 .await?;
 
+            // Decide, once, whether the previous turn's reasoning is worth keeping. This has to
+            // happen before the prompt is built and never again while it is being retried.
+            sess.freeze_reasoning_retention(step_context.as_ref()).await;
+
             // Construct the input that we will send to the model.
             let sampling_request_input: Vec<ResponseItem> = async {
                 sess.clone_history().await.for_prompt(

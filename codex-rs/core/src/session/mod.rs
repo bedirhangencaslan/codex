@@ -4023,6 +4023,28 @@ impl Session {
         state.clone_history()
     }
 
+    /// Prices the reasoning of the turn that has just finished, and freezes the answer.
+    ///
+    /// Called as the next turn is about to be sampled, which is the one moment where the
+    /// previous turn's reasoning is both complete and not yet needed: its size is final, and
+    /// nothing has been sent that would have to stay byte-identical to a different verdict.
+    pub(crate) async fn freeze_reasoning_retention(&self, step_context: &StepContext) {
+        if !self.features.enabled(Feature::ReasoningCostModel) {
+            return;
+        }
+        let status = context_window::context_window_token_status(self, &step_context.turn).await;
+        // With no budget to amortise over there is nothing to trade against a re-prefill.
+        let Some(budget_remaining) = status.base_window_tokens_remaining else {
+            return;
+        };
+        let mut state = self.state.lock().await;
+        state.history.freeze_reasoning_retention(
+            Some(step_context.turn.sub_id.as_str()),
+            budget_remaining,
+            status.active_context_tokens,
+        );
+    }
+
     pub(crate) async fn conversation_history_snapshot(
         &self,
     ) -> Arc<dyn ConversationHistorySnapshot> {

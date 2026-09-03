@@ -42,7 +42,7 @@ fn output(text: &str, success: Option<bool>) -> ResponseItemEnvelope {
 /// Runs the shrinker over one call/output pair and returns the resulting output text.
 fn shrink_pair(arguments: &str, text: &str, success: Option<bool>) -> String {
     let mut items = vec![call(arguments), output(text, success)];
-    shrink_completed_outputs(&mut items, |_| true);
+    shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| true);
     let ResponseItem::FunctionCallOutput { output, .. } = &items[1].item else {
         panic!("expected a function call output");
     };
@@ -162,7 +162,7 @@ fn leaves_output_from_the_running_turn_alone() {
     let text = noisy_output();
     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
     let mut items = vec![call(&arguments), output(&text, Some(true))];
-    shrink_completed_outputs(&mut items, |_| false);
+    shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| false);
     let ResponseItem::FunctionCallOutput { output, .. } = &items[1].item else {
         panic!("expected a function call output");
     };

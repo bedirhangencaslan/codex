@@ -71,6 +71,18 @@ pub struct CodexHarnessMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_turn: Option<String>,
 
+    /// Whether this reasoning survives its own turn, decided once and never revisited.
+    ///
+    /// Reasoning is folded into its anchor message on the Chat wire, so removing it rewrites
+    /// that message and invalidates the prompt cache from there to the end. Keeping it instead
+    /// re-bills it at the cached rate on every later request. Which is cheaper depends on how
+    /// large the reasoning is and how many requests remain, so it is priced at the moment the
+    /// turn ends. Recomputing it later would let the answer flip and break the prefix for
+    /// nothing, so the verdict is stored. `None` means undecided; legacy items without it are
+    /// dropped, matching the behaviour they were recorded under.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_retained: Option<bool>,
+
     /// Id of the turn that produced this tool output.
     ///
     /// While the turn is running the model sees the output whole, because it is acting on

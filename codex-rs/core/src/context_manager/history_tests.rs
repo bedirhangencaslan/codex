@@ -602,6 +602,60 @@ fn reasoning_stays_in_the_prompt_only_while_its_own_turn_runs() {
     );
 }
 
+#[test]
+fn retained_reasoning_keeps_the_prompt_byte_identical() {
+    let noisy = format!("cargo build\n{}", "Compiling something\n".repeat(100));
+    let call = ResponseItem::FunctionCall {
+        id: None,
+        name: "shell".to_string(),
+        namespace: None,
+        arguments: serde_json::json!({ "command": "cargo build" }).to_string(),
+        encrypted_function_args: None,
+        call_id: "call-1".to_string(),
+        internal_chat_message_metadata_passthrough: None,
+    };
+    let output = ResponseItem::FunctionCallOutput {
+        id: None,
+        call_id: Some("call-1".to_string()),
+        name: None,
+        namespace: None,
+        output: FunctionCallOutputPayload {
+            body: FunctionCallOutputBody::Text(noisy),
+            success: Some(true),
+        },
+        internal_chat_message_metadata_passthrough: None,
+    };
+    let asked = user_msg("do the thing");
+    let thinking = reasoning_msg("worth keeping");
+    let mut history = ContextManager::new();
+    history.replace_annotated(vec![
+        ResponseItemEnvelope::new(asked.clone()),
+        ResponseItemEnvelope {
+            item: thinking.clone(),
+            metadata: Some(CodexHarnessMetadata {
+                reasoning_turn: Some("turn-1".to_string()),
+                reasoning_retained: Some(true),
+                ..Default::default()
+            }),
+        },
+        ResponseItemEnvelope::new(call.clone()),
+        ResponseItemEnvelope {
+            item: output.clone(),
+            metadata: Some(CodexHarnessMetadata {
+                tool_output_turn: Some("turn-1".to_string()),
+                ..Default::default()
+            }),
+        },
+    ]);
+
+    // Nothing was dropped, so nothing may be rewritten either: shrinking the finished turn's
+    // output here would break the very prefix the retention verdict paid to preserve.
+    assert_eq!(
+        history.for_prompt(&default_input_modalities(), Some("turn-2")),
+        vec![asked, thinking, call, output]
+    );
+}
+
 #[test_case(None, 100, 5, true; "model policy")]
 #[test_case(Some(200), 100, 200, false; "configured override")]
 #[test_case(Some(100), 85, 100, true; "saved limit has no additional allowance")]

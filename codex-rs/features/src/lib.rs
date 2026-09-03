@@ -173,6 +173,8 @@ pub enum Feature {
     ProjectMemory,
     /// Replay the last request while idle so the provider's prompt cache stays warm.
     PromptCacheKeepAlive,
+    /// Price keeping a finished turn's reasoning against the cache miss dropping it would cost.
+    ReasoningCostModel,
     /// Enable importing project-scoped memory from external agents.
     ExternalAgentMemoryImport,
     /// Compress cold local thread-store rollout files.
@@ -1079,6 +1081,12 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::PromptCacheKeepAlive,
         key: "prompt_cache_keep_alive",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ReasoningCostModel,
+        key: "reasoning_cost_model",
         stage: Stage::Stable,
         default_enabled: true,
     },
