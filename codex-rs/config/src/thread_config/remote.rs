@@ -305,6 +305,10 @@ fn proto_string_map(values: HashMap<String, RedactedString>) -> proto::StringMap
 fn proto_wire_api(wire_api: WireApi) -> proto::WireApi {
     match wire_api {
         WireApi::Responses => proto::WireApi::Responses,
+        // The remote thread-config protocol cannot express the Chat wire, and
+        // the decoder above rejects `Unspecified`, so a Chat provider does not
+        // survive a round trip.
+        WireApi::Chat => proto::WireApi::Unspecified,
     }
 }
 
