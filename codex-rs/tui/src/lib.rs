@@ -55,7 +55,6 @@ use codex_login::default_client::originator;
 use codex_login::default_client::set_default_client_residency_requirement;
 use codex_login::enforce_login_restrictions;
 use codex_login::is_workload_identity_selected;
-use codex_model_provider_info::ZAI_PROVIDER_ID;
 use codex_protocol::ThreadId;
 use codex_protocol::auth::AuthMode;
 use codex_protocol::config_types::AltScreenMode;
@@ -1854,7 +1853,6 @@ async fn load_config_or_exit_with_fallback_cwd(
     strict_config: bool,
     fallback_cwd: Option<PathBuf>,
 ) -> Config {
-    let provider_overridden = overrides.model_provider.is_some();
     #[allow(clippy::print_stderr)]
     match ConfigBuilder::default()
         .cli_overrides(cli_kv_overrides)
@@ -1866,12 +1864,7 @@ async fn load_config_or_exit_with_fallback_cwd(
         .build()
         .await
     {
-        Ok(mut config) => {
-            if !provider_overridden {
-                apply_default_model_provider(&mut config);
-            }
-            config
-        }
+        Ok(config) => config,
         Err(err) => {
             restore_terminal_before_fatal_exit();
             eprintln!("Error loading configuration: {err}");
@@ -1919,29 +1912,6 @@ async fn load_bootstrap_config_or_exit(
             std::process::exit(1);
         }
     }
-}
-
-/// Point an unconfigured install at Z.ai rather than OpenAI.
-///
-/// The default model is served by Z.ai, but an unset `model_provider` resolves
-/// to OpenAI, so a fresh install opens on OpenAI's login screen and then talks
-/// to the wrong endpoint. Correcting the resolved provider here instead of in
-/// the config loader keeps the default out of the many in-process harnesses
-/// that build a `Config` and expect OpenAI's wire format.
-fn apply_default_model_provider(config: &mut Config) {
-    if config
-        .config_layer_stack
-        .effective_config()
-        .get("model_provider")
-        .is_some()
-    {
-        return;
-    }
-    let Some(provider) = config.model_providers.get(ZAI_PROVIDER_ID) else {
-        return;
-    };
-    config.model_provider = provider.clone();
-    config.model_provider_id = ZAI_PROVIDER_ID.to_string();
 }
 
 /// Determine if the user has decided whether to trust the current directory.
