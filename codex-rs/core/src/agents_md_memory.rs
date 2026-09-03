@@ -172,6 +172,12 @@ async fn run_memory_turn(sess: &Arc<Session>, parent: &TurnContext, prompt: Stri
         else {
             return;
         };
+        // Price the previous turn's reasoning before this prompt is built, exactly as `run_turn`
+        // does. This turn is the first one to name a different turn as active, so it is the first
+        // prompt that can drop that reasoning — and unpriced reasoning defaults to being dropped.
+        // Skipping the call here therefore does not mean "decide later", it means "drop at full
+        // price", and it lands where the context is at its largest.
+        sess.freeze_reasoning_retention(step_context.as_ref()).await;
         // Naming this turn as the active one is what lets it see its own items; every later
         // prompt names a different turn, or none, and so sees none of them.
         let input = sess.prompt_input_for_step(step_context.as_ref()).await;

@@ -734,6 +734,39 @@ fn the_report_names_what_the_prompt_no_longer_carries() {
     );
 }
 
+#[test]
+fn a_prompt_with_no_active_turn_carries_no_reasoning_even_when_it_was_kept() {
+    let asked = user_msg("do the thing");
+    let mut history = ContextManager::new();
+    history.replace_annotated(vec![
+        ResponseItemEnvelope::new(asked.clone()),
+        ResponseItemEnvelope {
+            item: reasoning_msg("worth keeping while the prefix is cached"),
+            metadata: Some(CodexHarnessMetadata {
+                reasoning_turn: Some("turn-1".to_string()),
+                reasoning_retained: Some(true),
+                ..Default::default()
+            }),
+        },
+    ]);
+
+    // A keep verdict is a statement about a cached prefix. The compaction paths are the only
+    // callers that name no turn, and they send a prompt of their own shape that shares no prefix
+    // with the conversation, so there is nothing for the verdict to protect.
+    assert_eq!(
+        history
+            .clone()
+            .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
+        vec![asked]
+    );
+    assert_eq!(
+        history
+            .for_prompt(&default_input_modalities(), Some("turn-2"))
+            .len(),
+        2
+    );
+}
+
 #[test_case(None, 100, 5, true; "model policy")]
 #[test_case(Some(200), 100, 200, false; "configured override")]
 #[test_case(Some(100), 85, 100, true; "saved limit has no additional allowance")]

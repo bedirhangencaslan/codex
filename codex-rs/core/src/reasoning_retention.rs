@@ -32,8 +32,10 @@ use crate::request_density::WINDOW_TOKENS;
 
 /// Cached input price as a fraction of uncached, for the providers this fork ships.
 const CACHED_INPUT_PRICE_RATIO: f64 = 0.1;
-/// Bounds on the horizon, so a tiny or absent density estimate cannot make keeping free.
-const MIN_HORIZON: i64 = 1;
+/// Bounds on the horizon. Zero is an answer, not a degenerate case: with the budget spent,
+/// compaction rewrites the prefix before another request is billed for a retained token, so
+/// there is nothing left to amortise a re-prefill over and breaking the prefix can only lose.
+const MIN_HORIZON: i64 = 0;
 const MAX_HORIZON: i64 = 200;
 
 pub(crate) struct RetentionInputs {

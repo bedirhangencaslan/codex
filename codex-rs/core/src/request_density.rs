@@ -27,9 +27,12 @@ use serde::Serialize;
 pub(crate) const WINDOW_TOKENS: i64 = 80_000;
 /// Windows the moving average covers.
 const MAX_SAMPLES: usize = 20;
-/// Density assumed before any window has been measured. Real sessions ran at 345-850 tokens of
-/// context growth per request, so a full window buys roughly this many.
-const DEFAULT_REQUESTS_PER_WINDOW: f64 = 160.0;
+/// Density assumed before any window has been measured. The earlier figure of 160 came from reply
+/// size alone, which leaves out the tool output that dominates real context growth; measured
+/// windows on this fork close at 25-94 requests. Overstating the density inflates the horizon, and
+/// an inflated horizon makes carrying reasoning look expensive enough to drop — which is the side
+/// that pays for a full re-prefill.
+const DEFAULT_REQUESTS_PER_WINDOW: f64 = 70.0;
 const FILENAME: &str = "request_density.json";
 
 #[derive(Default, Serialize, Deserialize)]

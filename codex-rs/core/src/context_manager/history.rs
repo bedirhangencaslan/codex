@@ -729,6 +729,13 @@ fn dropped_reason(
     ) {
         return None;
     }
+    // Every caller that names no active turn is a compaction path, and a compaction prompt sends
+    // its own instructions with no tools, so it shares no cached prefix with the requests around
+    // it. There is no prefix for a keep verdict to protect here, and the summary about to replace
+    // this history carries no reasoning forward either, so it is dropped whatever the verdict.
+    if active_turn_id.is_none() {
+        return Some(DropReason::Reasoning);
+    }
     // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the cached
     // prefix than the re-prefill dropping it would cost. Reasoning that predates that verdict,
     // or that was never stamped, is dropped as it always was.
