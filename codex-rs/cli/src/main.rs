@@ -59,6 +59,7 @@ mod remote_control_cmd;
 #[cfg(target_os = "windows")]
 mod sandbox_setup;
 mod state_db_recovery;
+mod transcript;
 #[cfg(not(windows))]
 mod wsl_paths;
 
@@ -257,6 +258,10 @@ enum DebugSubcommand {
     #[clap(hide = true)]
     TraceReduce(DebugTraceReduceCommand),
 
+    /// Render a session next to what each of its requests cost and left out.
+    #[clap(hide = true)]
+    Transcript(DebugTranscriptCommand),
+
     /// Internal: reset local memory state for a fresh start.
     #[clap(hide = true)]
     ClearMemories,
@@ -324,6 +329,17 @@ struct DebugTraceReduceCommand {
     /// Output path for reduced RolloutTrace JSON. Defaults to TRACE_BUNDLE/state.json.
     #[arg(long = "output", short = 'o', value_name = "FILE")]
     output: Option<PathBuf>,
+}
+
+#[derive(Debug, Parser)]
+struct DebugTranscriptCommand {
+    /// Rollout file to render.
+    #[arg(value_name = "ROLLOUT")]
+    rollout: PathBuf,
+
+    /// Statistics sidecar. Defaults to the analytics/<thread-id>.jsonl beside the session.
+    #[arg(long = "stats", value_name = "FILE")]
+    stats: Option<PathBuf>,
 }
 
 #[derive(Debug, Parser)]
@@ -1707,6 +1723,14 @@ async fn cli_main(
                 )?;
                 run_debug_trace_reduce_command(cmd).await?;
             }
+            DebugSubcommand::Transcript(cmd) => {
+                reject_remote_mode_for_subcommand(
+                    root_remote.as_deref(),
+                    root_remote_auth_token_env.as_deref(),
+                    "debug transcript",
+                )?;
+                run_debug_transcript_command(cmd)?;
+            }
             DebugSubcommand::ClearMemories => {
                 reject_remote_mode_for_subcommand(
                     root_remote.as_deref(),
@@ -2188,6 +2212,15 @@ async fn run_debug_trace_reduce_command(cmd: DebugTraceReduceCommand) -> anyhow:
     let reduced_json = serde_json::to_vec_pretty(&trace)?;
     tokio::fs::write(&output, reduced_json).await?;
     println!("{}", output.display());
+
+    Ok(())
+}
+
+fn run_debug_transcript_command(cmd: DebugTranscriptCommand) -> anyhow::Result<()> {
+    print!(
+        "{}",
+        transcript::render(&cmd.rollout, cmd.stats.as_deref())?
+    );
 
     Ok(())
 }

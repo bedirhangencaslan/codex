@@ -141,6 +141,9 @@ mod prompt_cache_keep_alive;
 mod reasoning_retention;
 mod request_density;
 mod request_stats;
+/// The sidecar schema, so an offline renderer reads exactly what the session wrote.
+pub use request_stats::RequestStatsHeader;
+pub use request_stats::RequestStatsLine;
 pub use agents_md::DEFAULT_AGENTS_MD_FILENAME;
 pub use agents_md::LOCAL_AGENTS_MD_FILENAME;
 pub use agents_md::LoadedAgentsMd;

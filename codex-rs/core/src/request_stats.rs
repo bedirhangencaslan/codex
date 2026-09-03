@@ -40,6 +40,7 @@ use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::TokenUsage;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_string::approx_token_count;
+use serde::Deserialize;
 use serde::Serialize;
 
 use crate::client_common::Prompt;
@@ -61,74 +62,74 @@ const MEASURED_FEATURES: &[Feature] = &[
 ];
 
 /// Session-wide facts, written once as the first line of the file.
-#[derive(Serialize)]
-struct RequestStatsHeader {
-    thread_id: String,
-    started_at: String,
-    model: String,
-    provider: String,
-    reasoning_effort: Option<String>,
-    codex_version: &'static str,
-    features: Vec<&'static str>,
+#[derive(Serialize, Deserialize)]
+pub struct RequestStatsHeader {
+    pub thread_id: String,
+    pub started_at: String,
+    pub model: String,
+    pub provider: String,
+    pub reasoning_effort: Option<String>,
+    pub codex_version: String,
+    pub features: Vec<String>,
     /// The density retention priced against. Held fixed for the session, so it belongs here
     /// rather than on every row.
-    requests_per_window: f64,
+    pub requests_per_window: f64,
 }
 
 /// One request: what it was billed, what was sent, and what was left out of it.
-#[derive(Serialize)]
-struct RequestStatsLine {
-    sequence: u64,
-    timestamp: String,
-    turn_id: String,
-    response_id: Option<String>,
-    invisible: bool,
+#[derive(Serialize, Deserialize)]
+pub struct RequestStatsLine {
+    pub sequence: u64,
+    pub timestamp: String,
+    pub turn_id: String,
+    pub response_id: Option<String>,
+    pub invisible: bool,
 
     // Provider truth. This is the entire bill; everything below only attributes it.
-    input_tokens: i64,
-    cached_input_tokens: i64,
-    output_tokens: i64,
+    pub input_tokens: i64,
+    pub cached_input_tokens: i64,
+    pub output_tokens: i64,
     /// The quality dial. Thoughts of a few dozen tokens at `high` effort mean the model is not
     /// thinking, and that the optimisations are not why the answers got worse.
-    reasoning_output_tokens: i64,
-    total_tokens: i64,
+    pub reasoning_output_tokens: i64,
+    pub total_tokens: i64,
 
     // What was sent, measured on the exact `Prompt`. `None` for requests this module never saw
     // armed, such as compaction, which builds its own prompt.
-    prompt_items: Option<usize>,
-    prompt_tokens_estimated: Option<i64>,
+    pub prompt_items: Option<usize>,
+    pub prompt_tokens_estimated: Option<i64>,
     /// The fixed-prefix term, and a silent cache killer: an MCP server connecting mid-session
     /// changes the tool list and rewrites the prompt from its first token.
-    prompt_tool_specs: Option<usize>,
+    pub prompt_tool_specs: Option<usize>,
 
     // The counterfactual. `prompt_tokens_estimated` plus the dropped and shrunk sizes is the
     // prompt an unoptimised harness would have sent.
     /// `null` means the prompt was byte-identical to the previous one and nothing was paid for
     /// it. The distribution of nulls is the direct answer to why the shrinker never fires.
-    prefix_break: Option<usize>,
-    prefix_break_tokens: i64,
-    dropped_invisible_items: usize,
-    dropped_invisible_tokens: i64,
-    dropped_reasoning_items: usize,
-    dropped_reasoning_tokens: i64,
-    retained_reasoning_items: usize,
-    retained_reasoning_tokens: i64,
+    pub prefix_break: Option<usize>,
+    pub prefix_break_tokens: i64,
+    pub dropped_invisible_items: usize,
+    pub dropped_invisible_tokens: i64,
+    pub dropped_reasoning_items: usize,
+    pub dropped_reasoning_tokens: i64,
+    pub retained_reasoning_items: usize,
+    pub retained_reasoning_tokens: i64,
     /// What `horizon()` predicted. The realised horizon is countable from the log, so this is
     /// the one number that says whether the measured density generalises. `None` where no
     /// verdict was frozen, which is every request with no budget left to amortise over.
-    retention_horizon: Option<i64>,
-    shrunk_outputs: usize,
-    shrunk_tokens_removed: i64,
-    shrunk_lines_removed: usize,
-    shrinkable_before_break: usize,
+    pub retention_horizon: Option<i64>,
+    pub shrunk_outputs: usize,
+    pub shrunk_tokens_removed: i64,
+    pub shrunk_lines_removed: usize,
+    pub shrinkable_before_break: usize,
     /// Join keys, so a renderer can put both versions of one tool output side by side.
-    dropped_call_ids: Vec<String>,
-    shrunk_call_ids: Vec<String>,
+    pub dropped_call_ids: Vec<String>,
+    pub shrunk_call_ids: Vec<String>,
 
-    tool_calls: usize,
+    pub tool_calls: usize,
     /// With `timestamp`, this gives the idle gap before the next request, which is the only
     /// visible signature of the prompt-cache keep-alive.
-    duration_ms: u64,
+    pub duration_ms: u64,
 }
 
 /// Facts about the request in flight, gathered as they become known.
@@ -307,11 +308,11 @@ fn header(config: &Config, thread_id: &str, requests_per_window: f64) -> Request
             .model_reasoning_effort
             .as_ref()
             .map(ReasoningEffort::to_string),
-        codex_version: env!("CARGO_PKG_VERSION"),
+        codex_version: env!("CARGO_PKG_VERSION").to_string(),
         features: MEASURED_FEATURES
             .iter()
             .filter(|feature| config.features.enabled(**feature))
-            .map(|feature| feature.key())
+            .map(|feature| feature.key().to_string())
             .collect(),
         requests_per_window,
     }
