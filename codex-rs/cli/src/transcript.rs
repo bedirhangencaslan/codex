@@ -41,10 +41,31 @@ impl Request {
     /// Uncached-equivalent input, the one number a request can be compared on.
     fn effective_input(&self) -> f64 {
         self.stats.as_ref().map_or(0.0, |stats| {
-            (stats.input_tokens - stats.cached_input_tokens) as f64
-                + CACHED_INPUT_PRICE_RATIO * stats.cached_input_tokens as f64
+            effective_input(stats.input_tokens, stats.cached_input_tokens)
         })
     }
+}
+
+fn effective_input(input: i64, cached: i64) -> f64 {
+    (input - cached) as f64 + CACHED_INPUT_PRICE_RATIO * cached as f64
+}
+
+/// The whole session's bill according to the provider, which is the only total that is not the
+/// log's own arithmetic. `total_token_usage` is cumulative, so the last one carries the session.
+fn rollout_effective_input(lines: &[RolloutLine]) -> Option<f64> {
+    lines
+        .iter()
+        .rev()
+        .find_map(|line| match &line.item {
+            RolloutItem::EventMsg(EventMsg::TokenCount(event)) => event.info.as_ref(),
+            _ => None,
+        })
+        .map(|info| {
+            effective_input(
+                info.total_token_usage.input_tokens,
+                info.total_token_usage.cached_input_tokens,
+            )
+        })
 }
 
 pub(crate) fn render(rollout: &Path, stats: Option<&Path>) -> Result<String> {
@@ -65,9 +86,10 @@ pub(crate) fn render(rollout: &Path, stats: Option<&Path>) -> Result<String> {
         header.as_ref(),
         &lines,
     );
+    let billed = rollout_effective_input(&lines);
     let requests = split_into_requests(lines, rows);
     write_requests(&mut out, &requests);
-    write_trailer(&mut out, &requests);
+    write_trailer(&mut out, &requests, billed);
     Ok(out)
 }
 
@@ -392,7 +414,7 @@ fn write_items(out: &mut String, request: &Request) {
     }
 }
 
-fn write_trailer(out: &mut String, requests: &[Request]) {
+fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
     let rows: Vec<&RequestStatsLine> = requests
         .iter()
         .filter_map(|request| request.stats.as_ref())
@@ -433,6 +455,18 @@ fn write_trailer(out: &mut String, requests: &[Request]) {
         .filter(|request| request.stats.as_ref().is_some_and(|stats| stats.invisible))
         .map(Request::effective_input)
         .sum();
+    // A request that reports no prompt was built outside the turn loop, which is the compaction
+    // summariser. It runs on a prefix of its own, so it is never cached and never discounted.
+    let compaction: f64 = requests
+        .iter()
+        .filter(|request| {
+            request
+                .stats
+                .as_ref()
+                .is_some_and(|stats| stats.prompt_items.is_none())
+        })
+        .map(Request::effective_input)
+        .sum();
 
     let _ = writeln!(
         out,
@@ -464,6 +498,45 @@ fn write_trailer(out: &mut String, requests: &[Request]) {
         "invisible turns:      {} spent",
         thousands(invisible as i64)
     );
+    let _ = writeln!(
+        out,
+        "compaction summaries: {} spent",
+        thousands(compaction as i64)
+    );
+    // The one line the log cannot fake: everything above is the log's own arithmetic, this is the
+    // provider's. A large residue means requests are being billed that no row accounts for, so
+    // every share above is measured against the wrong denominator.
+    match billed {
+        Some(billed) => {
+            let _ = writeln!(
+                out,
+                "unattributed:         {} of {} the provider billed ({})",
+                thousands((billed - bill) as i64),
+                thousands(billed as i64),
+                percentage_of(billed - bill, billed),
+            );
+        }
+        None => {
+            let _ = writeln!(
+                out,
+                "unattributed:         unknown, the rollout carries no token count"
+            );
+        }
+    }
+
+    let (unexplained, unexplained_rows) = unexplained_reprefill(&rows);
+    if unexplained > 0.0 {
+        // The filters are not the only thing that rewrites a prompt. Anything re-injected at the
+        // start of a turn moves the prefix too, and the report cannot see it because no filter
+        // ran. This is the gap between what the log says it removed and what the bill says.
+        let _ = writeln!(
+            out,
+            "\n{unexplained_rows} requests reported an untouched prefix and were charged full \
+             price anyway, {} of it. No filter did that: something outside history rewrote the \
+             prompt, which at a turn boundary is the harness re-injecting its own preamble.",
+            thousands(unexplained as i64),
+        );
+    }
 
     let unarmed = rows.iter().filter(|row| row.prompt_items.is_none()).count();
     let unbroken = rows.iter().filter(|row| row.prefix_break.is_none()).count();
@@ -511,6 +584,28 @@ fn write_trailer(out: &mut String, requests: &[Request]) {
                 .join(", ")
         );
     }
+}
+
+/// Full-price input that no reported filter accounts for.
+///
+/// A request whose prefix the report left alone should have been served everything the previous
+/// request sent. Whatever it was charged for beyond that was re-prefilled by something the report
+/// cannot see. Compaction is excluded, since it rewrites the prefix on purpose and shows up as
+/// total tokens falling.
+fn unexplained_reprefill(rows: &[&RequestStatsLine]) -> (f64, usize) {
+    let mut tokens = 0.0;
+    let mut count = 0;
+    for (previous, row) in rows.iter().zip(rows.iter().skip(1)) {
+        if row.prefix_break.is_some() || row.total_tokens < previous.total_tokens {
+            continue;
+        }
+        let missing = previous.input_tokens - row.cached_input_tokens;
+        if missing > 0 {
+            tokens += (1.0 - CACHED_INPUT_PRICE_RATIO) * missing as f64;
+            count += 1;
+        }
+    }
+    (tokens, count)
 }
 
 /// How many later requests share this one's prefix, i.e. how many times a token kept now is
@@ -571,6 +666,13 @@ fn join_ids(prefix: &str, ids: &[String]) -> String {
     } else {
         format!("{prefix}{}", ids.join(", "))
     }
+}
+
+fn percentage_of(part: f64, whole: f64) -> String {
+    if whole <= 0.0 {
+        return "no bill".to_string();
+    }
+    format!("{:.1}%", 100.0 * part / whole)
 }
 
 fn percentage(part: i64, whole: i64) -> String {
