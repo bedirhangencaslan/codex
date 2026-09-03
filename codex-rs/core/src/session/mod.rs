@@ -4037,12 +4037,16 @@ impl Session {
         let Some(budget_remaining) = status.base_window_tokens_remaining else {
             return;
         };
-        let mut state = self.state.lock().await;
-        state.history.freeze_reasoning_retention(
-            Some(step_context.turn.sub_id.as_str()),
-            budget_remaining,
-            status.active_context_tokens,
-        );
+        let growth = {
+            let mut state = self.state.lock().await;
+            state.history.freeze_reasoning_retention(
+                Some(step_context.turn.sub_id.as_str()),
+                budget_remaining,
+                status.active_context_tokens,
+                self.request_density.requests_per_window(),
+            )
+        };
+        self.request_density.observe(growth).await;
     }
 
     pub(crate) async fn conversation_history_snapshot(

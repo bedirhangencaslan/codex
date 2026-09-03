@@ -139,6 +139,7 @@ mod agents_md_manager;
 mod agents_md_memory;
 mod prompt_cache_keep_alive;
 mod reasoning_retention;
+mod request_density;
 pub use agents_md::DEFAULT_AGENTS_MD_FILENAME;
 pub use agents_md::LOCAL_AGENTS_MD_FILENAME;
 pub use agents_md::LoadedAgentsMd;

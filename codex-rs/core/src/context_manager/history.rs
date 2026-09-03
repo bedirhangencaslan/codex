@@ -62,9 +62,6 @@ pub(crate) struct ContextManager {
     turn_reasoning_output_tokens: Option<(String, i64)>,
     /// Active context size the last time reasoning retention was priced.
     last_decision_context_tokens: Option<i64>,
-    /// Running (sum, count) of context growth between those pricing points, so the horizon a
-    /// retention decision amortises over is observed rather than guessed.
-    turn_growth: (i64, u32),
     /// Reference context snapshot used for diffing and producing model-visible
     /// settings update items.
     ///
@@ -127,7 +124,6 @@ impl ContextManager {
             ),
             turn_reasoning_output_tokens: None,
             last_decision_context_tokens: None,
-            turn_growth: (0, 0),
             reference_context_item: None,
             world_state_baseline: None,
         }
@@ -258,39 +254,37 @@ impl ContextManager {
             .collect()
     }
 
-    /// Freezes the keep/drop verdict on reasoning whose turn has ended.
+    /// Freezes the keep/drop verdict on reasoning whose turn has ended, and reports how much
+    /// context this request added so the caller can keep measuring the user's request density.
     ///
-    /// `context_tokens` is the active context size right now; successive calls turn it into the
-    /// mean per-turn growth, which is what says how many more requests this prefix has to live
-    /// through before compaction rewrites it anyway.
+    /// `requests_per_window` is that density: how many more requests this prefix has to live
+    /// through per window of budget, before compaction rewrites it anyway.
     pub(crate) fn freeze_reasoning_retention(
         &mut self,
         active_turn_id: Option<&str>,
         budget_remaining: i64,
         context_tokens: i64,
-    ) {
-        let turn_growth_tokens = self.observe_turn_growth(context_tokens);
+        requests_per_window: f64,
+    ) -> i64 {
+        let growth = self.observe_context_growth(context_tokens);
         crate::reasoning_retention::freeze_reasoning_retention(
             Arc::make_mut(&mut self.items).as_mut_slice(),
             active_turn_id,
             RetentionInputs {
                 budget_remaining,
-                turn_growth_tokens,
+                requests_per_window,
             },
         );
+        growth
     }
 
-    fn observe_turn_growth(&mut self, context_tokens: i64) -> Option<i64> {
-        if let Some(previous) = self.last_decision_context_tokens.replace(context_tokens) {
-            let growth = context_tokens.saturating_sub(previous);
-            // Compaction and rollback shrink the context; only forward growth says anything
-            // about what the next turn will add.
-            if growth > 0 {
-                self.turn_growth.0 = self.turn_growth.0.saturating_add(growth);
-                self.turn_growth.1 = self.turn_growth.1.saturating_add(1);
-            }
+    /// Context added since the previous pricing point. Compaction and rollback shrink the
+    /// context; only forward growth says anything about what the next request will add.
+    fn observe_context_growth(&mut self, context_tokens: i64) -> i64 {
+        match self.last_decision_context_tokens.replace(context_tokens) {
+            Some(previous) => context_tokens.saturating_sub(previous).max(0),
+            None => 0,
         }
-        (self.turn_growth.1 > 0).then(|| self.turn_growth.0 / i64::from(self.turn_growth.1))
     }
 
     /// Returns normalized history envelopes for internal consumers that must retain metadata.

@@ -28,33 +28,32 @@ use codex_protocol::models::ResponseItem;
 use codex_utils_output_truncation::approx_token_count;
 
 use crate::context_manager::estimate_item_token_count;
+use crate::request_density::WINDOW_TOKENS;
 
 /// Cached input price as a fraction of uncached, for the providers this fork ships.
 const CACHED_INPUT_PRICE_RATIO: f64 = 0.1;
-/// Context growth assumed for a turn before any has been observed. The measured session
-/// added 1–2.8K tokens per request.
-const DEFAULT_TURN_GROWTH_TOKENS: i64 = 2_000;
-/// Bounds on the horizon, so a tiny or absent growth estimate cannot make keeping free.
+/// Bounds on the horizon, so a tiny or absent density estimate cannot make keeping free.
 const MIN_HORIZON: i64 = 1;
 const MAX_HORIZON: i64 = 200;
 
 pub(crate) struct RetentionInputs {
     /// Tokens left before the next auto-compaction.
     pub budget_remaining: i64,
-    /// Observed mean context growth per turn, or `None` before the second turn.
-    pub turn_growth_tokens: Option<i64>,
+    /// Requests this user gets out of a full context window, from
+    /// [`crate::request_density::RequestDensity`].
+    pub requests_per_window: f64,
 }
 
 /// Requests expected before compaction resets the prefix anyway.
 ///
 /// Beyond that point the prefix is rewritten wholesale, so reasoning kept past it is never
-/// re-billed and must not be counted as if it were.
+/// re-billed and must not be counted as if it were. What is left of the budget is a fraction of
+/// a window; the user's measured density turns that fraction into the count of requests that a
+/// retained token would actually be re-billed on.
 fn horizon(inputs: &RetentionInputs) -> i64 {
-    let growth = inputs
-        .turn_growth_tokens
-        .filter(|growth| *growth > 0)
-        .unwrap_or(DEFAULT_TURN_GROWTH_TOKENS);
-    (inputs.budget_remaining / growth).clamp(MIN_HORIZON, MAX_HORIZON)
+    let windows_remaining = inputs.budget_remaining.max(0) as f64 / WINDOW_TOKENS as f64;
+    ((windows_remaining * inputs.requests_per_window).round() as i64)
+        .clamp(MIN_HORIZON, MAX_HORIZON)
 }
 
 /// Cost of breaking the prefix at one candidate, in uncached-input token equivalents.
@@ -270,11 +269,11 @@ mod tests {
             .collect()
     }
 
-    /// A 40-request horizon: 80K of budget left, growing 2K per turn.
+    /// A 40-request horizon: a full window of budget left, and 40 requests to a window.
     fn inputs() -> RetentionInputs {
         RetentionInputs {
-            budget_remaining: 80_000,
-            turn_growth_tokens: Some(2_000),
+            budget_remaining: WINDOW_TOKENS,
+            requests_per_window: 40.0,
         }
     }
 
@@ -321,7 +320,7 @@ mod tests {
             /*active_turn_id*/ None,
             RetentionInputs {
                 budget_remaining: 0,
-                turn_growth_tokens: Some(1),
+                requests_per_window: 1.0,
             },
         );
 
