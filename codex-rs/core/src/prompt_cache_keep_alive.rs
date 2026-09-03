@@ -17,11 +17,9 @@
 //! or token accounting. A keep-alive is invisible to the rest of Suffice by construction rather
 //! than by discipline: there is nothing here it could reach even by mistake.
 //!
-//! The budget is deliberately small. One replay costs about as much as a rounding error, but five
-//! of them cost roughly one avoided cache miss, so after ten idle minutes the session parks and
-//! waits for a real request to re-arm it. That budget prices the risk that an idle user never comes
-//! back; it is suspended by [`PromptCacheKeepAlive::hold`] while the harness is waiting on work it
-//! started itself, where there is no such risk.
+//! The budget below prices the risk that an idle user never comes back. It is suspended by
+//! [`PromptCacheKeepAlive::hold`] while the harness is waiting on work it started itself, where
+//! there is no such risk.
 
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
@@ -50,9 +48,15 @@ const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(120);
 
 /// How many refreshes may fire before a real request has to re-arm the session.
 ///
-/// Five refreshes cost about the same as one cache miss, so beyond this the feature stops paying
-/// for itself and the session is very likely abandoned rather than idle.
-const MAX_CONSECUTIVE_KEEP_ALIVES: u32 = 5;
+/// A refresh resends the prefix while the entry is still warm, so it is billed at the cached rate
+/// and costs `prefix * c`. The miss it prevents costs `prefix * (1 - c)`. With cached input at
+/// roughly a tenth of uncached, the two break even at `p * (1 - c) / c` refreshes, where `p` is the
+/// chance the user returns at all — nine when returning is certain.
+///
+/// Nine is deliberately the `p = 1` bound rather than a hedge against abandoned sessions. Below it
+/// the feature is leaving money on the table for every user who does come back, and an abandoned
+/// session stops costing anything after eighteen minutes either way.
+const MAX_CONSECUTIVE_KEEP_ALIVES: u32 = 9;
 
 /// Output cap for a replay.
 ///
@@ -351,7 +355,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_keep_alive_stops_after_five_consecutive_fires() {
+    async fn the_keep_alive_stops_once_the_idle_budget_is_spent() {
         let keep_alive = keep_alive();
         let (mut seen, mut fires) = (0, 0);
 
