@@ -435,21 +435,22 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
         ),
     );
 
-    // A retained token is re-billed on every later request until compaction rewrites the prefix
-    // wholesale, which is what makes a drop worth its re-prefill. Total tokens falling is the
-    // compaction event, so it is also the window boundary.
-    let remaining = requests_until_compaction(&rows);
+    // Every row reports the filtering of the prompt it built, so what a filter removed is a
+    // standing property of that one request, not an event to be multiplied out over later ones.
+    // Those later requests report the same absence themselves; charging them a horizon as well
+    // counts the same tokens once per request that benefits from them.
     let mut retention_saved = 0.0;
-    let mut retention_cost = 0.0;
     let mut standing_keep = 0.0;
     let mut shrinker = 0.0;
-    for (index, row) in rows.iter().enumerate() {
-        let horizon = remaining[index] as f64;
-        retention_saved += CACHED_INPUT_PRICE_RATIO * row.dropped_reasoning_tokens as f64 * horizon;
-        retention_cost += (1.0 - CACHED_INPUT_PRICE_RATIO) * row.prefix_break_tokens as f64;
+    for row in &rows {
+        retention_saved += CACHED_INPUT_PRICE_RATIO * row.dropped_reasoning_tokens as f64;
         standing_keep += CACHED_INPUT_PRICE_RATIO * row.retained_reasoning_tokens as f64;
-        shrinker += CACHED_INPUT_PRICE_RATIO * row.shrunk_tokens_removed as f64 * horizon;
+        shrinker += CACHED_INPUT_PRICE_RATIO * row.shrunk_tokens_removed as f64;
     }
+    // The break is likewise reported by every request built after it, but it is only paid by the
+    // one that actually lost the cache. Take the price from the provider instead of the report.
+    let (retention_cost, _) = reprefill(&rows, true);
+    let (unexplained, unexplained_rows) = reprefill(&rows, false);
     let invisible: f64 = requests
         .iter()
         .filter(|request| request.stats.as_ref().is_some_and(|stats| stats.invisible))
@@ -524,7 +525,6 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
         }
     }
 
-    let (unexplained, unexplained_rows) = unexplained_reprefill(&rows);
     if unexplained > 0.0 {
         // The filters are not the only thing that rewrites a prompt. Anything re-injected at the
         // start of a turn moves the prefix too, and the report cannot see it because no filter
@@ -586,17 +586,23 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
     }
 }
 
-/// Full-price input that no reported filter accounts for.
+/// Input a request was charged full price for that the one before it had already sent, priced at
+/// `1 − c` because it should have been cached.
 ///
-/// A request whose prefix the report left alone should have been served everything the previous
-/// request sent. Whatever it was charged for beyond that was re-prefilled by something the report
-/// cannot see. Compaction is excluded, since it rewrites the prefix on purpose and shows up as
-/// total tokens falling.
-fn unexplained_reprefill(rows: &[&RequestStatsLine]) -> (f64, usize) {
+/// `blamed` selects which half: requests whose report claims a filter moved the prefix, or
+/// requests whose report claims nothing moved and which were charged anyway.
+///
+/// Compaction is excluded from both, because the summariser's prompt and the compacted history
+/// that follows it share no prefix with anything. A missing prompt is the exact marker for it;
+/// total tokens falling is not, since dropping reasoning lowers them too.
+fn reprefill(rows: &[&RequestStatsLine], blamed: bool) -> (f64, usize) {
     let mut tokens = 0.0;
     let mut count = 0;
     for (previous, row) in rows.iter().zip(rows.iter().skip(1)) {
-        if row.prefix_break.is_some() || row.total_tokens < previous.total_tokens {
+        if row.prefix_break.is_some() != blamed
+            || row.prompt_items.is_none()
+            || previous.prompt_items.is_none()
+        {
             continue;
         }
         let missing = previous.input_tokens - row.cached_input_tokens;
@@ -606,20 +612,6 @@ fn unexplained_reprefill(rows: &[&RequestStatsLine]) -> (f64, usize) {
         }
     }
     (tokens, count)
-}
-
-/// How many later requests share this one's prefix, i.e. how many times a token kept now is
-/// re-billed. Compaction rewrites the prefix wholesale, and shows up as total tokens falling.
-fn requests_until_compaction(rows: &[&RequestStatsLine]) -> Vec<usize> {
-    let mut remaining = vec![0; rows.len()];
-    for (index, count) in remaining.iter_mut().enumerate() {
-        *count = rows[index + 1..]
-            .iter()
-            .zip(&rows[index..])
-            .take_while(|(next, previous)| next.total_tokens >= previous.total_tokens)
-            .count();
-    }
-    remaining
 }
 
 /// Concatenates, because a streamed message is persisted as one text part per token and the wire
