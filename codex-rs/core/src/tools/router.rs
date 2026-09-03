@@ -362,6 +362,12 @@ impl ToolRouter {
             ..
         } = call;
 
+        // A tool call is the longest the harness ever goes without sending a request: a build or a
+        // test suite can outlast the provider's prompt-cache TTL several times over. Unlike a pause
+        // at the composer, the request that follows is certain, so the refresh is certain to be
+        // claimed and the idle budget must not cut it short.
+        let _keep_alive = session.services.model_client.hold_prompt_cache_keep_alive();
+
         // Keep the legacy ToolInvocation.turn field tied to the same request state until handlers migrate.
         let turn = Arc::clone(&step_context.turn);
         let invocation = ToolInvocation {

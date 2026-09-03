@@ -19,7 +19,9 @@
 //!
 //! The budget is deliberately small. One replay costs about as much as a rounding error, but five
 //! of them cost roughly one avoided cache miss, so after ten idle minutes the session parks and
-//! waits for a real request to re-arm it.
+//! waits for a real request to re-arm it. That budget prices the risk that an idle user never comes
+//! back; it is suspended by [`PromptCacheKeepAlive::hold`] while the harness is waiting on work it
+//! started itself, where there is no such risk.
 
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
@@ -27,6 +29,7 @@ use std::sync::OnceLock;
 use std::sync::PoisonError;
 use std::sync::Weak;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
@@ -79,6 +82,29 @@ pub(crate) struct PromptCacheKeepAlive {
     /// there is no ordering between separate atomics to reason about.
     armed: StdMutex<Option<Armed>>,
     task_started: AtomicBool,
+    /// How many pieces of work the harness is currently waiting on. Read only to decide whether
+    /// the budget applies, so it needs no ordering relative to the snapshot above.
+    holds: AtomicUsize,
+}
+
+/// Suspends the refresh budget for as long as it is held.
+///
+/// The budget prices the chance that a paused session is abandoned rather than idle: past some
+/// point the refreshes are warming an entry nobody will ever claim. That reasoning does not apply
+/// while the harness is blocked on something it started itself, such as a long shell command. There
+/// the next request is not a guess but a certainty, and so is the cache miss the refresh prevents,
+/// so the budget is suspended rather than merely widened — a command that runs for an hour is
+/// covered for an hour.
+///
+/// The suspension is a guard rather than a pair of calls because tool dispatch can fail or be
+/// cancelled, and a hold leaked by an early return would disable the budget for the rest of the
+/// session.
+pub(crate) struct KeepAliveHold(Arc<PromptCacheKeepAlive>);
+
+impl Drop for KeepAliveHold {
+    fn drop(&mut self) {
+        self.0.holds.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 impl std::fmt::Debug for PromptCacheKeepAlive {
@@ -102,7 +128,14 @@ impl PromptCacheKeepAlive {
         Self {
             armed: StdMutex::new(None),
             task_started: AtomicBool::new(false),
+            holds: AtomicUsize::new(0),
         }
+    }
+
+    /// Marks the harness as waiting on work it started, suspending the budget until the guard drops.
+    pub(crate) fn hold(self: &Arc<Self>) -> KeepAliveHold {
+        self.holds.fetch_add(1, Ordering::SeqCst);
+        KeepAliveHold(Arc::clone(self))
     }
 
     /// Records a real request as the one to replay while the session is idle.
@@ -149,9 +182,11 @@ impl PromptCacheKeepAlive {
             *fires = 0;
             return Tick::Rearm;
         }
-        if *fires >= MAX_CONSECUTIVE_KEEP_ALIVES {
+        if *fires >= MAX_CONSECUTIVE_KEEP_ALIVES && self.holds.load(Ordering::SeqCst) == 0 {
             return Tick::Park;
         }
+        // Counted even when the budget is suspended: `next_deadline` reads this to place the next
+        // wake-up, so a fire that did not advance it would leave the deadline in the past and spin.
         *fires += 1;
         Tick::Fire(armed.clone())
     }
@@ -332,6 +367,37 @@ mod tests {
             ));
         }
 
+        assert!(matches!(
+            keep_alive.on_tick(&mut seen, &mut fires),
+            Tick::Park
+        ));
+    }
+
+    #[tokio::test]
+    async fn waiting_on_a_tool_call_outlasts_the_idle_budget() {
+        let keep_alive = keep_alive();
+        let (mut seen, mut fires) = (0, 0);
+
+        arm(&keep_alive);
+        assert!(matches!(
+            keep_alive.on_tick(&mut seen, &mut fires),
+            Tick::Rearm
+        ));
+
+        let hold = keep_alive.hold();
+        // A build that runs far past the idle budget still has a request waiting behind it, so
+        // parking here would hand back the whole prefix moments before it is needed.
+        for _ in 0..MAX_CONSECUTIVE_KEEP_ALIVES * 3 {
+            assert!(matches!(
+                keep_alive.on_tick(&mut seen, &mut fires),
+                Tick::Fire(_)
+            ));
+        }
+        // The schedule still advanced, or the idle task would wake on a deadline in the past and
+        // spin through requests as fast as the provider answered them.
+        assert_eq!(fires, MAX_CONSECUTIVE_KEEP_ALIVES * 3);
+
+        drop(hold);
         assert!(matches!(
             keep_alive.on_tick(&mut seen, &mut fires),
             Tick::Park

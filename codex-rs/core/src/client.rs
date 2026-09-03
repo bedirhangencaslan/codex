@@ -127,6 +127,7 @@ use crate::context::BaseInstructionsFragment;
 use crate::context::ContextualUserFragment;
 use crate::cyber_access_program;
 use crate::feedback_tags;
+use crate::prompt_cache_keep_alive::KeepAliveHold;
 use crate::prompt_cache_keep_alive::PromptCacheKeepAlive;
 use crate::responses_metadata::CodexResponsesMetadata;
 use crate::responses_metadata::subagent_header_value;
@@ -552,6 +553,14 @@ impl ModelClient {
     fn prompt_cache_keep_alive_slot(&self, provider: &ApiProvider) -> Option<Arc<OnceLock<Value>>> {
         (self.prompt_cache_keep_alive_enabled && provider.wire == ApiWireApi::Chat)
             .then(|| Arc::new(OnceLock::new()))
+    }
+
+    /// Keeps the idle keep-alive refreshing for as long as the returned guard is held.
+    ///
+    /// Handed out so callers that block on their own work can say so without learning anything
+    /// about the schedule; see [`KeepAliveHold`].
+    pub(crate) fn hold_prompt_cache_keep_alive(&self) -> KeepAliveHold {
+        self.state.prompt_cache_keep_alive.hold()
     }
 
     pub(crate) fn with_session_context(
