@@ -57,7 +57,12 @@ pub(crate) async fn refresh_agents_md_before_compaction(
         return;
     };
 
-    run_memory_turn(sess, turn_context, codex_prompts::agents_md_memory_prompt(&target)).await;
+    run_memory_turn(
+        sess,
+        turn_context,
+        codex_prompts::agents_md_memory_prompt(&target),
+    )
+    .await;
 
     // The manager's cache key is the environment selections and the trust level, neither of which
     // changed here, so without this the file the agent just wrote stays invisible for the rest of
@@ -167,12 +172,9 @@ async fn run_memory_turn(sess: &Arc<Session>, parent: &TurnContext, prompt: Stri
         else {
             return;
         };
-        // `Some(sub_id)` is what lets this turn see its own items; every later prompt passes a
-        // different id, or none, and so sees none of them.
-        let input = sess.clone_history().await.for_prompt(
-            &step_context.settings.model_info.input_modalities,
-            Some(turn_context.sub_id.as_str()),
-        );
+        // Naming this turn as the active one is what lets it see its own items; every later
+        // prompt names a different turn, or none, and so sees none of them.
+        let input = sess.prompt_input_for_step(step_context.as_ref()).await;
         let result = run_sampling_request(
             Arc::clone(sess),
             Arc::clone(&step_context),

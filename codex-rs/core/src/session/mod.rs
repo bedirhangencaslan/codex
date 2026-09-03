@@ -4023,6 +4023,23 @@ impl Session {
         state.clone_history()
     }
 
+    /// Builds the model input for a step, and hands the statistics recorder the account of what
+    /// building it left out.
+    ///
+    /// Every attempt at a request goes through here, including the retries that rebuild the
+    /// input, so the recorded filtering is always the one that produced the prompt actually sent.
+    pub(crate) async fn prompt_input_for_step(
+        &self,
+        step_context: &StepContext,
+    ) -> Vec<ResponseItem> {
+        let (input, report) = self.clone_history().await.for_prompt_measured(
+            &step_context.settings.model_info.input_modalities,
+            Some(step_context.turn.sub_id.as_str()),
+        );
+        self.request_stats.arm(report);
+        input
+    }
+
     /// Prices the reasoning of the turn that has just finished, and freezes the answer.
     ///
     /// Called as the next turn is about to be sampled, which is the one moment where the
@@ -4035,8 +4052,16 @@ impl Session {
         let status = context_window::context_window_token_status(self, &step_context.turn).await;
         // With no budget to amortise over there is nothing to trade against a re-prefill.
         let Some(budget_remaining) = status.base_window_tokens_remaining else {
+            self.request_stats.record_retention_horizon(None);
             return;
         };
+        self.request_stats
+            .record_retention_horizon(Some(crate::reasoning_retention::horizon(
+                &crate::reasoning_retention::RetentionInputs {
+                    budget_remaining,
+                    requests_per_window: self.request_density.requests_per_window(),
+                },
+            )));
         let growth = {
             let mut state = self.state.lock().await;
             state.history.freeze_reasoning_retention(
@@ -4250,6 +4275,10 @@ impl Session {
         turn_context: &TurnContext,
         token_usage: Option<&TokenUsage>,
     ) -> CodexResult<()> {
+        // Every completed request lands here, whether it came from a turn, the project memory
+        // refresh, or compaction, which makes this the one place a row can be written per
+        // request without teaching each of those paths about statistics.
+        self.request_stats.flush(turn_context, token_usage);
         if let Some(token_usage) = token_usage {
             let token_info = {
                 let mut state = self.state.lock().await;

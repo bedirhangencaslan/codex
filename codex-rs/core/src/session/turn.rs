@@ -374,14 +374,10 @@ pub(crate) async fn run_turn(
             sess.freeze_reasoning_retention(step_context.as_ref()).await;
 
             // Construct the input that we will send to the model.
-            let sampling_request_input: Vec<ResponseItem> = async {
-                sess.clone_history().await.for_prompt(
-                    &step_context.settings.model_info.input_modalities,
-                    Some(step_context.turn.sub_id.as_str()),
-                )
-            }
-            .instrument(trace_span!("run_turn.prepare_sampling_request_input"))
-            .await;
+            let sampling_request_input: Vec<ResponseItem> = sess
+                .prompt_input_for_step(step_context.as_ref())
+                .instrument(trace_span!("run_turn.prepare_sampling_request_input"))
+                .await;
 
             let responses_metadata = sess
                 .responses_metadata(turn_context.as_ref(), CodexResponsesRequestKind::Turn)
@@ -1398,10 +1394,7 @@ pub(crate) async fn run_sampling_request(
         let prompt_input = if let Some(input) = initial_input.take() {
             input
         } else {
-            sess.clone_history().await.for_prompt(
-                &step_context.settings.model_info.input_modalities,
-                Some(step_context.turn.sub_id.as_str()),
-            )
+            sess.prompt_input_for_step(step_context.as_ref()).await
         };
         let mut prompt_input = prompt_input;
         if let Some(executed_tool_calls) = sess.services.executed_tool_calls.as_ref()
@@ -1415,6 +1408,7 @@ pub(crate) async fn run_sampling_request(
             step_context.as_ref(),
             base_instructions.clone(),
         );
+        sess.request_stats.record_prompt(&prompt);
         let err = match try_run_sampling_request(
             tool_runtime.clone(),
             Arc::clone(&sess),
@@ -2581,6 +2575,9 @@ async fn try_run_sampling_request(
                 usage_metadata,
                 end_turn,
             } => {
+                // Read before the take below empties it.
+                sess.request_stats
+                    .record_response(&response_id, analytics_tool_call_ids.len());
                 sess.services
                     .analytics_events_client
                     .track_code_mode_tool_call(

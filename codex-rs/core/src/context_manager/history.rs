@@ -741,7 +741,7 @@ fn dropped_reason(
 /// [`estimate_item_token_count`] reports reasoning as zero, because everywhere else in this
 /// codebase reasoning is something the server bills rather than something the prompt carries.
 /// Here the prompt is exactly what is being measured, so reasoning is measured directly.
-fn measured_item_token_count(item: &ResponseItem) -> i64 {
+pub(crate) fn measured_item_token_count(item: &ResponseItem) -> i64 {
     match item {
         ResponseItem::Reasoning { .. } => crate::reasoning_retention::reasoning_tokens(item),
         item => estimate_item_token_count(item),

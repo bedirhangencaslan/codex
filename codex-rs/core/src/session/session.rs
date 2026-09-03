@@ -11,6 +11,7 @@ use crate::environment_selection::ThreadEnvironments;
 use crate::environment_selection::TurnEnvironmentSnapshot;
 use crate::hook_mcp_executor::CoreHookMcpExecutor;
 use crate::request_density::RequestDensity;
+use crate::request_stats::RequestStats;
 use crate::responses_metadata::CodexResponsesMetadata;
 use crate::responses_metadata::CodexResponsesRequestKind;
 use crate::shell_snapshot::ShellSnapshot;
@@ -77,6 +78,9 @@ pub(crate) struct Session {
     /// Requests a context window buys this user, measured across their recent windows and used
     /// to price how long a retained token would keep being re-billed.
     pub(super) request_density: RequestDensity,
+    /// Prices every request against what building its prompt removed. Off unless
+    /// [`Feature::RequestStats`] is set, and never observable by the model.
+    pub(super) request_stats: RequestStats,
 }
 
 #[derive(Clone)]
@@ -1471,6 +1475,12 @@ impl Session {
                 turn_environments: Arc::clone(&turn_environments),
             };
             let (mcp_prewarm_tx, mcp_prewarm_rx) = async_channel::bounded(1);
+            let request_density = RequestDensity::load(&config.codex_home).await;
+            let request_stats = RequestStats::open(
+                config.as_ref(),
+                &thread_id.to_string(),
+                request_density.requests_per_window(),
+            );
             let sess = Arc::new(Session {
                 thread_id,
                 installation_id,
@@ -1498,7 +1508,8 @@ impl Session {
                 fork_persistence,
                 forked_from_ordinal_exclusive,
                 next_internal_sub_id: AtomicU64::new(0),
-                request_density: RequestDensity::load(&config.codex_home).await,
+                request_density,
+                request_stats,
             });
             if let Some(network_policy_decider_session) = network_policy_decider_session {
                 let mut guard = network_policy_decider_session.write().await;

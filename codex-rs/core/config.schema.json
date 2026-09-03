@@ -868,6 +868,9 @@
             "request_rule": {
               "type": "boolean"
             },
+            "request_stats": {
+              "type": "boolean"
+            },
             "resize_all_images": {
               "type": "boolean"
             },
@@ -6152,6 +6155,9 @@
           "type": "boolean"
         },
         "request_rule": {
+          "type": "boolean"
+        },
+        "request_stats": {
           "type": "boolean"
         },
         "resize_all_images": {

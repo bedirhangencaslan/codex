@@ -175,6 +175,8 @@ pub enum Feature {
     PromptCacheKeepAlive,
     /// Price keeping a finished turn's reasoning against the cache miss dropping it would cost.
     ReasoningCostModel,
+    /// Log per-request token statistics to the Codex home so the cost mechanisms can be measured.
+    RequestStats,
     /// Enable importing project-scoped memory from external agents.
     ExternalAgentMemoryImport,
     /// Compress cold local thread-store rollout files.
@@ -1089,6 +1091,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "reasoning_cost_model",
         stage: Stage::Stable,
         default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::RequestStats,
+        key: "request_stats",
+        stage: Stage::Stable,
+        default_enabled: false,
     },
     FeatureSpec {
         id: Feature::ExternalAgentMemoryImport,
