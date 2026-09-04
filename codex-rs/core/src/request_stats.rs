@@ -262,8 +262,8 @@ impl RequestStats {
 
     /// Writes one row and clears the armed slot.
     ///
-    /// Called wherever the provider's usage lands, which covers ordinary turns, the project
-    /// memory turn, and compaction alike. Compaction builds its own prompt and never arms, so
+    /// Called wherever the provider's usage lands, which covers ordinary turns and compaction
+    /// alike. Compaction builds its own prompt and never arms, so
     /// its row carries the bill with the prompt columns null rather than with a stale report.
     /// Taking the slot is what guarantees that: a superseded record can never outlive its
     /// request.

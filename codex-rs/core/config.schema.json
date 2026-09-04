@@ -829,9 +829,6 @@
             "prevent_idle_sleep": {
               "type": "boolean"
             },
-            "project_memory": {
-              "type": "boolean"
-            },
             "prompt_cache_keep_alive": {
               "type": "boolean"
             },
@@ -6116,9 +6113,6 @@
           "type": "boolean"
         },
         "prevent_idle_sleep": {
-          "type": "boolean"
-        },
-        "project_memory": {
           "type": "boolean"
         },
         "prompt_cache_keep_alive": {
