@@ -149,6 +149,20 @@ pub(crate) fn freeze_reasoning_retention(
     }
 }
 
+/// The verdict when reasoning is not priced at all: dropped the moment its turn ends, as it
+/// always was. It is written onto the item all the same, so that the compaction prompt, which
+/// names no active turn, leaves out exactly what the request before it left out.
+pub(crate) fn drop_completed_reasoning(
+    items: &mut [ResponseItemEnvelope],
+    active_turn_id: Option<&str>,
+) {
+    for envelope in items.iter_mut() {
+        if is_undecided_completed_reasoning(envelope, active_turn_id) {
+            stamp(envelope, false);
+        }
+    }
+}
+
 fn stamp(envelope: &mut ResponseItemEnvelope, retained: bool) {
     envelope.metadata.get_or_insert_default().reasoning_retained = Some(retained);
 }
@@ -336,5 +350,14 @@ mod tests {
         freeze_reasoning_retention(&mut items, Some(TURN), inputs());
 
         assert_eq!(retained(&items), vec![None]);
+    }
+
+    #[test]
+    fn unpriced_reasoning_is_dropped_the_moment_its_turn_ends() {
+        let mut items = vec![thinking(32, TURN), filler(15_000), thinking(32, "turn-2")];
+
+        drop_completed_reasoning(&mut items, Some("turn-2"));
+
+        assert_eq!(retained(&items), vec![Some(false), None]);
     }
 }

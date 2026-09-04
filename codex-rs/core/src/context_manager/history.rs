@@ -290,6 +290,15 @@ impl ContextManager {
         growth
     }
 
+    /// The verdict when reasoning is not priced: dropped the moment its turn ends, as it always
+    /// was, but written onto the item so the compaction prompt agrees with the request before it.
+    pub(crate) fn drop_completed_reasoning(&mut self, active_turn_id: Option<&str>) {
+        crate::reasoning_retention::drop_completed_reasoning(
+            Arc::make_mut(&mut self.items).as_mut_slice(),
+            active_turn_id,
+        );
+    }
+
     /// Context added since the previous pricing point. Compaction and rollback shrink the
     /// context; only forward growth says anything about what the next request will add.
     fn observe_context_growth(&mut self, context_tokens: i64) -> i64 {
@@ -729,13 +738,27 @@ fn dropped_reason(
     ) {
         return None;
     }
-    // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the cached
-    // prefix than the re-prefill dropping it would cost. The verdict is a property of the
-    // reasoning, not of the caller, so a prompt that names no active turn honours it too: naming
-    // no turn means "nothing here is still being written", not "drop what was kept".
-    // Reasoning that predates that verdict, or that was never stamped, is dropped as it always was.
-    (metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true))
-        .then_some(DropReason::Reasoning)
+    // The frozen verdict is a property of the reasoning, not of the caller, so a prompt that
+    // names no active turn honours it too: naming no turn means "nothing here is still being
+    // written", not "drop what was kept". Dropping kept reasoning there would break the very
+    // prefix the verdict was paid for.
+    match metadata.and_then(|metadata| metadata.reasoning_retained) {
+        Some(true) => None,
+        Some(false) => Some(DropReason::Reasoning),
+        None => {
+            // Undecided reasoning from a turn this build recorded. While a turn runs, the pricing
+            // pass stamps everything older before each prompt, so nothing undecided reaches one;
+            // a prompt naming no turn is compaction, which runs no pass and follows the last
+            // request the model answered. That request carried this reasoning, and the summary
+            // is the final prompt on the prefix it left behind, so leaving it out now would only
+            // re-prefill the turn for nothing. Reasoning with no owning turn predates the verdict
+            // and is dropped as it always was.
+            let owned = metadata
+                .and_then(|metadata| metadata.reasoning_turn.as_deref())
+                .is_some();
+            (active_turn_id.is_some() || !owned).then_some(DropReason::Reasoning)
+        }
+    }
 }
 
 /// Size of one item as the prompt carries it.

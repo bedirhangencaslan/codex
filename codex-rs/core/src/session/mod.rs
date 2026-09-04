@@ -4071,12 +4071,24 @@ impl Session {
     /// nothing has been sent that would have to stay byte-identical to a different verdict.
     pub(crate) async fn freeze_reasoning_retention(&self, step_context: &StepContext) {
         if !self.features.enabled(Feature::ReasoningCostModel) {
+            // Not pricing reasoning means dropping it the moment its turn ends. Say so on the
+            // item, so the compaction prompt, which names no turn, leaves out exactly what the
+            // request before it left out instead of putting it back and breaking the prefix
+            // a second time.
+            let mut state = self.state.lock().await;
+            state
+                .history
+                .drop_completed_reasoning(Some(step_context.turn.sub_id.as_str()));
             return;
         }
         let status = context_window::context_window_token_status(self, &step_context.turn).await;
         // With no budget to amortise over there is nothing to trade against a re-prefill.
         let Some(budget_remaining) = status.base_window_tokens_remaining else {
             self.request_stats.record_retention_horizon(None);
+            let mut state = self.state.lock().await;
+            state
+                .history
+                .drop_completed_reasoning(Some(step_context.turn.sub_id.as_str()));
             return;
         };
         self.request_stats

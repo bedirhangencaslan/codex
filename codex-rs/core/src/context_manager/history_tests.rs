@@ -582,12 +582,27 @@ fn reasoning_stays_in_the_prompt_only_while_its_own_turn_runs() {
         ]
     );
 
-    // Once the turn ends, its thinking stops being replayed.
+    // Once another turn runs, the finished turn's thinking stops being replayed.
+    assert_eq!(
+        history
+            .clone()
+            .for_prompt(&default_input_modalities(), Some("turn-3")),
+        vec![asked.clone(), called.clone()]
+    );
+
+    // A prompt naming no turn is compaction, which follows the last request the model answered
+    // rather than deciding anything: thinking nobody has priced yet stays in, whichever turn
+    // produced it.
     assert_eq!(
         history
             .clone()
             .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
-        vec![asked.clone(), called.clone()]
+        vec![
+            asked.clone(),
+            reasoning_msg("earlier turn thinking"),
+            called.clone(),
+            reasoning_msg("current turn thinking"),
+        ]
     );
 
     // Reasoning left unstamped by an older rollout has no owning turn and is dropped.
