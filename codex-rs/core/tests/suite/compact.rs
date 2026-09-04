@@ -641,16 +641,9 @@ async fn summarize_context_three_requests_and_instructions() {
         }
     }
 
-    // The last assistant answer fits the verbatim retention budget and survives compaction.
-    let assistant_messages: Vec<&String> = messages
-        .iter()
-        .filter_map(|(role, text)| (role == "assistant").then_some(text))
-        .collect();
-    assert_eq!(
-        assistant_messages,
-        vec![FIRST_REPLY],
-        "only the retained assistant answer should remain"
-    );
+    // No previous assistant messages should remain and the new user message is present.
+    let assistant_count = messages.iter().filter(|(r, _)| r == "assistant").count();
+    assert_eq!(assistant_count, 0, "assistant history should be cleared");
     assert!(
         messages
             .iter()

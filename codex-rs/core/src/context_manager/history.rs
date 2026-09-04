@@ -56,11 +56,6 @@ pub(crate) struct ContextManager {
     /// Monotonic user-input/reset revision, independent of compaction's history generation.
     user_message_revision: u64,
     token_info: Option<TokenUsageInfo>,
-    /// Reasoning tokens the server has already charged into `last_token_usage`, together with the
-    /// turn that produced them. Reasoning is turn-scoped: it is resent while its turn is still
-    /// running, then dropped from the prompt forever. So once that turn ends this amount is still
-    /// part of the reported usage but no longer part of the next request's input.
-    turn_reasoning_output_tokens: Option<(String, i64)>,
     /// Active context size the last time reasoning retention was priced.
     last_decision_context_tokens: Option<i64>,
     /// Which items the prompt built after the last pricing pass carried, so the next pass can
@@ -135,7 +130,6 @@ impl ContextManager {
             token_info: TokenUsageInfo::new_or_append(
                 &None, &None, /*model_context_window*/ None,
             ),
-            turn_reasoning_output_tokens: None,
             last_decision_context_tokens: None,
             last_prompt_footprint: None,
             reference_context_item: None,
@@ -596,21 +590,38 @@ impl ContextManager {
         &mut self,
         usage: &TokenUsage,
         model_context_window: Option<i64>,
-        turn_id: &str,
     ) {
         self.token_info = TokenUsageInfo::new_or_append(
             &self.token_info,
             &Some(usage.clone()),
             model_context_window,
         );
-        // A turn can span several requests; every one of them charges reasoning that is only
-        // resent for the remainder of that same turn, so accumulate across the whole turn.
-        match &mut self.turn_reasoning_output_tokens {
-            Some((id, tokens)) if id == turn_id => {
-                *tokens = tokens.saturating_add(usage.reasoning_output_tokens);
-            }
-            slot => *slot = Some((turn_id.to_string(), usage.reasoning_output_tokens)),
-        }
+    }
+
+    fn get_non_last_reasoning_items_tokens(&self) -> i64 {
+        // Get reasoning items excluding all the ones after the last instruction boundary.
+        let Some(last_user_index) = self
+            .items
+            .iter()
+            .rposition(|envelope| is_user_turn_boundary(&envelope.item))
+        else {
+            return 0;
+        };
+
+        self.items
+            .iter()
+            .take(last_user_index)
+            .filter(|envelope| {
+                matches!(
+                    &envelope.item,
+                    ResponseItem::Reasoning {
+                        encrypted_content: Some(_),
+                        ..
+                    }
+                )
+            })
+            .map(|envelope| estimate_item_token_count(&envelope.item))
+            .fold(0i64, i64::saturating_add)
     }
 
     // These are local items added after the most recent model-emitted item.
@@ -626,31 +637,23 @@ impl ContextManager {
         self.items[start..].iter().map(|envelope| &envelope.item)
     }
 
-    /// Approximates the input the next request will actually carry.
-    ///
-    /// `last_token_usage.total_tokens` counts everything the last request billed, including the
-    /// reasoning it produced. Reasoning is turn-scoped, so once the turn that produced it has
-    /// ended it is no longer sent and must be discounted; `active_turn_id` identifies the turn the
-    /// caller is about to sample for, and reasoning still belonging to that turn is left in.
-    pub(crate) fn get_total_token_usage(&self, active_turn_id: Option<&str>) -> i64 {
+    pub(crate) fn get_total_token_usage(&self, server_reasoning_included: bool) -> i64 {
         let last_tokens = self
             .token_info
             .as_ref()
             .map(|info| info.last_token_usage.total_tokens)
             .unwrap_or(0);
-        let finished_turn_reasoning_tokens = self
-            .turn_reasoning_output_tokens
-            .as_ref()
-            .filter(|(turn_id, _)| Some(turn_id.as_str()) != active_turn_id)
-            .map_or(0, |(_, tokens)| *tokens);
         let items_after_last_model_generated_tokens = self
             .items_after_last_model_generated_item()
             .map(estimate_item_token_count)
             .fold(0i64, i64::saturating_add);
-        last_tokens
-            .saturating_sub(finished_turn_reasoning_tokens)
-            .max(0)
-            .saturating_add(items_after_last_model_generated_tokens)
+        if server_reasoning_included {
+            last_tokens.saturating_add(items_after_last_model_generated_tokens)
+        } else {
+            last_tokens
+                .saturating_add(self.get_non_last_reasoning_items_tokens())
+                .saturating_add(items_after_last_model_generated_tokens)
+        }
     }
 
     pub(crate) fn estimated_tokens_after_last_model_generated_item(&self) -> i64 {

@@ -30,7 +30,6 @@ pub(crate) async fn context_window_token_status(
         sess,
         turn_context.config.as_ref(),
         turn_context.model_info().as_ref(),
-        &turn_context.sub_id,
     )
     .await
 }
@@ -47,16 +46,15 @@ pub(crate) async fn context_window_token_status_for_model(
         turn_context.use_model_token_budget_defaults,
         model_info,
     );
-    context_window_token_status_with_config(sess, &config, model_info, &turn_context.sub_id).await
+    context_window_token_status_with_config(sess, &config, model_info).await
 }
 
 async fn context_window_token_status_with_config(
     sess: &Session,
     config: &Config,
     model_info: &ModelInfo,
-    active_turn_id: &str,
 ) -> ContextWindowTokenStatus {
-    let active_context_tokens = sess.get_total_token_usage(Some(active_turn_id)).await;
+    let active_context_tokens = sess.get_total_token_usage().await;
 
     // Count either the full active context or only the tokens added after the initial prefix.
     let (auto_compact_scope_tokens, auto_compact_scope_limit, auto_compact_window_prefill_tokens) =

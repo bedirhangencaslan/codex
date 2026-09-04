@@ -12264,7 +12264,7 @@ async fn sample_rollout(
     let summary1 = "summary one";
     let snapshot1 = raw_history_items(&live_history);
     let user_messages1 = collect_user_messages(&snapshot1);
-    let rebuilt1 = compact::build_compacted_history(Vec::new(), &user_messages1, &[], summary1);
+    let rebuilt1 = compact::build_compacted_history(Vec::new(), &user_messages1, summary1);
     live_history.replace_annotated(rebuilt1);
     let (window_number, window_ids) = session.advance_auto_compact_window().await;
     rollout_items.push(RolloutItem::Compacted(CompactedItem {
@@ -12294,7 +12294,7 @@ async fn sample_rollout(
     let summary2 = "summary two";
     let snapshot2 = raw_history_items(&live_history);
     let user_messages2 = collect_user_messages(&snapshot2);
-    let rebuilt2 = compact::build_compacted_history(Vec::new(), &user_messages2, &[], summary2);
+    let rebuilt2 = compact::build_compacted_history(Vec::new(), &user_messages2, summary2);
     live_history.replace_annotated(rebuilt2);
     let (window_number, window_ids) = session.advance_auto_compact_window().await;
     rollout_items.push(RolloutItem::Compacted(CompactedItem {

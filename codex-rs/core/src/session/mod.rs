@@ -369,7 +369,6 @@ use codex_protocol::turn_input::TurnStartOptions;
 use codex_protocol::user_input::UserInput;
 use codex_skills_extension::HostSkillsService;
 use codex_tools::ToolName;
-use codex_tools::ToolSpec;
 use codex_tools::UnifiedExecShellMode;
 use codex_utils_absolute_path::AbsolutePathBuf;
 #[cfg(test)]
@@ -1266,11 +1265,9 @@ impl Session {
         format!("auto-compact-{id}")
     }
 
-    /// `active_turn_id` is the turn the caller is about to sample for; reasoning produced by any
-    /// other turn is discounted because it will not be resent.
-    pub(crate) async fn get_total_token_usage(&self, active_turn_id: Option<&str>) -> i64 {
+    pub(crate) async fn get_total_token_usage(&self) -> i64 {
         let state = self.state.lock().await;
-        state.get_total_token_usage(active_turn_id)
+        state.get_total_token_usage(state.server_reasoning_included())
     }
 
     pub(crate) async fn auto_compact_window_snapshot(&self) -> AutoCompactWindowSnapshot {
@@ -3345,29 +3342,6 @@ impl Session {
         }
     }
 
-    /// Tool specs of the step this turn last executed.
-    ///
-    /// Compaction builds its prompt outside any step, so it has no tool router of its own. An
-    /// empty tool list is not neutral: the request then omits the `tools` field entirely, which
-    /// changes the prompt ahead of the conversation and costs a full re-prefill of a history that
-    /// is about to be summarized. Reusing the surrounding requests' specs keeps that prefix.
-    /// Empty when no step ran under this turn, which is what compaction sent before.
-    pub(crate) async fn last_known_tool_specs(&self) -> Arc<[ToolSpec]> {
-        let turn_state = {
-            let active_turn = self.active_turn.lock().await;
-            active_turn
-                .as_ref()
-                .map(|active_turn| Arc::clone(&active_turn.turn_state))
-        };
-        let Some(turn_state) = turn_state else {
-            return Arc::default();
-        };
-        let step_context = turn_state.lock().await.last_known_step_context.clone();
-        step_context
-            .map(|step_context| step_context.tool_router.model_visible_specs())
-            .unwrap_or_default()
-    }
-
     /// Captures one request-scoped view of dynamic state and retains it for the active turn.
     ///
     /// This may refresh filesystem-derived state. Normal turns should call it only from
@@ -4311,18 +4285,15 @@ impl Session {
         turn_context: &TurnContext,
         token_usage: Option<&TokenUsage>,
     ) -> CodexResult<()> {
-        // Every completed request lands here, whether it came from a turn, the project memory
-        // refresh, or compaction, which makes this the one place a row can be written per
-        // request without teaching each of those paths about statistics.
+        // Every completed request lands here, whether it came from a turn or from compaction,
+        // which makes this the one place a row can be written per request without teaching each
+        // of those paths about statistics.
         self.request_stats.flush(turn_context, token_usage);
         if let Some(token_usage) = token_usage {
             let token_info = {
                 let mut state = self.state.lock().await;
-                state.update_token_info_from_usage(
-                    token_usage,
-                    turn_context.model_context_window(),
-                    &turn_context.sub_id,
-                );
+                state
+                    .update_token_info_from_usage(token_usage, turn_context.model_context_window());
                 if matches!(
                     turn_context.config.model_auto_compact_token_limit_scope,
                     AutoCompactTokenLimitScope::BodyAfterPrefix

@@ -1118,14 +1118,7 @@ async fn run_review_on_session(
                     let history_tokens = reviewer_history
                         .estimate_token_count_with_base_instructions(&base_instructions)
                         .unwrap_or(i64::MAX)
-                        .max(
-                            review_session
-                                .session
-                                // Sizing a prompt that starts a new reviewer turn, so no prior
-                                // reasoning will be resent.
-                                .get_total_token_usage(/*active_turn_id*/ None)
-                                .await,
-                        );
+                        .max(review_session.session.get_total_token_usage().await);
                     prompt_tokens <= GUARDIAN_MAX_IMAGE_ITEM_TOKENS
                         && prompt_tokens.saturating_add(history_tokens) <= context_window
                 } else {

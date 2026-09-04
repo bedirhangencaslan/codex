@@ -161,10 +161,8 @@ impl SessionState {
         &mut self,
         usage: &TokenUsage,
         model_context_window: Option<i64>,
-        turn_id: &str,
     ) {
-        self.history
-            .update_token_info(usage, model_context_window, turn_id);
+        self.history.update_token_info(usage, model_context_window);
     }
 
     pub(crate) fn ensure_auto_compact_window_server_prefill_from_usage(
@@ -246,12 +244,17 @@ impl SessionState {
         self.history.set_token_usage_full(context_window);
     }
 
-    pub(crate) fn get_total_token_usage(&self, active_turn_id: Option<&str>) -> i64 {
-        self.history.get_total_token_usage(active_turn_id)
+    pub(crate) fn get_total_token_usage(&self, server_reasoning_included: bool) -> i64 {
+        self.history
+            .get_total_token_usage(server_reasoning_included)
     }
 
     pub(crate) fn set_server_reasoning_included(&mut self, included: bool) {
         self.server_reasoning_included = included;
+    }
+
+    pub(crate) fn server_reasoning_included(&self) -> bool {
+        self.server_reasoning_included
     }
 
     pub(crate) fn record_mcp_dependency_prompted<I>(&mut self, names: I)

@@ -901,7 +901,6 @@ fn total_token_usage_includes_all_items_after_last_model_generated_item() {
             ..Default::default()
         },
         /*model_context_window*/ None,
-        /*turn_id*/ "turn-1",
     );
     let added_user = user_msg("new user message");
     let added_tool_output = custom_tool_call_output("tool-tail", "new tool output");
@@ -911,36 +910,9 @@ fn total_token_usage_includes_all_items_after_last_model_generated_item() {
     );
 
     assert_eq!(
-        history.get_total_token_usage(/*active_turn_id*/ Some("turn-1")),
+        history.get_total_token_usage(/*server_reasoning_included*/ true),
         100 + estimate_item_token_count(&added_user)
             + estimate_item_token_count(&added_tool_output)
-    );
-}
-
-#[test]
-fn total_token_usage_discounts_reasoning_once_its_turn_ends() {
-    let mut history = create_history_with_items(vec![assistant_msg("already counted by API")]);
-    for tokens in [30, 20] {
-        history.update_token_info(
-            &TokenUsage {
-                total_tokens: 100,
-                reasoning_output_tokens: tokens,
-                ..Default::default()
-            },
-            /*model_context_window*/ None,
-            /*turn_id*/ "turn-1",
-        );
-    }
-
-    // Still inside the turn: its reasoning is resent, so nothing is discounted.
-    assert_eq!(
-        history.get_total_token_usage(/*active_turn_id*/ Some("turn-1")),
-        100
-    );
-    // The next turn never sees that reasoning again.
-    assert_eq!(
-        history.get_total_token_usage(/*active_turn_id*/ Some("turn-2")),
-        50
     );
 }
 

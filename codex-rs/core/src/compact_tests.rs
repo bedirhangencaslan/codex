@@ -216,86 +216,6 @@ fn collect_user_messages_filters_legacy_warnings() {
     assert_eq!(vec![compacted_user_message("real user message")], collected);
 }
 
-fn assistant_message_item(text: &str) -> ResponseItem {
-    ResponseItem::Message {
-        id: None,
-        role: "assistant".to_string(),
-        content: vec![ContentItem::OutputText {
-            text: text.to_string(),
-        }],
-        phase: None,
-        internal_chat_message_metadata_passthrough: None,
-    }
-}
-
-#[test]
-fn retained_assistant_tail_skips_tool_traffic_and_keeps_whole_request_groups() {
-    let items = annotated(vec![
-        user_message("first"),
-        assistant_message_item(&"word ".repeat(200)),
-        ResponseItem::Other,
-        user_message("second"),
-        assistant_message_item("short answer"),
-    ]);
-
-    let collected = collect_annotated_assistant_messages(&items);
-    assert_eq!(
-        collected.iter().map(|m| m.request_index).collect::<Vec<_>>(),
-        vec![1, 2]
-    );
-
-    // Only the second request's answer fits, so the first group is left to the summary.
-    let retained = super::select_retained_assistant_tail(&collected, 16);
-    assert_eq!(
-        retained
-            .iter()
-            .map(|m| (m.request_index, m.text.as_str()))
-            .collect::<Vec<_>>(),
-        vec![(2, "short answer")]
-    );
-}
-
-#[test]
-fn build_compacted_history_interleaves_retained_assistant_messages() {
-    let user_messages = vec![
-        compacted_user_message("first"),
-        compacted_user_message("second"),
-    ];
-    let retained = super::select_retained_assistant_tail(
-        &collect_annotated_assistant_messages(&annotated(vec![
-            user_message("first"),
-            assistant_message_item("answer one"),
-            user_message("second"),
-            assistant_message_item("answer two"),
-        ])),
-        usize::MAX,
-    );
-
-    let history = build_compacted_history(Vec::new(), &user_messages, &retained, "SUMMARY");
-
-    let texts = history
-        .iter()
-        .map(|envelope| match &envelope.item {
-            ResponseItem::Message { role, content, .. } => (
-                role.as_str(),
-                content_items_to_text(content).unwrap_or_default(),
-            ),
-            other => panic!("unexpected item in history: {other:?}"),
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        texts,
-        vec![
-            ("user", "first".to_string()),
-            ("assistant", "answer one".to_string()),
-            ("user", "second".to_string()),
-            ("assistant", "answer two".to_string()),
-            ("user", "SUMMARY".to_string()),
-        ]
-    );
-}
-
 #[test]
 fn build_token_limited_compacted_history_truncates_overlong_user_messages() {
     // Use a small truncation limit so the test remains fast while still validating
@@ -310,7 +230,6 @@ fn build_token_limited_compacted_history_truncates_overlong_user_messages() {
     let history = super::build_compacted_history_with_limit(
         Vec::new(),
         std::slice::from_ref(&user_message),
-        &[],
         "SUMMARY",
         max_tokens,
     );
@@ -352,7 +271,7 @@ fn build_token_limited_compacted_history_appends_summary_message() {
     let user_messages = vec![compacted_user_message("first user message")];
     let summary_text = "summary text";
 
-    let history = build_compacted_history(initial_context, &user_messages, &[], summary_text);
+    let history = build_compacted_history(initial_context, &user_messages, summary_text);
     assert!(
         !history.is_empty(),
         "expected compacted history to include summary"
@@ -387,7 +306,6 @@ fn build_compacted_history_preserves_user_message_passthrough_metadata() {
             ),
             harness_metadata: Some(CodexHarnessMetadata::default()),
         }],
-        &[],
         "summary text",
     );
 
