@@ -735,35 +735,38 @@ fn the_report_names_what_the_prompt_no_longer_carries() {
 }
 
 #[test]
-fn a_prompt_with_no_active_turn_carries_no_reasoning_even_when_it_was_kept() {
+fn a_prompt_with_no_active_turn_still_honours_the_keep_verdict() {
     let asked = user_msg("do the thing");
+    let kept = reasoning_msg("worth keeping while the prefix is cached");
     let mut history = ContextManager::new();
     history.replace_annotated(vec![
         ResponseItemEnvelope::new(asked.clone()),
         ResponseItemEnvelope {
-            item: reasoning_msg("worth keeping while the prefix is cached"),
+            item: kept.clone(),
             metadata: Some(CodexHarnessMetadata {
                 reasoning_turn: Some("turn-1".to_string()),
                 reasoning_retained: Some(true),
                 ..Default::default()
             }),
         },
+        ResponseItemEnvelope {
+            item: reasoning_msg("priced as cheaper to drop"),
+            metadata: Some(CodexHarnessMetadata {
+                reasoning_turn: Some("turn-1".to_string()),
+                reasoning_retained: Some(false),
+                ..Default::default()
+            }),
+        },
     ]);
 
-    // A keep verdict is a statement about a cached prefix. The compaction paths are the only
-    // callers that name no turn, and they send a prompt of their own shape that shares no prefix
-    // with the conversation, so there is nothing for the verdict to protect.
+    // Naming no active turn — the compaction paths — says nothing is still being written; it does
+    // not re-decide what the cost model already froze. Dropping kept reasoning here would break
+    // the very prefix the verdict was paid for.
     assert_eq!(
         history
             .clone()
             .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
-        vec![asked]
-    );
-    assert_eq!(
-        history
-            .for_prompt(&default_input_modalities(), Some("turn-2"))
-            .len(),
-        2
+        vec![asked, kept]
     );
 }
 

@@ -369,6 +369,7 @@ use codex_protocol::turn_input::TurnStartOptions;
 use codex_protocol::user_input::UserInput;
 use codex_skills_extension::HostSkillsService;
 use codex_tools::ToolName;
+use codex_tools::ToolSpec;
 use codex_tools::UnifiedExecShellMode;
 use codex_utils_absolute_path::AbsolutePathBuf;
 #[cfg(test)]
@@ -3342,6 +3343,29 @@ impl Session {
         if let Some(turn_state) = turn_state {
             turn_state.lock().await.last_known_step_context = Some(Arc::clone(step_context));
         }
+    }
+
+    /// Tool specs of the step this turn last executed.
+    ///
+    /// Compaction builds its prompt outside any step, so it has no tool router of its own. An
+    /// empty tool list is not neutral: the request then omits the `tools` field entirely, which
+    /// changes the prompt ahead of the conversation and costs a full re-prefill of a history that
+    /// is about to be summarized. Reusing the surrounding requests' specs keeps that prefix.
+    /// Empty when no step ran under this turn, which is what compaction sent before.
+    pub(crate) async fn last_known_tool_specs(&self) -> Arc<[ToolSpec]> {
+        let turn_state = {
+            let active_turn = self.active_turn.lock().await;
+            active_turn
+                .as_ref()
+                .map(|active_turn| Arc::clone(&active_turn.turn_state))
+        };
+        let Some(turn_state) = turn_state else {
+            return Arc::default();
+        };
+        let step_context = turn_state.lock().await.last_known_step_context.clone();
+        step_context
+            .map(|step_context| step_context.tool_router.model_visible_specs())
+            .unwrap_or_default()
     }
 
     /// Captures one request-scoped view of dynamic state and retains it for the active turn.
