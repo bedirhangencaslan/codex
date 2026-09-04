@@ -16,3 +16,6 @@ project_root_markers = [".git"]
 
 [history]
 persistence = "save-all"
+
+[features]
+memories = true
