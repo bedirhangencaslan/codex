@@ -63,6 +63,9 @@ pub(crate) struct ContextManager {
     turn_reasoning_output_tokens: Option<(String, i64)>,
     /// Active context size the last time reasoning retention was priced.
     last_decision_context_tokens: Option<i64>,
+    /// Which items the prompt built after the last pricing pass carried, so the next pass can
+    /// tell a cache break from an item the cache never held.
+    last_prompt_footprint: Option<PromptFootprint>,
     /// Reference context snapshot used for diffing and producing model-visible
     /// settings update items.
     ///
@@ -82,6 +85,15 @@ struct SharedConversationHistory {
     items: Arc<Vec<ResponseItemEnvelope>>,
     history_version: u64,
     user_message_revision: u64,
+}
+
+/// The items one prompt carried, by history index, for the history revision it was built from.
+/// Appending keeps earlier indices stable; anything that rewrites or shifts them invalidates it.
+#[derive(Debug, Clone)]
+struct PromptFootprint {
+    history_version: u64,
+    /// One entry per item history held at the time: `true` if the prompt carried it.
+    sent: Vec<bool>,
 }
 
 pub(crate) enum HistoryReplacement {
@@ -125,6 +137,7 @@ impl ContextManager {
             ),
             turn_reasoning_output_tokens: None,
             last_decision_context_tokens: None,
+            last_prompt_footprint: None,
             reference_context_item: None,
             world_state_baseline: None,
         }
@@ -279,6 +292,12 @@ impl ContextManager {
         requests_per_window: f64,
     ) -> i64 {
         let growth = self.observe_context_growth(context_tokens);
+        // A footprint taken before the history was rewritten describes a prompt on a different
+        // prefix, which the cache does not hold either.
+        let previous_prompt = self
+            .last_prompt_footprint
+            .take()
+            .filter(|footprint| footprint.history_version == self.history_version);
         crate::reasoning_retention::freeze_reasoning_retention(
             Arc::make_mut(&mut self.items).as_mut_slice(),
             active_turn_id,
@@ -286,7 +305,11 @@ impl ContextManager {
                 budget_remaining,
                 requests_per_window,
             },
+            previous_prompt
+                .as_ref()
+                .map(|footprint| footprint.sent.as_slice()),
         );
+        self.record_prompt_footprint(active_turn_id);
         growth
     }
 
@@ -297,6 +320,19 @@ impl ContextManager {
             Arc::make_mut(&mut self.items).as_mut_slice(),
             active_turn_id,
         );
+        self.record_prompt_footprint(active_turn_id);
+    }
+
+    /// Remembers which items the prompt built right after this call will carry.
+    fn record_prompt_footprint(&mut self, active_turn_id: Option<&str>) {
+        self.last_prompt_footprint = Some(PromptFootprint {
+            history_version: self.history_version,
+            sent: self
+                .items
+                .iter()
+                .map(|envelope| dropped_reason(envelope, active_turn_id).is_none())
+                .collect(),
+        });
     }
 
     /// Context added since the previous pricing point. Compaction and rollback shrink the
@@ -466,6 +502,8 @@ impl ContextManager {
             // running a full normalization pass.
             normalize::remove_corresponding_for(items, &removed.item);
             self.world_state_baseline = None;
+            // Every surviving index just moved.
+            self.last_prompt_footprint = None;
         }
     }
 

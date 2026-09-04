@@ -12,7 +12,7 @@
 //! five-figure re-prefill. At `max` effort the same reasoning is orders of magnitude larger and
 //! the trade flips. So this is arithmetic, not a constant, and it is done here.
 //!
-//! Two properties make the pass cheap and safe:
+//! Three properties make the pass cheap and safe:
 //!
 //! - **Cascade.** Invalidation runs from the first difference to the end, so once anything is
 //!   dropped every droppable item after it costs no additional cache. There is therefore only
@@ -20,6 +20,11 @@
 //! - **Freezing.** A verdict is written onto the item and never recomputed. A decision that
 //!   flipped between requests would produce exactly the cache miss the whole pass exists to
 //!   avoid.
+//! - **The cache holds what was sent, not what history holds.** A break is a difference between
+//!   this prompt and the previous one. An item the previous prompt already left out is not a
+//!   break when this one leaves it out too, and an item no prompt has carried yet costs nothing
+//!   to leave out and nothing to re-prefill. The pass is told what the previous prompt carried
+//!   and prices against that.
 
 use codex_history::ResponseItemEnvelope;
 use codex_protocol::models::ReasoningItemContent;
@@ -31,7 +36,11 @@ use crate::context_manager::estimate_item_token_count;
 use crate::request_density::WINDOW_TOKENS;
 
 /// Cached input price as a fraction of uncached, for the providers this fork ships.
-const CACHED_INPUT_PRICE_RATIO: f64 = 0.1;
+///
+/// Z.ai bills `glm-5.3-flash` cached input at $0.015 per million tokens against $0.075 fresh,
+/// and the list price keeps the same ratio. A carried token is a fifth of a re-prefilled one,
+/// not a tenth: the smaller figure made every verdict twice as willing to keep.
+const CACHED_INPUT_PRICE_RATIO: f64 = 0.2;
 /// Bounds on the horizon. Zero is an answer, not a degenerate case: with the budget spent,
 /// compaction rewrites the prefix before another request is billed for a retained token, so
 /// there is nothing left to amortise a re-prefill over and breaking the prefix can only lose.
@@ -77,23 +86,42 @@ fn break_cost(suffix_tokens: i64, retained_reasoning_tokens: i64, horizon: i64) 
 /// a break anyway. An earliest-first pass that stopped at the first profitable candidate would
 /// break the prefix too early and pay for a re-prefill that a later break would have covered.
 ///
+/// `previous_prompt` records, by history index, which items the previous prompt carried. It is
+/// what tells a cache break apart from a stable omission. An item the previous prompt already
+/// left out (an invisible turn's request that survived compaction, reasoning dropped on an
+/// earlier request) is not a break now, because the cached prefix never held it; treating it
+/// as one made every later item "free" to drop, and dropping them caused the very break they
+/// were supposed to be riding on. Items past the end of the previous prompt were never sent at
+/// all, so dropping them costs nothing and re-prefills nothing. `None` means the previous prompt
+/// is unknown, and every item is assumed to have been carried.
+///
 /// Reasoning belonging to `active_turn_id` is left undecided: the model is still following it,
 /// and its final size is not known yet.
 pub(crate) fn freeze_reasoning_retention(
     items: &mut [ResponseItemEnvelope],
     active_turn_id: Option<&str>,
     inputs: RetentionInputs,
+    previous_prompt: Option<&[bool]>,
 ) {
-    // Where the prefix is already broken by something this pass does not control: an item from
-    // a finished invisible turn, reasoning already sentenced to be dropped, or reasoning that
-    // predates this metadata and is dropped for the same reason it always was.
+    let was_sent = |index: usize| match previous_prompt {
+        Some(sent) => sent.get(index).copied().unwrap_or(false),
+        None => true,
+    };
+
+    // Where the prefix is already broken by something this pass does not control: an item the
+    // previous prompt carried that this one leaves out whatever is decided here, which in
+    // practice is the first item of an invisible turn that has just finished.
     let forced_break = items
         .iter()
-        .position(|envelope| is_dropped_regardless(envelope, active_turn_id))
+        .enumerate()
+        .position(|(index, envelope)| {
+            was_sent(index) && is_dropped_regardless(envelope, active_turn_id)
+        })
         .unwrap_or(items.len());
 
     let mut candidates = Vec::new();
     let mut free_drops = Vec::new();
+    let mut is_candidate = vec![false; items.len()];
     for (index, envelope) in items.iter().enumerate() {
         if !is_undecided_completed_reasoning(envelope, active_turn_id) {
             continue;
@@ -103,6 +131,7 @@ pub(crate) fn freeze_reasoning_retention(
             free_drops.push(index);
         } else {
             candidates.push((index, reasoning_tokens(&envelope.item)));
+            is_candidate[index] = true;
         }
     }
     for index in free_drops {
@@ -112,12 +141,21 @@ pub(crate) fn freeze_reasoning_retention(
         return;
     }
 
-    // Tokens from each index to the end of history. Reasoning contributes nothing here, which
-    // is why its size is measured separately.
+    // Tokens the cached prefix holds from each index to the end: only items the previous prompt
+    // carried and this one keeps count, because those are what a break re-prefills. The
+    // candidates themselves are left out, since from the break onwards every one of them is
+    // dropped.
     let mut suffix_tokens = vec![0i64; items.len() + 1];
     for (index, envelope) in items.iter().enumerate().rev() {
-        suffix_tokens[index] =
-            suffix_tokens[index + 1].saturating_add(estimate_item_token_count(&envelope.item));
+        let carried = was_sent(index)
+            && !is_candidate[index]
+            && !is_dropped_regardless(envelope, active_turn_id);
+        let tokens = if carried {
+            carried_tokens(&envelope.item)
+        } else {
+            0
+        };
+        suffix_tokens[index] = suffix_tokens[index + 1].saturating_add(tokens);
     }
 
     let horizon = horizon(&inputs);
@@ -138,7 +176,10 @@ pub(crate) fn freeze_reasoning_retention(
             total.saturating_sub(dropped),
             horizon,
         );
-        if cost < best_cost {
+        // A tie goes to dropping. It happens when no prompt has carried anything from this
+        // candidate on, so leaving it out changes nothing the cache holds and the prompt only
+        // gets smaller.
+        if cost <= best_cost {
             best_cost = cost;
             best_break = *index;
         }
@@ -207,6 +248,11 @@ fn belongs_to_active_turn(active_turn_id: Option<&str>, owner: Option<&str>) -> 
     matches!((active_turn_id, owner), (Some(active), Some(owner)) if active == owner)
 }
 
+/// Size of one item as the prompt carries it, reasoning included.
+fn carried_tokens(item: &ResponseItem) -> i64 {
+    estimate_item_token_count(item).saturating_add(reasoning_tokens(item))
+}
+
 /// Size of the reasoning text that actually goes on the wire.
 ///
 /// The history-wide estimator reports reasoning as zero tokens, because for most of this
@@ -254,6 +300,16 @@ mod tests {
         })
     }
 
+    /// The request of an invisible turn that has since finished.
+    fn finished_invisible_request() -> ResponseItemEnvelope {
+        let mut envelope = filler(200);
+        envelope.metadata = Some(CodexHarnessMetadata {
+            invisible_turn: Some("memory-turn".to_string()),
+            ..Default::default()
+        });
+        envelope
+    }
+
     fn thinking(tokens: usize, turn: &str) -> ResponseItemEnvelope {
         ResponseItemEnvelope {
             item: ResponseItem::Reasoning {
@@ -293,11 +349,19 @@ mod tests {
         }
     }
 
+    /// No requests left before compaction rewrites the prefix.
+    fn spent() -> RetentionInputs {
+        RetentionInputs {
+            budget_remaining: 0,
+            requests_per_window: 40.0,
+        }
+    }
+
     #[test]
     fn tiny_reasoning_is_kept_because_dropping_it_rewrites_the_whole_turn() {
         let mut items = vec![thinking(32, TURN), filler(15_000)];
 
-        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
+        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs(), None);
 
         assert_eq!(retained(&items), vec![Some(true)]);
     }
@@ -306,7 +370,7 @@ mod tests {
     fn large_reasoning_is_dropped_once_it_outweighs_the_reprefill() {
         let mut items = vec![thinking(5_000, TURN), filler(15_000)];
 
-        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
+        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs(), None);
 
         assert_eq!(retained(&items), vec![Some(false)]);
     }
@@ -320,7 +384,7 @@ mod tests {
             filler(10),
         ];
 
-        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
+        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs(), None);
 
         assert_eq!(retained(&items), vec![Some(false), Some(false)]);
     }
@@ -329,7 +393,7 @@ mod tests {
     fn a_decision_is_never_revisited() {
         let mut items = vec![thinking(32, TURN), filler(15_000)];
 
-        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
+        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs(), None);
         let frozen = retained(&items);
         freeze_reasoning_retention(
             &mut items,
@@ -338,6 +402,7 @@ mod tests {
                 budget_remaining: 0,
                 requests_per_window: 1.0,
             },
+            None,
         );
 
         assert_eq!(retained(&items), frozen);
@@ -347,9 +412,55 @@ mod tests {
     fn active_turn_reasoning_is_left_undecided() {
         let mut items = vec![thinking(5_000, TURN), filler(15_000)];
 
-        freeze_reasoning_retention(&mut items, Some(TURN), inputs());
+        freeze_reasoning_retention(&mut items, Some(TURN), inputs(), None);
 
         assert_eq!(retained(&items), vec![None]);
+    }
+
+    #[test]
+    fn an_item_the_previous_prompt_already_left_out_is_not_a_break() {
+        // An invisible turn's request that survived compaction is dropped from every prompt, so
+        // the cached prefix never held it. The reasoning after it still has to be priced, and
+        // at this size it is kept; treating the stable omission as a break dropped it for
+        // "free" and re-prefilled the 15k after it.
+        let mut items = vec![
+            finished_invisible_request(),
+            thinking(32, TURN),
+            filler(15_000),
+        ];
+        let previous_prompt = [false, true, true];
+
+        freeze_reasoning_retention(
+            &mut items,
+            /*active_turn_id*/ None,
+            inputs(),
+            Some(&previous_prompt),
+        );
+
+        assert_eq!(retained(&items), vec![Some(true)]);
+    }
+
+    #[test]
+    fn reasoning_no_prompt_has_carried_yet_is_dropped_for_free() {
+        // The turn's last request produced the trailing thinking and nothing has sent it, so
+        // leaving it out re-prefills nothing, even with no budget left to amortise a keep over.
+        // The earlier thinking was carried and is followed by carried items, so it stays.
+        let mut items = vec![
+            filler(15_000),
+            thinking(32, TURN),
+            filler(500),
+            thinking(5_000, TURN),
+        ];
+        let previous_prompt = [true, true, true];
+
+        freeze_reasoning_retention(
+            &mut items,
+            /*active_turn_id*/ None,
+            spent(),
+            Some(&previous_prompt),
+        );
+
+        assert_eq!(retained(&items), vec![Some(true), Some(false)]);
     }
 
     #[test]
