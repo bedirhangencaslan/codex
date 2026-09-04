@@ -169,8 +169,6 @@ pub enum Feature {
     RuntimeMetrics,
     /// Enable startup memory extraction and file-backed memory consolidation.
     MemoryTool,
-    /// Refresh the project's AGENTS.md from the conversation right before compaction.
-    ProjectMemory,
     /// Replay the last request while idle so the provider's prompt cache stays warm.
     PromptCacheKeepAlive,
     /// Price keeping a finished turn's reasoning against the cache miss dropping it would cost.
@@ -1073,12 +1071,6 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "memories",
         stage: Stage::Stable,
         default_enabled: false,
-    },
-    FeatureSpec {
-        id: Feature::ProjectMemory,
-        key: "project_memory",
-        stage: Stage::Stable,
-        default_enabled: true,
     },
     FeatureSpec {
         id: Feature::PromptCacheKeepAlive,

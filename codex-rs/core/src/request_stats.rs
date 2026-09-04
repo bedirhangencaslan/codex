@@ -56,7 +56,6 @@ const DIRECTORY: &str = "analytics";
 /// The switches that change the bill. Recording which were live is what makes two runs an A/B
 /// rather than two unrelated sessions.
 const MEASURED_FEATURES: &[Feature] = &[
-    Feature::ProjectMemory,
     Feature::PromptCacheKeepAlive,
     Feature::ReasoningCostModel,
 ];

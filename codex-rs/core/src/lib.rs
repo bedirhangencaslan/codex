@@ -136,7 +136,6 @@ pub type NewConversation = NewThread;
 pub type CodexConversation = CodexThread;
 pub(crate) mod agents_md;
 mod agents_md_manager;
-mod agents_md_memory;
 mod prompt_cache_keep_alive;
 mod reasoning_retention;
 mod request_density;
