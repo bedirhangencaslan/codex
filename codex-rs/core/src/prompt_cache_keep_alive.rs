@@ -42,21 +42,24 @@ use serde_json::Value;
 
 /// How long the session may sit idle before the cache entry is refreshed.
 ///
-/// Chosen to sit comfortably inside the shortest prompt-cache TTL we have measured rather than to
-/// minimize requests; a keep-alive that lands after the entry expired has paid for nothing.
-const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(120);
+/// Set just inside the prompt-cache TTL measured on Z.ai rather than to minimize requests; a
+/// keep-alive that lands after the entry expired has paid for nothing. Across 976 consecutive
+/// same-turn requests on the Chat wire, every idle gap up to 448 seconds still hit the cache in
+/// full and the first miss was at 1,023 seconds, so seven minutes sits under the shortest gap that
+/// has ever been seen to lose the entry.
+const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(420);
 
 /// How many refreshes may fire before a real request has to re-arm the session.
 ///
 /// A refresh resends the prefix while the entry is still warm, so it is billed at the cached rate
-/// and costs `prefix * c`. The miss it prevents costs `prefix * (1 - c)`. With cached input at
-/// roughly a tenth of uncached, the two break even at `p * (1 - c) / c` refreshes, where `p` is the
-/// chance the user returns at all — nine when returning is certain.
+/// and costs `prefix * c`. The miss it prevents costs `prefix * (1 - c)`. Z.ai bills cached input
+/// at a fifth of uncached, so the two break even at `p * (1 - c) / c` refreshes, where `p` is the
+/// chance the user returns at all: four when returning is certain.
 ///
-/// Nine is deliberately the `p = 1` bound rather than a hedge against abandoned sessions. Below it
+/// Four is deliberately the `p = 1` bound rather than a hedge against abandoned sessions. Below it
 /// the feature is leaving money on the table for every user who does come back, and an abandoned
-/// session stops costing anything after eighteen minutes either way.
-const MAX_CONSECUTIVE_KEEP_ALIVES: u32 = 9;
+/// session stops costing anything after twenty-eight minutes either way.
+const MAX_CONSECUTIVE_KEEP_ALIVES: u32 = 4;
 
 /// Output cap for a replay.
 ///
