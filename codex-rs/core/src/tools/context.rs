@@ -1,3 +1,4 @@
+use crate::context_manager::tool_output::shrink_exec_output;
 use crate::original_image_detail::sanitize_original_image_detail;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
@@ -377,12 +378,19 @@ impl ToolOutput for ExecCommandToolOutput {
     }
 
     fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem {
+        let mut text = self.response_text();
+        // Noisy build and test output is trimmed here, on its way to the model, rather than in
+        // history afterwards. Rewriting a prompt the cache has already seen costs a re-prefill of
+        // everything after it; the text that never entered the prefix costs nothing.
+        if let ToolPayload::Function { arguments } = payload
+            && let Some(shrunk) = shrink_exec_output(arguments, self.exit_code, &text)
+        {
+            text = shrunk;
+        }
         function_tool_response(
             call_id,
             payload,
-            vec![FunctionCallOutputContentItem::InputText {
-                text: self.response_text(),
-            }],
+            vec![FunctionCallOutputContentItem::InputText { text }],
             Some(true),
         )
     }

@@ -179,6 +179,27 @@ pub(crate) fn shrink_completed_outputs(
     report
 }
 
+/// Shrinks one exec result before it is ever sent to the model.
+///
+/// This is the cheap place to do it. Shrinking history after the fact rewrites a prompt the
+/// cache has already seen, so it can only pay for itself from a prefix break someone else
+/// already paid for; shrinking the output as the tool returns it costs no cache at all, because
+/// the smaller text is the only version the prefix has ever held.
+///
+/// `arguments` is the tool call's JSON, which carries the command matched against the allowlist.
+/// Only a clean exit is shrunk: a failure's output is the most valuable thing in the context and
+/// is always kept whole.
+pub(crate) fn shrink_exec_output(
+    arguments: &str,
+    exit_code: Option<i32>,
+    text: &str,
+) -> Option<String> {
+    if exit_code != Some(0) || !command_is_shrinkable(arguments) {
+        return None;
+    }
+    shrink_text(text).map(|(shrunk, _)| shrunk)
+}
+
 /// Collects the call ids whose command is on the allowlist.
 fn shrinkable_call_ids(items: &[ResponseItemEnvelope]) -> HashSet<String> {
     let mut by_call_id: HashMap<&str, &str> = HashMap::new();
@@ -198,11 +219,14 @@ fn shrinkable_call_ids(items: &[ResponseItemEnvelope]) -> HashSet<String> {
 }
 
 /// Reads the command out of a tool call's JSON arguments and matches it against the allowlist.
+///
+/// The two shell tools name the field differently: `shell` sends `command`, `exec_command` sends
+/// `cmd`. Reading only one of them silently matches nothing on a session that used the other.
 fn command_is_shrinkable(arguments: &str) -> bool {
     let Ok(parsed) = serde_json::from_str::<serde_json::Value>(arguments) else {
         return false;
     };
-    let Some(command) = parsed.get("command") else {
+    let Some(command) = parsed.get("command").or_else(|| parsed.get("cmd")) else {
         return false;
     };
     let words = match command {
@@ -291,13 +315,17 @@ fn shrink_text(text: &str) -> Option<(String, usize)> {
     let removed = lines.len() - KEEP_HEAD_LINES - KEEP_TAIL_LINES;
     let head = lines[..KEEP_HEAD_LINES].join("\n");
     let tail = lines[lines.len() - KEEP_TAIL_LINES..].join("\n");
+    // Named in the marker so the saving can be totalled from a rollout on its own, without
+    // instrumentation the baseline does not have.
+    let removed_tokens =
+        approx_token_count(&lines[KEEP_HEAD_LINES..lines.len() - KEEP_TAIL_LINES].join("\n"));
     // The marker names the exit status and the actor. A model that cannot tell whether the
     // command succeeded, or whether the command itself printed nothing, will run it again.
     Some((
         format!(
             "{head}\n\n[system] exit 0 - the harness trimmed this output, the command did not. \
-             {removed} middle lines removed; re-running the command produces the same trimmed \
-             result.\n\n{tail}"
+             {removed} middle lines (~{removed_tokens} tokens) removed; re-running the command \
+             produces the same trimmed result.\n\n{tail}"
         ),
         removed,
     ))

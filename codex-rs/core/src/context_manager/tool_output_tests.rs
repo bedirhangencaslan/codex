@@ -192,5 +192,38 @@ fn marker_reports_the_exit_status_and_the_actor() {
         "{shrunk}"
     );
     assert!(shrunk.contains("re-running the command"), "{shrunk}");
-    assert!(shrunk.contains("167 middle lines removed"), "{shrunk}");
+    assert!(shrunk.contains("167 middle lines"), "{shrunk}");
+    // The size is named so a rollout can be priced without the sidecar.
+    assert!(shrunk.contains("tokens) removed"), "{shrunk}");
+}
+
+#[test]
+fn exec_output_is_shrunk_on_the_way_to_the_model() {
+    let arguments = r#"{"command":"cargo build"}"#;
+    let noisy = noisy_output();
+
+    let shrunk = shrink_exec_output(arguments, Some(0), &noisy).expect("clean build is shrinkable");
+    assert!(shrunk.len() < noisy.len(), "{shrunk}");
+    assert!(shrunk.starts_with("first"), "{shrunk}");
+    assert!(shrunk.ends_with("last"), "{shrunk}");
+
+    // A failure's output is the most valuable thing in the context.
+    assert_eq!(shrink_exec_output(arguments, Some(1), &noisy), None);
+    // So is the output of a command the allowlist does not recognize.
+    assert_eq!(
+        shrink_exec_output(r#"{"command":"Get-Content big.log"}"#, Some(0), &noisy),
+        None
+    );
+    // An interactive session reports no exit code, so nothing is known to have finished.
+    assert_eq!(shrink_exec_output(arguments, None, &noisy), None);
+}
+
+#[test]
+fn reads_the_command_from_either_shell_tool() {
+    // `shell` sends `command`; `exec_command` sends `cmd`. Both have to match.
+    assert!(command_is_shrinkable(r#"{"command":"cargo build"}"#));
+    assert!(command_is_shrinkable(
+        r#"{"cmd":"git commit -m x","workdir":"/tmp"}"#
+    ));
+    assert!(!command_is_shrinkable(r#"{"cmd":"Get-Content big.log"}"#));
 }

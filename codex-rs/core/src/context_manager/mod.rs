@@ -1,6 +1,6 @@
 mod history;
 mod normalize;
-mod tool_output;
+pub(crate) mod tool_output;
 pub(crate) mod updates;
 
 pub(crate) use history::ContextFilterReport;
