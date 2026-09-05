@@ -35,6 +35,7 @@ use file_update::derive_new_contents_from_chunks;
 pub use file_update::unified_diff_from_chunks;
 pub use file_update::unified_diff_from_chunks_with_context;
 pub(crate) use file_update::unified_diff_from_chunks_with_mode;
+pub use invocation::ExtractHeredocError;
 pub use invocation::MaybeApplyPatch;
 pub use invocation::maybe_parse_apply_patch;
 pub use invocation::maybe_parse_apply_patch_verified;
@@ -43,7 +44,6 @@ pub use invocation::verify_apply_patch_args;
 pub use invocation::verify_apply_patch_args_with_mode;
 pub use standalone_executable::main;
 
-use crate::invocation::ExtractHeredocError;
 
 /// Special argv[1] flag used when the Suffice executable self-invokes to run the
 /// internal `apply_patch` path.

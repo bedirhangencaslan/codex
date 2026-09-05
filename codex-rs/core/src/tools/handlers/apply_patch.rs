@@ -547,6 +547,17 @@ pub(crate) async fn intercept_apply_patch(
                 "apply_patch verification failed: {parse_error}"
             )))
         }
+        // The script carries a patch the harness refused to read, so the shell would only
+        // fail on syntax it cannot parse and the edit would be lost. Say why instead: the
+        // model otherwise reads the shell's complaint as "wrong patch format" and rewrites
+        // a correct patch over and over.
+        codex_apply_patch::MaybeApplyPatchVerified::ShellParseError(
+            codex_apply_patch::ExtractHeredocError::ApplyPatchNotSoleStatement,
+        ) => Err(FunctionCallError::RespondToModel(
+            "apply_patch was not applied: its heredoc has to be the only thing in the command. \
+             Send the patch on its own, then run anything else in a separate call."
+                .to_string(),
+        )),
         codex_apply_patch::MaybeApplyPatchVerified::ShellParseError(error) => {
             tracing::trace!("Failed to parse apply_patch input, {error:?}");
             Ok(None)

@@ -45,6 +45,13 @@ pub enum MaybeApplyPatch {
 #[derive(Debug, PartialEq)]
 pub enum ExtractHeredocError {
     CommandDidNotStartWithApplyPatch,
+    /// The script does hold an `apply_patch` heredoc, but not as its only statement.
+    ///
+    /// Kept apart from `CommandDidNotStartWithApplyPatch` so the caller can say so instead
+    /// of passing the script to a shell that cannot run it. Chaining a command onto the
+    /// heredoc looks like an ordinary command to the strict query, and the patch is then
+    /// lost with an error that points at the shell rather than at the extra statement.
+    ApplyPatchNotSoleStatement,
     FailedToLoadBashGrammar(LanguageError),
     HeredocNotUtf8(Utf8Error),
     FailedToParsePatchIntoAst,
@@ -443,6 +450,41 @@ fn extract_apply_patch_from_bash(
         }
     }
 
+    // Tells apart "this script has nothing to do with apply_patch" from "it has one, in a
+    // position the query above refuses". Deliberately structural rather than a second copy
+    // of that query: the refused forms nest the call under lists of varying depth, and the
+    // only thing worth knowing here is that the script invokes apply_patch and feeds a
+    // heredoc. `command_name` keeps `rg apply_patch .` out, where it is an argument.
+    static APPLY_PATCH_ANYWHERE_QUERY: LazyLock<Query> = LazyLock::new(|| {
+        let language = BASH.into();
+        #[expect(clippy::expect_used)]
+        Query::new(
+            &language,
+            r#"
+            ((command_name (word) @apply_name)
+              (#any-of? @apply_name "apply_patch" "applypatch"))
+            (heredoc_redirect) @heredoc
+            "#,
+        )
+        .expect("valid bash query")
+    });
+
+    let (mut names_apply_patch, mut has_heredoc) = (false, false);
+    let mut loose_cursor = QueryCursor::new();
+    let mut loose_matches = loose_cursor.matches(&APPLY_PATCH_ANYWHERE_QUERY, root, bytes);
+    while let Some(m) = loose_matches.next() {
+        for capture in m.captures.iter() {
+            match APPLY_PATCH_ANYWHERE_QUERY.capture_names()[capture.index as usize] {
+                "apply_name" => names_apply_patch = true,
+                "heredoc" => has_heredoc = true,
+                _ => {}
+            }
+        }
+    }
+    if names_apply_patch && has_heredoc {
+        return Err(ExtractHeredocError::ApplyPatchNotSoleStatement);
+    }
+
     Err(ExtractHeredocError::CommandDidNotStartWithApplyPatch)
 }
 
@@ -537,6 +579,11 @@ mod tests {
         assert_match_args(args, expected_workdir);
     }
 
+    /// Asserts the patch is not applied, and that the caller is told why.
+    ///
+    /// Every script here holds an `apply_patch` heredoc in a position the strict query
+    /// refuses. Reporting that is what keeps the shell from being handed a script it
+    /// cannot parse, which loses the patch behind an error about the shell.
     fn assert_not_match(script: &str) {
         let args = args_bash(script);
         assert_matches!(
@@ -544,8 +591,27 @@ mod tests {
                 &args,
                 &PathUri::parse("file:///workspace").expect("valid POSIX test cwd"),
             ),
-            MaybeApplyPatch::NotApplyPatch
+            MaybeApplyPatch::ShellParseError(ExtractHeredocError::ApplyPatchNotSoleStatement)
         );
+    }
+
+    /// A script with no `apply_patch` heredoc must still fall through to the shell.
+    #[tokio::test]
+    async fn test_unrelated_script_is_not_apply_patch() {
+        for script in [
+            "echo hello",
+            "rg -n apply_patch .",
+            "cat <<'EOF'\nnot a patch\nEOF",
+        ] {
+            assert_matches!(
+                maybe_parse_apply_patch(
+                    &args_bash(script),
+                    &PathUri::parse("file:///workspace").expect("valid POSIX test cwd"),
+                ),
+                MaybeApplyPatch::NotApplyPatch,
+                "{script} should run as an ordinary command"
+            );
+        }
     }
 
     #[tokio::test]
