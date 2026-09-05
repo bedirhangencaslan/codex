@@ -7,6 +7,7 @@ use crate::provider::Provider;
 use crate::provider::WireApi;
 use crate::requests::Compression;
 use crate::requests::chat::chat_body_from_responses_request;
+use crate::requests::chat::freeform_tool_names;
 use crate::requests::headers::build_session_headers;
 use crate::requests::headers::insert_header;
 use crate::requests::headers::subagent_header;
@@ -149,8 +150,14 @@ impl<T: HttpTransport> ResponsesClient<T> {
             insert_header(&mut headers, "x-openai-subagent", &subagent);
         }
 
-        self.stream_encoded(body, headers, compression, turn_state)
-            .await
+        self.stream_encoded(
+            body,
+            headers,
+            compression,
+            turn_state,
+            freeform_tool_names(request.tools.as_ref()),
+        )
+        .await
     }
 
     #[instrument(
@@ -173,7 +180,9 @@ impl<T: HttpTransport> ResponsesClient<T> {
     ) -> Result<ResponseStream, ApiError> {
         let body = EncodedJsonBody::encode(&body)
             .map_err(|e| ApiError::Stream(format!("failed to encode responses request: {e}")))?;
-        self.stream_encoded(body, extra_headers, compression, turn_state)
+        // Callers of this entry point hand over a body that is already wire-shaped, so
+        // there is no freeform tool left to unwrap.
+        self.stream_encoded(body, extra_headers, compression, turn_state, Vec::new())
             .await
     }
 
@@ -183,6 +192,7 @@ impl<T: HttpTransport> ResponsesClient<T> {
         extra_headers: HeaderMap,
         compression: Compression,
         turn_state: Option<Arc<OnceLock<String>>>,
+        freeform_tools: Vec<String>,
     ) -> Result<ResponseStream, ApiError> {
         let request_compression = match compression {
             Compression::None => RequestCompression::None,
@@ -197,19 +207,13 @@ impl<T: HttpTransport> ResponsesClient<T> {
 
         let stream_response = self
             .session
-            .stream_encoded_json_with(
-                Method::POST,
-                path,
-                extra_headers,
-                Some(body),
-                |req| {
-                    req.headers.insert(
-                        http::header::ACCEPT,
-                        HeaderValue::from_static("text/event-stream"),
-                    );
-                    req.compression = request_compression;
-                },
-            )
+            .stream_encoded_json_with(Method::POST, path, extra_headers, Some(body), |req| {
+                req.headers.insert(
+                    http::header::ACCEPT,
+                    HeaderValue::from_static("text/event-stream"),
+                );
+                req.compression = request_compression;
+            })
             .await?;
 
         let idle_timeout = self.session.provider().stream_idle_timeout;
@@ -220,9 +224,12 @@ impl<T: HttpTransport> ResponsesClient<T> {
                 self.sse_telemetry.clone(),
                 turn_state,
             ),
-            WireApi::Chat => {
-                spawn_chat_stream(stream_response, idle_timeout, self.sse_telemetry.clone())
-            }
+            WireApi::Chat => spawn_chat_stream(
+                stream_response,
+                idle_timeout,
+                self.sse_telemetry.clone(),
+                freeform_tools,
+            ),
         })
     }
 }

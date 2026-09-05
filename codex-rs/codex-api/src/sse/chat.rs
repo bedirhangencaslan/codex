@@ -31,6 +31,7 @@ pub(crate) fn spawn_chat_stream(
     stream_response: StreamResponse,
     idle_timeout: Duration,
     telemetry: Option<Arc<dyn SseTelemetry>>,
+    freeform_tools: Vec<String>,
 ) -> ResponseStream {
     let upstream_request_id = stream_response
         .headers
@@ -40,7 +41,14 @@ pub(crate) fn spawn_chat_stream(
 
     let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent, ApiError>>(1600);
     tokio::spawn(async move {
-        process_chat_sse(stream_response.bytes, tx_event, idle_timeout, telemetry).await;
+        process_chat_sse(
+            stream_response.bytes,
+            tx_event,
+            idle_timeout,
+            telemetry,
+            freeform_tools,
+        )
+        .await;
     });
 
     ResponseStream {
@@ -72,6 +80,9 @@ struct ChatTurn {
     response_id: String,
     token_usage: Option<TokenUsage>,
     end_turn: Option<bool>,
+    /// Tools this wire sent as functions but which everything above expects as
+    /// `CustomToolCall`; see `requests::chat::freeform_tool_names`.
+    freeform_tools: Vec<String>,
 }
 
 pub(crate) async fn process_chat_sse<S>(
@@ -79,11 +90,15 @@ pub(crate) async fn process_chat_sse<S>(
     tx_event: mpsc::Sender<Result<ResponseEvent, ApiError>>,
     idle_timeout: Duration,
     telemetry: Option<Arc<dyn SseTelemetry>>,
+    freeform_tools: Vec<String>,
 ) where
     S: Stream<Item = Result<bytes::Bytes, codex_client::TransportError>> + Unpin,
 {
     let mut stream = stream.eventsource();
-    let mut turn = ChatTurn::default();
+    let mut turn = ChatTurn {
+        freeform_tools,
+        ..Default::default()
+    };
     let _ = tx_event.send(Ok(ResponseEvent::Created)).await;
 
     loop {
@@ -203,9 +218,30 @@ pub(crate) async fn process_chat_sse<S>(
     }
 }
 
+/// The body of a freeform tool call, or `None` when `name` is an ordinary function.
+///
+/// A model that ignores the schema and streams the body raw is honoured too: the point of
+/// a freeform tool is that the body is not JSON, so refusing it here would lose the call.
+fn freeform_input(freeform_tools: &[String], name: &str, arguments: &str) -> Option<String> {
+    if !freeform_tools.iter().any(|tool| tool == name) {
+        return None;
+    }
+    match serde_json::from_str::<Value>(arguments) {
+        Ok(Value::Object(mut args)) => match args.remove("input") {
+            Some(Value::String(input)) => Some(input),
+            _ => Some(arguments.to_string()),
+        },
+        Ok(Value::String(input)) => Some(input),
+        _ => Some(arguments.to_string()),
+    }
+}
+
 /// Emits the accumulated reasoning, assistant message, and tool calls in the
 /// order the Responses API would have produced them.
-async fn flush_items(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
+async fn flush_items(
+    tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>,
+    turn: &mut ChatTurn,
+) {
     if let Some(reasoning) = turn.reasoning.take() {
         let _ = tx_event
             .send(Ok(ResponseEvent::OutputItemDone(reasoning)))
@@ -225,17 +261,30 @@ async fn flush_items(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, t
             debug!("skipping tool call at index {index}: no function name in stream");
             continue;
         };
-        let _ = tx_event
-            .send(Ok(ResponseEvent::OutputItemDone(ResponseItem::FunctionCall {
+        let call_id = state.id.unwrap_or_else(|| format!("tool-call-{index}"));
+        // A freeform tool went out as a function taking one `input` string. Unwrap it so
+        // the rest of Suffice sees the `CustomToolCall` the Responses API would have sent.
+        let item = match freeform_input(&turn.freeform_tools, &name, &state.arguments) {
+            Some(input) => ResponseItem::CustomToolCall {
+                id: None,
+                status: None,
+                call_id,
+                name,
+                namespace: None,
+                input,
+                internal_chat_message_metadata_passthrough: None,
+            },
+            None => ResponseItem::FunctionCall {
                 id: None,
                 name,
                 namespace: None,
                 arguments: state.arguments,
                 encrypted_function_args: None,
-                call_id: state.id.unwrap_or_else(|| format!("tool-call-{index}")),
+                call_id,
                 internal_chat_message_metadata_passthrough: None,
-            })))
-            .await;
+            },
+        };
+        let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
     }
 }
 
@@ -433,11 +482,13 @@ fn token_usage_from_chat_usage(usage: &Value) -> TokenUsage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use codex_client::TransportError;
     use pretty_assertions::assert_eq;
 
-    fn stream_of(frames: &[&str]) -> impl Stream<Item = Result<bytes::Bytes, TransportError>> + Unpin
-    {
+    fn stream_of(
+        frames: &[&str],
+    ) -> impl Stream<Item = Result<bytes::Bytes, TransportError>> + Unpin {
         let body: String = frames
             .iter()
             .map(|frame| format!("data: {frame}\n\n"))
@@ -446,14 +497,60 @@ mod tests {
     }
 
     async fn collect(frames: &[&str]) -> Vec<ResponseEvent> {
+        collect_with_freeform(frames, Vec::new()).await
+    }
+
+    async fn collect_with_freeform(frames: &[&str], freeform: Vec<String>) -> Vec<ResponseEvent> {
         let (tx, mut rx) = mpsc::channel(64);
-        process_chat_sse(stream_of(frames), tx, Duration::from_secs(5), None).await;
+        process_chat_sse(
+            stream_of(frames),
+            tx,
+            Duration::from_secs(5),
+            None,
+            freeform,
+        )
+        .await;
 
         let mut events = Vec::new();
         while let Some(event) = rx.recv().await {
             events.push(event.expect("stream error"));
         }
         events
+    }
+
+    #[tokio::test]
+    async fn unwraps_a_freeform_tool_back_into_a_custom_tool_call() {
+        let frames = [
+            r#"{"id":"c1","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"apply_patch","arguments":"{\"input\":\"*** Begin Patch\\n*** End Patch\"}"}}]}}]}"#,
+            r#"{"id":"c1","choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            "[DONE]",
+        ];
+
+        let events = collect_with_freeform(&frames, vec!["apply_patch".to_string()]).await;
+        let item = events
+            .iter()
+            .find_map(|event| match event {
+                ResponseEvent::OutputItemDone(item) => Some(item),
+                _ => None,
+            })
+            .expect("a tool call item");
+        assert_matches!(
+            item,
+            ResponseItem::CustomToolCall { name, input, call_id, .. }
+                if name == "apply_patch"
+                    && call_id == "call-1"
+                    && input == "*** Begin Patch\n*** End Patch"
+        );
+
+        // The same frames without the tool declared freeform stay an ordinary function call.
+        let events = collect(&frames).await;
+        assert_matches!(
+            events.iter().find_map(|event| match event {
+                ResponseEvent::OutputItemDone(item) => Some(item),
+                _ => None,
+            }),
+            Some(ResponseItem::FunctionCall { name, .. }) if name == "apply_patch"
+        );
     }
 
     #[tokio::test]
@@ -495,7 +592,9 @@ mod tests {
         };
         assert_eq!(response_id, "chatcmpl-1");
         assert_eq!(end_turn, &Some(true));
-        let usage = token_usage.as_ref().expect("usage must survive finish_reason");
+        let usage = token_usage
+            .as_ref()
+            .expect("usage must survive finish_reason");
         assert_eq!(usage.input_tokens, 10);
         assert_eq!(usage.cached_input_tokens, 6);
         assert_eq!(usage.output_tokens, 4);
@@ -528,7 +627,10 @@ mod tests {
         assert!(
             matches!(
                 events.last(),
-                Some(ResponseEvent::Completed { end_turn: Some(false), .. })
+                Some(ResponseEvent::Completed {
+                    end_turn: Some(false),
+                    ..
+                })
             ),
             "a tool_calls finish must not end the turn"
         );
