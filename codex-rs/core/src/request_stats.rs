@@ -55,10 +55,7 @@ const DIRECTORY: &str = "analytics";
 
 /// The switches that change the bill. Recording which were live is what makes two runs an A/B
 /// rather than two unrelated sessions.
-const MEASURED_FEATURES: &[Feature] = &[
-    Feature::PromptCacheKeepAlive,
-    Feature::ReasoningCostModel,
-];
+const MEASURED_FEATURES: &[Feature] = &[Feature::PromptCacheKeepAlive, Feature::ReasoningCostModel];
 
 /// Session-wide facts, written once as the first line of the file.
 #[derive(Serialize, Deserialize)]
@@ -117,13 +114,8 @@ pub struct RequestStatsLine {
     /// the one number that says whether the measured density generalises. `None` where no
     /// verdict was frozen, which is every request with no budget left to amortise over.
     pub retention_horizon: Option<i64>,
-    pub shrunk_outputs: usize,
-    pub shrunk_tokens_removed: i64,
-    pub shrunk_lines_removed: usize,
-    pub shrinkable_before_break: usize,
-    /// Join keys, so a renderer can put both versions of one tool output side by side.
+    /// Join keys, so a renderer can name the tool calls a filter removed.
     pub dropped_call_ids: Vec<String>,
-    pub shrunk_call_ids: Vec<String>,
 
     pub tool_calls: usize,
     /// With `timestamp`, this gives the idle gap before the next request, which is the only
@@ -353,12 +345,7 @@ fn line(
         retained_reasoning_items: report.retained_reasoning_items,
         retained_reasoning_tokens: report.retained_reasoning_tokens,
         retention_horizon,
-        shrunk_outputs: report.shrink.outputs,
-        shrunk_tokens_removed: report.shrink.tokens_removed,
-        shrunk_lines_removed: report.shrink.lines_removed,
-        shrinkable_before_break: report.shrink.shrinkable_before_break,
         dropped_call_ids: report.dropped_call_ids,
-        shrunk_call_ids: report.shrink.call_ids,
         tool_calls: armed.tool_calls,
         duration_ms: armed
             .started_at

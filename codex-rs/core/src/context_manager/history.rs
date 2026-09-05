@@ -4,8 +4,6 @@ use crate::context::world_state::PersistentModeState;
 use crate::context::world_state::WorldState;
 use crate::context::world_state::WorldStateSnapshot;
 use crate::context_manager::normalize;
-use crate::context_manager::tool_output::ShrinkReport;
-use crate::context_manager::tool_output::shrink_completed_outputs;
 use crate::event_mapping::has_non_contextual_dev_message_content;
 use crate::event_mapping::is_contextual_dev_message_content;
 use crate::event_mapping::is_contextual_user_message_content;
@@ -359,14 +357,7 @@ impl ContextManager {
         let mut report = ContextFilterReport::default();
         self.drop_completed_turn_scoped_items(active_turn_id, &mut report);
         self.normalize_history(input_modalities);
-        let mut items = Arc::unwrap_or_clone(self.items);
-        report.shrink = shrink_completed_outputs(&mut items, report.prefix_break, |envelope| {
-            let owner = envelope
-                .metadata
-                .as_ref()
-                .and_then(|metadata| metadata.tool_output_turn.as_deref());
-            !belongs_to_active_turn(active_turn_id, owner)
-        });
+        let items = Arc::unwrap_or_clone(self.items);
         // The re-prefill the break costs is the part of the prompt that follows it, measured on
         // the prompt as finally sent rather than on the history it was built from.
         if let Some(prefix_break) = report.prefix_break {
@@ -749,7 +740,6 @@ pub(crate) struct ContextFilterReport {
     pub(crate) retained_reasoning_items: usize,
     pub(crate) retained_reasoning_tokens: i64,
     pub(crate) dropped_call_ids: Vec<String>,
-    pub(crate) shrink: ShrinkReport,
 }
 
 /// Why an item recorded in history does not reach the model.

@@ -737,10 +737,6 @@ fn the_report_names_what_the_prompt_no_longer_carries() {
     assert_eq!(report.retained_reasoning_items, 1);
     assert!(report.retained_reasoning_tokens > 0, "{report:?}");
     assert!(report.prefix_break_tokens > 0, "{report:?}");
-    // The output sits past the break, so shrinking it rides on a re-prefill already paid for.
-    assert_eq!(report.shrink.outputs, 1);
-    assert_eq!(report.shrink.shrinkable_before_break, 0);
-    assert!(report.shrink.tokens_removed > 0, "{report:?}");
 
     // Measuring must not move a single byte of what is sent.
     assert_eq!(

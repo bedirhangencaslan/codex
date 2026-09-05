@@ -25,10 +25,6 @@ fn a_request_is_priced_against_what_the_filters_removed() {
         retained_reasoning_tokens: 300,
         ..ContextFilterReport::default()
     };
-    report.shrink.outputs = 1;
-    report.shrink.tokens_removed = 900;
-    report.shrink.lines_removed = 377;
-    report.shrink.call_ids = vec!["call-abc".to_string()];
     let armed = ArmedRequest {
         started_at: Some(Instant::now()),
         report,
@@ -53,15 +49,13 @@ fn a_request_is_priced_against_what_the_filters_removed() {
     assert_eq!(
         line.prompt_tokens_estimated.unwrap_or_default()
             + line.dropped_reasoning_tokens
-            + line.dropped_invisible_tokens
-            + line.shrunk_tokens_removed,
-        62_100 + 1_204 + 900
+            + line.dropped_invisible_tokens,
+        62_100 + 1_204
     );
     assert_eq!(line.prefix_break, Some(118));
     assert_eq!(line.prefix_break_tokens, 4_200);
     assert_eq!(line.retained_reasoning_tokens, 300);
     assert_eq!(line.retention_horizon, Some(160));
-    assert_eq!(line.shrunk_call_ids, vec!["call-abc".to_string()]);
     assert_eq!(line.tool_calls, 2);
     assert_eq!(line.response_id.as_deref(), Some("resp-1"));
     assert_eq!(line.input_tokens, 60_000);

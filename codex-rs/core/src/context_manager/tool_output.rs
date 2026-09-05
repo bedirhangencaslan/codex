@@ -10,12 +10,6 @@
 //! finished, and only from the point where the prompt cache is already invalidated by a
 //! dropped item, so it never costs a re-prefill of its own.
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-
-use codex_history::ResponseItemEnvelope;
-use codex_protocol::models::FunctionCallOutputBody;
-use codex_protocol::models::ResponseItem;
 use codex_utils_output_truncation::approx_token_count;
 
 /// Lines kept from the start, so the model can still tell what ran.
@@ -103,82 +97,6 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// What shrinking took out of one request's prompt, and what it was not allowed to take out.
-///
-/// The removed sizes are what an unshrunk prompt would have carried on top of the one that was
-/// sent. `shrinkable_before_break` is the opposite number: output the allowlist recognized but
-/// the cache gate refused to touch, which is the size of the saving this design declines to
-/// take. Both are needed to price the mechanism; neither changes what is sent.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct ShrinkReport {
-    pub(crate) outputs: usize,
-    pub(crate) tokens_removed: i64,
-    pub(crate) lines_removed: usize,
-    pub(crate) shrinkable_before_break: usize,
-    pub(crate) call_ids: Vec<String>,
-}
-
-/// Replaces the middle of successful, noisy tool output with an explicit marker.
-///
-/// `prefix_break` is the index the prompt cache is already invalidated from, or `None` when the
-/// prompt is byte-identical to the last one. Shrinking rewrites the output in place and so
-/// invalidates the cache from there to the end; doing it before the break would pay for a
-/// re-prefill in order to save tokens, which is the trade this harness exists to avoid.
-///
-/// `is_completed` reports whether an item's turn has finished. Output from the running turn
-/// is left alone, because the model is still acting on it.
-pub(crate) fn shrink_completed_outputs(
-    items: &mut [ResponseItemEnvelope],
-    prefix_break: Option<usize>,
-    is_completed: impl Fn(&ResponseItemEnvelope) -> bool,
-) -> ShrinkReport {
-    let mut report = ShrinkReport::default();
-    // The call ids are collected from the whole history: a call may sit in the untouched prefix
-    // while its output sits after the break.
-    let shrinkable = shrinkable_call_ids(items);
-    if shrinkable.is_empty() {
-        return report;
-    }
-    for (index, envelope) in items.iter_mut().enumerate() {
-        if !is_completed(envelope) {
-            continue;
-        }
-        let ResponseItem::FunctionCallOutput {
-            call_id, output, ..
-        } = &mut envelope.item
-        else {
-            continue;
-        };
-        // Only successful commands are shrunk. A failure's output is the most valuable thing
-        // in the context and is always kept whole.
-        if output.success != Some(true) {
-            continue;
-        }
-        let Some(call_id) = call_id.as_deref().filter(|id| shrinkable.contains(*id)) else {
-            continue;
-        };
-        let FunctionCallOutputBody::Text(text) = &mut output.body else {
-            continue;
-        };
-        let Some((shrunk, lines_removed)) = shrink_text(text) else {
-            continue;
-        };
-        if !prefix_break.is_some_and(|prefix_break| index >= prefix_break) {
-            report.shrinkable_before_break += 1;
-            continue;
-        }
-        report.outputs += 1;
-        report.lines_removed += lines_removed;
-        report.tokens_removed = report.tokens_removed.saturating_add(
-            i64::try_from(approx_token_count(text).saturating_sub(approx_token_count(&shrunk)))
-                .unwrap_or(i64::MAX),
-        );
-        report.call_ids.push(call_id.to_string());
-        *text = shrunk;
-    }
-    report
-}
-
 /// Shrinks one exec result before it is ever sent to the model.
 ///
 /// This is the cheap place to do it. Shrinking history after the fact rewrites a prompt the
@@ -198,24 +116,6 @@ pub(crate) fn shrink_exec_output(
         return None;
     }
     shrink_text(text).map(|(shrunk, _)| shrunk)
-}
-
-/// Collects the call ids whose command is on the allowlist.
-fn shrinkable_call_ids(items: &[ResponseItemEnvelope]) -> HashSet<String> {
-    let mut by_call_id: HashMap<&str, &str> = HashMap::new();
-    for envelope in items {
-        if let ResponseItem::FunctionCall {
-            call_id, arguments, ..
-        } = &envelope.item
-        {
-            by_call_id.insert(call_id.as_str(), arguments.as_str());
-        }
-    }
-    by_call_id
-        .into_iter()
-        .filter(|(_, arguments)| command_is_shrinkable(arguments))
-        .map(|(call_id, _)| call_id.to_string())
-        .collect()
 }
 
 /// Reads the command out of a tool call's JSON arguments and matches it against the allowlist.

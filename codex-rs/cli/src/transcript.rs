@@ -1,7 +1,7 @@
 //! Renders a session as the model experienced it, next to what actually happened.
 //!
 //! This is an offline reader, not a second writer. The rollout already holds the untrimmed
-//! truth: shrinking and dropping happen on the per-request copy of history, never on what is
+//! truth: dropping happens on the per-request copy of history, never on what is
 //! persisted. The statistics sidecar holds what each of those requests cost and what building
 //! it removed. Joining the two after the fact costs nothing at run time, cannot drift from what
 //! shipped, and works on rollouts recorded before any of this existed.
@@ -319,23 +319,6 @@ fn write_request_facts(out: &mut String, request: &Request) {
             join_ids(" for ", &stats.dropped_call_ids),
         ));
     }
-    if stats.shrunk_outputs > 0 {
-        hidden.push(format!(
-            "{} tool outputs trimmed, {} lines and {} tokens removed{}",
-            stats.shrunk_outputs,
-            stats.shrunk_lines_removed,
-            thousands(stats.shrunk_tokens_removed),
-            join_ids(": ", &stats.shrunk_call_ids),
-        ));
-    }
-    if stats.shrinkable_before_break > 0 {
-        // The saving the cache gate declined to take. A column of these and no `shrunk_outputs`
-        // is the shrinker being dormant rather than the allowlist being too narrow.
-        hidden.push(format!(
-            "{} tool outputs were trimmable but sat before the break, so were left whole",
-            stats.shrinkable_before_break
-        ));
-    }
     if hidden.is_empty() {
         let _ = writeln!(out, "the model saw the whole history");
     } else {
@@ -359,12 +342,10 @@ fn write_request_facts(out: &mut String, request: &Request) {
     }
 }
 
+/// The fragment `shrink_exec_output` writes into an output it trimmed.
+const SHRINK_MARKER: &str = "the harness trimmed this output, the command did not";
+
 fn write_items(out: &mut String, request: &Request) {
-    let shrunk = request
-        .stats
-        .as_ref()
-        .map(|stats| stats.shrunk_call_ids.as_slice())
-        .unwrap_or_default();
     for item in &request.items {
         match item {
             ResponseItem::Message { role, content, .. } => {
@@ -392,17 +373,15 @@ fn write_items(out: &mut String, request: &Request) {
                     continue;
                 };
                 let call_id = call_id.as_deref().unwrap_or("?");
-                let was_shrunk = shrunk.iter().any(|shrunk| shrunk == call_id);
+                // The shrinker runs as the tool returns, so the trimmed text is the only
+                // version history ever held, and its marker is right here in it.
+                let was_shrunk = text.contains(SHRINK_MARKER);
                 let total = text.lines().count();
                 let _ = writeln!(
                     out,
                     "\n> tool_output {call_id} — {}",
                     if was_shrunk {
-                        // The rollout keeps the untrimmed text, so this is what actually
-                        // happened; the model was handed the head and the tail of it.
-                        format!(
-                            "WHAT ACTUALLY HAPPENED ({total} lines, the model saw a head and a tail of it)"
-                        )
+                        format!("{total} lines, trimmed by the harness on its way to the model")
                     } else {
                         format!("{total} lines, seen whole")
                     }
@@ -441,11 +420,9 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
     // counts the same tokens once per request that benefits from them.
     let mut retention_saved = 0.0;
     let mut standing_keep = 0.0;
-    let mut shrinker = 0.0;
     for row in &rows {
         retention_saved += CACHED_INPUT_PRICE_RATIO * row.dropped_reasoning_tokens as f64;
         standing_keep += CACHED_INPUT_PRICE_RATIO * row.retained_reasoning_tokens as f64;
-        shrinker += CACHED_INPUT_PRICE_RATIO * row.shrunk_tokens_removed as f64;
     }
     // The break is likewise reported by every request built after it, but it is only paid by the
     // one that actually lost the cache. Take the price from the provider instead of the report.
@@ -488,11 +465,6 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
         out,
         "standing keep cost:   {}",
         thousands(standing_keep as i64)
-    );
-    let _ = writeln!(
-        out,
-        "shrinker:             {} (costs nothing; it only ever runs past a break someone else paid for)",
-        thousands(shrinker as i64)
     );
     let _ = writeln!(
         out,
@@ -540,11 +512,9 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
 
     let unarmed = rows.iter().filter(|row| row.prompt_items.is_none()).count();
     let unbroken = rows.iter().filter(|row| row.prefix_break.is_none()).count();
-    let declined: usize = rows.iter().map(|row| row.shrinkable_before_break).sum();
     let _ = writeln!(
         out,
-        "\n{unbroken} of {} requests left the prefix untouched. The shrinker cannot run on those, \
-         and it declined {declined} trimmable outputs in total.",
+        "\n{unbroken} of {} requests left the prefix untouched.",
         rows.len()
     );
     if unarmed > 0 {
