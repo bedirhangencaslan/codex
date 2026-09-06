@@ -342,8 +342,11 @@ fn write_request_facts(out: &mut String, request: &Request) {
     }
 }
 
-/// The fragment `shrink_exec_output` writes into an output it trimmed.
-const SHRINK_MARKER: &str = "the harness trimmed this output, the command did not";
+/// The fragment the response header carries when `condense_exec_output` removed anything.
+///
+/// Keyed on the header notice rather than on the head/tail marker, because filtering a
+/// listing or stripping escape sequences condenses an output without trimming its middle.
+const CONDENSE_MARKER: &str = "Harness trimmed ";
 
 fn write_items(out: &mut String, request: &Request) {
     for item in &request.items {
@@ -373,15 +376,15 @@ fn write_items(out: &mut String, request: &Request) {
                     continue;
                 };
                 let call_id = call_id.as_deref().unwrap_or("?");
-                // The shrinker runs as the tool returns, so the trimmed text is the only
-                // version history ever held, and its marker is right here in it.
-                let was_shrunk = text.contains(SHRINK_MARKER);
+                // Condensing runs as the tool returns, so the condensed text is the only
+                // version history ever held, and its notice is right here in it.
+                let was_condensed = text.contains(CONDENSE_MARKER);
                 let total = text.lines().count();
                 let _ = writeln!(
                     out,
                     "\n> tool_output {call_id} — {}",
-                    if was_shrunk {
-                        format!("{total} lines, trimmed by the harness on its way to the model")
+                    if was_condensed {
+                        format!("{total} lines, condensed by the harness on its way to the model")
                     } else {
                         format!("{total} lines, seen whole")
                     }

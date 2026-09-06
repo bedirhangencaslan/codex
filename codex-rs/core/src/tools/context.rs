@@ -1,4 +1,5 @@
-use crate::context_manager::tool_output::shrink_exec_output;
+use crate::context_manager::tool_output::CondenseReport;
+use crate::context_manager::tool_output::condense_exec_output;
 use crate::original_image_detail::sanitize_original_image_detail;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
@@ -370,7 +371,12 @@ impl ToolOutput for ExecCommandToolOutput {
                 output = format!("{marker}\n{output}");
             }
         }
-        format!("{}\n{output}", self.response_header())
+        // Telemetry records what the command actually printed, so it carries no condense
+        // notice: nothing was condensed on this path.
+        format!(
+            "{}\n{output}",
+            self.response_header(&CondenseReport::default())
+        )
     }
 
     fn success_for_logging(&self) -> bool {
@@ -378,19 +384,12 @@ impl ToolOutput for ExecCommandToolOutput {
     }
 
     fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem {
-        let mut text = self.response_text();
-        // Noisy build and test output is trimmed here, on its way to the model, rather than in
-        // history afterwards. Rewriting a prompt the cache has already seen costs a re-prefill of
-        // everything after it; the text that never entered the prefix costs nothing.
-        if let ToolPayload::Function { arguments } = payload
-            && let Some(shrunk) = shrink_exec_output(arguments, self.exit_code, &text)
-        {
-            text = shrunk;
-        }
         function_tool_response(
             call_id,
             payload,
-            vec![FunctionCallOutputContentItem::InputText { text }],
+            vec![FunctionCallOutputContentItem::InputText {
+                text: self.response_text(payload),
+            }],
             Some(true),
         )
     }
@@ -414,8 +413,11 @@ impl ToolOutput for ExecCommandToolOutput {
             return None;
         }
 
+        // A post-tool-use hook is shown what the command printed, not what the model was
+        // shown: a hook that greps for a line the harness condensed away would misfire.
+        let raw = String::from_utf8_lossy(&self.raw_output);
         Some(JsonValue::String(
-            self.truncated_output_with_policy(self.model_output_policy()),
+            self.truncated_output_with_policy(&raw, self.model_output_policy()),
         ))
     }
 
@@ -463,19 +465,21 @@ impl ExecCommandToolOutput {
     }
 
     pub(crate) fn truncated_output(&self, max_tokens: usize) -> String {
-        self.truncated_output_with_policy(TruncationPolicy::Tokens(max_tokens))
+        let text = String::from_utf8_lossy(&self.raw_output);
+        self.truncated_output_with_policy(&text, TruncationPolicy::Tokens(max_tokens))
     }
 
-    fn truncated_output_with_policy(&self, policy: TruncationPolicy) -> String {
-        let text = String::from_utf8_lossy(&self.raw_output).to_string();
+    /// Applies the byte/token budget to `text`, which is the raw output for callers that want
+    /// it verbatim and the condensed output on the path to the model.
+    fn truncated_output_with_policy(&self, text: &str, policy: TruncationPolicy) -> String {
         let Some(omitted_bytes) = self.output_omitted_bytes else {
-            return formatted_truncate_text(&text, policy);
+            return formatted_truncate_text(text, policy);
         };
 
         let marker = format_output_omission_marker(omitted_bytes.get());
         if text.len() <= policy.byte_budget() {
             return if text.contains(&marker) {
-                text
+                text.to_string()
             } else {
                 format!("{marker}\n{text}")
             };
@@ -483,8 +487,8 @@ impl ExecCommandToolOutput {
 
         let original_token_count = self
             .original_token_count
-            .unwrap_or_else(|| approx_token_count(&text));
-        let truncated = truncate_text(&text, policy);
+            .unwrap_or_else(|| approx_token_count(text));
+        let truncated = truncate_text(text, policy);
         let omission_notice = if truncated.contains(&marker) {
             String::new()
         } else {
@@ -495,7 +499,7 @@ impl ExecCommandToolOutput {
         )
     }
 
-    fn response_header(&self) -> String {
+    fn response_header(&self, condensed: &CondenseReport) -> String {
         let mut sections = Vec::new();
 
         if !self.chunk_id.is_empty() {
@@ -517,17 +521,37 @@ impl ExecCommandToolOutput {
             sections.push(format!("Original token count: {original_token_count}"));
         }
 
+        // The header is where the harness already speaks for itself, so the notice that it
+        // altered the output belongs here rather than in a marker of its own.
+        if let Some(summary) = condensed.summary() {
+            sections.push(summary);
+        }
+
         sections.push("Output:".to_string());
         sections.join("\n")
     }
 
-    fn response_text(&self) -> String {
-        let header = self.response_header();
+    fn response_text(&self, payload: &ToolPayload) -> String {
+        // Condensing runs before truncation so that noise never spends the model's budget: a
+        // recursive listing whose dependency tree is dropped first fits whole, where the same
+        // listing truncated first loses its own files to make room for `node_modules`.
+        let raw = String::from_utf8_lossy(&self.raw_output);
+        let arguments = match payload {
+            ToolPayload::Function { arguments } => arguments.as_str(),
+            _ => "",
+        };
+        let (text, condensed) =
+            match condense_exec_output(arguments, self.exit_code, self.process_id, &raw) {
+                Some((condensed_text, report)) => (condensed_text, report),
+                None => (raw.into_owned(), CondenseReport::default()),
+            };
+
+        let header = self.response_header(&condensed);
         let output_budget = (self.truncation_policy * 1.2)
             .byte_budget()
             .saturating_sub(header.len().saturating_add(/*rhs*/ 1));
         let mut policy = self.model_output_policy();
-        let mut output = self.truncated_output_with_policy(policy);
+        let mut output = self.truncated_output_with_policy(&text, policy);
 
         // History applies this same serialization budget to the complete response.
         // Reserve room for metadata, warning headers, and the truncation marker so
@@ -542,7 +566,7 @@ impl ExecCommandToolOutput {
                     tokens.saturating_sub(TruncationPolicy::Bytes(excess_bytes).token_budget()),
                 ),
             };
-            output = self.truncated_output_with_policy(policy);
+            output = self.truncated_output_with_policy(&text, policy);
         }
 
         format!("{header}\n{output}")
