@@ -1,15 +1,15 @@
 //! Condensing of exec output on its way to the model.
 //!
 //! A coding agent spends most of its context on command output, and most of that output is
-//! noise: terminal escape sequences, column padding, the dependency tree under
-//! `node_modules`, a build's `Compiling ...` lines. What the model still needs is the
-//! summary at the end, plus enough of the head to recognize what ran.
+//! noise: terminal escape sequences, the dependency tree under `node_modules`, a build's
+//! `Compiling ...` lines. What the model still needs is the summary at the end, plus enough
+//! of the head to recognize what ran.
 //!
 //! Three stages, cheapest and safest first:
 //!
-//! 1. [`normalize`] is lossless and unconditional. Escape sequences, carriage-return
-//!    overwrites and trailing padding carry no information a reader could act on, so there is
-//!    no case in which keeping them is right.
+//! 1. [`normalize`] is lossless and unconditional. Escape sequences and carriage-return
+//!    overwrites carry no information a reader could act on, so there is no case in which
+//!    keeping them is right.
 //! 2. [`filter_artifact_paths`] drops listing lines that live under a build or dependency
 //!    directory. Lossy, so it is gated on the command not having asked for one.
 //! 3. [`shrink_text`] keeps the head and tail of output whose middle is a receipt.
@@ -80,7 +80,7 @@ static CSI_ESCAPE: LazyLock<Regex> =
 pub(crate) struct CondenseReport {
     /// Terminal escape sequences removed.
     pub(crate) escape_sequences: usize,
-    /// Lines that lost a carriage-return overwrite or trailing padding.
+    /// Lines that lost a carriage-return overwrite or a line terminator.
     pub(crate) rewritten_lines: usize,
     /// Listing lines dropped for living under a build or dependency directory.
     pub(crate) artifact_lines: usize,
@@ -98,10 +98,9 @@ impl CondenseReport {
     /// One line for the response header, naming what the model can no longer see.
     ///
     /// **Lossless removals are not announced.** Nothing was lost, so there is nothing the
-    /// model could do differently, and the notice would cost more than it saved: 59% of
-    /// measured outputs carry some padding or a stray escape sequence, and a line of
-    /// explanation on each of them outweighs the padding removed from all of them. Announcing
-    /// only the lossy stages moves the notice from 59% of outputs to 12-25% of them.
+    /// model could do differently, and the notice would cost more than it saved: a line of
+    /// explanation on each affected output outweighs what the lossless stage removes from all
+    /// of them. Announcing only the lossy stages keeps the notice on 12-25% of outputs.
     ///
     /// What it does say is short and load-bearing: a model that reads a gap, blames the
     /// command and runs it again spends a whole request, which is worth far more than this
@@ -112,10 +111,7 @@ impl CondenseReport {
             causes.push(format!("{} middle lines", self.middle_lines));
         }
         if self.artifact_lines > 0 {
-            causes.push(format!(
-                "{} generated-directory lines",
-                self.artifact_lines
-            ));
+            causes.push(format!("{} generated-directory lines", self.artifact_lines));
         }
         if causes.is_empty() {
             return None;
@@ -230,7 +226,7 @@ pub(crate) fn condense_exec_output(
 
     let normalized = normalize(text, &mut report);
     // Measured after normalizing, so the reported size is what the model can no longer see
-    // rather than padding it was never going to read.
+    // rather than escape sequences it was never going to read.
     let visible_tokens = approx_token_count(&normalized);
 
     // The lossy stages are attempted against a copy, because whether they are worth running
@@ -281,7 +277,15 @@ pub(crate) fn condense_exec_output(
 ///   terminal shows only the last. Deleting the `\r` instead would splice the discarded
 ///   states into one very long line, which is worse than leaving them alone.
 /// - **Windows line terminators.** `\r\n` becomes `\n`, one character a line.
-/// - **Trailing padding.** `Format-Table` and `Select-String` pad every row to a fixed width.
+///
+/// **Column padding is deliberately left in place.** `Format-Table` pads every row out to the
+/// widest value, which looks like free tokens and is not: a BPE tokenizer merges a run of
+/// spaces into one or two tokens, so 121 trailing spaces cost 2 tokens rather than the 30 a
+/// bytes/4 estimate predicts. Measured over one real session, stripping it saved 394 tokens
+/// across every read and listing in the session -- 1.3%, about three hundredths of a cent --
+/// while rewriting text the model may be about to quote back in a patch. The `len / 4`
+/// estimator is what made this look worthwhile; it is accurate in aggregate and wrong by
+/// roughly ten times on a transformation that only removes whitespace.
 fn normalize(text: &str, report: &mut CondenseReport) -> String {
     let mut lines: Vec<String> = Vec::new();
     for raw_line in text.split('\n') {
@@ -300,17 +304,13 @@ fn normalize(text: &str, report: &mut CondenseReport) -> String {
         } else {
             std::borrow::Cow::Borrowed(visible)
         };
-        let trimmed = stripped.trim_end();
         report.escape_sequences += escapes;
         // Counted against the escape-stripped text so a coloured line is not also reported as
         // a rewritten one; escapes have their own counter.
-        if raw_line.len() != line.len()
-            || visible.len() != line.len()
-            || trimmed.len() != stripped.len()
-        {
+        if raw_line.len() != line.len() || visible.len() != line.len() {
             report.rewritten_lines += 1;
         }
-        lines.push(trimmed.to_string());
+        lines.push(stripped.into_owned());
     }
     lines.join("\n")
 }

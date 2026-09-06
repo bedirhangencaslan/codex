@@ -17,7 +17,9 @@ fn listing(project_lines: usize, artifact_lines: usize) -> String {
         lines.push(format!("C:\\work\\app\\src\\page-{index}.tsx"));
     }
     for index in 0..artifact_lines {
-        lines.push(format!("C:\\work\\app\\node_modules\\dep-{index}\\index.js"));
+        lines.push(format!(
+            "C:\\work\\app\\node_modules\\dep-{index}\\index.js"
+        ));
     }
     lines.join("\n")
 }
@@ -185,16 +187,28 @@ fn polls_of_a_running_session_keep_the_head_and_tail() {
 }
 
 #[test]
-fn strips_escape_sequences_and_padding() {
+fn strips_escape_sequences_but_keeps_column_padding() {
+    // The padding stays: a run of spaces is one or two tokens, so removing it buys almost
+    // nothing and rewrites text the model may be about to quote back in a patch.
     let text = "\u{1b}[32mINFO\u{1b}[0m   ready   \nplain line";
     let (condensed, report) =
         condense_exec_output("{}", Some(0), None, text).expect("noise is removed");
-    assert_eq!(condensed, "INFO   ready\nplain line");
+    assert_eq!(condensed, "INFO   ready   \nplain line");
     assert_eq!(report.escape_sequences, 2);
-    assert_eq!(report.rewritten_lines, 1);
-    // Nothing was lost, so nothing is announced. 59% of measured outputs carry some padding;
-    // a line of explanation on each would cost more than the padding removed from all of them.
+    // Only escapes were touched, and those have their own counter.
+    assert_eq!(report.rewritten_lines, 0);
+    // Nothing was lost, so nothing is announced: a line of explanation on each affected output
+    // would cost more than the lossless stage removes from all of them.
     assert_eq!(report.summary(), None);
+}
+
+#[test]
+fn leaves_trailing_whitespace_alone() {
+    // Trailing whitespace is the only difference here, so there is nothing to condense at all.
+    assert_eq!(
+        condense_exec_output("{}", Some(0), None, "value       \nother    "),
+        None
+    );
 }
 
 #[test]
@@ -275,7 +289,7 @@ fn keeps_a_listing_that_is_almost_entirely_artifacts() {
 fn summary_names_every_cause_and_the_size() {
     let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
     let mut text = listing(/*project*/ 10, /*artifact*/ 20);
-    text.push_str("\n\u{1b}[32mdone\u{1b}[0m   ");
+    text.push_str("\r\n\u{1b}[32mdone\u{1b}[0m   ");
 
     let report = report_for(&arguments, &text);
     let summary = report.summary().expect("something was removed");
@@ -289,7 +303,8 @@ fn summary_names_every_cause_and_the_size() {
     assert_eq!(report.escape_sequences, 2);
     assert_eq!(report.rewritten_lines, 1);
     assert!(!summary.contains("escape"), "{summary}");
-    assert!(!summary.contains("padding"), "{summary}");
+    // The trailing spaces on that line survive the pass untouched.
+    assert!(summary.contains("generated-directory"), "{summary}");
 
     assert_eq!(CondenseReport::default().summary(), None);
 }
@@ -318,7 +333,9 @@ fn leaves_a_short_lined_output_alone_even_when_it_is_long() {
 
     // The same command with real output to remove is still shrunk.
     let big = (0..60)
-        .map(|index| format!("   Compiling some-fairly-long-crate-name-{index} v0.1.0 (/w/{index})"))
+        .map(|index| {
+            format!("   Compiling some-fairly-long-crate-name-{index} v0.1.0 (/w/{index})")
+        })
         .collect::<Vec<_>>()
         .join("\n");
     assert!(was_shrunk(&condense_pair(&arguments, &big, Some(true))));
