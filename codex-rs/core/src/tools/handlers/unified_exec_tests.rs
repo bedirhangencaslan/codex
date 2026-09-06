@@ -156,6 +156,105 @@ fn test_get_command_respects_explicit_cmd_shell() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_contains_heredoc_recognizes_redirections() {
+    for cmd in [
+        "python - <<'PY'\nprint(1)\nPY",
+        "cat <<EOF\nhello\nEOF",
+        "bash <<-\"END\"\n\techo hi\n\tEND",
+        "sort file.txt && cat <<'IN'\na\nIN",
+    ] {
+        assert!(contains_heredoc(cmd), "should be a here-document: {cmd:?}");
+    }
+}
+
+#[test]
+fn test_contains_heredoc_leaves_powershell_commands_alone() {
+    for cmd in [
+        "Get-Content src/main.rs",
+        // `<<` inside a quoted body is data, not a redirection.
+        "Set-Content out.cpp -Value 'std::cout << x'",
+        // A here-string is a different redirection, with no here-document body.
+        "cat <<< 'hello'",
+        "Get-ChildItem | Where-Object { $_.Length -gt 10 }",
+    ] {
+        assert!(!contains_heredoc(cmd), "should be left alone: {cmd:?}");
+    }
+}
+
+#[test]
+fn test_is_windows_bash_shim_rejects_only_the_wsl_launchers() {
+    for path in [
+        r"C:\Windows\System32\bash.exe",
+        r"C:\Windows\Sysnative\bash.exe",
+        r"C:\Windows\SysWOW64\bash.exe",
+        r"C:\WINDOWS\SYSTEM32\BASH.EXE",
+        r"C:\Users\user\AppData\Local\Microsoft\WindowsApps\bash.exe",
+    ] {
+        assert!(
+            is_windows_bash_shim(std::path::Path::new(path)),
+            "should be declined: {path}"
+        );
+    }
+
+    for path in [
+        r"C:\Program Files\Git\usr\bin\bash.exe",
+        r"C:\msys64\usr\bin\bash.exe",
+        "/usr/bin/bash",
+        "/bin/bash",
+    ] {
+        assert!(
+            !is_windows_bash_shim(std::path::Path::new(path)),
+            "should be accepted: {path}"
+        );
+    }
+}
+
+#[test]
+fn test_get_command_routes_an_unrouted_heredoc_to_bash() -> anyhow::Result<()> {
+    let (Some(powershell), Some(bash)) =
+        (get_shell(ShellType::PowerShell), get_shell(ShellType::Bash))
+    else {
+        // Nothing to assert on a machine without both shells installed.
+        return Ok(());
+    };
+    if is_windows_bash_shim(&bash.shell_path) {
+        // This machine's first `bash` on PATH launches WSL, which the fallback declines.
+        return Ok(());
+    }
+
+    let json = serde_json::json!({ "cmd": "python - <<'PY'\nprint(1)\nPY" }).to_string();
+    let args: ExecCommandArgs = parse_arguments(&json)?;
+    assert!(args.shell.is_none());
+
+    let resolved = get_command(
+        &args,
+        Arc::new(powershell.clone()),
+        &UnifiedExecShellMode::Direct,
+        /*allow_login_shell*/ true,
+    )
+    .map_err(anyhow::Error::msg)?;
+
+    assert_eq!(resolved.shell_type, ShellType::Bash);
+    assert_eq!(
+        resolved.command,
+        bash.derive_exec_args(&args.cmd, /*use_login_shell*/ true)
+    );
+
+    // A command with no here-document still runs in the session shell.
+    let json = serde_json::json!({ "cmd": "Get-Content src/main.rs" }).to_string();
+    let args: ExecCommandArgs = parse_arguments(&json)?;
+    let resolved = get_command(
+        &args,
+        Arc::new(powershell),
+        &UnifiedExecShellMode::Direct,
+        /*allow_login_shell*/ true,
+    )
+    .map_err(anyhow::Error::msg)?;
+    assert_eq!(resolved.shell_type, ShellType::PowerShell);
+    Ok(())
+}
+
+#[test]
 fn test_get_command_rejects_explicit_login_when_disallowed() -> anyhow::Result<()> {
     let json = r#"{"cmd": "echo hello", "login": true}"#;
 

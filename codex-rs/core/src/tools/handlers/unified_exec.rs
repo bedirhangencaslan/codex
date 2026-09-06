@@ -1,6 +1,7 @@
 use crate::sandboxing::SandboxPermissions;
 use crate::shell::Shell;
 use crate::shell::ShellType;
+use crate::shell::get_shell;
 use crate::shell::get_shell_by_model_provided_path;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolOutput;
@@ -9,8 +10,10 @@ use crate::tools::hook_names::HookToolName;
 use crate::tools::registry::PostToolUsePayload;
 use codex_exec_server::Environment;
 use codex_protocol::models::AdditionalPermissionProfile;
+use codex_shell_command::bash::try_parse_shell;
 use codex_tools::UnifiedExecShellMode;
 use serde::Deserialize;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -117,7 +120,8 @@ pub(crate) fn get_command(
             let model_shell = args
                 .shell
                 .as_ref()
-                .map(|shell_str| get_shell_by_model_provided_path(&PathBuf::from(shell_str)));
+                .map(|shell_str| get_shell_by_model_provided_path(&PathBuf::from(shell_str)))
+                .or_else(|| heredoc_fallback_shell(&args.cmd, session_shell.as_ref()));
             let shell = model_shell.as_ref().unwrap_or(session_shell.as_ref());
             Ok(ResolvedCommand {
                 command: shell.derive_exec_args(&args.cmd, use_login_shell),
@@ -141,6 +145,72 @@ pub(crate) fn get_command(
             })
         }
     }
+}
+
+/// Runs a here-document under bash when the model did not name a shell itself.
+///
+/// PowerShell reserves `<<` as a redirection operator, so a here-document fails to parse before
+/// the command runs and no PowerShell invocation can be asking for one. The model already passes
+/// `shell` for most here-documents; this covers the rest instead of handing back a syntax error.
+/// It stays out of the way whenever the model chose a shell, and falls through to the session
+/// shell when no usable bash is installed.
+fn heredoc_fallback_shell(cmd: &str, session_shell: &Shell) -> Option<Shell> {
+    if session_shell.shell_type != ShellType::PowerShell || !contains_heredoc(cmd) {
+        return None;
+    }
+
+    let bash = get_shell(ShellType::Bash)?;
+    if is_windows_bash_shim(&bash.shell_path) {
+        return None;
+    }
+    Some(bash)
+}
+
+/// Whether `cmd` redirects a here-document into a command.
+///
+/// Asks the bash grammar the workspace already ships rather than scanning for `<<`: only a parse
+/// separates a redirection from the same two characters inside a quoted body, and
+/// `Set-Content out.cpp -Value 'std::cout << x'` is a valid PowerShell command that has to keep
+/// running there. A script the grammar cannot parse simply reports no here-document, which leaves
+/// the command in the session shell.
+fn contains_heredoc(cmd: &str) -> bool {
+    let Some(tree) = try_parse_shell(cmd) else {
+        return false;
+    };
+
+    let mut stack = vec![tree.root_node()];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "heredoc_redirect" {
+            return true;
+        }
+
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            stack.push(child);
+        }
+    }
+
+    false
+}
+
+/// Whether `path` is one of Windows' own `bash.exe` shims rather than a real bash.
+///
+/// `System32\bash.exe` and the `WindowsApps` execution alias both launch WSL, which has its own
+/// filesystem: the Windows cwd this command runs in, and the paths it carries, mean nothing there.
+/// Shell lookup takes whichever `bash` comes first on PATH, so on a machine that orders those
+/// ahead of Git for Windows the here-document would quietly run against the wrong filesystem.
+/// Decline, and let it fail in the session shell the way it did before this fallback existed —
+/// only a bash that shares the filesystem is an improvement.
+fn is_windows_bash_shim(path: &Path) -> bool {
+    const WINDOWS_SHIM_DIRS: [&str; 4] = ["system32", "sysnative", "syswow64", "windowsapps"];
+
+    let normalized = path
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        .replace('\\', "/");
+    WINDOWS_SHIM_DIRS
+        .iter()
+        .any(|dir| normalized.contains(&format!("/{dir}/")))
 }
 
 pub(crate) fn shell_mode_for_environment(
