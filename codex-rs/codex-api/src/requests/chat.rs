@@ -35,13 +35,16 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
 
                 for c in content {
                     match c {
-                        ContentItem::InputText { text: t } | ContentItem::OutputText { text: t } => {
+                        ContentItem::InputText { text: t }
+                        | ContentItem::OutputText { text: t } => {
                             text.push_str(t);
                             parts.push(json!({"type": "text", "text": t}));
                         }
                         ContentItem::InputImage { image_url, .. } => {
                             saw_image = true;
-                            parts.push(json!({"type": "image_url", "image_url": {"url": image_url}}));
+                            parts.push(
+                                json!({"type": "image_url", "image_url": {"url": image_url}}),
+                            );
                         }
                         // Audio has no Chat Completions equivalent.
                         _ => {}
@@ -96,7 +99,9 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                     reasoning_by_anchor_index.get(&idx).map(String::as_str),
                 );
             }
-            ResponseItem::FunctionCallOutput { call_id, output, .. } => {
+            ResponseItem::FunctionCallOutput {
+                call_id, output, ..
+            } => {
                 let content_value = match output.content_items() {
                     Some(items) => json!(
                         items
@@ -126,12 +131,17 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                 input,
                 ..
             } => {
+                // Replay it in the shape the tool was declared with, so the model's own
+                // history keeps teaching it the calling convention rather than a second one.
                 push_tool_call(
                     &mut messages,
                     json!({
                         "id": call_id,
                         "type": "function",
-                        "function": {"name": name, "arguments": input},
+                        "function": {
+                            "name": name,
+                            "arguments": json!({"input": input}).to_string(),
+                        },
                     }),
                     reasoning_by_anchor_index.get(&idx).map(String::as_str),
                 );
@@ -218,6 +228,68 @@ fn glm_reasoning_effort(effort: &ReasoningEffort) -> &'static str {
 
 /// Rewrites Responses tool specs (`{type, name, parameters}`) into the nested
 /// Chat Completions shape (`{type, function: {name, parameters}}`).
+/// Names of the freeform tools in `tools`, which reach the model as functions.
+///
+/// The SSE side needs these to turn the reply back into a `CustomToolCall`, which is the
+/// shape every handler above this module already expects.
+pub(crate) fn freeform_tool_names(tools: Option<&crate::common::ResponsesApiTools>) -> Vec<String> {
+    let Some(tools) = tools else {
+        return Vec::new();
+    };
+    let Ok(Value::Array(tools)) = serde_json::from_str::<Value>(tools.as_raw_value().get()) else {
+        return Vec::new();
+    };
+    tools
+        .iter()
+        .filter(|tool| tool.get("type").and_then(Value::as_str) == Some("custom"))
+        .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Rewrites a freeform (`"type": "custom"`) tool as an ordinary function taking the body
+/// as a single string.
+///
+/// The Responses API carries these with a grammar that constrains decoding; Chat
+/// Completions has no equivalent, and Z.ai accepts only `web_search`, `retrieval` and
+/// `function`. Dropping the tool instead leaves the model with no way to call it at all,
+/// which is how `apply_patch` came to be invoked through the shell.
+fn chat_function_from_freeform(obj: &serde_json::Map<String, Value>) -> Option<Value> {
+    let name = obj.get("name").and_then(Value::as_str)?;
+    // The custom-tool description tells the model not to wrap the body in JSON, which is
+    // exactly what this wire has to do. Drop that sentence and state the contract instead.
+    let description = obj
+        .get("description")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .split_inclusive('.')
+        .filter(|sentence| !sentence.contains("FREEFORM"))
+        .collect::<String>()
+        .trim()
+        .to_string();
+    Some(json!({
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": format!(
+                "{description} Send the entire body as the `input` string; it is passed \
+                 through verbatim, so do not add any wrapper of your own."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "input": {
+                        "type": "string",
+                        "description": "The complete tool body, exactly as it would be written.",
+                    }
+                },
+                "required": ["input"],
+                "additionalProperties": false,
+            },
+        }
+    }))
+}
+
 fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) -> Vec<Value> {
     let Ok(Value::Array(tools)) = serde_json::from_str::<Value>(tools.as_raw_value().get()) else {
         return Vec::new();
@@ -227,11 +299,13 @@ fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) -> 
         .into_iter()
         .filter_map(|tool| {
             let obj = tool.as_object()?;
-            // Provider-native tools (web_search, local_shell, ...) have no
-            // Chat Completions equivalent; dropping them is better than sending
-            // a body the provider will reject outright.
-            if obj.get("type").and_then(Value::as_str) != Some("function") {
-                return None;
+            match obj.get("type").and_then(Value::as_str) {
+                Some("function") => {}
+                Some("custom") => return chat_function_from_freeform(obj),
+                // Provider-native tools (web_search, local_shell, ...) have no
+                // Chat Completions equivalent; dropping them is better than sending
+                // a body the provider will reject outright.
+                _ => return None,
             }
             // Already nested (some callers hand us Chat-shaped specs).
             if obj.contains_key("function") {
@@ -298,12 +372,14 @@ fn anchor_trailing_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
                 ResponseItem::Message { role, .. } if role == "assistant" => Some(idx + 1),
                 _ => None,
             })
-            .or_else(|| match idx.checked_sub(1).map(|prev| (prev, &input[prev])) {
-                Some((prev, ResponseItem::Message { role, .. })) if role == "assistant" => {
-                    Some(prev)
-                }
-                _ => None,
-            });
+            .or_else(
+                || match idx.checked_sub(1).map(|prev| (prev, &input[prev])) {
+                    Some((prev, ResponseItem::Message { role, .. })) if role == "assistant" => {
+                        Some(prev)
+                    }
+                    _ => None,
+                },
+            );
 
         if let Some(anchor) = anchor {
             anchored
