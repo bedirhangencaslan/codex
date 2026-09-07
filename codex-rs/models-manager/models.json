@@ -14,7 +14,7 @@
       "supports_image_detail_original": false,
       "truncation_policy": {
         "mode": "tokens",
-        "limit": 10000
+        "limit": 25000
       },
       "supports_parallel_tool_calls": true,
       "tool_mode": null,
