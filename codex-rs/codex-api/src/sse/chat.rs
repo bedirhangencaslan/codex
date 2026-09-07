@@ -409,7 +409,16 @@ async fn append_assistant(
     }
 
     if let Some(ResponseItem::Message { content, .. }) = assistant {
-        content.push(ContentItem::OutputText { text: text.clone() });
+        // Coalesce deltas into one part. A Chat stream delivers a message a token at a time, and
+        // one `OutputText` per delta leaves the finished item with hundreds of parts. Consumers
+        // that rejoin those parts with a separator - `content_items_to_text` joins with a newline,
+        // which is correct for the Responses API, where a completed message arrives whole - then
+        // put that separator between every token. Building the single part the rest of the code
+        // expects keeps the two wires equivalent.
+        match content.last_mut() {
+            Some(ContentItem::OutputText { text: existing }) => existing.push_str(&text),
+            _ => content.push(ContentItem::OutputText { text: text.clone() }),
+        }
         let _ = tx_event
             .send(Ok(ResponseEvent::OutputTextDelta(text)))
             .await;
