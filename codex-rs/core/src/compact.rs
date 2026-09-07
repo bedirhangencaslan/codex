@@ -273,6 +273,10 @@ async fn run_compact_task_inner_impl(
         )
         .await;
 
+    // Sending the same tool list as the requests this follows is what keeps the summarization
+    // request on their cached prefix; omitting it prices the whole history at full rate.
+    let tools = sess.last_known_tool_specs().await;
+
     loop {
         // Clone is required because of the loop
         // Compaction names no turn: it follows the verdicts already frozen on the history.
@@ -283,6 +287,7 @@ async fn run_compact_task_inner_impl(
         let prompt = Prompt {
             input: turn_input,
             base_instructions: sess.get_base_instructions().await,
+            tools: Arc::clone(&tools),
             ..Default::default()
         };
         let attempt_result = drain_to_completed(

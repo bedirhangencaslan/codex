@@ -14,6 +14,27 @@ hide_agent_reasoning = false
 chatgpt_base_url = "https://chatgpt.com/backend-api/"
 project_root_markers = [".git"]
 
+# Upstream's summarization prompt with one sentence appended. Compaction now sends the tool
+# list of the step the turn last executed, so the request keeps the surrounding requests'
+# cached prefix. That also puts tools in front of a model that is only asked to write prose:
+# `drain_to_completed` records what comes back without dispatching it, so a tool call would
+# not run, but it would leave the turn with no assistant message and the summary would
+# silently fall back to an older one. This prompt is the trailing user message, appended
+# after the whole history, so the sentence costs a few fresh tokens and touches no prefix.
+compact_prompt = """
+You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
+
+Include:
+- Current progress and key decisions made
+- Important context, constraints, or user preferences
+- What remains to be done (clear next steps)
+- Any critical data, examples, or references needed to continue
+
+Be concise, structured, and focused on helping the next LLM seamlessly continue the work.
+
+Do not call any tool. Reply with the summary itself as a plain assistant message.
+"""
+
 [history]
 persistence = "save-all"
 
