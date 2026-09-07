@@ -22,15 +22,25 @@ project_root_markers = [".git"]
 # silently fall back to an older one. This prompt is the trailing user message, appended
 # after the whole history, so the sentence costs a few fresh tokens and touches no prefix.
 compact_prompt = """
-You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
+You are performing a CONTEXT CHECKPOINT COMPACTION. Everything not written below is about to be
+deleted: every file you read, every command you ran and its output, and all of your own reasoning.
+Another model resumes this task holding only your summary and the user's own messages.
 
-Include:
-- Current progress and key decisions made
-- Important context, constraints, or user preferences
-- What remains to be done (clear next steps)
-- Any critical data, examples, or references needed to continue
+Write a dense handoff. Aim for 1,500-2,500 tokens. A short summary is a failure here, not a virtue.
 
-Be concise, structured, and focused on helping the next LLM seamlessly continue the work.
+Cover:
+- The task in the user's own terms, with the constraints and preferences they stated.
+- What is finished, and the evidence that proves it: the command that passed, the file that exists.
+- Every file that still matters, by path, with the line ranges and symbol names that matter. The
+  next model cannot cheaply re-derive these; re-reading them is the largest avoidable cost.
+- The exact commands that work in this environment, with their flags.
+- What was tried and abandoned, and why. Without this the next model repeats it.
+- The state of the working tree: what is edited but unfinished, what is broken, what is untested.
+- The next concrete step.
+
+Prefer specifics over description. Names, paths, line numbers, commands and error strings carry
+far more per token than prose about them. Do not restate the objective at length and do not narrate
+the session.
 
 Do not call any tool. Reply with the summary itself as a plain assistant message.
 """
