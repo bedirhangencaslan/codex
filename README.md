@@ -13,8 +13,12 @@ The 71 commits that make up Suffice, as `git format-patch` output on top of upst
 ```bash
 git clone https://github.com/openai/codex.git && cd codex
 git checkout 0a12b855a0b21068108a8a3b311d492712737e0f
-git am /path/to/suffice-patches/*.patch
+git am --3way --empty=keep /path/to/suffice-patches/*.patch
 ```
+
+`--empty=keep` is required: the first patch is an empty commit and `git am` stops on it otherwise.
+Verified — applying the series reproduces tree `6d08f6d1a1d177bff213e619978c8de88e673ecb`, which is
+byte-for-byte the fork it was cut from.
 
 Kept because a patch series survives a force-push, a rebase, or a lost branch; the branch is the
 working copy, this is the backup.
@@ -33,8 +37,16 @@ The harness and every run behind the numbers.
 | `MEASURE-*.md` | Written-up snapshots. |
 | `backup-*/` | Working-tree state that was reverted rather than committed, kept recoverable. |
 
-Corpus fixtures (`seed-rs`, `par-*`, `base-git`, `fork-*`) are copies of the Codex tree and are not
-included; they are regenerable and were ~700 MB.
+### The corpus
+
+`measurement/seed-rs/` holds what the `wire` task actually reads: `codex-api/` (44 `.rs` files,
+545,777 bytes, 15,096 lines) and the `AGENTS.md` that every request carries. It is a snapshot, not a
+checkout of any one commit, and the numbers only compare against each other because every run read
+these exact bytes.
+
+To run a comparison, copy it to a working directory the agent can write in; `compare-par.sh` does
+that per run. The other fixtures that lived beside it (`par-*`, `base-git`, `fork-*`, the rest of
+`seed-rs`) were ~700 MB of Codex-tree copies that nothing reads, and are not included.
 
 ### Reading the logs
 
