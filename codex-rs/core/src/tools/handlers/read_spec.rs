@@ -14,24 +14,50 @@ pub struct ReadToolOptions {
 }
 
 pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
+    // An entry is a path or a path with its own window. The union is a superset of the shape the
+    // model already emits, so a plain list of strings keeps working, and it is what lets one call
+    // mix whole files with windows: without it a window can only be asked for one file at a time,
+    // which is how a batching tool ends up being called once per file.
+    let entry = JsonSchema::any_of(
+        vec![
+            JsonSchema::string(/*description*/ None),
+            JsonSchema::object(
+                BTreeMap::from([
+                    ("path".to_string(), JsonSchema::string(/*description*/ None)),
+                    (
+                        "offset".to_string(),
+                        JsonSchema::integer(/*description*/ None),
+                    ),
+                    (
+                        "limit".to_string(),
+                        JsonSchema::integer(/*description*/ None),
+                    ),
+                ]),
+                Some(vec!["path".to_string()]),
+                Some(false.into()),
+            ),
+        ],
+        // The variants carry no descriptions of their own: each one would be paid for on the fixed
+        // prefix of every request, and the tool description below already says what they mean.
+        None,
+    );
+
     let mut properties = BTreeMap::from([
         (
             "paths".to_string(),
             JsonSchema::array(
-                JsonSchema::string(Some("Path to a file, relative to the working directory or absolute.".to_string())),
-                Some("Files to read. Pass every file you already know you need in one call.".to_string()),
+                entry,
+                Some("Files to read: a path, or an object with a window.".to_string()),
             ),
         ),
         (
             "offset".to_string(),
-            JsonSchema::integer(Some(
-                "1-indexed line to start at. Only used when `paths` has exactly one entry.".to_string(),
-            )),
+            JsonSchema::integer(Some("1-indexed first line.".to_string())),
         ),
         (
             "limit".to_string(),
             JsonSchema::integer(Some(format!(
-                "Maximum lines to return. Only used when `paths` has exactly one entry. Defaults to {DEFAULT_LINE_LIMIT}."
+                "Max lines per file. Defaults to {DEFAULT_LINE_LIMIT}."
             ))),
         ),
     ]);
@@ -47,15 +73,15 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: READ_TOOL_NAME.to_string(),
-        description: "Read whole files from the filesystem.
+        description: "Read files. Batch every file you already know you need into one call.
 
-- Pass every file you already know you need in a single call. Reading twenty files in one call \
-costs one round trip; reading them one at a time costs twenty, and every round trip resends the \
-whole conversation.
-- Use `offset` and `limit` to read a window of one file when you already know the line you want.
-- Output is one section per file, each headed by its path.
-- If the call runs out of budget it says so and names the files it did not reach, so ask for those \
-in a follow-up call."
+- An entry is a path, or {\"path\": \"...\", \"offset\": 1, \"limit\": 200} for one window of that \
+file. Mix both in one call.
+- Top-level `offset`/`limit` apply to every entry that sets neither, so put the window on the entry when the files differ in what they need.
+- Each section is headed by its path and printed as `N: line`, so a citation can be \
+written from the read itself; the numbers are display only, never copy them into `apply_patch`.
+- A section that was cut says which lines it showed and the offset to continue from. Files that \
+did not fit are named at the end; ask for those next."
             .to_string(),
         strict: false,
         defer_loading: None,
@@ -66,4 +92,24 @@ in a follow-up call."
         ),
         output_schema: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The spec rides the fixed prefix of every request, which is the single biggest line of the
+    /// bill, so it is not allowed to grow quietly. The `anyOf` entry shape costs about 1_212 bytes
+    /// against the 1_157 of the string-only one it replaced, plus the sentence saying `limit` is
+    /// per file - the misreading that made one measured call ask for 33,800 lines.
+    #[test]
+    fn the_spec_stays_small_because_every_request_pays_for_it() {
+        let spec = create_read_tool(ReadToolOptions::default());
+        let json = serde_json::to_string(&spec).expect("spec must serialize");
+        assert!(
+            json.len() <= 1_400,
+            "read spec grew to {} bytes; every request carries it",
+            json.len()
+        );
+    }
 }
