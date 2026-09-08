@@ -37,6 +37,16 @@ The harness and every run behind the numbers.
 | `MEASURE-*.md` | Written-up snapshots. |
 | `backup-*/` | Working-tree state that was reverted rather than committed, kept recoverable. |
 
+### `opencode-sessions/opencode.db`
+
+OpenCode's own session store, carrying the reasoning of the competitor this fork was measured
+against: six runs of the same `wire` task and three of the `patch` task. It is the evidence behind
+the central finding — that on identical work its model frames the task as *"I need to read each one
+(at least enough to describe it)"* and settles on ~80 lines a file, where ours reads the same
+sentence as a requirement over bytes. Read it with SQLite; `part.data` is JSON and the `reasoning`
+rows are the interesting ones. Its `credential`, `account` and `session_share` tables are empty —
+the metering relay held the key, never the agents.
+
 ### The corpus
 
 `measurement/seed-rs/` holds what the `wire` task actually reads: `codex-api/` (44 `.rs` files,
@@ -45,7 +55,9 @@ checkout of any one commit, and the numbers only compare against each other beca
 these exact bytes.
 
 To run a comparison, copy it to a working directory the agent can write in; `compare-par.sh` does
-that per run. The other fixtures that lived beside it (`par-*`, `base-git`, `fork-*`, the rest of
+that per run. `seed-base`, `seed-fork`, `seed-base-docs` and `seed-fork-docs` are the corpora for the
+`patch` and `docs` tasks, and `logs-ab-first/` holds the earliest A/B runs, the ones
+`MEASURE-ab.md` and `MEASURE-real.md` are written from. The other fixtures that lived beside it (`par-*`, `base-git`, `fork-*`, the rest of
 `seed-rs`) were ~700 MB of Codex-tree copies that nothing reads, and are not included.
 
 ### Reading the logs

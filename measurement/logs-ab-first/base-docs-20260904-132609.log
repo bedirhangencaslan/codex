@@ -1,0 +1,3654 @@
+OpenAI Codex v0.0.0
+--------
+workdir: C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+model: glm-5.3-flash
+provider: zai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+session id: 01a06bf4-5392-7873-b192-fa34ce52887b
+--------
+user
+Write a per-file code review document for every source file in this project.
+
+Create a `review/` directory. For each of the 22 files listed below, write
+`review/<basename>.md` — for example `review/main.py.md`, `review/api.ts.md`.
+
+  sepet/api/accounts.py       sepet/web/src/api.ts
+  sepet/api/auth.py           sepet/web/src/App.tsx
+  sepet/api/db.py             sepet/web/src/AuthContext.tsx
+  sepet/api/main.py           sepet/web/src/CartContext.tsx
+  sepet/api/panels.py         sepet/web/src/main.tsx
+  sepet/api/reviews.py        sepet/web/src/types.ts
+  sepet/api/schema.sql        sepet/web/src/pages/Account.tsx
+  sepet/api/seed.py           sepet/web/src/pages/Checkout.tsx
+  sepet/web/src/pages/OrderPage.tsx
+  sepet/web/src/pages/Panel.tsx
+  sepet/web/src/pages/RestaurantDetail.tsx
+  sepet/web/src/pages/Restaurants.tsx
+  sepet/web/src/panels/CourierPanel.tsx
+  sepet/web/src/panels/CustomerPanel.tsx
+
+Every document must have all seven sections:
+
+1. Purpose. What the file is responsible for and what depends on it.
+2. Walkthrough. Every function, class, component or hook in the file, in source
+   order, each with its signature, its parameters, what it returns, and the
+   control flow inside it. Cite line numbers.
+3. Data. Every database table, HTTP endpoint, or piece of client state the file
+   reads or writes, and where.
+4. Failure modes. Each way this file can behave incorrectly, with the input or
+   state that triggers it and a file:line citation.
+5. Security. Authentication, authorisation, injection, and data exposure, each
+   claim tied to a specific line.
+6. Suggested changes. Concrete edits, each with the current code and the
+   replacement.
+7. Test checklist. At least ten cases, each with setup, action and expected
+   result.
+
+Each document must be at least 5,000 characters. Be exhaustive rather than
+concise; this is reference material, not a summary. Read each file in full
+before writing about it.
+
+When all 22 documents exist, measure every file's character count in one shell
+command, then expand any document under 5,000 characters until it meets the
+minimum. Do this expansion pass exactly once.
+
+Do not modify any source file. `review/` is the only directory you may create.
+
+codex
+22 kaynak dosyayi sirayla okuyup, her biri icin `review/` altinda en az 5000 karakterlik ayri inceleme dokumani olusturacagim. Once dosya boyutlarini ve icerigi toplu olarak cikaracagim, sonra belgelere gececegim.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @(
+ '"'sepet/api/accounts.py','sepet/api/auth.py','sepet/api/db.py','sepet/api/main.py','sepet/api/panels.py','sepet/api/reviews.py','sepet/api/schema.sql','sepet/api/seed.py',
+ 'sepet/web/src/api.ts','sepet/web/src/App.tsx','sepet/web/src/AuthContext.tsx','sepet/web/src/CartContext.tsx','sepet/web/src/main.tsx','sepet/web/src/types.ts',
+ 'sepet/web/src/pages/Account.tsx','sepet/web/src/pages/Checkout.tsx','sepet/web/src/pages/OrderPage.tsx','sepet/web/src/pages/Panel.tsx','sepet/web/src/pages/RestaurantDetail.tsx','sepet/web/src/pages/Restaurants.tsx',
+ 'sepet/web/src/panels/CourierPanel.tsx','sepet/web/src/panels/CustomerPanel.tsx'
+); foreach("'$f in $files){ $i=0; $lines=[System.IO.File]::ReadAllLines((Join-Path (Get-Location) $f)); $count=($lines | Measure-Object).Count; Write-Output ("{0}`t{1}" -f $f,$count) }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 36ms:
+sepet/api/accounts.py	123
+sepet/api/auth.py	60
+sepet/api/db.py	33
+sepet/api/main.py	216
+sepet/api/panels.py	272
+sepet/api/reviews.py	51
+sepet/api/schema.sql	77
+sepet/api/seed.py	234
+sepet/web/src/api.ts	123
+sepet/web/src/App.tsx	58
+sepet/web/src/AuthContext.tsx	79
+sepet/web/src/CartContext.tsx	80
+sepet/web/src/main.tsx	19
+sepet/web/src/types.ts	82
+sepet/web/src/pages/Account.tsx	87
+sepet/web/src/pages/Checkout.tsx	101
+sepet/web/src/pages/OrderPage.tsx	57
+sepet/web/src/pages/Panel.tsx	35
+sepet/web/src/pages/RestaurantDetail.tsx	168
+sepet/web/src/pages/Restaurants.tsx	172
+sepet/web/src/panels/CourierPanel.tsx	46
+sepet/web/src/panels/CustomerPanel.tsx	117
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @('"'sepet/api/accounts.py','sepet/api/auth.py','sepet/api/db.py','sepet/api/main.py','sepet/api/panels.py','sepet/api/reviews.py','sepet/api/schema.sql','sepet/api/seed.py'); foreach("'$f in $files){ Write-Output "===== $f ====="; $lines=[System.IO.File]::ReadAllLines((Join-Path (Get-Location) $f)); for($i=0;$i -lt $lines.Count;$i++){ Write-Output ("{0,4}: {1}" -f ($i+1),$lines[$i]) } }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 143ms:
+===== sepet/api/accounts.py =====
+   1: import re
+   2: import secrets
+   3: 
+   4: from fastapi import APIRouter, Depends, HTTPException
+   5: from pydantic import BaseModel, Field
+   6: 
+   7: from auth import get_current_user
+   8: from db import get_db, hash_password, utc_now, verify_password
+   9: 
+  10: 
+  11: router = APIRouter(prefix="/api/auth")
+  12: 
+  13: 
+  14: class RegisterInput(BaseModel):
+  15:     email: str
+  16:     password: str
+  17:     role: str
+  18:     restaurant_name: str = ""
+  19:     cuisine: str = ""
+  20:     delivery_fee: float = 10.0
+  21:     min_order: float = 50.0
+  22:     eta_minutes: int = 30
+  23:     image_emoji: str = "Ã„Å¸Ã…Â¸Ã‚ÂÃ‚Âª"
+  24: 
+  25: 
+  26: class LoginInput(BaseModel):
+  27:     email: str
+  28:     password: str
+  29: 
+  30: 
+  31: def user_payload(user) -> dict:
+  32:     return {"id": user["id"], "email": user["email"], "role": user["role"], "balance": round(user["balance"], 2)}
+  33: 
+  34: 
+  35: def validate_email(email: str) -> None:
+  36:     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+  37:         raise HTTPException(status_code=400, detail="Gecerli bir e-posta girin")
+  38: 
+  39: 
+  40: def validate_registration(payload: RegisterInput) -> None:
+  41:     validate_email(payload.email)
+  42:     if len(payload.password) < 6:
+  43:         raise HTTPException(status_code=400, detail="Sifre en az 6 karakter olmalidir")
+  44:     if payload.role not in {"customer", "restaurant"}:
+  45:         raise HTTPException(status_code=400, detail="Gecersiz hesap turu")
+  46:     if payload.role == "restaurant" and (not payload.restaurant_name or not payload.cuisine):
+  47:         raise HTTPException(status_code=400, detail="Restoran adi ve mutfak zorunludur")
+  48: 
+  49: 
+  50: def issue_token(conn, user_id: int) -> str:
+  51:     token = secrets.token_urlsafe(32)
+  52:     conn.execute(
+  53:         "INSERT INTO auth_token (token, user_id, created_at) VALUES (?, ?, ?)",
+  54:         (token, user_id, utc_now()),
+  55:     )
+  56:     return token
+  57: 
+  58: 
+  59: @router.post("/register", status_code=201)
+  60: def register(payload: RegisterInput) -> dict:
+  61:     validate_registration(payload)
+  62:     with get_db() as conn:
+  63:         if conn.execute('SELECT 1 FROM "user" WHERE email = ?', (payload.email,)).fetchone():
+  64:             raise HTTPException(status_code=409, detail="Bu e-posta zaten kayitli")
+  65:         cursor = conn.execute(
+  66:             'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+  67:             (payload.email, hash_password(payload.password), payload.role, 100.0),
+  68:         )
+  69:         user_id = cursor.lastrowid
+  70:         if payload.role == "restaurant":
+  71:             conn.execute(
+  72:                 """INSERT INTO restaurant
+  73:                    (name, cuisine, rating, delivery_fee, min_order, eta_minutes, image_emoji, user_id)
+  74:                    VALUES (?, ?, 4.0, ?, ?, ?, ?, ?)""",
+  75:                 (
+  76:                     payload.restaurant_name,
+  77:                     payload.cuisine.lower(),
+  78:                     payload.delivery_fee,
+  79:                     payload.min_order,
+  80:                     payload.eta_minutes,
+  81:                     payload.image_emoji,
+  82:                     user_id,
+  83:                 ),
+  84:             )
+  85:         token = issue_token(conn, user_id)
+  86:     return {"token": token, "user": {"id": user_id, "email": payload.email, "role": payload.role, "balance": 100.0}}
+  87: 
+  88: 
+  89: @router.post("/login")
+  90: def login(payload: LoginInput) -> dict:
+  91:     with get_db() as conn:
+  92:         user = conn.execute(
+  93:             'SELECT * FROM "user" WHERE email = ?', (payload.email,)
+  94:         ).fetchone()
+  95:         if not user or not verify_password(payload.password, user["password_hash"]):
+  96:             raise HTTPException(status_code=401, detail="E-posta veya sifre hatali")
+  97:         token = issue_token(conn, user["id"])
+  98:     return {"token": token, "user": user_payload(user)}
+  99: 
+ 100: 
+ 101: @router.get("/me")
+ 102: def me(user=Depends(get_current_user)) -> dict:
+ 103:     return user_payload(user)
+ 104: 
+ 105: 
+ 106: class TopUpInput(BaseModel):
+ 107:     amount: float = Field(gt=0, le=1000)
+ 108: 
+ 109: 
+ 110: @router.post("/wallet/topup")
+ 111: def top_up_wallet(payload: TopUpInput, user=Depends(get_current_user)) -> dict:
+ 112:     if user["role"] != "customer":
+ 113:         raise HTTPException(status_code=403, detail="Sadece musteriler bakiye yukleyebilir")
+ 114:     amount = round(payload.amount, 2)
+ 115:     with get_db() as conn:
+ 116:         updated = conn.execute(
+ 117:             'UPDATE "user" SET balance = balance + ? WHERE id = ?',
+ 118:             (amount, user["id"]),
+ 119:         ).rowcount
+ 120:         if not updated:
+ 121:             raise HTTPException(status_code=404, detail="Kullanici bulunamadi")
+ 122:         row = conn.execute('SELECT balance FROM "user" WHERE id = ?', (user["id"],)).fetchone()
+ 123:     return {"balance": round(row["balance"], 2), "added": amount}
+===== sepet/api/auth.py =====
+   1: from fastapi import Depends, Header, HTTPException
+   2: 
+   3: from db import get_db
+   4: 
+   5: 
+   6: def _user_from_token(conn, token: str | None):
+   7:     if not token or not token.startswith("Bearer "):
+   8:         return None
+   9:     value = token.removeprefix("Bearer ")
+  10:     return conn.execute(
+  11:         """SELECT u.id, u.email, u.role, u.balance
+  12:            FROM auth_token t JOIN "user" u ON u.id = t.user_id
+  13:            WHERE t.token = ?""",
+  14:         (value,),
+  15:     ).fetchone()
+  16: 
+  17: 
+  18: def resolve_user(authorization: str | None = Header(default=None)):
+  19:     with get_db() as conn:
+  20:         return _user_from_token(conn, authorization)
+  21: 
+  22: 
+  23: def get_current_user(user=Depends(resolve_user)):
+  24:     if not user:
+  25:         raise HTTPException(status_code=401, detail="Giris yapmalisiniz")
+  26:     return user
+  27: 
+  28: 
+  29: def get_optional_user(user=Depends(resolve_user)):
+  30:     return user
+  31: 
+  32: 
+  33: def require_customer(user=Depends(get_current_user)):
+  34:     if user["role"] != "customer":
+  35:         raise HTTPException(status_code=403, detail="Bu islem icin musteri girisi gerekli")
+  36:     return user
+  37: 
+  38: 
+  39: def require_restaurant(user=Depends(get_current_user)):
+  40:     if user["role"] != "restaurant":
+  41:         raise HTTPException(status_code=403, detail="Bu islem icin restoran girisi gerekli")
+  42:     with get_db() as conn:
+  43:         restaurant = conn.execute(
+  44:             "SELECT * FROM restaurant WHERE user_id = ?", (user["id"],)
+  45:         ).fetchone()
+  46:     if not restaurant:
+  47:         raise HTTPException(status_code=403, detail="Restoran bulunamadi")
+  48:     return user, restaurant
+  49: 
+  50: 
+  51: def require_courier(user=Depends(get_current_user)):
+  52:     if user["role"] != "courier":
+  53:         raise HTTPException(status_code=403, detail="Bu islem icin kurye girisi gerekli")
+  54:     with get_db() as conn:
+  55:         courier = conn.execute(
+  56:             "SELECT * FROM courier WHERE user_id = ?", (user["id"],)
+  57:         ).fetchone()
+  58:     if not courier:
+  59:         raise HTTPException(status_code=403, detail="Kurye profili bulunamadi")
+  60:     return user, courier
+===== sepet/api/db.py =====
+   1: import hashlib
+   2: import secrets
+   3: import sqlite3
+   4: from datetime import datetime, timezone
+   5: from pathlib import Path
+   6: 
+   7: 
+   8: DB_PATH = Path(__file__).with_name("sepet.db")
+   9: 
+  10: 
+  11: def get_db() -> sqlite3.Connection:
+  12:     conn = sqlite3.connect(DB_PATH)
+  13:     conn.row_factory = sqlite3.Row
+  14:     return conn
+  15: 
+  16: 
+  17: def utc_now() -> str:
+  18:     return datetime.now(timezone.utc).isoformat()
+  19: 
+  20: 
+  21: def hash_password(password: str) -> str:
+  22:     salt = secrets.token_hex(16)
+  23:     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120000)
+  24:     return f"{salt}${digest.hex()}"
+  25: 
+  26: 
+  27: def verify_password(password: str, stored: str) -> bool:
+  28:     try:
+  29:         salt, expected = stored.split("$", 1)
+  30:         digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120000)
+  31:         return secrets.compare_digest(digest.hex(), expected)
+  32:     except ValueError:
+  33:         return False
+===== sepet/api/main.py =====
+   1: from datetime import datetime, timezone
+   2: from typing import Any
+   3: 
+   4: from fastapi import Depends, FastAPI, HTTPException
+   5: from pydantic import BaseModel, Field
+   6: 
+   7: from accounts import router as accounts_router
+   8: from auth import get_optional_user, require_customer
+   9: from db import get_db
+  10: from panels import router as panels_router
+  11: from reviews import displayed_rating, router as reviews_router
+  12: 
+  13: app = FastAPI(title="Sepet API")
+  14: 
+  15: app.include_router(accounts_router)
+  16: app.include_router(panels_router)
+  17: app.include_router(reviews_router)
+  18: 
+  19: 
+  20: class OrderItemInput(BaseModel):
+  21:     menu_item_id: int
+  22:     quantity: int = Field(gt=0)
+  23: 
+  24: 
+  25: class OrderInput(BaseModel):
+  26:     restaurant_id: int
+  27:     address: str
+  28:     phone: str
+  29:     note: str = ""
+  30:     items: list[OrderItemInput]
+  31: 
+  32: 
+  33: @app.get("/api/restaurants")
+  34: def list_restaurants(q: str = "", cuisine: str = "", min_rating: float = 0.0, max_delivery_fee: float = 999.0, max_eta_minutes: int = 999, sort: str = "rating") -> list[dict[str, Any]]:
+  35:     conditions = []
+  36:     params: list[str] = []
+  37:     if q:
+  38:         conditions.append("(name LIKE ? OR cuisine LIKE ?)")
+  39:         search = f"%{q.lower()}%"
+  40:         params.extend([search, search])
+  41:     if cuisine:
+  42:         conditions.append("cuisine = ?")
+  43:         params.append(cuisine.lower())
+  44:     query = "SELECT * FROM restaurant"
+  45:     if conditions:
+  46:         query += " WHERE " + " AND ".join(conditions)
+  47:     with get_db() as conn:
+  48:         rows = conn.execute(query, params).fetchall()
+  49:         review_stats = {
+  50:             row["restaurant_id"]: row["avg_rating"]
+  51:             for row in conn.execute(
+  52:                 "SELECT restaurant_id, AVG(rating) AS avg_rating FROM restaurant_review GROUP BY restaurant_id"
+  53:             ).fetchall()
+  54:         }
+  55:         result = []
+  56:         for row in rows:
+  57:             item = dict(row)
+  58:             if row["id"] in review_stats:
+  59:                 item["rating"] = displayed_rating(
+  60:                     row["rating"], [{"rating": review_stats[row["id"]]}]
+  61:                 )
+  62:             result.append(item)
+  63:     result = [item for item in result if item["rating"] >= min_rating and item["delivery_fee"] <= max_delivery_fee and item["eta_minutes"] <= max_eta_minutes]
+  64:     sorters = {
+  65:         "rating": lambda item: item["rating"],
+  66:         "eta": lambda item: item["eta_minutes"],
+  67:         "delivery_fee": lambda item: item["delivery_fee"],
+  68:         "min_order": lambda item: item["min_order"],
+  69:     }
+  70:     return sorted(result, key=sorters.get(sort, sorters["rating"]))
+  71: 
+  72: 
+  73: @app.get("/api/cuisines")
+  74: def list_cuisines() -> list[str]:
+  75:     with get_db() as conn:
+  76:         rows = conn.execute(
+  77:             "SELECT DISTINCT cuisine FROM restaurant ORDER BY cuisine"
+  78:         ).fetchall()
+  79:     return [row["cuisine"] for row in rows]
+  80: 
+  81: 
+  82: @app.get("/api/restaurants/{restaurant_id}")
+  83: def get_restaurant(restaurant_id: int, user=Depends(get_optional_user)) -> dict[str, Any]:
+  84:     with get_db() as conn:
+  85:         restaurant = conn.execute(
+  86:             "SELECT * FROM restaurant WHERE id = ?", (restaurant_id,)
+  87:         ).fetchone()
+  88:         if not restaurant:
+  89:             raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+  90:         menu = conn.execute(
+  91:             "SELECT * FROM menu_item WHERE restaurant_id = ? ORDER BY category, name",
+  92:             (restaurant_id,),
+  93:         ).fetchall()
+  94:         reviews = conn.execute(
+  95:             """SELECT rr.id, rr.rating, rr.comment, rr.created_at, u.email AS user_email
+  96:                FROM restaurant_review rr JOIN "user" u ON u.id = rr.user_id
+  97:                WHERE rr.restaurant_id = ? ORDER BY rr.created_at DESC""",
+  98:             (restaurant_id,),
+  99:         ).fetchall()
+ 100:     result = dict(restaurant)
+ 101:     result["menu_items"] = [dict(item) for item in menu]
+ 102:     result["reviews"] = [dict(review) for review in reviews]
+ 103:     result["rating"] = displayed_rating(result["rating"], reviews)
+ 104:     result["can_review"] = False
+ 105:     result["has_review"] = False
+ 106:     if user and user["role"] == "customer":
+ 107:         result["can_review"] = bool(conn.execute(
+ 108:             """SELECT 1 FROM "order"
+ 109:                WHERE customer_id = ? AND restaurant_id = ? AND status = 'onaylandÄ±'""",
+ 110:             (user["id"], restaurant_id),
+ 111:         ).fetchone())
+ 112:         result["has_review"] = bool(conn.execute(
+ 113:             "SELECT 1 FROM restaurant_review WHERE restaurant_id = ? AND user_id = ?",
+ 114:             (restaurant_id, user["id"]),
+ 115:         ).fetchone())
+ 116:     return result
+ 117: 
+ 118: 
+ 119: @app.get("/api/orders/{order_id}")
+ 120: def get_order(order_id: int) -> dict[str, Any]:
+ 121:     with get_db() as conn:
+ 122:         order = conn.execute(
+ 123:             """SELECT o.*, r.name AS restaurant_name
+ 124:                FROM "order" o
+ 125:                JOIN restaurant r ON r.id = o.restaurant_id
+ 126:                WHERE o.id = ?""",
+ 127:             (order_id,),
+ 128:         ).fetchone()
+ 129:         if not order:
+ 130:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 131:         items = conn.execute(
+ 132:             """SELECT oi.id, oi.menu_item_id, oi.name, oi.unit_price, oi.quantity,
+ 133:                       oi.unit_price * oi.quantity AS line_total
+ 134:                FROM order_item oi WHERE oi.order_id = ? ORDER BY oi.id""",
+ 135:             (order_id,),
+ 136:         ).fetchall()
+ 137:     result = dict(order)
+ 138:     result["items"] = [dict(item) for item in items]
+ 139:     return result
+ 140: 
+ 141: 
+ 142: @app.post("/api/orders", status_code=201)
+ 143: def create_order(payload: OrderInput, user=Depends(require_customer)) -> dict[str, Any]:
+ 144:     if not payload.items:
+ 145:         raise HTTPException(status_code=400, detail="Siparis icin en az bir urun gerekli")
+ 146:     if user and user["role"] != "customer":
+ 147:         raise HTTPException(status_code=403, detail="Siparis icin musteri hesabi kullanin")
+ 148: 
+ 149:     with get_db() as conn:
+ 150:         restaurant = conn.execute(
+ 151:             "SELECT * FROM restaurant WHERE id = ?", (payload.restaurant_id,)
+ 152:         ).fetchone()
+ 153:         if not restaurant:
+ 154:             raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+ 155: 
+ 156:         placeholders = ",".join("?" for _ in payload.items)
+ 157:         menu_rows = conn.execute(
+ 158:             f"""SELECT id, name, price FROM menu_item
+ 159:                 WHERE restaurant_id = ? AND id IN ({placeholders})""",
+ 160:             [payload.restaurant_id, *[item.menu_item_id for item in payload.items]],
+ 161:         ).fetchall()
+ 162:         menu_by_id = {row["id"]: row for row in menu_rows}
+ 163:         if len(menu_by_id) != len({item.menu_item_id for item in payload.items}):
+ 164:             raise HTTPException(status_code=404, detail="Menu urunu bulunamadi")
+ 165: 
+ 166:         subtotal = sum(menu_by_id[item.menu_item_id]["price"] * item.quantity for item in payload.items)
+ 167:         if subtotal < restaurant["min_order"]:
+ 168:             missing = restaurant["min_order"] - subtotal
+ 169:             raise HTTPException(
+ 170:                 status_code=400,
+ 171:                 detail=f"Minimum sepet tutarinin {missing:.2f} TL altindasiniz",
+ 172:             )
+ 173: 
+ 174:         total = round(subtotal + restaurant["delivery_fee"], 2)
+ 175:         missing_balance = round(max(0, total - user["balance"]), 2)
+ 176:         if missing_balance > 0:
+ 177:             raise HTTPException(
+ 178:                 status_code=400,
+ 179:                 detail=f"Bakiyeniz yetersiz. Siparis icin {missing_balance:.2f} TL daha yukleyin",
+ 180:             )
+ 181:         deducted = conn.execute(
+ 182:             'UPDATE "user" SET balance = balance - ? WHERE id = ? AND balance >= ?',
+ 183:             (total, user["id"], total),
+ 184:         ).rowcount
+ 185:         if not deducted:
+ 186:             raise HTTPException(status_code=400, detail="Bakiye dusurulemedi")
+ 187: 
+ 188:         now = datetime.now(timezone.utc).isoformat()
+ 189:         cursor = conn.execute(
+ 190:             """INSERT INTO "order"
+ 191:                (restaurant_id, address, phone, note, total, status, created_at, customer_id)
+ 192:                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+ 193:             (
+ 194:                 payload.restaurant_id,
+ 195:                 payload.address,
+ 196:                 payload.phone,
+ 197:                 payload.note,
+ 198:                 total,
+ 199:                 "hazÄ±rlanÄ±yor",
+ 200:                 now,
+ 201:                 user["id"],
+ 202:             ),
+ 203:         )
+ 204:         order_id = cursor.lastrowid
+ 205:         for item in payload.items:
+ 206:             menu_item = menu_by_id[item.menu_item_id]
+ 207:             conn.execute(
+ 208:                 """INSERT INTO order_item
+ 209:                    (order_id, menu_item_id, name, unit_price, quantity)
+ 210:                    VALUES (?, ?, ?, ?, ?)""",
+ 211:                 (order_id, item.menu_item_id, menu_item["name"], menu_item["price"], item.quantity),
+ 212:             )
+ 213: 
+ 214:     return {"id": order_id, "status": "hazÄ±rlanÄ±yor", "total": total}
+ 215: 
+ 216: 
+===== sepet/api/panels.py =====
+   1: from typing import Any, Literal
+   2: 
+   3: from fastapi import APIRouter, Depends, HTTPException
+   4: from pydantic import BaseModel, Field
+   5: 
+   6: from auth import require_courier, require_customer, require_restaurant
+   7: from db import get_db, hash_password, utc_now
+   8: 
+   9: 
+  10: router = APIRouter(prefix="/api")
+  11: 
+  12: 
+  13: class CourierInput(BaseModel):
+  14:     email: str
+  15:     password: str
+  16:     name: str
+  17: 
+  18: 
+  19: class MenuItemInput(BaseModel):
+  20:     name: str
+  21:     description: str
+  22:     price: float = Field(gt=0)
+  23:     category: str
+  24: 
+  25: 
+  26: class AssignCourierInput(BaseModel):
+  27:     courier_id: int
+  28: 
+  29: 
+  30: class ReviewInput(BaseModel):
+  31:     rating: int = Field(ge=1, le=5)
+  32:     comment: str
+  33: 
+  34: 
+  35: def serialize_orders(conn, rows) -> list[dict[str, Any]]:
+  36:     result = []
+  37:     for row in rows:
+  38:         order = dict(row)
+  39:         order["items"] = [
+  40:             dict(item)
+  41:             for item in conn.execute(
+  42:                 """SELECT id, menu_item_id, name, unit_price, quantity,
+  43:                           unit_price * quantity AS line_total
+  44:                    FROM order_item WHERE order_id = ? ORDER BY id""",
+  45:                 (order["id"],),
+  46:             ).fetchall()
+  47:         ]
+  48:         result.append(order)
+  49:     return result
+  50: 
+  51: 
+  52: def order_with_items(conn, order_id: int):
+  53:     order = conn.execute(
+  54:         """SELECT o.*, r.name AS restaurant_name,
+  55:                   u.email AS customer_email, c.name AS courier_name
+  56:            FROM "order" o
+  57:            JOIN restaurant r ON r.id = o.restaurant_id
+  58:            LEFT JOIN "user" u ON u.id = o.customer_id
+  59:            LEFT JOIN courier c ON c.id = o.courier_id
+  60:            WHERE o.id = ?""",
+  61:         (order_id,),
+  62:     ).fetchone()
+  63:     if not order:
+  64:         return None
+  65:     return serialize_orders(conn, [order])[0]
+  66: 
+  67: 
+  68: @router.get("/orders/history")
+  69: def order_history(user=Depends(require_customer)) -> list[dict[str, Any]]:
+  70:     with get_db() as conn:
+  71:         rows = conn.execute(
+  72:             """SELECT o.*, r.name AS restaurant_name,
+  73:                       u.email AS customer_email, c.name AS courier_name
+  74:                FROM "order" o
+  75:                JOIN restaurant r ON r.id = o.restaurant_id
+  76:                LEFT JOIN "user" u ON u.id = o.customer_id
+  77:                LEFT JOIN courier c ON c.id = o.courier_id
+  78:                WHERE o.customer_id = ? ORDER BY o.created_at DESC""",
+  79:             (user["id"],),
+  80:         ).fetchall()
+  81:     return serialize_orders(conn, rows)
+  82: 
+  83: 
+  84: @router.get("/restaurant/orders")
+  85: def restaurant_orders(
+  86:     status: str = "",
+  87:     user_restaurant=Depends(require_restaurant),
+  88: ) -> list[dict[str, Any]]:
+  89:     _, restaurant = user_restaurant
+  90:     query = """SELECT o.*, r.name AS restaurant_name,
+  91:                       u.email AS customer_email, c.name AS courier_name
+  92:                FROM "order" o
+  93:                JOIN restaurant r ON r.id = o.restaurant_id
+  94:                LEFT JOIN "user" u ON u.id = o.customer_id
+  95:                LEFT JOIN courier c ON c.id = o.courier_id
+  96:                WHERE o.restaurant_id = ?"""
+  97:     params: list[Any] = [restaurant["id"]]
+  98:     if status:
+  99:         query += " AND o.status = ?"
+ 100:         params.append(status)
+ 101:     with get_db() as conn:
+ 102:         rows = conn.execute(query + " ORDER BY o.created_at DESC", params).fetchall()
+ 103:     return serialize_orders(conn, rows)
+ 104: 
+ 105: 
+ 106: @router.get("/restaurant/couriers")
+ 107: def list_couriers(user_restaurant=Depends(require_restaurant)) -> list[dict[str, Any]]:
+ 108:     _, restaurant = user_restaurant
+ 109:     with get_db() as conn:
+ 110:         rows = conn.execute(
+ 111:             "SELECT id, name, user_id FROM courier WHERE restaurant_id = ? ORDER BY name",
+ 112:             (restaurant["id"],),
+ 113:         ).fetchall()
+ 114:     return [dict(row) for row in rows]
+ 115: 
+ 116: 
+ 117: @router.get("/restaurant/menu-items")
+ 118: def list_menu_items(user_restaurant=Depends(require_restaurant)) -> list[dict[str, Any]]:
+ 119:     _, restaurant = user_restaurant
+ 120:     with get_db() as conn:
+ 121:         rows = conn.execute(
+ 122:             "SELECT * FROM menu_item WHERE restaurant_id = ? ORDER BY category, name",
+ 123:             (restaurant["id"],),
+ 124:         ).fetchall()
+ 125:     return [dict(row) for row in rows]
+ 126: 
+ 127: 
+ 128: @router.post("/restaurant/couriers", status_code=201)
+ 129: def create_courier(payload: CourierInput, user_restaurant=Depends(require_restaurant)) -> dict:
+ 130:     _, restaurant = user_restaurant
+ 131:     if not payload.name.strip():
+ 132:         raise HTTPException(status_code=400, detail="Kurye adi zorunludur")
+ 133:     with get_db() as conn:
+ 134:         if conn.execute('SELECT 1 FROM "user" WHERE email = ?', (payload.email,)).fetchone():
+ 135:             raise HTTPException(status_code=409, detail="Bu e-posta zaten kayitli")
+ 136:         cursor = conn.execute(
+ 137:             'INSERT INTO "user" (email, password_hash, role) VALUES (?, ?, ?)',
+ 138:             (payload.email, hash_password(payload.password), "courier"),
+ 139:         )
+ 140:         courier_id = cursor.lastrowid
+ 141:         conn.execute(
+ 142:             "INSERT INTO courier (user_id, restaurant_id, name) VALUES (?, ?, ?)",
+ 143:             (courier_id, restaurant["id"], payload.name),
+ 144:         )
+ 145:     return {"id": courier_id, "name": payload.name, "restaurant_id": restaurant["id"]}
+ 146: 
+ 147: 
+ 148: @router.post("/restaurant/menu-items", status_code=201)
+ 149: def add_menu_item(payload: MenuItemInput, user_restaurant=Depends(require_restaurant)) -> dict:
+ 150:     _, restaurant = user_restaurant
+ 151:     with get_db() as conn:
+ 152:         cursor = conn.execute(
+ 153:             """INSERT INTO menu_item (restaurant_id, name, description, price, category)
+ 154:                VALUES (?, ?, ?, ?, ?)""",
+ 155:             (restaurant["id"], payload.name, payload.description, payload.price, payload.category),
+ 156:         )
+ 157:     return {"id": cursor.lastrowid, **payload.model_dump(), "restaurant_id": restaurant["id"]}
+ 158: 
+ 159: 
+ 160: @router.post("/restaurant/orders/{order_id}/assign-courier")
+ 161: def assign_courier(
+ 162:     order_id: int,
+ 163:     payload: AssignCourierInput,
+ 164:     user_restaurant=Depends(require_restaurant),
+ 165: ) -> dict[str, str]:
+ 166:     _, restaurant = user_restaurant
+ 167:     now = utc_now()
+ 168:     with get_db() as conn:
+ 169:         order = conn.execute(
+ 170:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 171:         ).fetchone()
+ 172:         if not order or order["restaurant_id"] != restaurant["id"]:
+ 173:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 174:         if order["status"] != "hazırlanıyor":
+ 175:             raise HTTPException(status_code=409, detail="Bu siparis icin kurye atanamaz")
+ 176:         courier = conn.execute(
+ 177:             "SELECT * FROM courier WHERE id = ? AND restaurant_id = ?",
+ 178:             (payload.courier_id, restaurant["id"]),
+ 179:         ).fetchone()
+ 180:         if not courier:
+ 181:             raise HTTPException(status_code=403, detail="Kurye bu restorana ait degil")
+ 182:         conn.execute(
+ 183:             """UPDATE "order" SET courier_id = ?, courier_assigned_at = ?, status = 'kuryede'
+ 184:                WHERE id = ?""",
+ 185:             (courier["id"], now, order_id),
+ 186:         )
+ 187:     return {"status": "kuryede", "courier_name": courier["name"]}
+ 188: 
+ 189: 
+ 190: @router.get("/courier/orders")
+ 191: def courier_orders(courier_data=Depends(require_courier)) -> list[dict[str, Any]]:
+ 192:     _, courier = courier_data
+ 193:     with get_db() as conn:
+ 194:         rows = conn.execute(
+ 195:             """SELECT o.*, r.name AS restaurant_name,
+ 196:                       u.email AS customer_email, c.name AS courier_name
+ 197:                FROM "order" o
+ 198:                JOIN restaurant r ON r.id = o.restaurant_id
+ 199:                LEFT JOIN "user" u ON u.id = o.customer_id
+ 200:                JOIN courier c ON c.id = o.courier_id
+ 201:                WHERE o.courier_id = ? ORDER BY o.created_at DESC""",
+ 202:             (courier["id"],),
+ 203:         ).fetchall()
+ 204:     return serialize_orders(conn, rows)
+ 205: 
+ 206: 
+ 207: @router.post("/courier/orders/{order_id}/deliver")
+ 208: def deliver_order(order_id: int, courier_data=Depends(require_courier)) -> dict[str, str]:
+ 209:     _, courier = courier_data
+ 210:     now = utc_now()
+ 211:     with get_db() as conn:
+ 212:         order = conn.execute(
+ 213:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 214:         ).fetchone()
+ 215:         if not order or order["courier_id"] != courier["id"]:
+ 216:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 217:         if order["status"] != "kuryede":
+ 218:             raise HTTPException(status_code=409, detail="Bu siparis teslim edilemez")
+ 219:         conn.execute(
+ 220:             """UPDATE "order" SET status = 'teslim_edildi', delivered_at = ? WHERE id = ?""",
+ 221:             (now, order_id),
+ 222:         )
+ 223:     return {"status": "teslim_edildi"}
+ 224: 
+ 225: 
+ 226: @router.post("/orders/{order_id}/confirm_delivery")
+ 227: def confirm_delivery(order_id: int, user=Depends(require_customer)) -> dict[str, str]:
+ 228:     now = utc_now()
+ 229:     with get_db() as conn:
+ 230:         order = conn.execute(
+ 231:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 232:         ).fetchone()
+ 233:         if not order or order["customer_id"] != user["id"]:
+ 234:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 235:         if order["status"] != "teslim_edildi":
+ 236:             raise HTTPException(status_code=409, detail="Bu siparis onaylanamaz")
+ 237:         conn.execute(
+ 238:             """UPDATE "order" SET status = 'onaylandı', confirmed_at = ? WHERE id = ?""",
+ 239:             (now, order_id),
+ 240:         )
+ 241:     return {"status": "onaylandı"}
+ 242: 
+ 243: 
+ 244: 
+ 245: 
+ 246: 
+ 247: @router.get("/restaurant/earnings")
+ 248: def restaurant_earnings(user_restaurant=Depends(require_restaurant)) -> dict[str, Any]:
+ 249:     _, restaurant = user_restaurant
+ 250:     with get_db() as conn:
+ 251:         overall = conn.execute(
+ 252:             """SELECT COUNT(*) AS order_count,
+ 253:                       COALESCE(SUM(total), 0) AS revenue
+ 254:                FROM "order" WHERE restaurant_id = ?""",
+ 255:             (restaurant["id"],),
+ 256:         ).fetchone()
+ 257:         confirmed = conn.execute(
+ 258:             """SELECT COUNT(*) AS order_count,
+ 259:                       COALESCE(SUM(total), 0) AS revenue
+ 260:                FROM "order"
+ 261:                WHERE restaurant_id = ? AND status = 'onayland\u0131'""",
+ 262:             (restaurant["id"],),
+ 263:         ).fetchone()
+ 264:     average = round(overall["revenue"] / overall["order_count"], 2) if overall["order_count"] else 0
+ 265:     return {
+ 266:         "total_revenue": round(overall["revenue"], 2),
+ 267:         "confirmed_revenue": round(confirmed["revenue"], 2),
+ 268:         "pending_revenue": round(overall["revenue"] - confirmed["revenue"], 2),
+ 269:         "order_count": overall["order_count"],
+ 270:         "confirmed_order_count": confirmed["order_count"],
+ 271:         "average_order_value": average,
+ 272:     }
+===== sepet/api/reviews.py =====
+   1: from typing import Any
+   2: 
+   3: from fastapi import APIRouter, Depends, HTTPException
+   4: 
+   5: from auth import get_optional_user, require_customer
+   6: from db import get_db, utc_now
+   7: from panels import ReviewInput
+   8: 
+   9: 
+  10: router = APIRouter(prefix="/api")
+  11: 
+  12: 
+  13: def displayed_rating(seed_rating: float, review_rows) -> float:
+  14:     ratings = [seed_rating, *[row["rating"] for row in review_rows]]
+  15:     return round(sum(ratings) / len(ratings), 1)
+  16: 
+  17: 
+  18: @router.post("/restaurants/{restaurant_id}/reviews", status_code=201)
+  19: def create_review(
+  20:     restaurant_id: int,
+  21:     payload: ReviewInput,
+  22:     user=Depends(require_customer),
+  23: ) -> dict[str, Any]:
+  24:     if not payload.comment.strip():
+  25:         raise HTTPException(status_code=400, detail="Yorum metni zorunludur")
+  26:     with get_db() as conn:
+  27:         restaurant = conn.execute(
+  28:             "SELECT id FROM restaurant WHERE id = ?", (restaurant_id,)
+  29:         ).fetchone()
+  30:         if not restaurant:
+  31:             raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+  32:         approved = conn.execute(
+  33:             """SELECT 1 FROM "order"
+  34:                WHERE customer_id = ? AND restaurant_id = ? AND status = 'onaylandı'""",
+  35:             (user["id"], restaurant_id),
+  36:         ).fetchone()
+  37:         if not approved:
+  38:             raise HTTPException(status_code=403, detail="Yorum icin onayli siparis gerekli")
+  39:         if conn.execute(
+  40:             "SELECT 1 FROM restaurant_review WHERE restaurant_id = ? AND user_id = ?",
+  41:             (restaurant_id, user["id"]),
+  42:         ).fetchone():
+  43:             raise HTTPException(status_code=409, detail="Bu restorana yorum yaptiniz")
+  44:         cursor = conn.execute(
+  45:             """INSERT INTO restaurant_review
+  46:                (restaurant_id, user_id, rating, comment, created_at)
+  47:                VALUES (?, ?, ?, ?, ?)""",
+  48:             (restaurant_id, user["id"], payload.rating, payload.comment.strip(), utc_now()),
+  49:         )
+  50:     return {"id": cursor.lastrowid, "rating": payload.rating, "comment": payload.comment.strip(), "user_email": user["email"]}
+  51: 
+===== sepet/api/schema.sql =====
+   1: CREATE TABLE IF NOT EXISTS restaurant (
+   2:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+   3:     name TEXT NOT NULL,
+   4:     cuisine TEXT NOT NULL,
+   5:     rating REAL NOT NULL,
+   6:     delivery_fee REAL NOT NULL,
+   7:     min_order REAL NOT NULL,
+   8:     eta_minutes INTEGER NOT NULL,
+   9:     image_emoji TEXT NOT NULL,
+  10:     user_id INTEGER REFERENCES "user"(id)
+  11: );
+  12: 
+  13: CREATE TABLE IF NOT EXISTS "user" (
+  14:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  15:     email TEXT NOT NULL UNIQUE,
+  16:     password_hash TEXT NOT NULL,
+  17:     role TEXT NOT NULL CHECK (role IN ('customer', 'restaurant', 'courier')),
+  18:     balance REAL NOT NULL DEFAULT 0
+  19: );
+  20: 
+  21: CREATE TABLE IF NOT EXISTS auth_token (
+  22:     token TEXT PRIMARY KEY,
+  23:     user_id INTEGER NOT NULL REFERENCES "user"(id),
+  24:     created_at TEXT NOT NULL
+  25: );
+  26: 
+  27: CREATE TABLE IF NOT EXISTS courier (
+  28:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  29:     user_id INTEGER NOT NULL UNIQUE REFERENCES "user"(id),
+  30:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  31:     name TEXT NOT NULL
+  32: );
+  33: 
+  34: CREATE TABLE IF NOT EXISTS restaurant_review (
+  35:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  36:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  37:     user_id INTEGER NOT NULL REFERENCES "user"(id),
+  38:     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  39:     comment TEXT NOT NULL,
+  40:     created_at TEXT NOT NULL,
+  41:     UNIQUE (restaurant_id, user_id)
+  42: );
+  43: 
+  44: CREATE TABLE IF NOT EXISTS menu_item (
+  45:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  46:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  47:     name TEXT NOT NULL,
+  48:     description TEXT NOT NULL,
+  49:     price REAL NOT NULL,
+  50:     category TEXT NOT NULL
+  51: );
+  52: 
+  53: CREATE TABLE IF NOT EXISTS "order" (
+  54:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  55:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  56:     address TEXT NOT NULL,
+  57:     phone TEXT NOT NULL,
+  58:     note TEXT NOT NULL DEFAULT '',
+  59:     total REAL NOT NULL,
+  60:     status TEXT NOT NULL DEFAULT 'hazÄ±rlanÄ±yor',
+  61:     created_at TEXT NOT NULL,
+  62:     customer_id INTEGER REFERENCES "user"(id),
+  63:     courier_id INTEGER REFERENCES courier(id),
+  64:     courier_assigned_at TEXT,
+  65:     delivered_at TEXT,
+  66:     confirmed_at TEXT
+  67: );
+  68: 
+  69: CREATE TABLE IF NOT EXISTS order_item (
+  70:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  71:     order_id INTEGER NOT NULL REFERENCES "order"(id),
+  72:     menu_item_id INTEGER NOT NULL REFERENCES menu_item(id),
+  73:     name TEXT NOT NULL,
+  74:     unit_price REAL NOT NULL,
+  75:     quantity INTEGER NOT NULL
+  76: );
+  77: 
+===== sepet/api/seed.py =====
+   1: import sqlite3
+   2: from pathlib import Path
+   3: 
+   4: from db import hash_password, utc_now
+   5: 
+   6: 
+   7: DB_PATH = Path(__file__).with_name("sepet.db")
+   8: SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+   9: 
+  10: 
+  11: RESTAURANTS = [
+  12:     {
+  13:         "name": "Anadolu Ateşi",
+  14:         "cuisine": "kebap",
+  15:         "rating": 4.7,
+  16:         "delivery_fee": 14.90,
+  17:         "min_order": 120.00,
+  18:         "eta_minutes": 35,
+  19:         "image_emoji": "🍢",
+  20:         "menu": [
+  21:             ("Adana Kebap Porsiyon", "Acılı kıyma kebap, lavaş, közlenmiş domates ve yeşil biber", 185.00, "Kebaplar"),
+  22:             ("Urfa Kebap Porsiyon", "Acısız kıyma kebap, bulgur pilavı ve turşu eşliğinde", 175.00, "Kebaplar"),
+  23:             ("Kuzu Şiş", "Marine kuzu eti, közlenmiş sebze ve pirinç pilavı", 225.00, "Kebaplar"),
+  24:             ("Beyti Sarma", "Izgara dana kebap, yoğurt ve tereyağlı sos", 210.00, "Kebaplar"),
+  25:             ("Humus", "Nohut, tahin, limon ve zeytinyağı ile yumuşak bir başlangıç", 78.00, "Başlangıçlar"),
+  26:             ("Künefe", "Tel kadayıf, peynir, tereyağı ve şerbet", 105.00, "Tatlılar"),
+  27:         ],
+  28:     },
+  29:     {
+  30:         "name": "Napoli Fırını",
+  31:         "cuisine": "pizza",
+  32:         "rating": 4.5,
+  33:         "delivery_fee": 12.50,
+  34:         "min_order": 90.00,
+  35:         "eta_minutes": 30,
+  36:         "image_emoji": "🍕",
+  37:         "menu": [
+  38:             ("Margherita", "San Marzano domates, mozzarella ve taze fesleğen", 145.00, "Pizzalar"),
+  39:             ("Diavola", "Acılı salam, mozzarella, chilli yağı ve zeytin", 165.00, "Pizzalar"),
+  40:             ("Quattro Formaggi", "Mozzarella, gorgonzola, parmesan ve kaşar", 185.00, "Pizzalar"),
+  41:             ("Prosciutto E Rucola", "Parma jambonu, roka, parmesan ve balzamik sos", 195.00, "Pizzalar"),
+  42:             ("Bruschetta", "Fırınlanmış ekşi maya ekmek, domates, sarımsak ve fesleğen", 68.00, "Başlangıçlar"),
+  43:             ("Tiramisu", "Mascarpone, kahve ve kakao ile klasik İtalyan tatlısı", 95.00, "Tatlılar"),
+  44:         ],
+  45:     },
+  46:     {
+  47:         "name": "Cadde Burger",
+  48:         "cuisine": "burger",
+  49:         "rating": 4.4,
+  50:         "delivery_fee": 9.90,
+  51:         "min_order": 80.00,
+  52:         "eta_minutes": 25,
+  53:         "image_emoji": "🍔",
+  54:         "menu": [
+  55:             ("Cadde Classic", "Dana köfte, cheddar, marul, domates ve özel sos", 132.00, "Burgerler"),
+  56:             ("Smoky BBQ", "Izgara dana köfte, cheddar, karamelize soğan ve bbq sos", 158.00, "Burgerler"),
+  57:             ("Blue Cheese Burger", "Dana köfte, gorgonzola, soğan halkası ve roka", 172.00, "Burgerler"),
+  58:             ("Tavuk Crispy", "Çıtır tavuk göğsü, acı mayo, turşu ve marul", 128.00, "Burgerler"),
+  59:             ("Patates Kızartması", "Kalın dilim, dışı çıtır patates ve tuz", 48.00, "Yanında"),
+  60:             ("Çikolatalı Brownie", "Sıcak çikolatalı brownie ve vanilyalı sos", 72.00, "Tatlılar"),
+  61:         ],
+  62:     },
+  63:     {
+  64:         "name": "Şanlı Çiğköfte Evi",
+  65:         "cuisine": "çiğ köfte",
+  66:         "rating": 4.6,
+  67:         "delivery_fee": 7.50,
+  68:         "min_order": 55.00,
+  69:         "eta_minutes": 20,
+  70:         "image_emoji": "🌯",
+  71:         "menu": [
+  72:             ("Çiğ Köfte Dürüm", "Acılı çiğ köfte, marul, nar ekşisi ve limon", 72.00, "Dürümler"),
+  73:             ("Nohutlu Çiğ Köfte Dürüm", "Nohutlu çiğ köfte, yeşillik ve nar ekşisi", 78.00, "Dürümler"),
+  74:             ("Çiğ Köfte Servis", "İki kişilik çiğ köfte, lavaş, marul ve limon", 135.00, "Servisler"),
+  75:             ("Ayran", "Ev yapımı yoğurttan soğuk ayran", 25.00, "İçecekler"),
+  76:             ("Şalgam Suyu", "Acılı veya acısız gelen taze şalgam", 22.00, "İçecekler"),
+  77:             ("Şekerpare", "Şerbetli, tereyağlı Şanlıurfa usulü tatlı", 48.00, "Tatlılar"),
+  78:         ],
+  79:     },
+  80:     {
+  81:         "name": "Sakura Sushi Bar",
+  82:         "cuisine": "sushi",
+  83:         "rating": 4.8,
+  84:         "delivery_fee": 18.00,
+  85:         "min_order": 160.00,
+  86:         "eta_minutes": 40,
+  87:         "image_emoji": "🍣",
+  88:         "menu": [
+  89:             ("Salmon Nigiri Seti", "Altı parça taze somon nigiri", 210.00, "Sushiler"),
+  90:             ("California Roll", "Yengeç salatası, avokado, salatalık ve susam", 185.00, "Roller"),
+  91:             ("Spicy Tuna Roll", "Acı ton balığı, salatalık ve sesame mayo", 198.00, "Roller"),
+  92:             ("Dragon Roll", "Karides tempura, avokado ve unagi sos", 225.00, "Roller"),
+  93:             ("Miso Çorbası", "Tofu, wakame ve mantarlı miso çorbası", 52.00, "Başlangıçlar"),
+  94:             ("Matcha Cheesecake", "Yeşil çaylı, hafif tatlı cheesecake", 98.00, "Tatlılar"),
+  95:         ],
+  96:     },
+  97:     {
+  98:         "name": "Baklavacı Memiş",
+  99:         "cuisine": "tatlı",
+ 100:         "rating": 4.9,
+ 101:         "delivery_fee": 8.00,
+ 102:         "min_order": 70.00,
+ 103:         "eta_minutes": 22,
+ 104:         "image_emoji": "🥮",
+ 105:         "menu": [
+ 106:             ("Fıstıklı Baklava", "Antep fıstığı, tereyağı ve ince yufka", 165.00, "Baklava"),
+ 107:             ("Cevizli Baklava", "Ceviz dolgulu, şerbetli klasik baklava", 145.00, "Baklava"),
+ 108:             ("Şöbiyet", "Kaymaklı ve fıstıklı şerbetli tatlı", 175.00, "Şerbetliler"),
+ 109:             ("Sütlaç", "Fırınlanmış, tarçınlı ev sütlacı", 68.00, "Sütlüler"),
+ 110:             ("Aşure", "Baklagil, kuru meyve ve fındıklı geleneksel aşure", 58.00, "Klasikler"),
+ 111:             ("Kadınlı Göğsü", "Tavuk göğsü, şerbet ve tarçın ile hafif tatlı", 72.00, "Sütlüler"),
+ 112:         ],
+ 113:     },
+ 114:     {
+ 115:         "name": "Levent'in Mutfağı",
+ 116:         "cuisine": "ev yemeği",
+ 117:         "rating": 4.3,
+ 118:         "delivery_fee": 11.00,
+ 119:         "min_order": 85.00,
+ 120:         "eta_minutes": 28,
+ 121:         "image_emoji": "🍲",
+ 122:         "menu": [
+ 123:             ("Mercimek Çorbası", "Kırmızı mercimek, nane ve limon", 52.00, "Çorbalar"),
+ 124:             ("Etli Nohut", "Kuzu etli nohut ve bulgur pilavı", 138.00, "Ana Yemekler"),
+ 125:             ("Karnıyarık", "Kıymalı patlıcan, pirinç pilavı ve cacık", 125.00, "Ana Yemekler"),
+ 126:             ("Mantı", "Yoğurtlu, naneli ve tereyağlı ev mantısı", 145.00, "Ana Yemekler"),
+ 127:             ("Zeytinyağlı Yaprak Sarma", "Zeytinyağlı pirinçli sarma ve limon", 82.00, "Zeytinyağlılar"),
+ 128:             ("Kabak Tatlısı", "Cevizli ve tahinli fırın kabak tatlısı", 64.00, "Tatlılar"),
+ 129:         ],
+ 130:     },
+ 131:     {
+ 132:         "name": "Karadeniz Balık Evi",
+ 133:         "cuisine": "deniz ürünleri",
+ 134:         "rating": 4.2,
+ 135:         "delivery_fee": 15.00,
+ 136:         "min_order": 150.00,
+ 137:         "eta_minutes": 38,
+ 138:         "image_emoji": "🐟",
+ 139:         "menu": [
+ 140:             ("Levrek Izgara", "Marine levrek, mevsim yeşillikleri ve limon", 245.00, "Balıklar"),
+ 141:             ("Hamsi Tava", "Karadeniz usulü unlu hamsi ve turşu", 185.00, "Balıklar"),
+ 142:             ("Kalamar Tava", "Çıtır kalamar ve tartar sos", 158.00, "Başlangıçlar"),
+ 143:             ("Balık Çorbası", "Kemikli balık suyu, sebze ve limon", 82.00, "Çorbalar"),
+ 144:             ("Mısır Ekmeği", "Fırından sıcak Karadeniz mısır ekmeği", 42.00, "Ekmekler"),
+ 145:             ("Kabak Mücver", "Kabak, dereotu ve yoğurt soslu mücver", 78.00, "Başlangıçlar"),
+ 146:         ],
+ 147:     },
+ 148: ]
+ 149: 
+ 150: RESTAURANT_SLUGS = [
+ 151:     "anadolu-atesi",
+ 152:     "napoli-firini",
+ 153:     "cadde-burger",
+ 154:     "sanli-cigkofte-evi",
+ 155:     "sakura-sushi-bar",
+ 156:     "baklavaci-memis",
+ 157:     "leventin-mutfagi",
+ 158:     "karadeniz-balik-evi",
+ 159: ]
+ 160: 
+ 161: 
+ 162: def main() -> None:
+ 163:     DB_PATH.unlink(missing_ok=True)
+ 164:     with sqlite3.connect(DB_PATH) as conn, open(SCHEMA_PATH, encoding="utf-8") as schema_file:
+ 165:         conn.row_factory = sqlite3.Row
+ 166:         conn.executescript(schema_file.read())
+ 167:         for restaurant in RESTAURANTS:
+ 168:             cursor = conn.execute(
+ 169:                 """INSERT INTO restaurant
+ 170:                    (name, cuisine, rating, delivery_fee, min_order, eta_minutes, image_emoji)
+ 171:                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+ 172:                 (
+ 173:                     restaurant["name"],
+ 174:                     restaurant["cuisine"],
+ 175:                     restaurant["rating"],
+ 176:                     restaurant["delivery_fee"],
+ 177:                     restaurant["min_order"],
+ 178:                     restaurant["eta_minutes"],
+ 179:                     restaurant["image_emoji"],
+ 180:                 ),
+ 181:             )
+ 182:             restaurant_id = cursor.lastrowid
+ 183:             conn.executemany(
+ 184:                 """INSERT INTO menu_item
+ 185:                    (restaurant_id, name, description, price, category)
+ 186:                    VALUES (?, ?, ?, ?, ?)""",
+ 187:                 [
+ 188:                     (restaurant_id, item[0], item[1], item[2], item[3])
+ 189:                     for item in restaurant["menu"]
+ 190:                 ],
+ 191:             )
+ 192: 
+ 193:         password_hash = hash_password("sepet123")
+ 194:         now = utc_now()
+ 195:         customer_cursor = conn.execute(
+ 196:             'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+ 197:             ("musteri@sepet.test", password_hash, "customer", 250.0),
+ 198:         )
+ 199: 
+ 200:         for restaurant, slug in zip(RESTAURANTS, RESTAURANT_SLUGS):
+ 201:             row = conn.execute(
+ 202:                 "SELECT id FROM restaurant WHERE name = ?", (restaurant["name"],)
+ 203:             ).fetchone()
+ 204:             if not row:
+ 205:                 continue
+ 206:             restaurant_id = row["id"]
+ 207:             owner_cursor = conn.execute(
+ 208:                 'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+ 209:                 (f"sahip.{slug}@sepet.test", password_hash, "restaurant", 0.0),
+ 210:             )
+ 211:             conn.execute(
+ 212:                 "UPDATE restaurant SET user_id = ? WHERE id = ?",
+ 213:                 (owner_cursor.lastrowid, restaurant_id),
+ 214:             )
+ 215:             for number in (1, 2):
+ 216:                 courier_user = conn.execute(
+ 217:                     'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+ 218:                     (f"kurye{number}.{slug}@sepet.test", password_hash, "courier", 0.0),
+ 219:                 )
+ 220:                 conn.execute(
+ 221:                     "INSERT INTO courier (user_id, restaurant_id, name) VALUES (?, ?, ?)",
+ 222:                     (
+ 223:                         courier_user.lastrowid,
+ 224:                         restaurant_id,
+ 225:                         f"{restaurant['name']} Kurye {number}",
+ 226:                     ),
+ 227:                 )
+ 228: 
+ 229:         print("Demo musteri: musteri@sepet.test / sepet123")
+ 230:         print(f"{len(RESTAURANTS)} restoran ve veritabani olusturuldu: {DB_PATH}")
+ 231: 
+ 232: 
+ 233: if __name__ == "__main__":
+ 234:     main()
+
+codex
+Backend dosyalarinin buyuk kismi okundu; cikista kirilan `panels.py` ve `main.py` bolumlerini tamamlayarak okuyorum. Ardindan frontend dosyalarina gececegim.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'foreach($spec in @(@('"'sepet/api/main.py',100,230),@('sepet/api/panels.py',1,150),@('sepet/api/panels.py',151,300))){ "'$f=$spec[0]; $s=$spec[1]; $e=$spec[2]; Write-Output "===== $f $s-$e ====="; $lines=[System.IO.File]::ReadAllLines((Join-Path (Get-Location) $f)); for($i=$s-1;$i -lt [Math]::Min($e,$lines.Count);$i++){ Write-Output ("{0,4}: {1}" -f ($i+1),$lines[$i]) } }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 64ms:
+ 100:     result = dict(restaurant)
+ 101:     result["menu_items"] = [dict(item) for item in menu]
+ 102:     result["reviews"] = [dict(review) for review in reviews]
+ 103:     result["rating"] = displayed_rating(result["rating"], reviews)
+ 104:     result["can_review"] = False
+ 105:     result["has_review"] = False
+ 106:     if user and user["role"] == "customer":
+ 107:         result["can_review"] = bool(conn.execute(
+ 108:             """SELECT 1 FROM "order"
+ 109:                WHERE customer_id = ? AND restaurant_id = ? AND status = 'onaylandÄ±'""",
+ 110:             (user["id"], restaurant_id),
+ 111:         ).fetchone())
+ 112:         result["has_review"] = bool(conn.execute(
+ 113:             "SELECT 1 FROM restaurant_review WHERE restaurant_id = ? AND user_id = ?",
+ 114:             (restaurant_id, user["id"]),
+ 115:         ).fetchone())
+ 116:     return result
+ 117: 
+ 118: 
+ 119: @app.get("/api/orders/{order_id}")
+ 120: def get_order(order_id: int) -> dict[str, Any]:
+ 121:     with get_db() as conn:
+ 122:         order = conn.execute(
+ 123:             """SELECT o.*, r.name AS restaurant_name
+ 124:                FROM "order" o
+ 125:                JOIN restaurant r ON r.id = o.restaurant_id
+ 126:                WHERE o.id = ?""",
+ 127:             (order_id,),
+ 128:         ).fetchone()
+ 129:         if not order:
+ 130:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 131:         items = conn.execute(
+ 132:             """SELECT oi.id, oi.menu_item_id, oi.name, oi.unit_price, oi.quantity,
+ 133:                       oi.unit_price * oi.quantity AS line_total
+ 134:                FROM order_item oi WHERE oi.order_id = ? ORDER BY oi.id""",
+ 135:             (order_id,),
+ 136:         ).fetchall()
+ 137:     result = dict(order)
+ 138:     result["items"] = [dict(item) for item in items]
+ 139:     return result
+ 140: 
+ 141: 
+ 142: @app.post("/api/orders", status_code=201)
+ 143: def create_order(payload: OrderInput, user=Depends(require_customer)) -> dict[str, Any]:
+ 144:     if not payload.items:
+ 145:         raise HTTPException(status_code=400, detail="Siparis icin en az bir urun gerekli")
+ 146:     if user and user["role"] != "customer":
+ 147:         raise HTTPException(status_code=403, detail="Siparis icin musteri hesabi kullanin")
+ 148: 
+ 149:     with get_db() as conn:
+ 150:         restaurant = conn.execute(
+ 151:             "SELECT * FROM restaurant WHERE id = ?", (payload.restaurant_id,)
+ 152:         ).fetchone()
+ 153:         if not restaurant:
+ 154:             raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+ 155: 
+ 156:         placeholders = ",".join("?" for _ in payload.items)
+ 157:         menu_rows = conn.execute(
+ 158:             f"""SELECT id, name, price FROM menu_item
+ 159:                 WHERE restaurant_id = ? AND id IN ({placeholders})""",
+ 160:             [payload.restaurant_id, *[item.menu_item_id for item in payload.items]],
+ 161:         ).fetchall()
+ 162:         menu_by_id = {row["id"]: row for row in menu_rows}
+ 163:         if len(menu_by_id) != len({item.menu_item_id for item in payload.items}):
+ 164:             raise HTTPException(status_code=404, detail="Menu urunu bulunamadi")
+ 165: 
+ 166:         subtotal = sum(menu_by_id[item.menu_item_id]["price"] * item.quantity for item in payload.items)
+ 167:         if subtotal < restaurant["min_order"]:
+ 168:             missing = restaurant["min_order"] - subtotal
+ 169:             raise HTTPException(
+ 170:                 status_code=400,
+ 171:                 detail=f"Minimum sepet tutarinin {missing:.2f} TL altindasiniz",
+ 172:             )
+ 173: 
+ 174:         total = round(subtotal + restaurant["delivery_fee"], 2)
+ 175:         missing_balance = round(max(0, total - user["balance"]), 2)
+ 176:         if missing_balance > 0:
+ 177:             raise HTTPException(
+ 178:                 status_code=400,
+ 179:                 detail=f"Bakiyeniz yetersiz. Siparis icin {missing_balance:.2f} TL daha yukleyin",
+ 180:             )
+ 181:         deducted = conn.execute(
+ 182:             'UPDATE "user" SET balance = balance - ? WHERE id = ? AND balance >= ?',
+ 183:             (total, user["id"], total),
+ 184:         ).rowcount
+ 185:         if not deducted:
+ 186:             raise HTTPException(status_code=400, detail="Bakiye dusurulemedi")
+ 187: 
+ 188:         now = datetime.now(timezone.utc).isoformat()
+ 189:         cursor = conn.execute(
+ 190:             """INSERT INTO "order"
+ 191:                (restaurant_id, address, phone, note, total, status, created_at, customer_id)
+ 192:                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+ 193:             (
+ 194:                 payload.restaurant_id,
+ 195:                 payload.address,
+ 196:                 payload.phone,
+ 197:                 payload.note,
+ 198:                 total,
+ 199:                 "hazÄ±rlanÄ±yor",
+ 200:                 now,
+ 201:                 user["id"],
+ 202:             ),
+ 203:         )
+ 204:         order_id = cursor.lastrowid
+ 205:         for item in payload.items:
+ 206:             menu_item = menu_by_id[item.menu_item_id]
+ 207:             conn.execute(
+ 208:                 """INSERT INTO order_item
+ 209:                    (order_id, menu_item_id, name, unit_price, quantity)
+ 210:                    VALUES (?, ?, ?, ?, ?)""",
+ 211:                 (order_id, item.menu_item_id, menu_item["name"], menu_item["price"], item.quantity),
+ 212:             )
+ 213: 
+ 214:     return {"id": order_id, "status": "hazÄ±rlanÄ±yor", "total": total}
+ 215: 
+ 216: 
+===== sepet/api/panels.py 1-150 =====
+   1: from typing import Any, Literal
+   2: 
+   3: from fastapi import APIRouter, Depends, HTTPException
+   4: from pydantic import BaseModel, Field
+   5: 
+   6: from auth import require_courier, require_customer, require_restaurant
+   7: from db import get_db, hash_password, utc_now
+   8: 
+   9: 
+  10: router = APIRouter(prefix="/api")
+  11: 
+  12: 
+  13: class CourierInput(BaseModel):
+  14:     email: str
+  15:     password: str
+  16:     name: str
+  17: 
+  18: 
+  19: class MenuItemInput(BaseModel):
+  20:     name: str
+  21:     description: str
+  22:     price: float = Field(gt=0)
+  23:     category: str
+  24: 
+  25: 
+  26: class AssignCourierInput(BaseModel):
+  27:     courier_id: int
+  28: 
+  29: 
+  30: class ReviewInput(BaseModel):
+  31:     rating: int = Field(ge=1, le=5)
+  32:     comment: str
+  33: 
+  34: 
+  35: def serialize_orders(conn, rows) -> list[dict[str, Any]]:
+  36:     result = []
+  37:     for row in rows:
+  38:         order = dict(row)
+  39:         order["items"] = [
+  40:             dict(item)
+  41:             for item in conn.execute(
+  42:                 """SELECT id, menu_item_id, name, unit_price, quantity,
+  43:                           unit_price * quantity AS line_total
+  44:                    FROM order_item WHERE order_id = ? ORDER BY id""",
+  45:                 (order["id"],),
+  46:             ).fetchall()
+  47:         ]
+  48:         result.append(order)
+  49:     return result
+  50: 
+  51: 
+  52: def order_with_items(conn, order_id: int):
+  53:     order = conn.execute(
+  54:         """SELECT o.*, r.name AS restaurant_name,
+  55:                   u.email AS customer_email, c.name AS courier_name
+  56:            FROM "order" o
+  57:            JOIN restaurant r ON r.id = o.restaurant_id
+  58:            LEFT JOIN "user" u ON u.id = o.customer_id
+  59:            LEFT JOIN courier c ON c.id = o.courier_id
+  60:            WHERE o.id = ?""",
+  61:         (order_id,),
+  62:     ).fetchone()
+  63:     if not order:
+  64:         return None
+  65:     return serialize_orders(conn, [order])[0]
+  66: 
+  67: 
+  68: @router.get("/orders/history")
+  69: def order_history(user=Depends(require_customer)) -> list[dict[str, Any]]:
+  70:     with get_db() as conn:
+  71:         rows = conn.execute(
+  72:             """SELECT o.*, r.name AS restaurant_name,
+  73:                       u.email AS customer_email, c.name AS courier_name
+  74:                FROM "order" o
+  75:                JOIN restaurant r ON r.id = o.restaurant_id
+  76:                LEFT JOIN "user" u ON u.id = o.customer_id
+  77:                LEFT JOIN courier c ON c.id = o.courier_id
+  78:                WHERE o.customer_id = ? ORDER BY o.created_at DESC""",
+  79:             (user["id"],),
+  80:         ).fetchall()
+  81:     return serialize_orders(conn, rows)
+  82: 
+  83: 
+  84: @router.get("/restaurant/orders")
+  85: def restaurant_orders(
+  86:     status: str = "",
+  87:     user_restaurant=Depends(require_restaurant),
+  88: ) -> list[dict[str, Any]]:
+  89:     _, restaurant = user_restaurant
+  90:     query = """SELECT o.*, r.name AS restaurant_name,
+  91:                       u.email AS customer_email, c.name AS courier_name
+  92:                FROM "order" o
+  93:                JOIN restaurant r ON r.id = o.restaurant_id
+  94:                LEFT JOIN "user" u ON u.id = o.customer_id
+  95:                LEFT JOIN courier c ON c.id = o.courier_id
+  96:                WHERE o.restaurant_id = ?"""
+  97:     params: list[Any] = [restaurant["id"]]
+  98:     if status:
+  99:         query += " AND o.status = ?"
+ 100:         params.append(status)
+ 101:     with get_db() as conn:
+ 102:         rows = conn.execute(query + " ORDER BY o.created_at DESC", params).fetchall()
+ 103:     return serialize_orders(conn, rows)
+ 104: 
+ 105: 
+ 106: @router.get("/restaurant/couriers")
+ 107: def list_couriers(user_restaurant=Depends(require_restaurant)) -> list[dict[str, Any]]:
+ 108:     _, restaurant = user_restaurant
+ 109:     with get_db() as conn:
+ 110:         rows = conn.execute(
+ 111:             "SELECT id, name, user_id FROM courier WHERE restaurant_id = ? ORDER BY name",
+ 112:             (restaurant["id"],),
+ 113:         ).fetchall()
+ 114:     return [dict(row) for row in rows]
+ 115: 
+ 116: 
+ 117: @router.get("/restaurant/menu-items")
+ 118: def list_menu_items(user_restaurant=Depends(require_restaurant)) -> list[dict[str, Any]]:
+ 119:     _, restaurant = user_restaurant
+ 120:     with get_db() as conn:
+ 121:         rows = conn.execute(
+ 122:             "SELECT * FROM menu_item WHERE restaurant_id = ? ORDER BY category, name",
+ 123:             (restaurant["id"],),
+ 124:         ).fetchall()
+ 125:     return [dict(row) for row in rows]
+ 126: 
+ 127: 
+ 128: @router.post("/restaurant/couriers", status_code=201)
+ 129: def create_courier(payload: CourierInput, user_restaurant=Depends(require_restaurant)) -> dict:
+ 130:     _, restaurant = user_restaurant
+ 131:     if not payload.name.strip():
+ 132:         raise HTTPException(status_code=400, detail="Kurye adi zorunludur")
+ 133:     with get_db() as conn:
+ 134:         if conn.execute('SELECT 1 FROM "user" WHERE email = ?', (payload.email,)).fetchone():
+ 135:             raise HTTPException(status_code=409, detail="Bu e-posta zaten kayitli")
+ 136:         cursor = conn.execute(
+ 137:             'INSERT INTO "user" (email, password_hash, role) VALUES (?, ?, ?)',
+ 138:             (payload.email, hash_password(payload.password), "courier"),
+ 139:         )
+ 140:         courier_id = cursor.lastrowid
+ 141:         conn.execute(
+ 142:             "INSERT INTO courier (user_id, restaurant_id, name) VALUES (?, ?, ?)",
+ 143:             (courier_id, restaurant["id"], payload.name),
+ 144:         )
+ 145:     return {"id": courier_id, "name": payload.name, "restaurant_id": restaurant["id"]}
+ 146: 
+ 147: 
+ 148: @router.post("/restaurant/menu-items", status_code=201)
+ 149: def add_menu_item(payload: MenuItemInput, user_restaurant=Depends(require_restaurant)) -> dict:
+ 150:     _, restaurant = user_restaurant
+===== sepet/api/panels.py 151-300 =====
+ 151:     with get_db() as conn:
+ 152:         cursor = conn.execute(
+ 153:             """INSERT INTO menu_item (restaurant_id, name, description, price, category)
+ 154:                VALUES (?, ?, ?, ?, ?)""",
+ 155:             (restaurant["id"], payload.name, payload.description, payload.price, payload.category),
+ 156:         )
+ 157:     return {"id": cursor.lastrowid, **payload.model_dump(), "restaurant_id": restaurant["id"]}
+ 158: 
+ 159: 
+ 160: @router.post("/restaurant/orders/{order_id}/assign-courier")
+ 161: def assign_courier(
+ 162:     order_id: int,
+ 163:     payload: AssignCourierInput,
+ 164:     user_restaurant=Depends(require_restaurant),
+ 165: ) -> dict[str, str]:
+ 166:     _, restaurant = user_restaurant
+ 167:     now = utc_now()
+ 168:     with get_db() as conn:
+ 169:         order = conn.execute(
+ 170:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 171:         ).fetchone()
+ 172:         if not order or order["restaurant_id"] != restaurant["id"]:
+ 173:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 174:         if order["status"] != "hazırlanıyor":
+ 175:             raise HTTPException(status_code=409, detail="Bu siparis icin kurye atanamaz")
+ 176:         courier = conn.execute(
+ 177:             "SELECT * FROM courier WHERE id = ? AND restaurant_id = ?",
+ 178:             (payload.courier_id, restaurant["id"]),
+ 179:         ).fetchone()
+ 180:         if not courier:
+ 181:             raise HTTPException(status_code=403, detail="Kurye bu restorana ait degil")
+ 182:         conn.execute(
+ 183:             """UPDATE "order" SET courier_id = ?, courier_assigned_at = ?, status = 'kuryede'
+ 184:                WHERE id = ?""",
+ 185:             (courier["id"], now, order_id),
+ 186:         )
+ 187:     return {"status": "kuryede", "courier_name": courier["name"]}
+ 188: 
+ 189: 
+ 190: @router.get("/courier/orders")
+ 191: def courier_orders(courier_data=Depends(require_courier)) -> list[dict[str, Any]]:
+ 192:     _, courier = courier_data
+ 193:     with get_db() as conn:
+ 194:         rows = conn.execute(
+ 195:             """SELECT o.*, r.name AS restaurant_name,
+ 196:                       u.email AS customer_email, c.name AS courier_name
+ 197:                FROM "order" o
+ 198:                JOIN restaurant r ON r.id = o.restaurant_id
+ 199:                LEFT JOIN "user" u ON u.id = o.customer_id
+ 200:                JOIN courier c ON c.id = o.courier_id
+ 201:                WHERE o.courier_id = ? ORDER BY o.created_at DESC""",
+ 202:             (courier["id"],),
+ 203:         ).fetchall()
+ 204:     return serialize_orders(conn, rows)
+ 205: 
+ 206: 
+ 207: @router.post("/courier/orders/{order_id}/deliver")
+ 208: def deliver_order(order_id: int, courier_data=Depends(require_courier)) -> dict[str, str]:
+ 209:     _, courier = courier_data
+ 210:     now = utc_now()
+ 211:     with get_db() as conn:
+ 212:         order = conn.execute(
+ 213:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 214:         ).fetchone()
+ 215:         if not order or order["courier_id"] != courier["id"]:
+ 216:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 217:         if order["status"] != "kuryede":
+ 218:             raise HTTPException(status_code=409, detail="Bu siparis teslim edilemez")
+ 219:         conn.execute(
+ 220:             """UPDATE "order" SET status = 'teslim_edildi', delivered_at = ? WHERE id = ?""",
+ 221:             (now, order_id),
+ 222:         )
+ 223:     return {"status": "teslim_edildi"}
+ 224: 
+ 225: 
+ 226: @router.post("/orders/{order_id}/confirm_delivery")
+ 227: def confirm_delivery(order_id: int, user=Depends(require_customer)) -> dict[str, str]:
+ 228:     now = utc_now()
+ 229:     with get_db() as conn:
+ 230:         order = conn.execute(
+ 231:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 232:         ).fetchone()
+ 233:         if not order or order["customer_id"] != user["id"]:
+ 234:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 235:         if order["status"] != "teslim_edildi":
+ 236:             raise HTTPException(status_code=409, detail="Bu siparis onaylanamaz")
+ 237:         conn.execute(
+ 238:             """UPDATE "order" SET status = 'onaylandı', confirmed_at = ? WHERE id = ?""",
+ 239:             (now, order_id),
+ 240:         )
+ 241:     return {"status": "onaylandı"}
+ 242: 
+ 243: 
+ 244: 
+ 245: 
+ 246: 
+ 247: @router.get("/restaurant/earnings")
+ 248: def restaurant_earnings(user_restaurant=Depends(require_restaurant)) -> dict[str, Any]:
+ 249:     _, restaurant = user_restaurant
+ 250:     with get_db() as conn:
+ 251:         overall = conn.execute(
+ 252:             """SELECT COUNT(*) AS order_count,
+ 253:                       COALESCE(SUM(total), 0) AS revenue
+ 254:                FROM "order" WHERE restaurant_id = ?""",
+ 255:             (restaurant["id"],),
+ 256:         ).fetchone()
+ 257:         confirmed = conn.execute(
+ 258:             """SELECT COUNT(*) AS order_count,
+ 259:                       COALESCE(SUM(total), 0) AS revenue
+ 260:                FROM "order"
+ 261:                WHERE restaurant_id = ? AND status = 'onayland\u0131'""",
+ 262:             (restaurant["id"],),
+ 263:         ).fetchone()
+ 264:     average = round(overall["revenue"] / overall["order_count"], 2) if overall["order_count"] else 0
+ 265:     return {
+ 266:         "total_revenue": round(overall["revenue"], 2),
+ 267:         "confirmed_revenue": round(confirmed["revenue"], 2),
+ 268:         "pending_revenue": round(overall["revenue"] - confirmed["revenue"], 2),
+ 269:         "order_count": overall["order_count"],
+ 270:         "confirmed_order_count": confirmed["order_count"],
+ 271:         "average_order_value": average,
+ 272:     }
+
+codex
+Backend tamam. Simdi 14 frontend dosyasini iki grupta satir numaralariyla okuyorum.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @('"'sepet/web/src/api.ts','sepet/web/src/App.tsx','sepet/web/src/AuthContext.tsx','sepet/web/src/CartContext.tsx','sepet/web/src/main.tsx','sepet/web/src/types.ts','sepet/web/src/pages/Account.tsx','sepet/web/src/pages/Checkout.tsx'); foreach("'$f in $files){ Write-Output "===== $f ====="; $lines=[System.IO.File]::ReadAllLines((Join-Path (Get-Location) $f)); for($i=0;$i -lt $lines.Count;$i++){ Write-Output ("{0,4}: {1}" -f ($i+1),$lines[$i]) } }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 127ms:
+===== sepet/web/src/api.ts =====
+   1: import type { CartLine, Courier, Earnings, MenuItem, Order, OrderItem, Restaurant, Review, User } from "./types";
+   2: 
+   3: async function request<T>(path: string, options?: RequestInit): Promise<T> {
+   4:   const stored = localStorage.getItem("sepet-auth");
+   5:   const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
+   6:   const response = await fetch(path, {
+   7:     headers: {
+   8:       ...(options?.body ? { "Content-Type": "application/json" } : {}),
+   9:       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  10:     },
+  11:     ...options,
+  12:   });
+  13:   if (!response.ok) {
+  14:     const message = await response
+  15:       .json()
+  16:       .then((data) => data?.detail)
+  17:       .catch(() => undefined);
+  18:     throw new Error(typeof message === "string" ? message : "Ä°ÅŸlem tamamlanamadÄ±");
+  19:   }
+  20:   return response.json() as Promise<T>;
+  21: }
+  22: 
+  23: export type RestaurantFilters = {
+  24:   query: string;
+  25:   cuisine: string;
+  26:   minRating: number;
+  27:   maxDeliveryFee: number;
+  28:   maxEtaMinutes: number;
+  29:   sort: "rating" | "eta" | "delivery_fee" | "min_order";
+  30: };
+  31: 
+  32: export const fetchRestaurants = (filters: RestaurantFilters) => {
+  33:   const params = new URLSearchParams();
+  34:   if (filters.query) params.set("q", filters.query);
+  35:   if (filters.cuisine) params.set("cuisine", filters.cuisine);
+  36:   if (filters.minRating) params.set("min_rating", String(filters.minRating));
+  37:   if (filters.maxDeliveryFee !== 999) params.set("max_delivery_fee", String(filters.maxDeliveryFee));
+  38:   if (filters.maxEtaMinutes !== 999) params.set("max_eta_minutes", String(filters.maxEtaMinutes));
+  39:   params.set("sort", filters.sort);
+  40:   const suffix = params.size ? `?${params.toString()}` : "";
+  41:   return request<Restaurant[]>(`/api/restaurants${suffix}`);
+  42: };
+  43: 
+  44: export const fetchRestaurant = (id: number) =>
+  45:   request<Restaurant>(`/api/restaurants/${id}`);
+  46: 
+  47: export const fetchCuisines = () => request<string[]>("/api/cuisines");
+  48: 
+  49: export const fetchOrder = (id: number) => request<Order>(`/api/orders/${id}`);
+  50: 
+  51: export const createOrder = (restaurantId: number, address: string, phone: string, note: string, items: CartLine[]) =>
+  52:   request<{ id: number }>("/api/orders", {
+  53:     method: "POST",
+  54:     body: JSON.stringify({
+  55:       restaurant_id: restaurantId,
+  56:       address,
+  57:       phone,
+  58:       note,
+  59:       items: items.map((line) => {
+  60:         const input: Pick<OrderItem, "menu_item_id" | "quantity"> = {
+  61:           menu_item_id: line.item.id,
+  62:           quantity: line.quantity,
+  63:         };
+  64:         return input;
+  65:       }),
+  66:     }),
+  67:   });
+  68: 
+  69: export const login = (email: string, password: string) =>
+  70:   request<{ token: string; user: User }>("/api/auth/login", {
+  71:     method: "POST",
+  72:     body: JSON.stringify({ email, password }),
+  73:   });
+  74: 
+  75: export const registerAccount = (payload: Record<string, unknown>) =>
+  76:   request<{ token: string; user: User }>("/api/auth/register", {
+  77:     method: "POST",
+  78:     body: JSON.stringify(payload),
+  79:   });
+  80: 
+  81: export const fetchMe = () => request<User>("/api/auth/me");
+  82: 
+  83: export const fetchHistory = () => request<Order[]>("/api/orders/history");
+  84: export const confirmDelivery = (id: number) =>
+  85:   request<{ status: string }>(`/api/orders/${id}/confirm_delivery`, { method: "POST" });
+  86: 
+  87: export const fetchRestaurantOrders = () => request<Order[]>("/api/restaurant/orders");
+  88: export const fetchRestaurantMenu = () => request<MenuItem[]>("/api/restaurant/menu-items");
+  89: export const fetchCouriers = () => request<Courier[]>("/api/restaurant/couriers");
+  90: export const addCourier = (email: string, password: string, name: string) =>
+  91:   request<Courier>("/api/restaurant/couriers", {
+  92:     method: "POST",
+  93:     body: JSON.stringify({ email, password, name }),
+  94:   });
+  95: export const addMenuItem = (payload: Omit<MenuItem, "id" | "restaurant_id">) =>
+  96:   request<MenuItem>("/api/restaurant/menu-items", {
+  97:     method: "POST",
+  98:     body: JSON.stringify(payload),
+  99:   });
+ 100: export const assignCourier = (orderId: number, courierId: number) =>
+ 101:   request<{ status: string }>(`/api/restaurant/orders/${orderId}/assign-courier`, {
+ 102:     method: "POST",
+ 103:     body: JSON.stringify({ courier_id: courierId }),
+ 104:   });
+ 105: 
+ 106: export const fetchCourierOrders = () => request<Order[]>("/api/courier/orders");
+ 107: export const deliverOrder = (id: number) =>
+ 108:   request<{ status: string }>(`/api/courier/orders/${id}/deliver`, { method: "POST" });
+ 109: 
+ 110: export const submitReview = (restaurantId: number, rating: number, comment: string) =>
+ 111:   request<Review>(`/api/restaurants/${restaurantId}/reviews`, {
+ 112:     method: "POST",
+ 113:     body: JSON.stringify({ rating, comment }),
+ 114:   });
+ 115: 
+ 116: 
+ 117: export const topUpWallet = (amount: number) =>
+ 118:   request<{ balance: number; added: number }>("/api/auth/wallet/topup", {
+ 119:     method: "POST",
+ 120:     body: JSON.stringify({ amount }),
+ 121:   });
+ 122: 
+ 123: export const fetchRestaurantEarnings = () => request<Earnings>("/api/restaurant/earnings");
+===== sepet/web/src/App.tsx =====
+   1: import { Link, Route, Routes, useNavigate } from "react-router-dom";
+   2: import { useAuth } from "./AuthContext";
+   3: import Checkout from "./pages/Checkout";
+   4: import Account from "./pages/Account";
+   5: import OrderPage from "./pages/OrderPage";
+   6: import Panel from "./pages/Panel";
+   7: import RestaurantDetail from "./pages/RestaurantDetail";
+   8: import Restaurants from "./pages/Restaurants";
+   9: 
+  10: export default function App() {
+  11:   const { user, logout } = useAuth();
+  12:   const navigate = useNavigate();
+  13: 
+  14:   return (
+  15:     <div className="shell">
+  16:       <header className="site-header">
+  17:         <div className="header-inner">
+  18:           <Link to="/" className="brand" aria-label="Sepet ana sayfa">
+  19:             <span aria-hidden="true">S</span>
+  20:             Sepet
+  21:           </Link>
+  22:           <nav className="site-nav" aria-label="Ana menü">
+  23:             <Link className="nav-link" to="/">Restoranlar</Link>
+  24:             {user ? (
+  25:               <>
+  26:                 {user.role === "customer" && typeof user.balance === "number" && (
+  27:                   <span className="balance-pill">{user.balance.toFixed(2)} TL</span>
+  28:                 )}
+  29:                 <Link className="nav-link" to="/panel">Panelim</Link>
+  30:                 <button
+  31:                   className="ghost-button"
+  32:                   onClick={() => {
+  33:                     logout();
+  34:                     navigate("/");
+  35:                   }}
+  36:                 >
+  37:                   Çıkış
+  38:                 </button>
+  39:               </>
+  40:             ) : (
+  41:               <Link className="primary-link" to="/giris">Giriş / Kayıt</Link>
+  42:             )}
+  43:           </nav>
+  44:         </div>
+  45:       </header>
+  46:       <main className="page">
+  47:         <Routes>
+  48:           <Route path="/" element={<Restaurants />} />
+  49:           <Route path="/r/:id" element={<RestaurantDetail />} />
+  50:           <Route path="/checkout" element={<Checkout />} />
+  51:           <Route path="/order/:id" element={<OrderPage />} />
+  52:           <Route path="/giris" element={<Account />} />
+  53:           <Route path="/panel" element={<Panel />} />
+  54:         </Routes>
+  55:       </main>
+  56:     </div>
+  57:   );
+  58: }
+===== sepet/web/src/AuthContext.tsx =====
+   1: import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+   2: import { fetchMe, login as loginRequest, registerAccount } from "./api";
+   3: import type { User } from "./types";
+   4: 
+   5: type AuthState = {
+   6:   user: User | null;
+   7:   ready: boolean;
+   8:   login: (email: string, password: string) => Promise<void>;
+   9:   register: (payload: Record<string, unknown>) => Promise<void>;
+  10:   logout: () => void;
+  11:   refreshUser: () => Promise<void>;
+  12: };
+  13: 
+  14: const AuthContext = createContext<AuthState | null>(null);
+  15: const STORAGE_KEY = "sepet-auth";
+  16: 
+  17: function readStored(): { token?: string; user?: User } {
+  18:   try {
+  19:     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+  20:   } catch {
+  21:     return {};
+  22:   }
+  23: }
+  24: 
+  25: export function AuthProvider({ children }: { children: ReactNode }) {
+  26:   const [user, setUser] = useState<User | null>(() => readStored().user ?? null);
+  27:   const [ready, setReady] = useState(false);
+  28: 
+  29:   useEffect(() => {
+  30:     const stored = readStored();
+  31:     if (!stored.token) {
+  32:       setReady(true);
+  33:       return;
+  34:     }
+  35:     fetchMe()
+  36:       .then(setUser)
+  37:       .catch(() => setUser(null))
+  38:       .finally(() => setReady(true));
+  39:   }, []);
+  40: 
+  41:   const persist = (token: string, nextUser: User) => {
+  42:     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user: nextUser }));
+  43:     setUser(nextUser);
+  44:   };
+  45: 
+  46:   const login = useCallback(async (email: string, password: string) => {
+  47:     const result = await loginRequest(email, password);
+  48:     persist(result.token, result.user);
+  49:   }, []);
+  50: 
+  51:   const register = useCallback(async (payload: Record<string, unknown>) => {
+  52:     const result = await registerAccount(payload);
+  53:     persist(result.token, result.user);
+  54:   }, []);
+  55: 
+  56:   const logout = useCallback(() => {
+  57:     localStorage.removeItem(STORAGE_KEY);
+  58:     setUser(null);
+  59:   }, []);
+  60: 
+  61:   const refreshUser = useCallback(async () => {
+  62:     const nextUser = await fetchMe();
+  63:     const stored = readStored();
+  64:     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...stored, user: nextUser }));
+  65:     setUser(nextUser);
+  66:   }, []);
+  67: 
+  68:   const value = useMemo(
+  69:     () => ({ user, ready, login, register, logout, refreshUser }),
+  70:     [login, logout, ready, refreshUser, register, user],
+  71:   );
+  72:   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  73: }
+  74: 
+  75: export function useAuth() {
+  76:   const context = useContext(AuthContext);
+  77:   if (!context) throw new Error("useAuth AuthProvider icinde kullanilmali");
+  78:   return context;
+  79: }
+===== sepet/web/src/CartContext.tsx =====
+   1: import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+   2: import type { CartLine, MenuItem } from "./types";
+   3: 
+   4: type CartState = {
+   5:   lines: CartLine[];
+   6:   restaurantId: number | null;
+   7:   subtotal: number;
+   8:   add: (item: MenuItem, deliveryFee: number) => void;
+   9:   change: (itemId: number, delta: number) => void;
+  10:   clear: () => void;
+  11: };
+  12: 
+  13: const CartContext = createContext<CartState | null>(null);
+  14: const STORAGE_KEY = "sepet-cart-v1";
+  15: 
+  16: type StoredCart = {
+  17:   restaurantId: number | null;
+  18:   lines: CartLine[];
+  19: };
+  20: 
+  21: export function CartProvider({ children }: { children: ReactNode }) {
+  22:   const [cart, setCart] = useState<StoredCart>(() => {
+  23:     try {
+  24:       const stored = localStorage.getItem(STORAGE_KEY);
+  25:       return stored ? JSON.parse(stored) as StoredCart : { restaurantId: null, lines: [] };
+  26:     } catch {
+  27:       return { restaurantId: null, lines: [] };
+  28:     }
+  29:   });
+  30: 
+  31:   useEffect(() => {
+  32:     localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+  33:   }, [cart]);
+  34: 
+  35:   const add = useCallback((item: MenuItem, deliveryFee: number) => {
+  36:     setCart((current) => {
+  37:       if (!current.restaurantId || current.restaurantId !== item.restaurant_id) {
+  38:         return { restaurantId: item.restaurant_id, lines: [{ item, quantity: 1, deliveryFee }] };
+  39:       }
+  40:       const lines = current.lines.map((line) =>
+  41:         line.item.id === item.id ? { ...line, quantity: line.quantity + 1 } : line,
+  42:       );
+  43:       if (!lines.some((line) => line.item.id === item.id)) {
+  44:       lines.push({ item, quantity: 1, deliveryFee });
+  45:       }
+  46:       return { ...current, lines };
+  47:     });
+  48:   }, []);
+  49: 
+  50:   const change = useCallback((itemId: number, delta: number) => {
+  51:     setCart((current) => {
+  52:       const lines = current.lines
+  53:         .map((line) => line.item.id === itemId ? { ...line, quantity: line.quantity + delta } : line)
+  54:         .filter((line) => line.quantity > 0);
+  55:       return lines.length ? { ...current, lines } : { restaurantId: null, lines: [] };
+  56:     });
+  57:   }, []);
+  58: 
+  59:   const clear = useCallback(() => setCart({ restaurantId: null, lines: [] }), []);
+  60: 
+  61:   const value = useMemo<CartState>(() => {
+  62:     const subtotal = cart.lines.reduce((sum, line) => sum + line.item.price * line.quantity, 0);
+  63:     return {
+  64:       lines: cart.lines,
+  65:       restaurantId: cart.restaurantId,
+  66:       subtotal,
+  67:       add,
+  68:       change,
+  69:       clear,
+  70:     };
+  71:   }, [add, cart, change, clear]);
+  72: 
+  73:   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+  74: }
+  75: 
+  76: export function useCart() {
+  77:   const context = useContext(CartContext);
+  78:   if (!context) throw new Error("useCart CartProvider icinde kullanilmali");
+  79:   return context;
+  80: }
+===== sepet/web/src/main.tsx =====
+   1: import { StrictMode } from "react";
+   2: import { createRoot } from "react-dom/client";
+   3: import { BrowserRouter } from "react-router-dom";
+   4: import App from "./App";
+   5: import { AuthProvider } from "./AuthContext";
+   6: import { CartProvider } from "./CartContext";
+   7: import "./styles.css";
+   8: 
+   9: createRoot(document.getElementById("root")!).render(
+  10:   <StrictMode>
+  11:     <BrowserRouter>
+  12:       <AuthProvider>
+  13:         <CartProvider>
+  14:           <App />
+  15:         </CartProvider>
+  16:       </AuthProvider>
+  17:     </BrowserRouter>
+  18:   </StrictMode>,
+  19: );
+===== sepet/web/src/types.ts =====
+   1: export type Restaurant = {
+   2:   id: number;
+   3:   name: string;
+   4:   cuisine: string;
+   5:   rating: number;
+   6:   delivery_fee: number;
+   7:   min_order: number;
+   8:   eta_minutes: number;
+   9:   image_emoji: string;
+  10:   menu_items?: MenuItem[];
+  11:   reviews?: Review[];
+  12:   can_review?: boolean;
+  13:   has_review?: boolean;
+  14: };
+  15: 
+  16: export type MenuItem = {
+  17:   id: number;
+  18:   restaurant_id: number;
+  19:   name: string;
+  20:   description: string;
+  21:   price: number;
+  22:   category: string;
+  23: };
+  24: 
+  25: export type OrderItem = {
+  26:   id: number;
+  27:   menu_item_id: number;
+  28:   name: string;
+  29:   unit_price: number;
+  30:   quantity: number;
+  31:   line_total?: number;
+  32: };
+  33: 
+  34: export type Order = {
+  35:   id: number;
+  36:   restaurant_name?: string;
+  37:   restaurant_id: number;
+  38:   address: string;
+  39:   phone: string;
+  40:   note: string;
+  41:   total: number;
+  42:   status: string;
+  43:   created_at: string;
+  44:   customer_email?: string | null;
+  45:   courier_name?: string | null;
+  46:   items: OrderItem[];
+  47: };
+  48: 
+  49: export type User = {
+  50:   id: number;
+  51:   email: string;
+  52:   role: "customer" | "restaurant" | "courier";
+  53:   balance?: number;
+  54: };
+  55: 
+  56: export type Earnings = {
+  57:   total_revenue: number;
+  58:   confirmed_revenue: number;
+  59:   pending_revenue: number;
+  60:   order_count: number;
+  61:   confirmed_order_count: number;
+  62:   average_order_value: number;
+  63: };
+  64: export type Review = {
+  65:   id: number;
+  66:   rating: number;
+  67:   comment: string;
+  68:   created_at: string;
+  69:   user_email: string;
+  70: };
+  71: 
+  72: export type Courier = {
+  73:   id: number;
+  74:   name: string;
+  75:   restaurant_id: number;
+  76: };
+  77: 
+  78: export type CartLine = {
+  79:   item: MenuItem;
+  80:   quantity: number;
+  81:   deliveryFee: number;
+  82: };
+===== sepet/web/src/pages/Account.tsx =====
+   1: import { FormEvent, useState } from "react";
+   2: import { useNavigate } from "react-router-dom";
+   3: import { useAuth } from "../AuthContext";
+   4: 
+   5: export default function Account() {
+   6:   const { login, register } = useAuth();
+   7:   const navigate = useNavigate();
+   8:   const [mode, setMode] = useState<"login" | "register">("login");
+   9:   const [email, setEmail] = useState("");
+  10:   const [password, setPassword] = useState("");
+  11:   const [error, setError] = useState("");
+  12:   const [sending, setSending] = useState(false);
+  13: 
+  14:   async function submit(event: FormEvent) {
+  15:     event.preventDefault();
+  16:     setSending(true);
+  17:     setError("");
+  18:     try {
+  19:       if (mode === "login") await login(email, password);
+  20:       else await register({ email, password, role: "customer" });
+  21:       navigate("/panel");
+  22:     } catch (requestError) {
+  23:       setError(requestError instanceof Error ? requestError.message : "İşlem tamamlanamadı");
+  24:     } finally {
+  25:       setSending(false);
+  26:     }
+  27:   }
+  28: 
+  29:   return (
+  30:     <section className="page-section">
+  31:       <div className="section-head">
+  32:         <h1>Hesabın</h1>
+  33:         <p>Müşteri girişi yapabilir veya yeni hesap oluşturabilirsin.</p>
+  34:       </div>
+  35:       <div className="account-layout">
+  36:         <form className="form-card" onSubmit={submit}>
+  37:           <h2>{mode === "login" ? "Giriş yap" : "Müşteri kaydı"}</h2>
+  38:           <label>E-posta<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+  39:           <label>Şifre<input type="password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+  40:           {error && <p className="status error">{error}</p>}
+  41:           <button className="primary-button" disabled={sending}>
+  42:             {sending ? "Gönderiliyor..." : mode === "login" ? "Giriş yap" : "Kayıt ol"}
+  43:           </button>
+  44:           <button type="button" className="link-button" onClick={() => setMode(mode === "login" ? "register" : "login")}>
+  45:             {mode === "login" ? "Hesabın yok mu? Kayıt ol" : "Hesabın var mı? Giriş yap"}
+  46:           </button>
+  47:         </form>
+  48: 
+  49:         <aside className="form-card">
+  50:           <h2>Restoran hesabı</h2>
+  51:           <p className="muted">İşletmen için restoran ve kurye yönetimi hesabı oluşturun.</p>
+  52:           <form
+  53:             className="nested-form"
+  54:             onSubmit={async (event) => {
+  55:               event.preventDefault();
+  56:               const form = event.currentTarget;
+  57:               const data = new FormData(form);
+  58:               setSending(true);
+  59:               setError("");
+  60:               try {
+  61:                 await register(Object.fromEntries(data.entries()));
+  62:                 navigate("/panel");
+  63:               } catch (requestError) {
+  64:                 setError(requestError instanceof Error ? requestError.message : "Kayıt tamamlanamadı");
+  65:               } finally {
+  66:                 setSending(false);
+  67:               }
+  68:             }}
+  69:           >
+  70:             <input name="email" type="email" placeholder="İşletme e-postası" required />
+  71:             <input name="password" type="password" placeholder="Şifre" minLength={6} required />
+  72:             <input name="restaurant_name" placeholder="Restoran adı" required />
+  73:             <input name="cuisine" placeholder="Mutfak (pizza, kebap...)" required />
+  74:             <input type="hidden" name="role" value="restaurant" />
+  75:             <button className="primary-button" disabled={sending}>Restoran hesabı oluştur</button>
+  76:           </form>
+  77:           <div className="demo-accounts">
+  78:             <strong>Demo hesaplar</strong>
+  79:             <span>musteri@sepet.test / sepet123</span>
+  80:             <span>sahip.anadolu-atesi@sepet.test / sepet123</span>
+  81:             <span>kurye1.anadolu-atesi@sepet.test / sepet123</span>
+  82:           </div>
+  83:         </aside>
+  84:       </div>
+  85:     </section>
+  86:   );
+  87: }
+===== sepet/web/src/pages/Checkout.tsx =====
+   1: import { FormEvent, useState } from "react";
+   2: import { Link, useLocation, useNavigate } from "react-router-dom";
+   3: import { createOrder } from "../api";
+   4: import { useAuth } from "../AuthContext";
+   5: import { useCart } from "../CartContext";
+   6: 
+   7: const formatTL = (value: number) => `${value.toFixed(2)} TL`;
+   8: 
+   9: export default function Checkout() {
+  10:   const cart = useCart();
+  11:   const { user } = useAuth();
+  12:   const navigate = useNavigate();
+  13:   const location = useLocation();
+  14:   const deliveryFee = (location.state?.deliveryFee as number | undefined) ?? cart.lines[0]?.deliveryFee ?? 0;
+  15:   const [address, setAddress] = useState("");
+  16:   const [phone, setPhone] = useState("");
+  17:   const [note, setNote] = useState("");
+  18:   const [error, setError] = useState("");
+  19:   const [sending, setSending] = useState(false);
+  20:   const total = cart.subtotal + deliveryFee;
+  21:   const missingBalance = Math.max(0, total - (user?.balance ?? 0));
+  22: 
+  23:   if (!cart.lines.length) {
+  24:     return (
+  25:       <div className="empty-state">
+  26:         <strong>Sepetiniz boş</strong>
+  27:         <p>Sipariş vermek için bir restoran seçip menüden ürün ekleyin.</p>
+  28:         <Link className="secondary-button" to="/">Restoranlara dön</Link>
+  29:       </div>
+  30:     );
+  31:   }
+  32: 
+  33:   async function submit(event: FormEvent) {
+  34:     event.preventDefault();
+  35:     const digits = phone.replace(/\D/g, "");
+  36:     if (address.trim().length < 10) {
+  37:       setError("Adres en az 10 karakter olmalıdır.");
+  38:       return;
+  39:     }
+  40:     if (digits.length < 10 || digits.length > 11) {
+  41:       setError("Telefon 10-11 hane olmalıdır.");
+  42:       return;
+  43:     }
+  44:     setSending(true);
+  45:     setError("");
+  46:     try {
+  47:       const result = await createOrder(cart.restaurantId!, address, digits, note, cart.lines);
+  48:       cart.clear();
+  49:       navigate(`/order/${result.id}`);
+  50:     } catch (requestError) {
+  51:       setError(requestError instanceof Error ? requestError.message : "Sipariş gönderilemedi");
+  52:     } finally {
+  53:       setSending(false);
+  54:     }
+  55:   }
+  56: 
+  57:   return (
+  58:     <section className="page-section">
+  59:       <div className="section-head">
+  60:         <h1>Teslimat</h1>
+  61:         <p>Siparişin doğru adrese gitsin.</p>
+  62:       </div>
+  63:       <div className="checkout-layout">
+  64:         <form onSubmit={submit} className="form-card">
+  65:           {!user && (
+  66:             <div className="status warning">
+  67:               Sipariş için giriş yapmalısınız. <Link className="link-button" to="/giris">Giriş yap</Link>
+  68:             </div>
+  69:           )}
+  70:           <label>Adres<textarea value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Mahalle, sokak, bina ve daire" required /></label>
+  71:           <label>Telefon<input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" placeholder="5xx xxx xx xx" required /></label>
+  72:           <label>Sipariş notu<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Kapı kodu, kat bilgisi veya özel istek" /></label>
+  73:           {error && <p className="status error">{error}</p>}
+  74:           <button className="primary-button" disabled={sending || !user || missingBalance > 0}>
+  75:             {sending ? "Gönderiliyor..." : "Siparişi onayla"}
+  76:           </button>
+  77:         </form>
+  78:         <aside className="cart-panel">
+  79:           <h2>Sipariş özeti</h2>
+  80:           {cart.lines.map((line) => (
+  81:             <div key={line.item.id} className="cart-line compact">
+  82:               <span>{line.item.name}</span>
+  83:               <strong>{formatTL(line.item.price * line.quantity)}</strong>
+  84:             </div>
+  85:           ))}
+  86:           <div className="totals"><span>Ara toplam</span><span>{formatTL(cart.subtotal)}</span></div>
+  87:           <div className="totals"><span>Teslimat</span><span>{formatTL(deliveryFee)}</span></div>
+  88:           <div className="totals strong"><span>Toplam</span><span>{formatTL(total)}</span></div>
+  89:           {user && typeof user.balance === "number" && (
+  90:             <div className="totals balance-line"><span>Bakiyeniz</span><span>{formatTL(user.balance)}</span></div>
+  91:           )}
+  92:           {missingBalance > 0 && (
+  93:             <div className="status warning">
+  94:               Bakiyeniz {formatTL(missingBalance)} eksik. <Link className="link-button" to="/panel">Bakiye yükle</Link>
+  95:             </div>
+  96:           )}
+  97:         </aside>
+  98:       </div>
+  99:     </section>
+ 100:   );
+ 101: }
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @('"'sepet/web/src/pages/OrderPage.tsx','sepet/web/src/pages/Panel.tsx','sepet/web/src/pages/RestaurantDetail.tsx','sepet/web/src/pages/Restaurants.tsx','sepet/web/src/panels/CourierPanel.tsx','sepet/web/src/panels/CustomerPanel.tsx'); foreach("'$f in $files){ Write-Output "===== $f ====="; $lines=[System.IO.File]::ReadAllLines((Join-Path (Get-Location) $f)); for($i=0;$i -lt $lines.Count;$i++){ Write-Output ("{0,4}: {1}" -f ($i+1),$lines[$i]) } }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 86ms:
+   1: import { useEffect, useState } from "react";
+   2: import { Link, useParams } from "react-router-dom";
+   3: import { fetchOrder } from "../api";
+   4: import type { Order } from "../types";
+   5: 
+   6: const formatTL = (value: number) => `${value.toFixed(2)} TL`;
+   7: 
+   8: export default function OrderPage() {
+   9:   const { id } = useParams();
+  10:   const [order, setOrder] = useState<Order | null>(null);
+  11:   const [loading, setLoading] = useState(true);
+  12:   const [error, setError] = useState("");
+  13: 
+  14:   useEffect(() => {
+  15:     fetchOrder(Number(id))
+  16:       .then(setOrder)
+  17:       .catch(() => setError("Sipariş bulunamadı"))
+  18:       .finally(() => setLoading(false));
+  19:   }, [id]);
+  20: 
+  21:   if (loading) return <div className="status">Sipariş yükleniyor...</div>;
+  22:   if (error) return <div className="status error">{error}</div>;
+  23:   if (!order) return null;
+  24: 
+  25:   return (
+  26:     <section className="order-page">
+  27:       <div className="success-box">
+  28:         <div>
+  29:           <span className="eyebrow">Sipariş #{order.id}</span>
+  30:           <h1>Siparişin alındı</h1>
+  31:           <p>Durum: {order.status} · Toplam: {formatTL(order.total)}</p>
+  32:         </div>
+  33:       </div>
+  34:       <div className="order-layout">
+  35:         <article className="cart-panel">
+  36:           <h2>{order.restaurant_name}</h2>
+  37:           <p className="muted">{order.address} · {order.phone}</p>
+  38:           {order.note && <p className="muted">Not: {order.note}</p>}
+  39:           <div className="order-items">
+  40:             {order.items.map((item) => (
+  41:               <div key={item.id} className="cart-line compact">
+  42:                 <span>{item.quantity} x {item.name}</span>
+  43:                 <strong>{formatTL(item.line_total ?? item.unit_price * item.quantity)}</strong>
+  44:               </div>
+  45:             ))}
+  46:           </div>
+  47:           <div className="totals strong"><span>Toplam</span><span>{formatTL(order.total)}</span></div>
+  48:         </article>
+  49:         <aside className="cart-panel">
+  50:           <h2>Sonraki adım</h2>
+  51:           <p>Restoran siparişi hazırlıyor. Kurye atandığında durum burada güncellenir.</p>
+  52:           <Link className="primary-button" to="/">Başka restoranlara bak</Link>
+  53:         </aside>
+  54:       </div>
+  55:     </section>
+  56:   );
+  57: }
+===== sepet/web/src/pages/Panel.tsx =====
+   1: import { Link } from "react-router-dom";
+   2: import { useAuth } from "../AuthContext";
+   3: import CourierPanel from "../panels/CourierPanel";
+   4: import CustomerPanel from "../panels/CustomerPanel";
+   5: import RestaurantPanel from "../panels/RestaurantPanel";
+   6: 
+   7: export default function Panel() {
+   8:   const { user, ready, logout } = useAuth();
+   9: 
+  10:   if (!ready) return <div className="status">Yükleniyor...</div>;
+  11:   if (!user) {
+  12:     return (
+  13:       <div className="empty-state">
+  14:         <strong>Panele girmek için giriş yapın</strong>
+  15:         <p>Hesabınıza girerek siparişlerinizi veya işletme panelinizi görebilirsiniz.</p>
+  16:         <Link className="secondary-button" to="/giris">Giriş sayfasına git</Link>
+  17:       </div>
+  18:     );
+  19:   }
+  20: 
+  21:   return (
+  22:     <section className="page-section">
+  23:       <div className="section-head">
+  24:         <div>
+  25:           <h1>Panelim</h1>
+  26:           <p className="muted">{user.email} · {user.role}</p>
+  27:         </div>
+  28:         <button className="ghost-button" onClick={logout}>Çıkış yap</button>
+  29:       </div>
+  30:       {user.role === "customer" && <CustomerPanel />}
+  31:       {user.role === "restaurant" && <RestaurantPanel />}
+  32:       {user.role === "courier" && <CourierPanel />}
+  33:     </section>
+  34:   );
+  35: }
+===== sepet/web/src/pages/RestaurantDetail.tsx =====
+   1: import { useEffect, useMemo, useState } from "react";
+   2: import { Link, useParams } from "react-router-dom";
+   3: import { fetchRestaurant, submitReview } from "../api";
+   4: import { useCart } from "../CartContext";
+   5: import type { MenuItem, Restaurant } from "../types";
+   6: 
+   7: const formatTL = (value: number) => `${value.toFixed(2)} TL`;
+   8: 
+   9: export default function RestaurantDetail() {
+  10:   const { id } = useParams();
+  11:   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  12:   const [loading, setLoading] = useState(true);
+  13:   const [error, setError] = useState("");
+  14:   const [reviewComment, setReviewComment] = useState("");
+  15:   const [reviewRating, setReviewRating] = useState(5);
+  16:   const cart = useCart();
+  17: 
+  18:   useEffect(() => {
+  19:     setLoading(true);
+  20:     fetchRestaurant(Number(id))
+  21:       .then((data) => {
+  22:         setRestaurant(data);
+  23:         setError("");
+  24:       })
+  25:       .catch(() => setError("Restoran yüklenemedi"))
+  26:       .finally(() => setLoading(false));
+  27:   }, [id]);
+  28: 
+  29:   const groupedMenu = useMemo(() => {
+  30:     const groups = new Map<string, MenuItem[]>();
+  31:     restaurant?.menu_items?.forEach((item) => {
+  32:       const existing = groups.get(item.category) ?? [];
+  33:       existing.push(item);
+  34:       groups.set(item.category, existing);
+  35:     });
+  36:     return [...groups.entries()];
+  37:   }, [restaurant]);
+  38: 
+  39:   function addToCart(item: MenuItem) {
+  40:     if (cart.restaurantId && cart.restaurantId !== item.restaurant_id) {
+  41:       const approved = window.confirm("Farklı restorandan ürün eklediniz. Sepet boşaltılacak.");
+  42:       if (!approved) return;
+  43:       cart.clear();
+  44:     }
+  45:     cart.add(item, restaurant?.delivery_fee ?? 0);
+  46:   }
+  47: 
+  48:   if (loading) return <div className="status">Menü yükleniyor...</div>;
+  49:   if (error) return <div className="status error">{error}</div>;
+  50:   if (!restaurant) return null;
+  51: 
+  52:   const ownCart = cart.restaurantId === restaurant.id ? cart : null;
+  53:   const cartEmpty = !ownCart || ownCart.lines.length === 0;
+  54: 
+  55:   return (
+  56:     <section className="restaurant-detail">
+  57:       <div className="restaurant-hero">
+  58:         <span className="hero-emoji" aria-hidden="true">{restaurant.image_emoji}</span>
+  59:         <div className="restaurant-hero-body">
+  60:           <span className="eyebrow">{restaurant.cuisine}</span>
+  61:           <h1>{restaurant.name}</h1>
+  62:           <div className="hero-facts">
+  63:             <span>{restaurant.rating.toFixed(1)} puan</span>
+  64:             <span>{restaurant.eta_minutes} dk</span>
+  65:             <span>Teslimat {formatTL(restaurant.delivery_fee)}</span>
+  66:             <span>Min. {formatTL(restaurant.min_order)}</span>
+  67:           </div>
+  68:         </div>
+  69:       </div>
+  70: 
+  71:       <div className="detail-layout">
+  72:         <div className="menu-list">
+  73:           {groupedMenu.map(([category, items]) => (
+  74:             <div key={category} className="menu-group">
+  75:               <h2>{category}</h2>
+  76:               {items.map((item) => (
+  77:                 <article key={item.id} className="menu-card">
+  78:                   <div className="menu-copy">
+  79:                     <h3>{item.name}</h3>
+  80:                     <p>{item.description}</p>
+  81:                     <strong>{formatTL(item.price)}</strong>
+  82:                   </div>
+  83:                   <button onClick={() => addToCart(item)}>Ekle</button>
+  84:                 </article>
+  85:               ))}
+  86:             </div>
+  87:           ))}
+  88: 
+  89:           <section className="review-section">
+  90:             <h2>Yorumlar</h2>
+  91:             {!restaurant.reviews?.length && <div className="status">Henüz yorum yok.</div>}
+  92:             {restaurant.reviews?.map((review) => (
+  93:               <article key={review.id} className="review-card">
+  94:                 <div className="review-head">
+  95:                   <strong>{review.user_email}</strong>
+  96:                   <span className="rating">{review.rating}.0</span>
+  97:                 </div>
+  98:                 <p>{review.comment}</p>
+  99:               </article>
+ 100:             ))}
+ 101:             {restaurant.can_review && !restaurant.has_review && (
+ 102:               <form
+ 103:                 className="review-form"
+ 104:                 onSubmit={async (event) => {
+ 105:                   event.preventDefault();
+ 106:                   await submitReview(restaurant.id, reviewRating, reviewComment);
+ 107:                   const updated = await fetchRestaurant(restaurant.id);
+ 108:                   setRestaurant(updated);
+ 109:                   setReviewComment("");
+ 110:                 }}
+ 111:               >
+ 112:                 <h3>Değerlendirme yap</h3>
+ 113:                 <label>
+ 114:                   Puan
+ 115:                   <select value={reviewRating} onChange={(event) => setReviewRating(Number(event.target.value))}>
+ 116:                     {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} yıldız</option>)}
+ 117:                   </select>
+ 118:                 </label>
+ 119:                 <label>
+ 120:                   Yorum
+ 121:                   <textarea
+ 122:                     value={reviewComment}
+ 123:                     onChange={(event) => setReviewComment(event.target.value)}
+ 124:                     placeholder="Yemek ve teslimat deneyimini kısaca anlat."
+ 125:                     required
+ 126:                   />
+ 127:                 </label>
+ 128:                 <button className="primary-button">Yorumu gönder</button>
+ 129:               </form>
+ 130:             )}
+ 131:           </section>
+ 132:         </div>
+ 133: 
+ 134:         <aside className={cartEmpty ? "cart-panel is-empty" : "cart-panel"}>
+ 135:           <h2>Sepetin</h2>
+ 136:           {cartEmpty ? (
+ 137:             <p>Sepet şu an boş. Menüden ekleyeceğin ürünler burada görünecek.</p>
+ 138:           ) : (
+ 139:             <>
+ 140:               {ownCart?.lines.map((line) => (
+ 141:                 <div key={line.item.id} className="cart-line">
+ 142:                   <span>{line.item.name}</span>
+ 143:                   <div className="quantity">
+ 144:                     <button onClick={() => cart.change(line.item.id, -1)} aria-label="Azalt">-</button>
+ 145:                     <span>{line.quantity}</span>
+ 146:                     <button onClick={() => cart.change(line.item.id, 1)} aria-label="Arttır">+</button>
+ 147:                   </div>
+ 148:                   <strong>{formatTL(line.item.price * line.quantity)}</strong>
+ 149:                 </div>
+ 150:               ))}
+ 151:               <div className="totals"><span>Ara toplam</span><span>{formatTL(cart.subtotal)}</span></div>
+ 152:               <div className="totals"><span>Teslimat</span><span>{formatTL(restaurant.delivery_fee)}</span></div>
+ 153:               <div className="totals strong"><span>Toplam</span><span>{formatTL(cart.subtotal + restaurant.delivery_fee)}</span></div>
+ 154:               {cart.subtotal < restaurant.min_order && (
+ 155:                 <p className="warning">
+ 156:                   Minimum sepet için {formatTL(restaurant.min_order - cart.subtotal)} daha ekleyin.
+ 157:                 </p>
+ 158:               )}
+ 159:               <Link className="primary-button" to="/checkout" state={{ deliveryFee: restaurant.delivery_fee }}>
+ 160:                 Sepeti onayla
+ 161:               </Link>
+ 162:             </>
+ 163:           )}
+ 164:         </aside>
+ 165:       </div>
+ 166:     </section>
+ 167:   );
+ 168: }
+===== sepet/web/src/pages/Restaurants.tsx =====
+   1: import { useEffect, useMemo, useState } from "react";
+   2: import { Link } from "react-router-dom";
+   3: import { fetchCuisines, fetchRestaurants, type RestaurantFilters } from "../api";
+   4: import type { Restaurant } from "../types";
+   5: 
+   6: const formatTL = (value: number) => `${value.toFixed(2)} TL`;
+   7: 
+   8: const emptyFilters: RestaurantFilters = {
+   9:   query: "",
+  10:   cuisine: "",
+  11:   minRating: 0,
+  12:   maxDeliveryFee: 999,
+  13:   maxEtaMinutes: 999,
+  14:   sort: "rating",
+  15: };
+  16: 
+  17: export default function Restaurants() {
+  18:   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  19:   const [cuisines, setCuisines] = useState<string[]>([]);
+  20:   const [filters, setFilters] = useState<RestaurantFilters>(emptyFilters);
+  21:   const [loading, setLoading] = useState(true);
+  22:   const [error, setError] = useState("");
+  23: 
+  24:   useEffect(() => {
+  25:     fetchCuisines()
+  26:       .then(setCuisines)
+  27:       .catch(() => setError("Mutfaklar yüklenemedi"));
+  28:   }, []);
+  29: 
+  30:   useEffect(() => {
+  31:     const timer = setTimeout(() => {
+  32:       setLoading(true);
+  33:       fetchRestaurants(filters)
+  34:         .then((data) => {
+  35:           setRestaurants(data);
+  36:           setError("");
+  37:         })
+  38:         .catch(() => setError("Restoranlar yüklenemedi"))
+  39:         .finally(() => setLoading(false));
+  40:     }, 180);
+  41:     return () => clearTimeout(timer);
+  42:   }, [filters]);
+  43: 
+  44:   const update = (values: Partial<RestaurantFilters>) =>
+  45:     setFilters((current) => ({ ...current, ...values }));
+  46: 
+  47:   const cards = useMemo(
+  48:     () =>
+  49:       restaurants.map((restaurant) => (
+  50:         <Link to={`/r/${restaurant.id}`} key={restaurant.id} className="restaurant-card">
+  51:           <div className="restaurant-avatar" aria-hidden="true">
+  52:             {restaurant.image_emoji}
+  53:           </div>
+  54:           <div className="restaurant-body">
+  55:             <div className="restaurant-title">
+  56:               <h3>{restaurant.name}</h3>
+  57:               <span className="rating">{restaurant.rating.toFixed(1)}</span>
+  58:             </div>
+  59:             <p className="cuisine-label">{restaurant.cuisine}</p>
+  60:             <div className="restaurant-facts">
+  61:               <span>{restaurant.eta_minutes} dk teslim</span>
+  62:               <span>Teslimat {formatTL(restaurant.delivery_fee)}</span>
+  63:               <span>Min. {formatTL(restaurant.min_order)}</span>
+  64:             </div>
+  65:             <span className="restaurant-cta">Menüyü gör</span>
+  66:           </div>
+  67:         </Link>
+  68:       )),
+  69:     [restaurants],
+  70:   );
+  71: 
+  72:   const filtersActive =
+  73:     filters.query !== "" || filters.cuisine !== "" || filters.minRating !== 0 ||
+  74:     filters.maxDeliveryFee !== 999 || filters.maxEtaMinutes !== 999;
+  75: 
+  76:   return (
+  77:     <section className="home-page">
+  78:       <div className="page-hero">
+  79:         <div>
+  80:           <span className="eyebrow">Sepet</span>
+  81:           <h1>Ne yemek istersin?</h1>
+  82:           <p>Aramanı yaz, mutfak seç ve teslim süresi ile bütçene göre restoranları daralt.</p>
+  83:         </div>
+  84:         <div className="hero-stats">
+  85:           <strong>{restaurants.length}</strong>
+  86:           <span>restoran bulundu</span>
+  87:         </div>
+  88:       </div>
+  89: 
+  90:       <form className="filter-bar" onSubmit={(event) => event.preventDefault()}>
+  91:         <label className="search-field">
+  92:           <span>Arama</span>
+  93:           <input
+  94:             value={filters.query}
+  95:             onChange={(event) => update({ query: event.target.value })}
+  96:             placeholder="Restoran, mutfak veya yemek ara"
+  97:             aria-label="Restoran ara"
+  98:           />
+  99:         </label>
+ 100:         <label className="filter-field">
+ 101:           <span>Puan</span>
+ 102:           <select value={filters.minRating} onChange={(event) => update({ minRating: Number(event.target.value) })}>
+ 103:             <option value={0}>Tümü</option>
+ 104:             <option value={4.5}>4.5+</option>
+ 105:             <option value={4.2}>4.2+</option>
+ 106:             <option value={4}>4.0+</option>
+ 107:           </select>
+ 108:         </label>
+ 109:         <label className="filter-field">
+ 110:           <span>Süre</span>
+ 111:           <select value={filters.maxEtaMinutes} onChange={(event) => update({ maxEtaMinutes: Number(event.target.value) })}>
+ 112:             <option value={999}>Tümü</option>
+ 113:             <option value={25}>25 dk</option>
+ 114:             <option value={30}>30 dk</option>
+ 115:             <option value={40}>40 dk</option>
+ 116:           </select>
+ 117:         </label>
+ 118:         <label className="filter-field">
+ 119:           <span>Teslimat</span>
+ 120:           <select value={filters.maxDeliveryFee} onChange={(event) => update({ maxDeliveryFee: Number(event.target.value) })}>
+ 121:             <option value={999}>Tümü</option>
+ 122:             <option value={10}>10 TL altı</option>
+ 123:             <option value={15}>15 TL altı</option>
+ 124:             <option value={20}>20 TL altı</option>
+ 125:           </select>
+ 126:         </label>
+ 127:         <label className="filter-field">
+ 128:           <span>Sıralama</span>
+ 129:           <select value={filters.sort} onChange={(event) => update({ sort: event.target.value as RestaurantFilters["sort"] })}>
+ 130:             <option value="rating">Puana göre</option>
+ 131:             <option value="eta">Süreye göre</option>
+ 132:             <option value="delivery_fee">Teslimat ücreti</option>
+ 133:             <option value="min_order">Minimum sepet</option>
+ 134:           </select>
+ 135:         </label>
+ 136:       </form>
+ 137: 
+ 138:       <div className="chips" aria-label="Mutfak filtresi">
+ 139:         <button className={filters.cuisine === "" ? "chip active" : "chip"} onClick={() => update({ cuisine: "" })}>
+ 140:           Tüm mutfaklar
+ 141:         </button>
+ 142:         {cuisines.map((item) => (
+ 143:           <button
+ 144:             key={item}
+ 145:             className={filters.cuisine === item ? "chip active" : "chip"}
+ 146:             onClick={() => update({ cuisine: item })}
+ 147:           >
+ 148:             {item}
+ 149:           </button>
+ 150:         ))}
+ 151:       </div>
+ 152: 
+ 153:       {filtersActive && (
+ 154:         <div className="filter-summary">
+ 155:           <span>Filtreli sonuç</span>
+ 156:           <button className="link-button" onClick={() => setFilters(emptyFilters)}>Filtreleri temizle</button>
+ 157:         </div>
+ 158:       )}
+ 159: 
+ 160:       {loading && <div className="status">Restoranlar yükleniyor...</div>}
+ 161:       {!loading && error && <div className="status error">{error}</div>}
+ 162:       {!loading && !error && restaurants.length === 0 && (
+ 163:         <div className="empty-state">
+ 164:           <strong>Aramanla eşleşen restoran yok</strong>
+ 165:           <p>Süreyi, teslimat ücretini veya mutfak filtresini değiştirerek tekrar dene.</p>
+ 166:           <button onClick={() => setFilters(emptyFilters)}>Tüm restoranları göster</button>
+ 167:         </div>
+ 168:       )}
+ 169:       <div className="restaurant-grid">{cards}</div>
+ 170:     </section>
+ 171:   );
+ 172: }
+===== sepet/web/src/panels/CourierPanel.tsx =====
+   1: import { useEffect, useState } from "react";
+   2: import { deliverOrder, fetchCourierOrders } from "../api";
+   3: import { Order } from "../types";
+   4: 
+   5: export default function CourierPanel() {
+   6:   const [orders, setOrders] = useState<Order[]>([]);
+   7:   const [loading, setLoading] = useState(true);
+   8:   const [error, setError] = useState("");
+   9: 
+  10:   const load = () => {
+  11:     setLoading(true);
+  12:     fetchCourierOrders()
+  13:       .then(setOrders)
+  14:       .catch(() => setError("Kurye siparişleri yüklenemedi"))
+  15:       .finally(() => setLoading(false));
+  16:   };
+  17: 
+  18:   useEffect(load, []);
+  19: 
+  20:   async function deliver(id: number) {
+  21:     await deliverOrder(id);
+  22:     load();
+  23:   }
+  24: 
+  25:   if (loading) return <div className="status">Siparişler yükleniyor...</div>;
+  26:   if (error) return <div className="status error">{error}</div>;
+  27:   if (!orders.length) return <div className="empty-state"><strong>Size atanmış sipariş yok</strong><p>Yeni atamalar burada listelenir.</p></div>;
+  28: 
+  29:   return (
+  30:     <div className="panel-list">
+  31:       {orders.map((order) => (
+  32:         <article key={order.id} className="panel-card">
+  33:           <div className="order-head">
+  34:             <strong>#{order.id} {order.restaurant_name}</strong>
+  35:             <span className="status-pill">{order.status}</span>
+  36:           </div>
+  37:           <p className="muted">{order.address}</p>
+  38:           <p className="muted">{order.phone} · {order.total.toFixed(2)} TL</p>
+  39:           <div className="order-actions">
+  40:             {order.status === "kuryede" && <button className="primary-button" onClick={() => deliver(order.id)}>Teslim ettim</button>}
+  41:           </div>
+  42:         </article>
+  43:       ))}
+  44:     </div>
+  45:   );
+  46: }
+===== sepet/web/src/panels/CustomerPanel.tsx =====
+   1: import { useEffect, useState } from "react";
+   2: import { Link } from "react-router-dom";
+   3: import { confirmDelivery, fetchHistory, topUpWallet } from "../api";
+   4: import { useAuth } from "../AuthContext";
+   5: import { Order } from "../types";
+   6: 
+   7: const statusLabel: Record<string, string> = {
+   8:   "hazırlanıyor": "Hazırlanıyor",
+   9:   kuryede: "Kuryede",
+  10:   teslim_edildi: "Teslim Edildi",
+  11:   "onaylandı": "Onaylandı",
+  12: };
+  13: 
+  14: export default function CustomerPanel() {
+  15:   const { user, refreshUser } = useAuth();
+  16:   const [orders, setOrders] = useState<Order[]>([]);
+  17:   const [amount, setAmount] = useState("100");
+  18:   const [walletMessage, setWalletMessage] = useState("");
+  19:   const [walletError, setWalletError] = useState("");
+  20:   const [loading, setLoading] = useState(true);
+  21:   const [error, setError] = useState("");
+  22: 
+  23:   const load = () => {
+  24:     setLoading(true);
+  25:     fetchHistory()
+  26:       .then(setOrders)
+  27:       .catch(() => setError("Sipariş geçmişi yüklenemedi"))
+  28:       .finally(() => setLoading(false));
+  29:   };
+  30: 
+  31:   useEffect(load, []);
+  32: 
+  33:   async function confirm(id: number) {
+  34:     await confirmDelivery(id);
+  35:     load();
+  36:   }
+  37: 
+  38:   async function addBalance(event: React.FormEvent) {
+  39:     event.preventDefault();
+  40:     setWalletMessage("");
+  41:     setWalletError("");
+  42:     try {
+  43:       const result = await topUpWallet(Number(amount));
+  44:       await refreshUser();
+  45:       setWalletMessage(`${result.added.toFixed(2)} TL bakiye eklendi.`);
+  46:     } catch (requestError) {
+  47:       setWalletError(requestError instanceof Error ? requestError.message : "Bakiye yüklenemedi");
+  48:     }
+  49:   }
+  50: 
+  51:   if (loading) return <div className="status">Siparişler yükleniyor...</div>;
+  52:   if (error) return <div className="status error">{error}</div>;
+  53: 
+  54:   return (
+  55:     <div className="panel-body">
+  56:       <section className="form-card wallet-card">
+  57:         <div className="wallet-head">
+  58:           <div>
+  59:             <span className="eyebrow">Cüzdan</span>
+  60:             <h2>{(user?.balance ?? 0).toFixed(2)} TL</h2>
+  61:             <p className="muted">Sipariş toplamı bakiyeden düşülür.</p>
+  62:           </div>
+  63:           <span aria-hidden="true" className="wallet-icon">₺</span>
+  64:         </div>
+  65:         <form className="wallet-form" onSubmit={addBalance}>
+  66:           <label>
+  67:             Yüklenecek tutar
+  68:             <input
+  69:               value={amount}
+  70:               onChange={(event) => setAmount(event.target.value)}
+  71:               type="number"
+  72:               min="1"
+  73:               max="1000"
+  74:               step="0.01"
+  75:               required
+  76:             />
+  77:           </label>
+  78:           <button className="primary-button">Bakiye yükle</button>
+  79:         </form>
+  80:         {walletMessage && <div className="status success">{walletMessage}</div>}
+  81:         {walletError && <div className="status error">{walletError}</div>}
+  82:       </section>
+  83: 
+  84:       {!orders.length ? (
+  85:         <div className="empty-state">
+  86:           <strong>Henüz siparişiniz yok</strong>
+  87:           <p>Restoran seçip ilk siparişinizi verebilirsiniz.</p>
+  88:           <Link className="secondary-button" to="/">Sipariş ver</Link>
+  89:         </div>
+  90:       ) : (
+  91:         <div className="panel-list">
+  92:           {orders.map((order) => (
+  93:             <article key={order.id} className="panel-card">
+  94:               <div className="order-head">
+  95:                 <strong>#{order.id} {order.restaurant_name}</strong>
+  96:                 <span className="status-pill">{statusLabel[order.status] ?? order.status}</span>
+  97:               </div>
+  98:               <div className="order-meta">
+  99:                 <span>{new Date(order.created_at).toLocaleString("tr-TR")}</span>
+ 100:                 <span>{order.total.toFixed(2)} TL</span>
+ 101:               </div>
+ 102:               <div className="order-items">
+ 103:                 {order.items.map((item) => <span key={item.id}>{item.quantity} x {item.name}</span>)}
+ 104:               </div>
+ 105:               <div className="order-actions">
+ 106:                 <Link className="link-button" to={`/order/${order.id}`}>Detay</Link>
+ 107:                 {order.status === "teslim_edildi" && (
+ 108:                   <button className="secondary-button" onClick={() => confirm(order.id)}>Teslimi onayla</button>
+ 109:                 )}
+ 110:               </div>
+ 111:             </article>
+ 112:           ))}
+ 113:         </div>
+ 114:       )}
+ 115:     </div>
+ 116:   );
+ 117: }
+
+ERROR: Reconnecting... 1/5
+ERROR: Reconnecting... 2/5
+codex
+Icerigi okudum. Simdi `review/` klasorunu olusturup ilk grup backend dokumanlarini yaziyorum; her belge 7 bolumu iceriyor.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'New-Item -ItemType Directory -Force -Path "review" | Out-Null
+$enc=[System.Text.UTF8Encoding]::new($false)
+$docs = [ordered]@{}
+$docs['"'accounts.py.md'] = @'
+# accounts.py incelemesi
+
+## Purpose
+
+Bu dosya, Sepet backend'inin hesap yonetimi yuzeyini tanimlar: musterinin veya restoran sahibinin kayit olmasi, giris yapmasi, aktif kullaniciyi gormesi ve musterilerin cuzdanina bakiye yuklemesi. Dosya "'`APIRouter` objesini `/api/auth` onekiyle kurar ve `main.py:15` tarafindan uygulamaya eklenir; bu yuzden `auth.py` icindeki `get_current_user` yardimcisina ve `db.py` icindeki baglanti/sifre yardimcilarina dogrudan baglidir. Kullanici yaratildiginda `user` tablosu yazilir, restoran rolunde ek olarak `restaurant` tablosu yazilir, token uretimi `auth_token` tablosuna yazilir ve bakiye guncellemesi `user.balance` uzerinden yapilir. Bu dosyanin bozulmasi dogrudan giris, kayit, oturum ve odeme bakiyesi akisini etkiler.
+
+## Walkthrough
+
+### RegisterInput sinifi
+`class RegisterInput(BaseModel)` 14-23 satirlarinda tanimli. Alanlar `email: str`, `password: str`, `role: str`, `restaurant_name: str = ""`, `cuisine: str = ""`, `delivery_fee: float = 10.0`, `min_order: float = 50.0`, `eta_minutes: int = 30` ve `image_emoji` varsayilanidir. Pydantic dogrulamasi burada tip ve varsayilan degeri zorlar, ancak karakter uzunlugu veya e-posta formati daha sonra yardimci fonksiyonlarda kontrol edilir. `delivery_fee` ve `min_order` icin alt/ust sinir yoktur; `eta_minutes` icin de negatif olamaz kontrolu yoktur.
+
+### LoginInput sinifi
+`class LoginInput(BaseModel)` 26-28 satirlarinda tanimli. Parametre olarak `email: str` ve `password: str` alir. Donus degeri yoktur cunku bu bir veri tasiyici siniftir. Kontrol akisi Pydantic tarafindan tip dogrulamasi ile baslar; bos string hala gecerlidir, hatali kimlik durumunda `login` icinde 404/401 mantigi devreye girer.
+
+### user_payload
+`def user_payload(user) -> dict` 31-32 satirlarindadir. `user` adinda genellikle `sqlite3.Row` olan bir kayit alir ve `id`, `email`, `role` ile iki ondalige yuvarlanmis `balance` degerini iceren bir `dict` dondurur. Kontrol akisi tek adimlidir; `user["balance"]` None olamaz cunku semada NOT NULL'"'dur. Bu fonksiyon yanitlarin hassas "'`password_hash` alanini disari vermemesine yardimci olur.
+
+### validate_email
+`def validate_email(email: str) -> None` 35-37 satirlarindadir. Regex `[''^@'"\\s]+@["'^@'"\\s]+\\.["'^@'"\\s]+"'` ile tam eslesme ister. Gecersizse `HTTPException(400, "Gecerli bir e-posta girin")` yukseltir. Kontrol akisi ya return yoksa exception'"'dir. Regex pratik ama eksiktir; "'`a@b.c` kabul edilir, alan adi formati daha derin dogrulanmaz.
+
+### validate_registration
+`def validate_registration(payload: RegisterInput) -> None` 40-47 satirlarindadir. Once e-postayi dogrular, sonra sifre uzunlugu 6'"'dan kucukse 400 dondurur. Rol "'`customer` veya `restaurant` degilse 400 dondurur. Rol restoran ise `restaurant_name` ve `cuisine` zorunlu tutulur. Kurye kaydi burada ozellikle engellenmistir; kurye profilleri `panels.py` uzerinden restoran tarafindan olusturulur.
+
+### issue_token
+`def issue_token(conn, user_id: int) -> str` 50-56 satirlarindadir. 32 baytlik rastgele veriden URL-safe bir token uretir, `auth_token` tablosuna `token`, `user_id` ve `utc_now()` ile `created_at` ekler ve token string'"'ini dondurur. Fonksiyon cagrildigi transaction bittiginde token kalici olur. Token'a son kullanma tarihi eklenmez.
+
+### register
+"'`@router.post("/register", status_code=201)` ile suslenen `def register(payload: RegisterInput) -> dict` 59-86 satirlarindadir. Once `validate_registration` cagrilir. Ardindan `get_db()` ile baglanti acilir; ayni e-posta varsa 409 dondurulur. Yeni `user` satiri `hash_password` ile yazilir ve yeni musteri 100.0 bakiye ile baslar. Rol restoran ise `restaurant` tablosuna kayit acilir; mutfak kucuk harfe cevrilir, rating 4.0 sabitlenir. Daha sonra token uretilir. Kod `with get_db() as conn` blok bittiginde commit bekler. Yanit token, id, e-posta, rol ve bakiye döndurur.
+
+### login
+`@router.post("/login)` ile suslenen `def login(payload: LoginInput) -> dict` 89-98 satirlarindadir. E-postaya gore `user` tablosunu arar, kullanici yoksa veya `verify_password` basarisizsa ayni 401 mesajini dondurur. Basariliysa token uretir ve `user_payload` ile genel kullanici bilgisi dondurur. Kontrol akisi tek sorgu ve tek sifre dogrulamasi etrafinda kuruludur.
+
+### me
+`@router.get("/me")` ile suslenen `def me(user=Depends(get_current_user)) -> dict` 101-103 satirlarindadir. Kimlik dogrulamasi bagimliligi basarili olmazsa 401 doner. Basariliysa zaten token sorgusundan gelen kullaniciyi `user_payload` ile dondurur. Yeni veritabani sorgusu yapmaz.
+
+### TopUpInput sinifi
+`class TopUpInput(BaseModel)` 106-107 satirlarindadir. `amount: float = Field(gt=0, le=1000)` alanini tanimlar. Boylece sifir, negatif deger ve 1000 uzeri tutarlar Pydantic tarafindan reddedilir. Ancak floating point tutarina ozel bir yuvarlama kurali model seviyesinde yoktur.
+
+### top_up_wallet
+`@router.post("/wallet/topup")` ile suslenen `def top_up_wallet(payload: TopUpInput, user=Depends(get_current_user)) -> dict` 110-123 satirlarindadir. Ilk olarak rol kontrolu yapar ve musteriler disinda 403 doner. Tutar `round(..., 2)` ile yuvarlanir. `UPDATE "user" SET balance = balance + ?` ile bakiyeyi artirir; guncelleme olmazsa 404 dondurur. Sonra guncel bakiyeyi sorgular, yuvarlayarak dondurur. Kontrol akisi `with get_db()` blok cikisinda commit edilir.
+
+## Data
+
+- `user` okunur: login sorgusu 92-94, `me` icin token tarafindan okunur, top-up bakiye okuma 122.
+- `user` yazilir: kayit ekleme 65-68, bakiye artirma 116-119.
+- `restaurant` yazilir: restoran kaydi 70-84.
+- `auth_token` yazilir: token ekleme 50-56.
+- HTTP endpoint'"'leri: "'`POST /api/auth/register` 59-86, `POST /api/auth/login` 89-98, `GET /api/auth/me` 101-103, `POST /api/auth/wallet/topup` 110-123.
+
+## Failure modes
+
+- Mojibake varsayilan emoji 23. satirda bozuktur; UI bozuk karakter gosterebilir.
+- Restoran kaydinda `delivery_fee`, `min_order`, `eta_minutes` icin alt sinir yoktur; negatif degerler kabul edilebilir (18-22).
+- Email dogrulamasi yuzeyseldir; gercek sistemde alan dogrulamasi gerekir (35-37).
+- Restoran tablosu eklenirken olasi veritabani hatasi tum transaction'"'i geri alir, ancak hata mesaji genellestirilebilir (70-84).
+- Kayit ve token uretimi ayni transaction'da oldugu icin basarili yanit donmeden hata olursa user/token tutarli kalir, fakat hata mesaji kullaniciya ozel degildir (59-86).
+- Top-up sayi yuvarlamasi floating point hassasiyetinden etkilenir (114).
+
+## Security
+
+- Kimlik dogrulama: "'`/me` ve `/wallet/topup` `get_current_user` bagimliligini kullanir (101-111).
+- Yetkilendirme: bakiye yukleme sadece `customer` rolunde (112-113).
+- Sifre saklama ve dogrulama `db.py` yardimcilarina devredilir (67, 95).
+- SQL injection riski dusuktur cunku parametreli sorgular kullanilir (63, 65-67, 92-94, 116-119).
+- Token 32 bayt rastgele uretilir (51), fakat suresizdir (52-55) ve logout endpointsiz oldugu icin sunucuda gecersiz kalinir.
+
+## Suggested changes
+
+- Mevcut:
+  `delivery_fee: float = 10.0, min_order: float = 50.0, eta_minutes: int = 30`
+- Onerilen:
+  `delivery_fee: float = Field(default=10.0, ge=0); min_order: float = Field(default=50.0, ge=0); eta_minutes: int = Field(default=30, ge=1)`
+
+- Mevcut:
+  `"INSERT INTO auth_token (token, user_id, created_at) VALUES (?, ?, ?)"`
+- Onerilen:
+  `"INSERT INTO auth_token (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)"` ve token dogrulama/sorgularina suresini ekleyin.
+
+- Mevcut:
+  `image_emoji: str = "Ã„Å¸Ã…Â¸Ã‚ÂÃ‚Âª"`
+- Onerilen:
+  `image_emoji: str = "🍽"` veya guvenli ASCII bir varsayilan.
+
+## Test checklist
+
+1. Bos istek ile kayit: beklenen 422.
+2. Gecersiz e-posta ile kayit: beklenen 400.
+3. 5 karakter sifre ile kayit: beklenen 400.
+4. Gecerli muster kaydi: beklenen 201, token ve bakiye 100.
+5. Ayni e-posta ikinci kayit: beklenen 409.
+6. Restoran kaydi eksik mutfak: beklenen 400.
+7. Gecerli restoran kaydi: beklenen 201 ve restoran profili olusur.
+8. Kurye rolune dogrudan kayit: beklenen 400.
+9. Gecerli giris: beklenen 200, token ve kullanici payload.
+10. Yanlis sifre: beklenen 401.
+11. Kimliksiz `/me`: beklenen 401.
+12. Gecerli token ile `/me`: beklenen kullanici bilgisi.
+13. Giris yapmis restoran top-up: beklenen 403.
+14. Giris yapmis musteri 100 TL yukleme: beklenen bakiye 100 artar.
+15. 0 veya negatif yukleme: beklenen 422.
+16. 1001 TL yukleme: beklenen 422.
+'"'@
+"'$docs['"'auth.py.md'] = @'
+# auth.py incelemesi
+
+## Purpose
+
+Bu dosya uygulamanin ortak kimlik ve rol dogrulama katmanidir. HTTP "'`Authorization` basligindan Bearer token okur, token ile kullaniciyi cozer ve endpoint'"'lerin kullanabilecegi bagimlilik fonksiyonlarini saglar: opsiyonel kullanici, zorunlu kullanici, musteri, restoran ve kurye rol kontrolu. "'`main.py`, `accounts.py`, `panels.py` ve `reviews.py` bu dosyanin yardimcilarina baglidir; bu yuzden token dogrulamasi veya rol kontrolu degistikce tum API'"'nin erisim modeli etkilenir.
+
+## Walkthrough
+
+### _user_from_token
+"'`def _user_from_token(conn, token: str | None):` 6-15 satirlarindadir. Parametre olarak veritabani baglantisi ve ham `Authorization` degeri alir. Donus degeri ya `sqlite3.Row` tipinde bir kullanici ya da `None`'"'dur. Once token yoksa veya "'`Bearer ` onekiyle baslamiyorsa 7-8 satirlarinda `None` dondurur. Daha sonra 9. satirda prefix'"'i kaldirir ve 10-15 satirlarinda "'`auth_token` ile `user` tablolarini JOIN ederek `u.id`, `u.email`, `u.role`, `u.balance` degerlerini getirir. Sorgu tam eslesme ile token bulur; herhangi bir uyumsuzlukta `fetchone()` zaten `None` dondurur.
+
+### resolve_user
+`def resolve_user(authorization: str | None = Header(default=None)):` 18-20 satirlarindadir. FastAPI basligindan `authorization` degerini alir, `get_db()` ile baglanti acar ve token bazli kullaniciyi cozer. Donus degeri opsiyonel kullanici olabilir. Kontrol akisi kisadir ve hata dondurmez; token gecersizse null kullanan endpoint'"'ler misafir olarak davranir.
+
+### get_current_user
+"'`def get_current_user(user=Depends(resolve_user)):` 23-26 satirlarindadir. Parametre olarak cozulmus kullaniciyi alir. Kullanici yoksa `HTTPException(401, "Giris yapmalisiniz")` yukseltir; yoksa kullaniciyi dondurur. Bu zorunlu kimlik dogrulamasi icin temel guard'"'dir.
+
+### get_optional_user
+"'`def get_optional_user(user=Depends(resolve_user)):` 29-30 satirlarindadir. Kimlik dogrulamasi yoksa da null dondurur, varsa kullaniciyi dondurur. Hata akisi yoktur. Restoran detay gibi hem misafire hem girisli kullaniciya gore degisen sayfalarda kullanilir.
+
+### require_customer
+`def require_customer(user=Depends(get_current_user)):` 33-36 satirlarindadir. Once zorunlu kimlik dogrulamasi tetiklenir; kullanici yoksa 401 doner. Rol `customer` degilse 403 doner. Gecerli musteri icin user objesini dondurur.
+
+### require_restaurant
+`def require_restaurant(user=Depends(get_current_user)):` 39-48 satirlarindadir. Once musteri/kurye gibi yanlis roller 403 ile engellenir. Ardindan `user.id` ile `restaurant.user_id` iliskisini sorgular. Restoran profili yoksa 403 dondurur. Basariliysa `(user, restaurant)` tuple'"'ini dondurur. Bu endpoint'lere iki deger alan bir bagimlilik dondurdugu icin cagri kodlari unpack eder.
+
+### require_courier
+"'`def require_courier(user=Depends(get_current_user)):` 51-60 satirlarindadir. Rol `courier` degilse 403 doner. Ardindan `courier.user_id` ile profil arar. Profil yoksa 403 dondurur. Basariliysa `(user, courier)` tuple'"'ini dondurur. Bu sayede sadece rol degil, gercek kurye profili de zorunlu olur.
+
+## Data
+
+- HTTP header okunur: "'`authorization` basligi 18. satirda.
+- `auth_token` okunur: token sorgusu 10-15.
+- `user` okunur: token ile JOIN 11-14; `restaurant` ve `courier` profilleri de kullanici id uzerinden iliskilendirilir.
+- `restaurant` okunur: 42-45.
+- `courier` okunur: 54-57.
+- HTTP endpoint yok; yardimci fonksiyon dosyasi.
+
+## Failure modes
+
+- Token suresiz oldugu icin eski token'"'lar sonsuza kadar gecerli kalabilir (6-15).
+- Logout akisi olmadigi icin token DB'de kalir; istemci tarafinda silmek sunucuda token'i gecersiz kilmez (10-15).
+- Token basligi format olarak kontrol edilir ama token uzunlugu veya karakter bilesimi ekstra dogrulanmaz; DB eslesmesi yeterli olsa da saldiri yuzeyi buyur (7-14).
+- "'`resolve_user` her istekte yeni baglanti acar, yuksek trafikte kaynak maliyeti artar (18-20).
+- Rol degisen veya kullanici silinen bir token dogrulanabilir kalir; `ON DELETE` davranisi `PRAGMA foreign_keys` kapaliyken garanti degildir (10-15, schema 21-25).
+- Restoran ve kurye profil kontrolu ayri sorgulardir; tek sorguda birlestirilerek round-trip azaltilabilir (39-60).
+
+## Security
+
+- Kimlik dogrulama tamamen `Bearer token` mantigina dayanir (6-15).
+- Yetkilendirme rol bazli yapilir: musteri 33-36, restoran 39-48, kurye 51-60.
+- SQL injection yok; token sorgusu parametreli (10-15).
+- Veri ifsasi sinirli: sorgu sadece id/email/role/balance getirir, password_hash getirmez (11-14).
+- Restoran/kurye profil iliskisi kullanici id ile kontrol edilir, kullanicinin baskasina ait panel erisimini engeller (42-57).
+
+## Suggested changes
+
+- Mevcut:
+  `"WHERE t.token = ?"`
+- Onerilen:
+  `"WHERE t.token = ? AND t.expires_at > ?"` ve sorguya `utc_now()` parametresi ekle.
+
+- Mevcut:
+  `def get_current_user(user=Depends(resolve_user)):`
+- Onerilen:
+  dogrulanmis token kaydini da dondurun (örn. `(user, token_row)`), logout icin silme endpoint'"'i ekleyin.
+
+- Mevcut:
+  "'`def require_restaurant(...): ... with get_db() as conn: ...`
+- Onerilen:
+  `resolve_user` icinde profil iliskisini JOIN ile tek sorguda getirin veya token dogrulama fonksiyonunu yeniden kullanin.
+
+## Test checklist
+
+1. Authorization basligi yok: `/me` beklenen 401.
+2. `Bearer ` oneksiz token: [REDACTED_SECRET] 401.
+3. Gecersiz token: [REDACTED_SECRET] 401.
+4. Gecerli musteri token'"'i: "'`/me` beklenen 200.
+5. Gecerli restoran token'"'i: "'`require_customer` guard'"'li endpoint beklenen 403.
+6. Gecerli musteri token'i: "'`require_restaurant` guard'"'li endpoint beklenen 403.
+7. Restoran profili silinmis kullanici: beklenen 403.
+8. Kurye rolunde profil olan token: kurye guard'li endpoint beklenen 200.
+9. Kurye profili olmayan kurye rolunde kullanici: beklenen 403.
+10. Baskasinin restoran id'si ile restoran endpoint'i: beklenen kendi restorani disinda erisim engeli.
+11. Token DB'den silinmis: beklenen 401.
+12. Opsiyonel guard'li endpoint: misafir beklenen 200 ve "'`user=None`.
+13. Opsiyonel guard'"'li endpoint: girisli musteri beklenen user bilgisi.
+14. Token basligi buyuk/kucuk harf farkiyla: mevcut davranisin hata verip vermedigi belgelenmeli.
+15. Ayni token'dan iki istek: ikisi de 200 olmali, rate limiting yoksa bu bilinmeli.
+'@
+"'$docs['"'db.py.md'] = @'
+# db.py incelemesi
+
+## Purpose
+
+Bu dosya backend'in veri ve sifre yardimci katmanidir. SQLite veritabani baglantisi olusturur, UTC zaman damgasi uretir ve PBKDF2 ile sifre hash'leme/dogrulama yapar. Tum API modulleri dogrudan veya dolayli olarak bu dosyaya baglidir; ozellikle "'`get_db()` cagrildigi her yerde transaction ve baglanti davranisi belirlenir.
+
+## Walkthrough
+
+### DB_PATH
+`DB_PATH = Path(__file__).with_name("sepet.db")` 8. satirdadir. Bagli bir parametre almaz; donus degeri modul seviyesinde sabit bir `Path` objesidir. Kontrol akisi yoktur. Bu, veritabaninin Python kaynak dosyasinin yanina yerlesmesini garanti eder ve `seed.py` ile ayni dosyayi kullanmasini saglar.
+
+### get_db
+`def get_db() -> sqlite3.Connection:` 11-14 satirlarindadir. Parametre almaz. Donus degeri yeni bir `sqlite3.Connection` objesidir. Baglanti `DB_PATH` uzerinden acilir ve `row_factory = sqlite3.Row` set edilir. Bu sayede sorgu sonuclari hem indeksle hem kolon adiyla erisilebilir. Fonksiyon baglantiyi kapatmaz veya foreign key pragma'"'sini acmaz. Kullanan kod genellikle "'`with get_db() as conn` yapar; SQLite'"'ta bu, blok normal bittiginde commit ve exception'da rollback saglar, ama connection close etmez. Yani connection lifecycle tamamen cagri koduna birakilmistir.
+
+### utc_now
+"'`def utc_now() -> str:` 17-18 satirlarindadir. Parametre almaz. Donus degeri ISO 8601 formatli UTC zaman string'"'idir. "'`datetime.now(timezone.utc).isoformat()` ile uretilir. Kontrol akisi tek adimlidir. `auth_token.created_at`, siparis zamanlari, teslim ve onay zamanlari bu formatla yazilir.
+
+### hash_password
+`def hash_password(password: str) -> str:` 21-24 satirlarindadir. Parametre `password` string'"'idir. Donus degeri "'`salt$digest` formatinda bir string'"'dir. 16 bayt (32 hex karakter) rastgele tuz uretir. PBKDF2-HMAC-SHA256 algoritmasi 120000 iterasyonla calisir. Kontrol akisi salt uretimi, diger hesaplama ve formatlama seklinde ilerler. Her cagri yeni tuz urettigi icin ayni sifre farkli hash uretir.
+
+### verify_password
+"'`def verify_password(password: str, stored: str) -> bool:` 27-33 satirlarindadir. Parametre olarak ham sifre ve saklanmis hash string'"'i alir. Donus degeri bool'dir. "'`try` blogunda `stored` degeri `$` ile ayirir, ayni salt ve iterasyon sayisiyla PBKDF2 digest hesaplar ve `secrets.compare_digest` ile sabit zamanli karsilastirma yapar. `ValueError` olursa (orn. format bozuk) `False` dondurur. Ancak `TypeError` gibi farkli istisnalar yakalanmaz; yanlis veri tipi beklenmedik hataya yol acabilir.
+
+## Data
+
+- Dosya sistemi okunur/yazilir: SQLite dosyasi `sepet.db` (8, 12).
+- Tum tablolara erisim bu baglanti uzerinden olur; dosya kendisi tablo yazmaz/okumaz.
+- HTTP endpoint yok.
+- Client state yok.
+- Zaman verisi uretir: `auth_token.created_at`, `order.created_at`, `courier_assigned_at`, `delivered_at`, `confirmed_at` kullanim yerleri buna baglidir.
+- Sifre hash'"'i uretir/dogrur: "'`user.password_hash`.
+
+## Failure modes
+
+- `PRAGMA foreign_keys = ON` acilmadigi icin referans butunlugu SQLite varsayilan olarak devre disidir (11-14). Bu, gecersiz `user_id`, `restaurant_id` veya `courier_id` yazilmasina yol acabilir.
+- `with get_db() as conn` connection close etmedigi icin kaynak sizmasi mumkundur (11-14).
+- Eski SQLite surumleri veya ayni dosyaya yogun erisimde lock riski artar (12).
+- PBKDF2 iterasyonu kod icerisine gomulu; ileride coklu hash surumu desteklemek istersen mevcut `salt$digest` formati yeterli degil (21-24, 27-31).
+- `verify_password` yalniz `ValueError` yakalar; bozuk tipler veya beklenmeyen kodlama hatalari istisna verebilir (27-32).
+- Veritabani dosyasi silinir/reseed edilirken uygulama calisiyorsa yeni baglantilar dosya yolu uzerinden acilir, eski baglantilar farkli durumda kalabilir (8, 12).
+
+## Security
+
+- Kimlik dogrulama bu dosyada yapilmaz, ama sifre dogrulama temelini saglar (21-33).
+- Rastgele tuz `secrets.token_hex(16)` ile uretilir (22), tekrar kullanilabilir tuz riski dusuktur.
+- `secrets.compare_digest` kullanildigi icin klasik timing attack riski azalir (31).
+- PBKDF2 iterasyon sayisi 120000'"'dir (23, 30); saldiri maliyetini artirir ama cagin standartlarina gore surekli guncellenmesi gerekir.
+- SQL sorgu yok; injection riski bu dosyada yoktur.
+- Veritabani dosyasi uygulama klasorunde tutulur (8); yedekleme/erisim izinleri operasyonel gizlilik icin kritiktir.
+
+## Suggested changes
+
+- Mevcut:
+  "'`conn = sqlite3.connect(DB_PATH); conn.row_factory = sqlite3.Row; return conn`
+- Onerilen:
+  `conn = sqlite3.connect(DB_PATH); conn.row_factory = sqlite3.Row; conn.execute("PRAGMA foreign_keys = ON"); return conn`
+
+- Mevcut:
+  `return f"{salt}${digest.hex()}"`
+- Onerilen:
+  `return f"pbkdf2_sha256$120000${salt}${digest.hex()}"` ve `verify_password` icinde algoritma/iterasyon ayristirmasi ekle.
+
+- Mevcut:
+  kullanicilarin `with get_db() as conn` sonrasinda connection close etmemesi.
+- Onerilen:
+  FastAPI dependency ile `finally: conn.close()` davranisi sagla veya contextmanager yaz.
+
+## Test checklist
+
+1. `get_db()` donduren baglantida `row_factory` `sqlite3.Row` olmali.
+2. Ayni fonksiyon iki kez cagrildiginda ayri connection objeleri donmeli.
+3. `utc_now()` ciktisi ISO 8601 ve UTC olmali.
+4. Ayni sifre iki kez hash'"'lenince farkli salt/digest uretilmeli.
+5. Dogru sifre "'`verify_password` ile True donmeli.
+6. Yanlis sifre False donmeli.
+7. Hash formati bozuk oldugunda False donmeli.
+8. Sadece salt veya sadece digest varsa False donmeli.
+9. Yeni baglantida `PRAGMA foreign_keys` 1 olmali.
+10. Foreign key acikken gecersiz `user_id` ile token insert'"'i engellenmeli.
+11. Transaction exception oldugunda degisiklikler rollback olmali.
+12. Connection close edildikten sonra sorgu beklenmedik hata vermeli.
+13. Unicode sifre ile hash/dogrulama calismali.
+14. Cok uzun sifre ile performans ve hata davranisi test edilmeli.
+15. Dosya yoksa yeni bos DB olusmali, app endpoint'leri tablo hatasi vermemeli icin seed oncesi kontrol edilmeli.
+'@
+"'$docs['"'main.py.md'] = @'
+# main.py incelemesi
+
+## Purpose
+
+Bu dosya FastAPI uygulamasinin ana moduludur. Router'lari ekler, restoran listeleme/detay/mutfak endpoint'lerini ve musteri siparis olusturma endpoint'ini tanimlar. "'`GET /api/orders/{order_id}` de buradadir ve su an kimlik/ownership kontrolu olmadan siparis detayini dondurdugu icin en kritik guvenlik noktalarindan biridir. Restoran listesi ve detay dogrudan arayuzun ana akisini, siparis olusturma ise bakiye ve sepet akisini tasir.
+
+## Walkthrough
+
+### Uygulama kurulumu
+`app = FastAPI(title="Sepet API")` 13. satirda tanimlanir. 15-17 satirlarinda `accounts_router`, `panels_router` ve `reviews_router` uygulamaya eklenir. B Boylece hesap, panel ve yorum endpoint'"'leri ana uygulamada kullanilabilir olur.
+
+### OrderItemInput
+"'`class OrderItemInput(BaseModel)` 20-22 satirlarindadir. `menu_item_id: int` ve `quantity: int = Field(gt=0)` alir. Donus degeri yoktur. Pydantic negatif veya sifir adedi reddeder. Ayni menu urununun birden fazla satir olarak tekrar edilmesini engellemez.
+
+### OrderInput
+`class OrderInput(BaseModel)` 25-30 satirlarindadir. `restaurant_id: int`, `address: str`, `phone: str`, `note: str = ""` ve `items: list[OrderItemInput]` alir. Bos liste burada engellenmez; endpoint icinde 144-145 satirlarinda kontrol edilir. Adres, telefon ve not icin uzunluk veya format dogrulamasi yoktur.
+
+### list_restaurants
+`@app.get("/api/restaurants")` ile suslenmis `def list_restaurants(...)` 33-70 satirlarindadir. Parametreler arama terimi `q`, mutfak `cuisine`, minimum puan, maksimum teslimat ucreti, maksimum teslim suresi ve siralama anahtari alir. Donus restoran dict'"'lerinin listesidir. Kod koşullu SQL WHERE bolumu kurar; arama hem ad hem mutfak alaninda LIKE ile yapilir. Sonra "'`restaurant_review` tablosundan mutfak bazli ortalama puan ceker, her restorana `displayed_rating` uygular. Filtreler Python tarafinda uygulanir (63). Siralama dictionary ile desteklenen anahtarlara gore yapilir; tanimsiz `sort` degeri varsayilan puana döner.
+
+### list_cuisines
+`@app.get("/api/cuisines")` ile suslenmis `def list_cuisines() -> list[str]` 73-79 satirlarindadir. Parametre almaz, mutfak string listesi dondurur. `SELECT DISTINCT cuisine FROM restaurant ORDER BY cuisine` calistirir. Bos tablo durumunda bos liste dondurur.
+
+### get_restaurant
+`@app.get("/api/restaurants/{restaurant_id}")` ile suslenmis `def get_restaurant(...)` 82-116 satirlarindadir. Yol parametresi olarak `restaurant_id` alir, opsiyonel token ile `user` alir. Donus degeri restoran, menu, yorumlar ve puan bilgisi iceren dict'"'tir. Restoran yoksa 404 dondurur. Menu urunleri kategori ve ada gore siralanir, yorumlar kullanici e-postasiyla birlikte desc siralanir. "'`can_review` ve `has_review` default `False` olur. Eger giris yapan musteri varsa, status literal `onaylandÄ±` kullanilarak onayli siparis kontrol edilir ve yorum var mi diye sorgulanir. Bu status literal schema ve paneldeki dogru Unicode ile uyumsuz olabilir.
+
+### get_order
+`@app.get("/api/orders/{order_id}")` ile suslenmis `def get_order(order_id: int) -> dict[str, Any]` 119-139 satirlarindadir. Sadece yol id alir; kimlik dogrulama veya ownership guard yoktur. Siparis yoksa 404 dondurur. Siparis ve restoran adini JOIN ile getirir, sonra urunleri `order_item` tablosundan ceker. Donus siparis tum kolonlarini, restoran adini ve urun listesini icerir. Bu, adres/telefon/not ve musteri id gibi kisisel bilgilerin id bilen herkese acilmasi demektir.
+
+### create_order
+`@app.post("/api/orders", status_code=201)` ile suslenmis `def create_order(...)` 142-214 satirlarindadir. Parametre olarak `OrderInput` ve `require_customer` ile dogrulanmis `user` alir. Donus id, status ve total icerir. Once bos item listesi 400 ile reddedilir. Restoran yoksa 404 dondurur. Menu urunleri restoran id'"'siyle filtrelenerek tek sorguda getirilir; eksik veya baska restorana ait urun varsa 404 dondurur. Ara toplam hesaplanir ve minimum sepet kontrol edilir. Toplam teslimat ucretiyle toplanir, bakiye yetersizse 400 dondurur. Bakiye dusurme "'`UPDATE ... WHERE id = ? AND balance >= ?` ile kosullu yapilir; dusmuyorsa 400 dondurur. Siparis `hazÄ±rlanÄ±yor` statusu ile eklenir ve urunler `order_item` tablosuna yazilir. Blok cikisinda commit olur; istisna olursa rollback beklenir.
+
+## Data
+
+- `restaurant` okunur: liste 44-54, detay 85-87, siparis 150-152.
+- `restaurant_review` okunur: liste ortalama 51-53, detay yorumlari 94-99, yorum yapma durumu 112-115.
+- `menu_item` okunur: detay 90-93, siparis 157-161.
+- `order` okunur: detay 122-128, yorum yapma uygunlugu 107-111; yazilir: siparis ekleme 189-203.
+- `order_item` okunur/yazilir: detay 131-136, siparis urunleri 207-212.
+- `user` okunur/yazilir: musteri bakiyesi token uzerinden gelir, bakiye dusulur 181-183.
+- HTTP endpoint'"'leri: "'`GET /api/restaurants`, `GET /api/cuisines`, `GET /api/restaurants/{id}`, `GET /api/orders/{id}`, `POST /api/orders`.
+
+## Failure modes
+
+- Siparis detay endpoint'"'i kimliksiz acik ve ownership yok (119-139); id bilen herkes kisisel bilgileri gorebilir.
+- "'`main.py` ve `schema.sql` bozuk Unicode status literal kullanirken `panels.py` dogru Unicode kullanir (109, 199, schema 60 vs panels 174, 238). Restart/reseed sonrasi kurye atamasi tikanabilir.
+- `create_order` yalnizca `require_customer` guard'"'iyla islem görür, ancak 146-147 satirindaki rol kontrolu redundant ve "'`user` None durumunu tam kapsamaz.
+- Arama `LIKE` wildcard karakterlerini kacirmaz; `%` veya `_` iceren terim istenmeden genis eslesme yapar (37-40).
+- SQL f-string sadece placeholders sayisi icin kullanilir; degisken dogrudan gecirilmez, ama dinamik query yapisinda dikkat gerekir (156-160).
+- Restoran listesindeki filtreleme veritabaninda degil Python'"'da yapilir; buyuk veri setinde performans dususebilir (63).
+- Minimum sepet kontrolu subtotal uzerinden yapilir; quantity toplami veya 0 fiyat urunleri ozel durum yaratmaz ama float hassasiyeti olabilir (166-172).
+- Bakiye dusme ve siparis insert'i ayni transaction'dadir; hata olursa geri alinir, ancak mantik hatalari commit olabilir (181-212).
+
+## Security
+
+- Kimlik dogrulama: restoran listesi ve mutfak listesi halka acik (33-79). Restoran detay opsiyonel token kullanir (82-116).
+- Yetkilendirme: siparis olusturma sadece musteriler icin "'`require_customer` ile (142-143).
+- Siparis detayda auth ve ownership yok; IDOR acik (119-139).
+- SQL injection riski dusuk: parametreli sorgular kullanilir (37-48, 85-99, 122-136, 157-160, 181-183, 207-212).
+- Veri ifsasi: siparis detay `o.*` ile adres, telefon, not, musteri id, courier id ve zaman damgalarini dondurur (123, 137-139).
+- Bakiye dusurme kosullu WHERE ile yapilir; race condition'"'da cift dusme riski azaltilir (181-184).
+
+## Suggested changes
+
+- Mevcut:
+  "'`def get_order(order_id: int) -> dict[str, Any]:`
+- Onerilen:
+  `def get_order(order_id: int, user=Depends(get_current_user)) -> dict[str, Any]:` ve `order.customer_id != user["id"]` durumunda 404 dondurun.
+
+- Mevcut:
+  `"hazÄ±rlanÄ±yor"`
+- Onerilen:
+  `"hazırlanıyor"` hem schema, hem main.py, hem panels.py ayni literal olacak sekilde.
+
+- Mevcut:
+  `search = f"%{q.lower()}%"`
+- Onerilen:
+  `safe_q = q.replace("'"\\\\\", \"\\\\\\\\\").replace(\"%\", \"\\\\%\").replace(\"_\", \"\\\\_\"); search = f\"%{safe_q.lower()}%\""'` ve SQL'"'e uygun "'`ESCAPE` clause ekleyin.
+
+- Mevcut:
+  `if user and user["role"] != "customer":`
+- Onerilen:
+  `require_customer` guard'"'i yeterli oldugundan bu satiri kaldirin veya user tipini netlestirin.
+
+## Test checklist
+
+1. Restoran listesi bos DB'de bos donmeli.
+2. Q parametresi ada gore eslesmeli.
+3. Q parametresi mutfak adiyla eslesmeli.
+4. Cuisine filtresi tek restoran donmeli.
+5. Minimum rating filtresi dusuk puanli restoranlari elemeli.
+6. Maksimum teslimat ucreti ve sure filtresi birlikte calismali.
+7. Gecersiz sort degeri varsayilan puana dönmeli.
+8. Mutfak listesi DISTINCT ve alfabetik donmeli.
+9. Olmayan restoran id detayi 404 donmeli.
+10. Girisli musteri onayli siparisi varsa "'`can_review=true` olmali.
+11. Girisli musteri yorum yaptiysa `has_review=true` olmali.
+12. Siparis detayi kimliksiz istekte 401 olmali (guncellemeden sonra).
+13. Baskasinin siparisini girisli musteri isteyince 404 olmali.
+14. Siparis olusturma bos sepetle 400 olmali.
+15. Menu urunu baska restorandan secildiginde 404 olmali.
+16. Minimum sepet altinda 400 olmali.
+17. Bakiye yetersizse 400 olmali ve bakiye degismemeli.
+18. Basarili siparis sonrasi bakiye tam toplam kadar dusmeli.
+19. Ayni menu urunu birden fazla satirda gelirse toplam dogru hesaplanmali.
+20. Olusan siparis status'"'u panels.py'daki dogru literal ile eslesmeli.
+'@
+foreach("'$k in $docs.Keys){ [System.IO.File]::WriteAllText((Join-Path "review" $k), $docs[$k], $enc) }
+Write-Output "wrote $($docs.Count) docs"' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 99ms:
+wrote 4 docs
+
+codex
+Ilk 4 belge hazir. Ikinci backend grubunu yaziyorum; burada `panels.py`, `reviews.py`, `schema.sql` ve `seed.py` var.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$enc=[System.Text.UTF8Encoding]::new($false)
+$docs = [ordered]@{}
+$docs['"'panels.py.md'] = @'
+# panels.py incelemesi
+
+## Purpose
+
+Bu dosya musteri, restoran sahibi ve kurye panel akislari icin REST endpoint'lerini toplar. Siparis gecmisi, restoran siparis listesi, kurye ve menu yonetimi, kurye atama, kurye siparis listesi, teslim etme, musterinin teslimi onaylamasi ve restoran kazanc ozetini saglar. "'`main.py:16` tarafindan uygulamaya eklenir; `auth.py` guard'"'lari ve "'`db.py` baglanti yardimcilari uzerine kurulur. Bu dosya is akisinin cogunugunu tasidigi icin status literal'"'leri ve ownership kontrolu kritik oneme sahiptir.
+
+## Walkthrough
+
+### CourierInput
+"'`class CourierInput(BaseModel)` 13-16 satirlarindadir. Alanlar `email`, `password` ve `name`. Donus degeri yoktur. E-posta formati, sifre uzunlugu veya adin boslugu burada dogrulanmaz; sadece endpoint icinde ad kontrol edilir.
+
+### MenuItemInput
+`class MenuItemInput(BaseModel)` 19-23 satirlarindadir. Alanlar `name`, `description`, `price: float = Field(gt=0)` ve `category`. Donus degeri yoktur. Fiyat sifirdan buyuk zorunlu; diger alanlar icin uzunluk/tek dogrulama yok.
+
+### AssignCourierInput
+`class AssignCourierInput(BaseModel)` 26-27 satirlarindadir. `courier_id: int` alir. Donus degeri yoktur. Kuryenin restorana ait olup olmadigi endpoint'"'te kontrol edilir.
+
+### ReviewInput
+"'`class ReviewInput(BaseModel)` 30-32 satirlarindadir. `rating` 1-5 arasi zorunlu, `comment` string. Donus degeri yoktur. Bos yorum kontrolu `reviews.py:24-25` icinde yapilir.
+
+### serialize_orders
+`def serialize_orders(conn, rows) -> list[dict[str, Any]]` 35-49 satirlarindadir. Parametre olarak baglanti ve siparis `sqlite3.Row` listesi alir, dict listesi dondurur. Her siparis row'"'u once "'`dict(row)` ile kopyalanir, sonra `order["items"]` listesi `order_item` sorgusundan doldurulur. Her satira `line_total` eklenir. Kontrol akisi rows uzerinde dongu ve her row icin ayri sorgudur; N+1 query problemi vardir.
+
+### order_with_items
+`def order_with_items(conn, order_id: int):` 52-65 satirlarindadir. Parametre baglanti ve siparis id. Donus tek siparis dict'"'i veya "'`None`. Siparis, restoran, musteri email ve kurye adi JOIN ile getirilir. Siparis yoksa `None`, varsa `serialize_orders` ile item listesi eklenir. Bu yardimci fonksiyon su an hic endpoint'"'ten cagrilmiyor gibi gorunuyor; olasi dead code veya gelecek kullanim icin tanimli.
+
+### order_history
+"'`@router.get("/orders/history")` ile suslenmis `def order_history(user=Depends(require_customer)) -> list[dict[str, Any]]` 68-81 satirlarindadir. Parametre olarak yalniz dogrulanmis musteri alir. Donus siparis dict'"'leri listesidir. Kod sadece "'`customer_id` kullaniciya esit olan siparisleri desc siralar, sonra `serialize_orders` ile urunleri ekler. Bu, musteri gecmisini guvenli sekilde owner'"'a sinirlar.
+
+### restaurant_orders
+"'`@router.get("/restaurant/orders")` ile suslenmis `def restaurant_orders(status="", user_restaurant=Depends(require_restaurant))` 84-103 satirlarindadir. Parametre olarak opsiyonel `status` filter ve `(user, restaurant)` tuple alir. Donus siparis listesidir. Sorgu restoran id'"'sine sinirlanir; "'`status` verilirse ikinci parametreli WHERE eklenir. Sorgu desc siralanir. Ownership kontrolu guard icinde yapilir.
+
+### list_couriers
+`@router.get("/restaurant/couriers")` ile suslenmis `def list_couriers(user_restaurant=Depends(require_restaurant))` 106-114 satirlarindadir. `(user, restaurant)` alir. Donus kurye dict listesidir. Sadece kendi restoranina ait `courier` kayitlarini id, name ve user_id olarak getirir. `user_id` ifsasi burada panel icin bilgilendirici ama disari sunuma yonelik mutlaka gerekli degil.
+
+### list_menu_items
+`@router.get("/restaurant/menu-items")` ile suslenmis `def list_menu_items(user_restaurant=Depends(require_restaurant))` 117-125 satirlarindadir. Restoran tuple alir, menu item listesi dondurur. Sorgu kendi restoranina ait urunleri kategori ve ada gore siralar.
+
+### create_courier
+`@router.post("/restaurant/couriers", status_code=201)` ile suslenmis `def create_courier(...)` 128-145 satirlarindadir. `CourierInput` ve restoran tuple alir. Donus olusturulan kurye dict'"'idir. Ad bos ise 400 dondurur. E-posta zaten varsa 409 dondurur. Yeni "'`user` kaydi courier rolunde eklenir ve `courier` tablosuna restoran iliskisiyle yazilir. E-posta format/sifre uzunlugu kontrol edilmedigi icin olasi bozuk hesaplar olusabilir.
+
+### add_menu_item
+`@router.post("/restaurant/menu-items", status_code=201)` ile suslenmis `def add_menu_item(...)` 148-157 satirlarindadir. `MenuItemInput` ve restoran tuple alir. Donus olusturulan menu item dict'"'idir. Yeni "'`menu_item` satiri kendi restoran id'"'siyle eklenir. Bos ad/kategori/aciklama engellenmez.
+
+### assign_courier
+"'`@router.post("/restaurant/orders/{order_id}/assign-courier")` ile suslenmis `def assign_courier(...)` 160-187 satirlarindadir. Siparis id, `AssignCourierInput`, restoran tuple alir. Donus status ve kurye adi. Kod once siparisi id ile arar; siparis yoksa veya baska restorana aitse 404 dondurur. Status dogru Unicode `"hazırlanıyor"` degilse 409 dondurur. Kurye id restoran id ile birlikte dogrulanir; baska restorana ait kurye ise 403 dondurur. Sonra siparis `kuryede` statusuna gecirilir ve atama zamanlani. Bu endpoint ownership dogru; ancak main.py status mojibake olursa bu kontrol siparisi bulamaz.
+
+### courier_orders
+`@router.get("/courier/orders")` ile suslenmis `def courier_orders(courier_data=Depends(require_courier))` 190-204 satirlarindadir. `(user, courier)` tuple alir. Donus kuryenin atanmis siparisleri. Sorgu `JOIN courier c ON c.id = o.courier_id` ve `WHERE o.courier_id = ?` kullanir. Siparis urunleri `serialize_orders` ile eklenir.
+
+### deliver_order
+`@router.post("/courier/orders/{order_id}/deliver")` ile suslenmis `def deliver_order(...)` 207-223 satirlarindadir. Siparis id ve kurye tuple alir. Donus teslim statusu. Siparis yoksa veya kurye eslesmiyorsa 404 dondurur. Status `"kuryede"` degilse 409 dondurur. Gecerli durumda siparis `"teslim_edildi"` statusuna gecirilir ve `delivered_at` yazilir.
+
+### confirm_delivery
+`@router.post("/orders/{order_id}/confirm_delivery")` ile suslenmis `def confirm_delivery(...)` 226-241 satirlarindadir. Siparis id ve musteri tuple alir. Siparis yoksa veya musteri owner degilse 404 dondurur. Status `"teslim_edildi"` degilse 409 dondurur. Gecerli durumda `"onaylandı"` statusuna gecer ve `confirmed_at` yazilir. Ownership dogru.
+
+### restaurant_earnings
+`@router.get("/restaurant/earnings")` ile suslenmis `def restaurant_earnings(user_restaurant=Depends(require_restaurant))` 247-272 satirlarindadir. Restoran tuple alir, kazanc dict dondurur. Once tum siparislerin adet ve toplam gelirini, sonra status `"onayland'"\\u0131\""'` olan siparislerin ayni degerlerini hesaplar. Ortalama siparis degeri tum siparislerin gelirine gore hesaplanir. Toplam, onayli ve bekleyen gelir ile adetler dondurulur.
+
+## Data
+
+- `order` okunur/yazilir: gecmis 71-80, restoran listesi 90-102, kurye listesi 194-203, atama 169-186, teslim 212-222, onay 230-240, kazanc 251-263.
+- `order_item` okunur: 39-46.
+- `restaurant` okunur: JOIN 54-59, 72-77, 90-95, 195-200.
+- `user` okunur: musteri email JOIN 54-59, 72-77, 90-95, 195-200; yazilir kurye hesabi 136-139.
+- `courier` okunur/yazilir: listeleme 110-113, kurye olusturma 141-144, atama dogrulama 176-179, JOIN 54-59.
+- `menu_item` okunur/yazilir: 117-125, 151-156.
+- `restaurant_review` dolayli degil; yorum dogrulamasi `reviews.py`.
+- HTTP endpoint'"'leri: 68, 84, 106, 117, 128, 148, 160, 190, 207, 226, 247.
+
+## Failure modes
+
+- "'`serialize_orders` her siparis icin ayri sorgu calistirir; buyuk listelerde N+1 query verimlilik kaybi (35-49).
+- Siparis listelerinde sadece musteri email `u.email AS customer_email` getirilir; panelde gereksiz PVA/sifre olmayan ama yine de veri ifsasi buyuyor (54-59, 72-77, 90-95, 195-200).
+- `create_courier` email format ve sifre uzunlugunu dogrulamaz (128-145).
+- `add_menu_item` bos ad/kategori/aciklama kabul eder (148-157).
+- Restoran listesi status filter istemciden dogrudan alir; gecersiz status sadece bos sonuc dondurur, tip hatasi vermez (84-100).
+- Kurye atamasi dogru literal `"hazırlanıyor"` ister (174), main.py/schema SQL bozuk literal kullaniyor olabilir; bu uyumsuzluk akisi tikar.
+- `restaurant_earnings` pending gelirini `overall - confirmed` ile hesaplar; status degismezse veya farkli literal varsa yanlis gelir raporu (251-268).
+- Panel siparisleri canli guncellenmez; UI stale state kalabilir (190-204).
+
+## Security
+
+- Kimlik dogrulama: musteri 68, restoran 84/106/117/128/148/160/247, kurye 190/207, teslim onay 226.
+- Yetkilendirme: `order_history` customer_id sinirli (78), restoran endpoint'"'leri "'`require_restaurant` ile kendi restaurant id'"'sini kullanir, kurye endpoint'leri "'`require_courier` ile kendi courier id'"'sini kullanir.
+- Siparis atamasi ownership kontrolu "'`order["restaurant_id"] != restaurant["id"]` (172).
+- Kurye atamasi ownership kontrolu `courier.id = ? AND courier.restaurant_id = ?` (176-179).
+- SQL injection riski dusuk; tum dinamik parametreler bound parameters ile gecirilir.
+- Kurye olusturma sirasinda e-posta zaten varsa 409 dondurulur, fakat hassas bilgi olarak sadece genel mesaj var (134-135).
+
+## Suggested changes
+
+- Mevcut:
+  `for row in rows: order = dict(row); order["items"] = [...conn.execute(...)...]`
+- Onerilen:
+  siparis id'"'leriyle "'`IN (...)` sorgusu tek istekte item'"'lari cekip Python'da gruplayin.
+
+- Mevcut:
+  "'`email: str, password: str, name: str`
+- Onerilen:
+  `email: EmailStr; password: str = Field(min_length=6); name: str = Field(min_length=1)` ve email normalized.
+
+- Mevcut:
+  `MenuItemInput` alanlari plain string.
+- Onerilen:
+  `name: str = Field(min_length=1); description: str = Field(min_length=1); category: str = Field(min_length=1)`.
+
+- Mevcut:
+  `u.email AS customer_email` her panel listesinde dondurulur.
+- Onerilen:
+  panelde sadece gerekli bilgi döndurun; gerekmiyorsa e-postayi cikarin.
+
+## Test checklist
+
+1. Musteri gecmisi kimliksiz istekte 401.
+2. Musteri sadece kendi siparislerini gormeli.
+3. Restoran sadece kendi siparislerini gormeli.
+4. Status filter `"kuryede"` sadece kuryede olanlari donmeli.
+5. Gecersiz status bos liste donmeli.
+6. Restoran kuryeleri sadece kendi profillerinden gelmeli.
+7. Baskasinin restoranina kurye eklemeye calisan restoran 403.
+8. Kurye olusturma basarili durumda 201 ve yeni user/courier kayitlari olusmali.
+9. Ayni e-posta ile ikinci kurye 409 olmali.
+10. Ad bos kurye olusturma 400.
+11. Menu item ekleme 201 ve fiyat > 0 zorunlu.
+12. Fiyat 0 veya negatif menu item 422.
+13. Restoran kendi siparisine kendi kuryesini atayabilmeli.
+14. Baska restoran kuryesi atanmaya calisilinca 403.
+15. Zaten kuryede siparise tekrar atama 409.
+16. Status `"hazÄ±rlanÄ±yor"` mojibake olan siparis dogru literal atanamamali; fix sonrasi atanmali.
+17. Kurye sadece kendisine atanmis siparisleri gormeli.
+18. Baskasinin siparisini teslim etmeye calisan kurye 404.
+19. Kuryede olmayan siparis teslim edilirken 409.
+20. Teslim edilen siparis musteri tarafindan onaylaninca `"onaylandı"` olmali.
+21. Baskasinin siparisini onaylayan musteri 404.
+22. Kazanc raporu toplam/onayli/bekleyen degerleri dogru donmeli.
+'"'@
+"'$docs['"'reviews.py.md'] = @'
+# reviews.py incelemesi
+
+## Purpose
+
+Bu dosya restoran yorumlari icin bir endpoint ve genel puan hesaplama yardimcisini tanimlar. "'`main.py` hem `displayed_rating` fonksiyonunu hem de router'"'i kullanir; "'`Account/RestaurantDetail` arayuzu de yorum olusturma endpoint'"'ine baglanir. Dosya bir musterinin ancak onayli siparis sonrasi ve restoran basina bir kez yorum yapabilmesini zorunlu tutar.
+
+## Walkthrough
+
+### displayed_rating
+"'`def displayed_rating(seed_rating: float, review_rows) -> float` 13-15 satirlarindadir. Parametre olarak restoranin seed puanini ve review satirlarini alir. Donus degeri iki ondalige yuvarlanmis float. `ratings` listesi seed rating ile her review satirindaki `row["rating"]` degerlerini toplar. Sonra `sum / len` ile ortalama alir. Kontrol akisi bos review listesi olsa da seed rating oldugu icin hata vermez. Ancak `seed_rating` None ise `TypeError` verir.
+
+### create_review
+`@router.post("/restaurants/{restaurant_id}/reviews", status_code=201)` ile suslenmis `def create_review(...)` 18-50 satirlarindadir. Parametreler `restaurant_id`, `ReviewInput` ve `require_customer` ile dogrulanmis `user`. Donus degeri id, rating, comment ve `user_email` iceren dict. Once yorum metninin `strip()` sonrasi bos olup olmadigini kontrol eder; bossa 400 dondurur. Baglanti acar. Restoran yoksa 404 dondurur. Kullanici onayli siparise sahip degilse 403 dondurur. Restoran basina daha once yorum varsa 409 dondurur. Gecerli durumda `restaurant_review` tablosuna rating, strip edilmis comment ve `utc_now()` ile ekler. `cursor.lastrowid` ile id donduruur. Blok cikisinda commit olur.
+
+## Data
+
+- `restaurant` okunur: varlik kontrolu 27-29.
+- `order` okunur: onayli siparis kontrolu 32-36.
+- `restaurant_review` okunur: duplicate kontrol 39-42; yazilir: insert 44-49.
+- HTTP endpoint: `POST /api/restaurants/{restaurant_id}/reviews` 18-50.
+- Client state yok.
+- `main.py` `displayed_rating` cagirarak liste/detay puanini hesaplar (main.py 59-60 ve 103).
+
+## Failure modes
+
+- Yorum yapma sarti `"onaylandı"` literaline bagli (34). Eger backend'"'in diger katmanlari mojibake status uretiyorsa musteriler yorum yapamaz.
+- "'`displayed_rating` sadece seed ve review rating'"'leri icerir; onaylanmamis veya degistirilmis yorum yoksa gercekten dogru. Ama yorum silme/moderasyon akisi yok.
+- Yorum metni strip edilerek kaydedilir, ancak uzunluk siniri yoktur; cok buyuk metin DB ve UI performansini bozabilir (44-49).
+- Rating 1-5 arasi Pydantic ile zorunlu ("'`panels.py:31`), ama yorumda olasi race durumunda ayni kullanici iki kez insert etmeye calisirsa `IntegrityError` HTTP'"'ye cevrilmez; UNIQUE kontrol once yapildigindan pratikte dusuk olasilikla 500 olabilir (39-49).
+- Yorum aninda silinen restoran veya baskasinin siparisini kullanmaya calisma guard'larla engellenir, fakat transaction izolasyon seviyesi özel olarak set edilmediginden ayni anda ikinci yorum insert teorik race yaratabilir (26-49).
+- "'`user_email` yanitida dondurulur; bu kullaniciya ozel bilgi degil ama privacy tercihine gore sorun olabilir (50).
+- Yorumlar yorum sahibinin emailini public detayda dondurur; `main.py:94-99` buraya baglidir.
+
+## Security
+
+- Kimlik dogrulama: `require_customer` ile (22).
+- Yetkilendirme: yalniz musteriler yorum yapabilir; onayli siparis sarti 32-38.
+- Ownership/injection yok; restoran id ve user id parametreli sorgularla gecirilir (27-49).
+- Duplicate kontrol `restaurant_id + user_id` uzerinden (39-42) ve schema UNIQUE (schema 41) ile desteklenir.
+- Veri ifsasi: yanit yorum sahibi e-postasini icerir (50); public listelerde de email doner (`main.py:94-99`).
+- Rating degeri sadece 1-5 arasi kabul edilir (panels.py:30-32), boylece ortalama puan manipulasyonu form dogrulamasiyla sinirli.
+
+## Suggested changes
+
+- Mevcut:
+  `comment: str`
+- Onerilen:
+  `comment: str = Field(min_length=1, max_length=500)` veya endpoint icinde 500 karakter siniri.
+
+- Mevcut:
+  `if conn.execute("SELECT 1 FROM restaurant_review WHERE restaurant_id = ? AND user_id = ?", ...).fetchone():`
+- Onerilen:
+  race durumu icin insert'"'i "'`try` icine alin, `sqlite3.IntegrityError`'"'u 409'a cevirin.
+
+- Mevcut:
+  "'`"user_email": user["email"]`
+- Onerilen:
+  public listelerde email yerine maskeli ad/username dondurun.
+
+## Test checklist
+
+1. Kimliksiz yorum: 401.
+2. Restoran rolunde yorum: 403.
+3. Kurye rolunde yorum: 403.
+4. Musteri onayli siparis yok: 403.
+5. Onayli siparis var: 201.
+6. Rating 0: 422.
+7. Rating 6: 422.
+8. Rating 1 ve 5 gecerli olmali.
+9. Bos yorum: 400.
+10. Sadece bosluk yorum: 400.
+11. Olmayan restoran: 404.
+12. Ayni restorana ikinci yorum: 409.
+13. Basarili yorum sonrasi restoran ortalama puan guncellenmeli.
+14. Yorum metnindeki on/off character korunmali.
+15. Cok uzun yorumlar belirlenen sinira gore reddedilmeli.
+16. Ayni kullanici paralel iki yorum istegi gonderirse yalniz biri 201 olmali.
+17. Baskasinin restoran id'"'sine yorum yapmaya calisan musteri onayli siparisi yoksa 403.
+18. Yorum sonrasi "'`has_review=true` olmali.
+19. Yorum sonrasi listelemede yeni yorum ve guncel rating gorunmeli.
+20. Public yorum listesinde hassas bilgiler adres/telefon gibi yer almayali.
+'"'@
+"'$docs['"'schema.sql.md'] = @'
+# schema.sql incelemesi
+
+## Purpose
+
+Bu dosya SQLite veritabaninin tam semasini tanimlar: restoran, kullanici, auth token, kurye, restoran yorumu, menu urunu, siparis ve siparis satiri tablolari. "'`seed.py` bu dosyayi okuyup tum tablolari olusturur; backend kodu tum CRUD islemlerini bu semaya baglidir. Dolayisiyla kolon tipleri, UNIQUE/CHECK kuralilari ve foreign key tanimlari uygulamanin butunlugu icin referans noktasidir.
+
+## Walkthrough
+
+### restaurant tablosu
+`CREATE TABLE IF NOT EXISTS restaurant` 1-11 satirlarindadir. Kolonlar `id`, `name`, `cuisine`, `rating`, `delivery_fee`, `min_order`, `eta_minutes`, `image_emoji`, `user_id`. Kontrol akisi yoktur; tanim sabit. `id` otomatik artan primary key. `name`, `cuisine`, `rating`, `delivery_fee`, `min_order`, `eta_minutes`, `image_emoji` NOT NULL. `user_id` `user(id)` referansi, ama nullable. Yani restoran profili sahipsiz olabilir. Para alanlari `REAL`, yani floating point.
+
+### user tablosu
+`CREATE TABLE IF NOT EXISTS "user"` 13-19 satirlarindadir. `id` otomatik primary key. `email` NOT NULL UNIQUE. `password_hash` NOT NULL. `role` CHECK ile yalniz `customer`, `restaurant`, `courier` olabilir. `balance` `REAL NOT NULL DEFAULT 0`. Parola hash tek string olarak saklanir; token, email dogrulama veya password reset tablosu yok.
+
+### auth_token tablosu
+`CREATE TABLE IF NOT EXISTS auth_token` 21-25 satirlarindadir. `token` primary key. `user_id` NOT NULL ve `user(id)` referansi. `created_at` NOT NULL. Su satiral `expires_at`, `revoked_at` veya son kullanma yok. Bu, token suresizlik riskini semada gomulu yapar.
+
+### courier tablosu
+`CREATE TABLE IF NOT EXISTS courier` 27-32 satirlarindadir. `id` otomatik primary key. `user_id` NOT NULL UNIQUE ve `user(id)` referansi, yani bir kullanici yalniz bir kurye profili olabilir. `restaurant_id` NOT NULL ve `restaurant(id)` referansi. `name` NOT NULL. Kurye bir restorana baglidir; birden fazla restorana ayni anda baglanamaz.
+
+### restaurant_review tablosu
+`CREATE TABLE IF NOT EXISTS restaurant_review` 34-42 satirlarindadir. `id` primary key. `restaurant_id` ve `user_id` NOT NULL ve foreign key. `rating` CHECK 1-5. `comment` NOT NULL. `created_at` NOT NULL. `(restaurant_id, user_id)` UNIQUE, yani bir kullanici restoran basina bir yorum yapabilir.
+
+### menu_item tablosu
+`CREATE TABLE IF NOT EXISTS menu_item` 44-51 satirlarindadir. `id` primary key. `restaurant_id` NOT NULL FK. `name`, `description`, `price`, `category` NOT NULL. Fiyat `REAL`, pozitiflik CHECK yok; backend katmaninda enforced. Stok, durum veya gorsel yok.
+
+### order tablosu
+`CREATE TABLE IF NOT EXISTS "order"` 53-67 satirlarindadir. `id` primary key. `restaurant_id` NOT NULL FK. `address`, `phone`, `note` metinleri. `note` default `'"''"'`. `total` `REAL NOT NULL`. `status` TEXT ve default `hazÄ±rlanÄ±yor`. `created_at` NOT NULL. `customer_id` FK, nullable. `courier_id` FK, nullable. `courier_assigned_at`, `delivered_at`, `confirmed_at` nullable. Status CHECK kuralilari yok; degiskenleri tamamen uygulama kontrol eder.
+
+### order_item tablosu
+`CREATE TABLE IF NOT EXISTS order_item` 69-76 satirlarindadir. `id` primary key. `order_id` NOT NULL FK. `menu_item_id` NOT NULL FK. `name`, `unit_price` ve `quantity` NOT NULL. Fiyat/quantity CHECK yok; backend uzerinde yapilir. Siparis oluşturulduktan sonra menu fiyat degisirse satirdeki `unit_price` gecmişi korur.
+
+## Data
+
+- Tablo tanimlari: `restaurant` 1-11, `user` 13-19, `auth_token` 21-25, `courier` 27-32, `restaurant_review` 34-42, `menu_item` 44-51, `order` 53-67, `order_item` 69-76.
+- HTTP endpoint yok.
+- Client state yok.
+- Iliskiler: `restaurant.user_id -> user.id`, `auth_token.user_id -> user.id`, `courier.user_id -> user.id`, `courier.restaurant_id -> restaurant.id`, `restaurant_review.restaurant_id -> restaurant.id`, `restaurant_review.user_id -> user.id`, `menu_item.restaurant_id -> restaurant.id`, `order.restaurant_id -> restaurant.id`, `order.customer_id -> user.id`, `order.courier_id -> courier.id`, `order_item.order_id -> order.id`, `order_item.menu_item_id -> menu_item.id`.
+
+## Failure modes
+
+- Default siparis status `"hazÄ±rlanÄ±yor"` mojibake 60. satirda; `panels.py` dogru `"hazırlanıyor"` kullanir. Bu uyumsuzluk kurye atamasini engeller.
+- Foreign key iliskileri tanimli ama `db.py` `PRAGMA foreign_keys = ON` acmadigindan uygulama icinde efektif olmayabilir.
+- Para alanlari `REAL`: `restaurant.rating/delivery_fee/min_order`, `user.balance`, `menu_item.price`, `order.total`, `order_item.unit_price`. Yuvarlama ve floating point hatalari riskli.
+- Token tablosunda expiry yok; sifre yerine DB'"'de sonsuza kadar gecerli token kalabilir (21-25).
+- "'`order.status` serbest TEXT, CHECK kurali yok; uygulama hatasi ile gecersiz status yazilabilir (60).
+- `order.address` ve `phone` uzunluk/format kontrolu yok (56-57).
+- `restaurant.user_id` nullable oldugu icin sahipsiz restoran olusabilir (10).
+- `courier.restaurant_id` birden fazla restoran iliskisi desteklemez; gercek dunyada kurye parki modeli gerekirse yetersiz kalir (29-30).
+- Yorum UNIQUE kurali iyi; ancak schema seviyesinde yorum metni uzunluk siniri yok.
+- `order_item.quantity` CHECK yok; backend hatasi ile 0/negatif kayit yazilabilir (75).
+
+## Security
+
+- Sifre hash'"'i tek string "'`user.password_hash` (16). Algoritma/iterasyon metadata icin ayri kolon yok.
+- Token `token TEXT PRIMARY KEY` (22); token'"'in veritabaninda indeksli oldugunu garantiler, ama expiry/revocation yok.
+- "'`role` CHECK kurali rol enumlarini kisitlar (17).
+- Sensitive adres/telefon `order` tablosunda raw saklanir (56-57); erisim kontrolu tamamen API katmaninda yapilmali.
+- Yorumlar user id'"'ye bagli (37); anonim yorum yok.
+- Foreign key tanimlari injection'i degil, veri butunlugu iliskisini ilgilendirir.
+
+## Suggested changes
+
+- Mevcut:
+  "'`status TEXT NOT NULL DEFAULT '"'hazÄ±rlanÄ±yor'"'`
+- Onerilen:
+  `status TEXT NOT NULL DEFAULT '"'hazırlanıyor' CHECK (status IN ('hazırlanıyor', 'kuryede', 'teslim_edildi', 'onaylandı'))"'`
+
+- Mevcut:
+  `balance REAL NOT NULL DEFAULT 0`
+- Onerilen:
+  `balance INTEGER NOT NULL DEFAULT 0` (kurus cinsi) veya SQLite 3.31+ icin CHECK + DECIMAL-emulasyon politikasi.
+
+- Mevcut:
+  `created_at TEXT NOT NULL`
+- Onerilen:
+  `created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT NULL` token tablosunda.
+
+- Mevcut:
+  `quantity INTEGER NOT NULL`
+- Onerilen:
+  `quantity INTEGER NOT NULL CHECK (quantity > 0)`
+
+## Test checklist
+
+1. `restaurant` tablosu olusmali ve id otomatik artmali.
+2. Ayni e-postayla ikinci user eklenmemeli.
+3. Gecersiz role insert'"'i CHECK ile engellenmeli.
+4. "'`auth_token` ayni token degeriyle ikinci kayit kabul etmemeli.
+5. Foreign key ON iken olmayan user_id ile token insert'"'i engellenmeli.
+6. Kurye user_id UNIQUE olmali; ayni kullanici ikinci kurye profili olusturamamali.
+7. Rating 0 insert'i CHECK ile engellenmeli.
+8. Rating 6 insert'i CHECK ile engellenmeli.
+9. Ayni user ayni restorana ikinci yorum ekleyememeli.
+10. Menu item fiyat negatif olabilir; fix sonrasi CHECK engellemeli.
+11. Order status default degeri mojibake olmamali.
+12. Order address/phone bos kayit yazilabiliyor mu test edilmeli.
+13. Order_item quantity 0 yazilabiliyor mu test edilmeli.
+14. Restoran user_id NULL ile olusturulabiliyor mu test edilmeli.
+15. Siparis silinince order_item FK davranisi foreign key ON/OFF ayri test edilmeli.
+16. Kurye silinince order.courier_id FK davranisi test edilmeli.
+17. Para alanlari 0.1 toplamlarinda yuvarlama hatasi uretip uretmedigi test edilmeli.
+18. Schema seed sonrasi tablo sayisi ve kolon tipleri dogrulanmali.
+'@
+"'$docs['"'seed.py.md'] = @'
+# seed.py incelemesi
+
+## Purpose
+
+Bu dosya demo ortami icin veritabanini bastan olusturur. "'`api/sepet.db` dosyasini siler, `schema.sql` calistirir, 8 restoran ve her restoran icin 6 menu urunu ekler, sonra demo musteri, restoran sahipleri ve her restoran icin 2 kurye hesabi olusturur. `SIFRELER.txt` referansiyla demo hesaplarin kaynagidir. Arastirma, test ve ilk kurulum icin kullanilir; uretim ortaminda bu dosya dogrudan calistirilmamalidir.
+
+## Walkthrough
+
+### Path sabitleri
+`DB_PATH = Path(__file__).with_name("sepet.db")` 7. satir ve `SCHEMA_PATH = Path(__file__).with_name("schema.sql")` 8. satir. Parametre almaz, donus degeri sabit `Path` objeleri. Kontrol akisi yoktur. DB ve schema ayni klasorde olacagindan calistirma dizininden bagimsizdir.
+
+### RESTAURANTS
+`RESTAURANTS = [...]` 11-148 satirlarindadir. Parametre almaz; donus degeri modul seviyesinde bir list-of-dicts sabitidir. Her dict restoran adi, mutfak, rating, teslimat ucreti, minimum sepet, teslimat suresi, emoji ve `menu` listesi icerir. Menu listesi `(name, description, price, category)` tuple'"'larindan olusur. Bu sabit, seed isleminde restoran/menu eklemek icin kaynak veri olarak kullanilir.
+
+### RESTAURANT_SLUGS
+"'`RESTAURANT_SLUGS = [...]` 150-159 satirlarindadir. Parametre almaz, string listesi dondurur. Her restoran icin email slug'"'i saglar. Kontrol akisi yoktur. "'`main()` icinde `zip(RESTAURANTS, RESTAURANT_SLUGS)` ile kullanilir. Liste uzunlugu 8 restoranla eslesir; uyusmazsa zip sessizce fazla elemanlari atlar.
+
+### main
+`def main() -> None:` 162-230 satirlarindadir. Parametre almaz, donus degeri yoktur. Once 163. satirda `DB_PATH.unlink(missing_ok=True)` ile veritabanini siler. Bu, AGENTS kurallarina gore dokumante edilen davranistir. 164-166 satirlarinda SQLite baglantisi acar, schema dosyasini UTF-8 olarak okur ve `executescript` ile calistirir. Baglanti `row_factory = sqlite3.Row` olur.
+
+Restoran eklerken 167-191 satirlarinda her `RESTAURANTS` elemani dongude islenir. Ilgili restoran `restaurant` tablosuna parametreli insert edilir, `cursor.lastrowid` ile yeni id alinir ve menu urunleri `executemany` ile `menu_item` tablosuna yazilir.
+
+193. satirda `"sepet123"` sifresi bir kez `hash_password` ile hash'"'lenir. 194. satirda "'`utc_now()` alinir. 195-198 satirlarinda demo musteri `musteri@sepet.test` olarak customer rolunde ve 250.0 bakiyeyle eklenir.
+
+200-227 satirlarinda restoran ve slug listesi zip edilir. Her restoran icin ad uzerinden id bulunur. Bulunamazsa dongu `continue` eder. Restoran bulundugu takdirde sahip hesabi `sahip.{slug}@sepet.test` emaili ile restaurant rolunde ve 0.0 bakiyeyle eklenir, sonra restoran `user_id` guncellenir. Her restoran icin `number in (1, 2)` dongusuyle iki kurye kullanici eklenir ve her kurye ilgili restorana baglanir.
+
+229-230 satirlarinda demo musteri ve restoran sayisi ekrana yazilir. 233-234 satirlarinda dosya dogrudan calistirilirse `main()` tetiklenir.
+
+## Data
+
+- Dosya sistemi: `sepet.db` silinir/olusturulur (7, 163), `schema.sql` okunur (8, 164-166).
+- `restaurant` yazilir: 168-181.
+- `menu_item` yazilir: 183-191.
+- `user` yazilir: musteri 195-198, restoran sahibi 207-210, kuryeler 216-219.
+- `restaurant.user_id` guncellenir: 211-214.
+- `courier` yazilir: 220-227.
+- HTTP endpoint yok; bu dosya bir CLI seed aracidir.
+- Client state yok.
+- Console output uretilir: 229-230.
+
+## Failure modes
+
+- `DB_PATH.unlink` uzerinden veritabani yok edilir; calisir uygulamada tekrar calistirilirsa mevcut veriler kaybolur (163).
+- Schema `executescript` ile calistirilir; otomatik transaction davranisindan farkli olarak script icindeki hatayi geri almak garanti degildir (164-166).
+- Kurye ve restoran owner sifreleri ayni demo sifreden uretilir; uretim icin guvensizdir (193, 209, 218).
+- Email formatlari sablondan uretilir; slug bozuksa veya Unicode sorunlari varsa hatali hesaplar olusabilir (200-227).
+- Restoran `SELECT id FROM restaurant WHERE name = ?` ile ayni ada gore bulunur; ayni isimli restoranlar olusursa iliskiler yanlis olabilir (200-213).
+- Zip uzunlugu eslesmezse sessizce kisalir; hata dondurmez (200).
+- Schema'"'daki default status "'`"hazÄ±rlanÄ±yor"` mojibake ise yeni kayitlarda bu literal kullanilabilir; `panels.py` dogru literal ile uyumsuz kalir.
+- Kurye number 1 ve 2 olarak sabit; ayni email uretilecek sekilde slug tekrari olursa UNIQUE hatasi ile seed yarida kesilir.
+- Seed ciktisi UTF-8 konsolda bozuk gorunebilir; dogrulama DB sorgusu veya kod noktalari ile yapilmali.
+- `utc_now()` alinir fakat bu dosyada direkt kullanilmaz gibi gorunuyor; dead variable olabilir (194).
+
+## Security
+
+- `hash_password` ile PBKDF2 sifre hashleme kullanilir (193, 209, 218).
+- Demo hesap email ve sifreleri kod/arkasinda varsayilan olarak bilinir; uretimde hizli erisim riski yaratir.
+- SQL parametreleri kullanildigi icin injection riski dusuktur (168-181, 183-191, 195-198, 207-219, 220-227).
+- Dosya silme isi lokal calisma dizininde yapilir; yanlis yerde calistirilmiyorsa risk dusuk, ancak DB yolu kaynak dosyaya bagli oldugundan dogru klasoru hedefler (7, 163).
+- Şema foreign key tanimlarina ragmen bu dosyada PRAGMA foreign_keys acilmaz; gecersiz iliski yazilmasi teorik olarak engellenmez.
+
+## Suggested changes
+
+- Mevcut:
+  `DB_PATH.unlink(missing_ok=True)`
+- Onerilen:
+  `if DB_PATH.exists() and "--force" not in sys.argv: raise SystemExit("DB silinmeden once --force gerekli")`
+
+- Mevcut:
+  `with sqlite3.connect(DB_PATH) as conn, open(SCHEMA_PATH, encoding="utf-8") as schema_file:`
+- Onerilen:
+  `with sqlite3.connect(DB_PATH) as conn, open(SCHEMA_PATH, encoding="utf-8") as schema_file: conn.execute("PRAGMA foreign_keys = ON")` ve script calistirirken hata durumunu acik kontrol edin.
+
+- Mevcut:
+  `"sepet123"`
+- Onerilen:
+  demo sifresini env/args ile alin veya sadece test konfigurasyonunda kullanin.
+
+- Mevcut:
+  `for restaurant, slug in zip(RESTAURANTS, RESTAURANT_SLUGS):`
+- Onerilen:
+  `if len(RESTAURANTS) != len(RESTAURANT_SLUGS): raise ValueError("Restoran ve slug listesi uzunluklari eslesmiyor")`.
+
+## Test checklist
+
+1. Seed oncesi mevcut DB yedeginin alindigini dogrula.
+2. Seed calistiginda eski DB silinmeli.
+3. Schema calistirilip 8 tablo olusmali.
+4. 8 restoran eklenmeli.
+5. Her restoran icin 6 menu urunu eklenmeli.
+6. Demo musteri customer rolunde 250 bakiyeyle olusmali.
+7. Her restoran icin bir sahip hesabi olusmali.
+8. Her restoran `user_id` ile sahibine baglanmali.
+9. Her restoran icin 2 kurye hesabi olusmali.
+10. Kurye `restaurant_id` dogru restorana baglanmali.
+11. Demo sifresi ile giris calismali.
+12. Ayni seed ikinci kez calistirildiginda eski verilerin silindigi dogrulanmali.
+13. Restoran email slug'"'lari dogru olmali.
+14. Seed ciktisinda restoran sayisi 8 olmali.
+15. Unicode restoran ve menu adlari DB'de bozulmadan saklanmali.
+16. Sifre hash algoritmasi ve salt uretimi dogru calismali.
+17. Schema foreign key tanimlari dogrulanmali.
+18. Seed sonrasi "'`auth_token` tablosu bos olmali.
+'"'@
+foreach("'$k in $docs.Keys){ [System.IO.File]::WriteAllText((Join-Path "review" $k), $docs[$k], $enc) }
+Write-Output "wrote $($docs.Count) docs"' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 673ms:
+wrote 4 docs
+

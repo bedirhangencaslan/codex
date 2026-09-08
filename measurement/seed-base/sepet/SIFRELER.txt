@@ -1,0 +1,33 @@
+Sepet demo hesaplari
+
+Tum sifreler: sepet123
+
+Musteri: musteri@sepet.test
+
+Restoranlar:
+sahip.anadolu-atesi@sepet.test
+sahip.napoli-firini@sepet.test
+sahip.cadde-burger@sepet.test
+sahip.sanli-cigkofte-evi@sepet.test
+sahip.sakura-sushi-bar@sepet.test
+sahip.baklavaci-memis@sepet.test
+sahip.leventin-mutfagi@sepet.test
+sahip.karadeniz-balik-evi@sepet.test
+
+Kuryeler:
+kurye1.anadolu-atesi@sepet.test
+kurye2.anadolu-atesi@sepet.test
+kurye1.napoli-firini@sepet.test
+kurye2.napoli-firini@sepet.test
+kurye1.cadde-burger@sepet.test
+kurye2.cadde-burger@sepet.test
+kurye1.sanli-cigkofte-evi@sepet.test
+kurye2.sanli-cigkofte-evi@sepet.test
+kurye1.sakura-sushi-bar@sepet.test
+kurye2.sakura-sushi-bar@sepet.test
+kurye1.baklavaci-memis@sepet.test
+kurye2.baklavaci-memis@sepet.test
+kurye1.leventin-mutfagi@sepet.test
+kurye2.leventin-mutfagi@sepet.test
+kurye1.karadeniz-balik-evi@sepet.test
+kurye2.karadeniz-balik-evi@sepet.test

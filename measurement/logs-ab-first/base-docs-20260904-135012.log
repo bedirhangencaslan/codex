@@ -1,0 +1,1497 @@
+OpenAI Codex v0.0.0
+--------
+workdir: C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+model: glm-5.3-flash
+provider: zai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+session id: 01a06c0a-59f9-7e52-987b-a0ac0e4d5822
+--------
+user
+Write a per-file code review document for the backend of this project.
+
+Create a `review/` directory. Write exactly these eight documents, one per
+source file, and nothing else:
+
+  review/accounts.py.md    <- sepet/api/accounts.py
+  review/auth.py.md        <- sepet/api/auth.py
+  review/db.py.md          <- sepet/api/db.py
+  review/main.py.md        <- sepet/api/main.py
+  review/panels.py.md      <- sepet/api/panels.py
+  review/reviews.py.md     <- sepet/api/reviews.py
+  review/schema.sql.md     <- sepet/api/schema.sql
+  review/seed.py.md        <- sepet/api/seed.py
+
+Every document must have all seven sections:
+
+1. Purpose. What the file is responsible for and what depends on it.
+2. Walkthrough. Every function and class in the file, in source order, each with
+   its signature, its parameters, what it returns, and the control flow inside
+   it. Cite line numbers.
+3. Data. Every database table and HTTP endpoint the file reads or writes, and
+   where.
+4. Failure modes. Each way this file can behave incorrectly, with the input or
+   state that triggers it and a file:line citation.
+5. Security. Authentication, authorisation, injection, and data exposure, each
+   claim tied to a specific line.
+6. Suggested changes. Concrete edits, each with the current code and the
+   replacement.
+7. Test checklist. At least fifteen cases, each with setup, action and expected
+   result.
+
+Each document must be at least 12,000 characters. Be exhaustive rather than
+concise; this is reference material, not a summary. Read each file in full
+before writing about it.
+
+STOP CONDITION. When all eight documents exist, measure their character counts
+in one shell command. Expand any document under 12,000 characters, then measure
+once more. As soon as all eight are at or above 12,000 characters, print
+`CHECKPOINT REACHED` and stop. Do not review any other file, do not write any
+other document, and do not continue past that line.
+
+Do not modify any source file. `review/` is the only directory you may create.
+
+codex
+Önce sekiz kaynak dosyayı eksiksiz okuyacağım; sonra yalnızca `review/` altında istenen belgeleri oluşturacağım.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -LiteralPath sepet/api/reviews.py; Get-Content -LiteralPath sepet/api/seed.py; Get-Content -LiteralPath sepet/api/schema.sql' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = '"'sepet/api/accounts.py','sepet/api/auth.py','sepet/api/db.py','sepet/api/main.py','sepet/api/panels.py','sepet/api/reviews.py','sepet/api/schema.sql','sepet/api/seed.py'; foreach("'$f in $files){ $c=(Get-Content -LiteralPath $f).Count; "$f`t$c" }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content -LiteralPath sepet/api/accounts.py; Get-Content -LiteralPath sepet/api/auth.py; Get-Content -LiteralPath sepet/api/db.py' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 41ms:
+sepet/api/accounts.py	123
+sepet/api/auth.py	60
+sepet/api/db.py	33
+sepet/api/main.py	216
+sepet/api/panels.py	272
+sepet/api/reviews.py	51
+sepet/api/schema.sql	77
+sepet/api/seed.py	234
+
+ succeeded in 142ms:
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from auth import get_optional_user, require_customer
+from db import get_db, utc_now
+from panels import ReviewInput
+
+
+router = APIRouter(prefix="/api")
+
+
+def displayed_rating(seed_rating: float, review_rows) -> float:
+    ratings = [seed_rating, *[row["rating"] for row in review_rows]]
+    return round(sum(ratings) / len(ratings), 1)
+
+
+@router.post("/restaurants/{restaurant_id}/reviews", status_code=201)
+def create_review(
+    restaurant_id: int,
+    payload: ReviewInput,
+    user=Depends(require_customer),
+) -> dict[str, Any]:
+    if not payload.comment.strip():
+        raise HTTPException(status_code=400, detail="Yorum metni zorunludur")
+    with get_db() as conn:
+        restaurant = conn.execute(
+            "SELECT id FROM restaurant WHERE id = ?", (restaurant_id,)
+        ).fetchone()
+        if not restaurant:
+            raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+        approved = conn.execute(
+            """SELECT 1 FROM "order"
+               WHERE customer_id = ? AND restaurant_id = ? AND status = 'onaylandı'""",
+            (user["id"], restaurant_id),
+        ).fetchone()
+        if not approved:
+            raise HTTPException(status_code=403, detail="Yorum icin onayli siparis gerekli")
+        if conn.execute(
+            "SELECT 1 FROM restaurant_review WHERE restaurant_id = ? AND user_id = ?",
+            (restaurant_id, user["id"]),
+        ).fetchone():
+            raise HTTPException(status_code=409, detail="Bu restorana yorum yaptiniz")
+        cursor = conn.execute(
+            """INSERT INTO restaurant_review
+               (restaurant_id, user_id, rating, comment, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (restaurant_id, user["id"], payload.rating, payload.comment.strip(), utc_now()),
+        )
+    return {"id": cursor.lastrowid, "rating": payload.rating, "comment": payload.comment.strip(), "user_email": user["email"]}
+
+import sqlite3
+from pathlib import Path
+
+from db import hash_password, utc_now
+
+
+DB_PATH = Path(__file__).with_name("sepet.db")
+SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+
+
+RESTAURANTS = [
+    {
+        "name": "Anadolu AteÅŸi",
+        "cuisine": "kebap",
+        "rating": 4.7,
+        "delivery_fee": 14.90,
+        "min_order": 120.00,
+        "eta_minutes": 35,
+        "image_emoji": "ğŸ¢",
+        "menu": [
+            ("Adana Kebap Porsiyon", "AcÄ±lÄ± kÄ±yma kebap, lavaÅŸ, kÃ¶zlenmiÅŸ domates ve yeÅŸil biber", 185.00, "Kebaplar"),
+            ("Urfa Kebap Porsiyon", "AcÄ±sÄ±z kÄ±yma kebap, bulgur pilavÄ± ve turÅŸu eÅŸliÄŸinde", 175.00, "Kebaplar"),
+            ("Kuzu ÅiÅŸ", "Marine kuzu eti, kÃ¶zlenmiÅŸ sebze ve pirinÃ§ pilavÄ±", 225.00, "Kebaplar"),
+            ("Beyti Sarma", "Izgara dana kebap, yoÄŸurt ve tereyaÄŸlÄ± sos", 210.00, "Kebaplar"),
+            ("Humus", "Nohut, tahin, limon ve zeytinyaÄŸÄ± ile yumuÅŸak bir baÅŸlangÄ±Ã§", 78.00, "BaÅŸlangÄ±Ã§lar"),
+            ("KÃ¼nefe", "Tel kadayÄ±f, peynir, tereyaÄŸÄ± ve ÅŸerbet", 105.00, "TatlÄ±lar"),
+        ],
+    },
+    {
+        "name": "Napoli FÄ±rÄ±nÄ±",
+        "cuisine": "pizza",
+        "rating": 4.5,
+        "delivery_fee": 12.50,
+        "min_order": 90.00,
+        "eta_minutes": 30,
+        "image_emoji": "ğŸ•",
+        "menu": [
+            ("Margherita", "San Marzano domates, mozzarella ve taze fesleÄŸen", 145.00, "Pizzalar"),
+            ("Diavola", "AcÄ±lÄ± salam, mozzarella, chilli yaÄŸÄ± ve zeytin", 165.00, "Pizzalar"),
+            ("Quattro Formaggi", "Mozzarella, gorgonzola, parmesan ve kaÅŸar", 185.00, "Pizzalar"),
+            ("Prosciutto E Rucola", "Parma jambonu, roka, parmesan ve balzamik sos", 195.00, "Pizzalar"),
+            ("Bruschetta", "FÄ±rÄ±nlanmÄ±ÅŸ ekÅŸi maya ekmek, domates, sarÄ±msak ve fesleÄŸen", 68.00, "BaÅŸlangÄ±Ã§lar"),
+            ("Tiramisu", "Mascarpone, kahve ve kakao ile klasik Ä°talyan tatlÄ±sÄ±", 95.00, "TatlÄ±lar"),
+        ],
+    },
+    {
+        "name": "Cadde Burger",
+        "cuisine": "burger",
+        "rating": 4.4,
+        "delivery_fee": 9.90,
+        "min_order": 80.00,
+        "eta_minutes": 25,
+        "image_emoji": "ğŸ”",
+        "menu": [
+            ("Cadde Classic", "Dana kÃ¶fte, cheddar, marul, domates ve Ã¶zel sos", 132.00, "Burgerler"),
+            ("Smoky BBQ", "Izgara dana kÃ¶fte, cheddar, karamelize soÄŸan ve bbq sos", 158.00, "Burgerler"),
+            ("Blue Cheese Burger", "Dana kÃ¶fte, gorgonzola, soÄŸan halkasÄ± ve roka", 172.00, "Burgerler"),
+            ("Tavuk Crispy", "Ã‡Ä±tÄ±r tavuk gÃ¶ÄŸsÃ¼, acÄ± mayo, turÅŸu ve marul", 128.00, "Burgerler"),
+            ("Patates KÄ±zartmasÄ±", "KalÄ±n dilim, dÄ±ÅŸÄ± Ã§Ä±tÄ±r patates ve tuz", 48.00, "YanÄ±nda"),
+            ("Ã‡ikolatalÄ± Brownie", "SÄ±cak Ã§ikolatalÄ± brownie ve vanilyalÄ± sos", 72.00, "TatlÄ±lar"),
+        ],
+    },
+    {
+        "name": "ÅanlÄ± Ã‡iÄŸkÃ¶fte Evi",
+        "cuisine": "Ã§iÄŸ kÃ¶fte",
+        "rating": 4.6,
+        "delivery_fee": 7.50,
+        "min_order": 55.00,
+        "eta_minutes": 20,
+        "image_emoji": "ğŸŒ¯",
+        "menu": [
+            ("Ã‡iÄŸ KÃ¶fte DÃ¼rÃ¼m", "AcÄ±lÄ± Ã§iÄŸ kÃ¶fte, marul, nar ekÅŸisi ve limon", 72.00, "DÃ¼rÃ¼mler"),
+            ("Nohutlu Ã‡iÄŸ KÃ¶fte DÃ¼rÃ¼m", "Nohutlu Ã§iÄŸ kÃ¶fte, yeÅŸillik ve nar ekÅŸisi", 78.00, "DÃ¼rÃ¼mler"),
+            ("Ã‡iÄŸ KÃ¶fte Servis", "Ä°ki kiÅŸilik Ã§iÄŸ kÃ¶fte, lavaÅŸ, marul ve limon", 135.00, "Servisler"),
+            ("Ayran", "Ev yapÄ±mÄ± yoÄŸurttan soÄŸuk ayran", 25.00, "Ä°Ã§ecekler"),
+            ("Åalgam Suyu", "AcÄ±lÄ± veya acÄ±sÄ±z gelen taze ÅŸalgam", 22.00, "Ä°Ã§ecekler"),
+            ("Åekerpare", "Åerbetli, tereyaÄŸlÄ± ÅanlÄ±urfa usulÃ¼ tatlÄ±", 48.00, "TatlÄ±lar"),
+        ],
+    },
+    {
+        "name": "Sakura Sushi Bar",
+        "cuisine": "sushi",
+        "rating": 4.8,
+        "delivery_fee": 18.00,
+        "min_order": 160.00,
+        "eta_minutes": 40,
+        "image_emoji": "ğŸ£",
+        "menu": [
+            ("Salmon Nigiri Seti", "AltÄ± parÃ§a taze somon nigiri", 210.00, "Sushiler"),
+            ("California Roll", "YengeÃ§ salatasÄ±, avokado, salatalÄ±k ve susam", 185.00, "Roller"),
+            ("Spicy Tuna Roll", "AcÄ± ton balÄ±ÄŸÄ±, salatalÄ±k ve sesame mayo", 198.00, "Roller"),
+            ("Dragon Roll", "Karides tempura, avokado ve unagi sos", 225.00, "Roller"),
+            ("Miso Ã‡orbasÄ±", "Tofu, wakame ve mantarlÄ± miso Ã§orbasÄ±", 52.00, "BaÅŸlangÄ±Ã§lar"),
+            ("Matcha Cheesecake", "YeÅŸil Ã§aylÄ±, hafif tatlÄ± cheesecake", 98.00, "TatlÄ±lar"),
+        ],
+    },
+    {
+        "name": "BaklavacÄ± MemiÅŸ",
+        "cuisine": "tatlÄ±",
+        "rating": 4.9,
+        "delivery_fee": 8.00,
+        "min_order": 70.00,
+        "eta_minutes": 22,
+        "image_emoji": "ğŸ¥®",
+        "menu": [
+            ("FÄ±stÄ±klÄ± Baklava", "Antep fÄ±stÄ±ÄŸÄ±, tereyaÄŸÄ± ve ince yufka", 165.00, "Baklava"),
+            ("Cevizli Baklava", "Ceviz dolgulu, ÅŸerbetli klasik baklava", 145.00, "Baklava"),
+            ("ÅÃ¶biyet", "KaymaklÄ± ve fÄ±stÄ±klÄ± ÅŸerbetli tatlÄ±", 175.00, "Åerbetliler"),
+            ("SÃ¼tlaÃ§", "FÄ±rÄ±nlanmÄ±ÅŸ, tarÃ§Ä±nlÄ± ev sÃ¼tlacÄ±", 68.00, "SÃ¼tlÃ¼ler"),
+            ("AÅŸure", "Baklagil, kuru meyve ve fÄ±ndÄ±klÄ± geleneksel aÅŸure", 58.00, "Klasikler"),
+            ("KadÄ±nlÄ± GÃ¶ÄŸsÃ¼", "Tavuk gÃ¶ÄŸsÃ¼, ÅŸerbet ve tarÃ§Ä±n ile hafif tatlÄ±", 72.00, "SÃ¼tlÃ¼ler"),
+        ],
+    },
+    {
+        "name": "Levent'in MutfaÄŸÄ±",
+        "cuisine": "ev yemeÄŸi",
+        "rating": 4.3,
+        "delivery_fee": 11.00,
+        "min_order": 85.00,
+        "eta_minutes": 28,
+        "image_emoji": "ğŸ²",
+        "menu": [
+            ("Mercimek Ã‡orbasÄ±", "KÄ±rmÄ±zÄ± mercimek, nane ve limon", 52.00, "Ã‡orbalar"),
+            ("Etli Nohut", "Kuzu etli nohut ve bulgur pilavÄ±", 138.00, "Ana Yemekler"),
+            ("KarnÄ±yarÄ±k", "KÄ±ymalÄ± patlÄ±can, pirinÃ§ pilavÄ± ve cacÄ±k", 125.00, "Ana Yemekler"),
+            ("MantÄ±", "YoÄŸurtlu, naneli ve tereyaÄŸlÄ± ev mantÄ±sÄ±", 145.00, "Ana Yemekler"),
+            ("ZeytinyaÄŸlÄ± Yaprak Sarma", "ZeytinyaÄŸlÄ± pirinÃ§li sarma ve limon", 82.00, "ZeytinyaÄŸlÄ±lar"),
+            ("Kabak TatlÄ±sÄ±", "Cevizli ve tahinli fÄ±rÄ±n kabak tatlÄ±sÄ±", 64.00, "TatlÄ±lar"),
+        ],
+    },
+    {
+        "name": "Karadeniz BalÄ±k Evi",
+        "cuisine": "deniz Ã¼rÃ¼nleri",
+        "rating": 4.2,
+        "delivery_fee": 15.00,
+        "min_order": 150.00,
+        "eta_minutes": 38,
+        "image_emoji": "ğŸŸ",
+        "menu": [
+            ("Levrek Izgara", "Marine levrek, mevsim yeÅŸillikleri ve limon", 245.00, "BalÄ±klar"),
+            ("Hamsi Tava", "Karadeniz usulÃ¼ unlu hamsi ve turÅŸu", 185.00, "BalÄ±klar"),
+            ("Kalamar Tava", "Ã‡Ä±tÄ±r kalamar ve tartar sos", 158.00, "BaÅŸlangÄ±Ã§lar"),
+            ("BalÄ±k Ã‡orbasÄ±", "Kemikli balÄ±k suyu, sebze ve limon", 82.00, "Ã‡orbalar"),
+            ("MÄ±sÄ±r EkmeÄŸi", "FÄ±rÄ±ndan sÄ±cak Karadeniz mÄ±sÄ±r ekmeÄŸi", 42.00, "Ekmekler"),
+            ("Kabak MÃ¼cver", "Kabak, dereotu ve yoÄŸurt soslu mÃ¼cver", 78.00, "BaÅŸlangÄ±Ã§lar"),
+        ],
+    },
+]
+
+RESTAURANT_SLUGS = [
+    "anadolu-atesi",
+    "napoli-firini",
+    "cadde-burger",
+    "sanli-cigkofte-evi",
+    "sakura-sushi-bar",
+    "baklavaci-memis",
+    "leventin-mutfagi",
+    "karadeniz-balik-evi",
+]
+
+
+def main() -> None:
+    DB_PATH.unlink(missing_ok=True)
+    with sqlite3.connect(DB_PATH) as conn, open(SCHEMA_PATH, encoding="utf-8") as schema_file:
+        conn.row_factory = sqlite3.Row
+        conn.executescript(schema_file.read())
+        for restaurant in RESTAURANTS:
+            cursor = conn.execute(
+                """INSERT INTO restaurant
+                   (name, cuisine, rating, delivery_fee, min_order, eta_minutes, image_emoji)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    restaurant["name"],
+                    restaurant["cuisine"],
+                    restaurant["rating"],
+                    restaurant["delivery_fee"],
+                    restaurant["min_order"],
+                    restaurant["eta_minutes"],
+                    restaurant["image_emoji"],
+                ),
+            )
+            restaurant_id = cursor.lastrowid
+            conn.executemany(
+                """INSERT INTO menu_item
+                   (restaurant_id, name, description, price, category)
+                   VALUES (?, ?, ?, ?, ?)""",
+                [
+                    (restaurant_id, item[0], item[1], item[2], item[3])
+                    for item in restaurant["menu"]
+                ],
+            )
+
+        password_hash = hash_password("sepet123")
+        now = utc_now()
+        customer_cursor = conn.execute(
+            'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+            ("musteri@sepet.test", password_hash, "customer", 250.0),
+        )
+
+        for restaurant, slug in zip(RESTAURANTS, RESTAURANT_SLUGS):
+            row = conn.execute(
+                "SELECT id FROM restaurant WHERE name = ?", (restaurant["name"],)
+            ).fetchone()
+            if not row:
+                continue
+            restaurant_id = row["id"]
+            owner_cursor = conn.execute(
+                'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+                (f"sahip.{slug}@sepet.test", password_hash, "restaurant", 0.0),
+            )
+            conn.execute(
+                "UPDATE restaurant SET user_id = ? WHERE id = ?",
+                (owner_cursor.lastrowid, restaurant_id),
+            )
+            for number in (1, 2):
+                courier_user = conn.execute(
+                    'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+                    (f"kurye{number}.{slug}@sepet.test", password_hash, "courier", 0.0),
+                )
+                conn.execute(
+                    "INSERT INTO courier (user_id, restaurant_id, name) VALUES (?, ?, ?)",
+                    (
+                        courier_user.lastrowid,
+                        restaurant_id,
+                        f"{restaurant['name']} Kurye {number}",
+                    ),
+                )
+
+        print("Demo musteri: musteri@sepet.test / sepet123")
+        print(f"{len(RESTAURANTS)} restoran ve veritabani olusturuldu: {DB_PATH}")
+
+
+if __name__ == "__main__":
+    main()
+CREATE TABLE IF NOT EXISTS restaurant (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    cuisine TEXT NOT NULL,
+    rating REAL NOT NULL,
+    delivery_fee REAL NOT NULL,
+    min_order REAL NOT NULL,
+    eta_minutes INTEGER NOT NULL,
+    image_emoji TEXT NOT NULL,
+    user_id INTEGER REFERENCES "user"(id)
+);
+
+CREATE TABLE IF NOT EXISTS "user" (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('customer', 'restaurant', 'courier')),
+    balance REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS auth_token (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES "user"(id),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS courier (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES "user"(id),
+    restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+    name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS restaurant_review (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+    user_id INTEGER NOT NULL REFERENCES "user"(id),
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (restaurant_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS menu_item (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    price REAL NOT NULL,
+    category TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "order" (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+    address TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    total REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'hazÃ„Â±rlanÃ„Â±yor',
+    created_at TEXT NOT NULL,
+    customer_id INTEGER REFERENCES "user"(id),
+    courier_id INTEGER REFERENCES courier(id),
+    courier_assigned_at TEXT,
+    delivered_at TEXT,
+    confirmed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS order_item (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES "order"(id),
+    menu_item_id INTEGER NOT NULL REFERENCES menu_item(id),
+    name TEXT NOT NULL,
+    unit_price REAL NOT NULL,
+    quantity INTEGER NOT NULL
+);
+
+
+ succeeded in 129ms:
+import re
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from auth import get_current_user
+from db import get_db, hash_password, utc_now, verify_password
+
+
+router = APIRouter(prefix="/api/auth")
+
+
+class RegisterInput(BaseModel):
+    email: str
+    password: str
+    role: str
+    restaurant_name: str = ""
+    cuisine: str = ""
+    delivery_fee: float = 10.0
+    min_order: float = 50.0
+    eta_minutes: int = 30
+    image_emoji: str = "Ãƒâ€Ã…Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Âª"
+
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
+
+def user_payload(user) -> dict:
+    return {"id": user["id"], "email": user["email"], "role": user["role"], "balance": round(user["balance"], 2)}
+
+
+def validate_email(email: str) -> None:
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(status_code=400, detail="Gecerli bir e-posta girin")
+
+
+def validate_registration(payload: RegisterInput) -> None:
+    validate_email(payload.email)
+    if len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Sifre en az 6 karakter olmalidir")
+    if payload.role not in {"customer", "restaurant"}:
+        raise HTTPException(status_code=400, detail="Gecersiz hesap turu")
+    if payload.role == "restaurant" and (not payload.restaurant_name or not payload.cuisine):
+        raise HTTPException(status_code=400, detail="Restoran adi ve mutfak zorunludur")
+
+
+def issue_token(conn, user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    conn.execute(
+        "INSERT INTO auth_token (token, user_id, created_at) VALUES (?, ?, ?)",
+        (token, user_id, utc_now()),
+    )
+    return token
+
+
+@router.post("/register", status_code=201)
+def register(payload: RegisterInput) -> dict:
+    validate_registration(payload)
+    with get_db() as conn:
+        if conn.execute('SELECT 1 FROM "user" WHERE email = ?', (payload.email,)).fetchone():
+            raise HTTPException(status_code=409, detail="Bu e-posta zaten kayitli")
+        cursor = conn.execute(
+            'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+            (payload.email, hash_password(payload.password), payload.role, 100.0),
+        )
+        user_id = cursor.lastrowid
+        if payload.role == "restaurant":
+            conn.execute(
+                """INSERT INTO restaurant
+                   (name, cuisine, rating, delivery_fee, min_order, eta_minutes, image_emoji, user_id)
+                   VALUES (?, ?, 4.0, ?, ?, ?, ?, ?)""",
+                (
+                    payload.restaurant_name,
+                    payload.cuisine.lower(),
+                    payload.delivery_fee,
+                    payload.min_order,
+                    payload.eta_minutes,
+                    payload.image_emoji,
+                    user_id,
+                ),
+            )
+        token = issue_token(conn, user_id)
+    return {"token": token, "user": {"id": user_id, "email": payload.email, "role": payload.role, "balance": 100.0}}
+
+
+@router.post("/login")
+def login(payload: LoginInput) -> dict:
+    with get_db() as conn:
+        user = conn.execute(
+            'SELECT * FROM "user" WHERE email = ?', (payload.email,)
+        ).fetchone()
+        if not user or not verify_password(payload.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="E-posta veya sifre hatali")
+        token = issue_token(conn, user["id"])
+    return {"token": token, "user": user_payload(user)}
+
+
+@router.get("/me")
+def me(user=Depends(get_current_user)) -> dict:
+    return user_payload(user)
+
+
+class TopUpInput(BaseModel):
+    amount: float = Field(gt=0, le=1000)
+
+
+@router.post("/wallet/topup")
+def top_up_wallet(payload: TopUpInput, user=Depends(get_current_user)) -> dict:
+    if user["role"] != "customer":
+        raise HTTPException(status_code=403, detail="Sadece musteriler bakiye yukleyebilir")
+    amount = round(payload.amount, 2)
+    with get_db() as conn:
+        updated = conn.execute(
+            'UPDATE "user" SET balance = balance + ? WHERE id = ?',
+            (amount, user["id"]),
+        ).rowcount
+        if not updated:
+            raise HTTPException(status_code=404, detail="Kullanici bulunamadi")
+        row = conn.execute('SELECT balance FROM "user" WHERE id = ?', (user["id"],)).fetchone()
+    return {"balance": round(row["balance"], 2), "added": amount}
+from fastapi import Depends, Header, HTTPException
+
+from db import get_db
+
+
+def _user_from_token(conn, token: str | None):
+    if not token or not token.startswith("Bearer "):
+        return None
+    value = token.removeprefix("Bearer ")
+    return conn.execute(
+        """SELECT u.id, u.email, u.role, u.balance
+           FROM auth_token t JOIN "user" u ON u.id = t.user_id
+           WHERE t.token = ?""",
+        (value,),
+    ).fetchone()
+
+
+def resolve_user(authorization: str | None = Header(default=None)):
+    with get_db() as conn:
+        return _user_from_token(conn, authorization)
+
+
+def get_current_user(user=Depends(resolve_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Giris yapmalisiniz")
+    return user
+
+
+def get_optional_user(user=Depends(resolve_user)):
+    return user
+
+
+def require_customer(user=Depends(get_current_user)):
+    if user["role"] != "customer":
+        raise HTTPException(status_code=403, detail="Bu islem icin musteri girisi gerekli")
+    return user
+
+
+def require_restaurant(user=Depends(get_current_user)):
+    if user["role"] != "restaurant":
+        raise HTTPException(status_code=403, detail="Bu islem icin restoran girisi gerekli")
+    with get_db() as conn:
+        restaurant = conn.execute(
+            "SELECT * FROM restaurant WHERE user_id = ?", (user["id"],)
+        ).fetchone()
+    if not restaurant:
+        raise HTTPException(status_code=403, detail="Restoran bulunamadi")
+        ).fetchone()
+    if not courier:
+        raise HTTPException(status_code=403, detail="Kurye profili bulunamadi")
+    return user, courier
+import hashlib
+import secrets
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+DB_PATH = Path(__file__).with_name("sepet.db")
+
+
+def get_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120000)
+    return f"{salt}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        salt, expected = stored.split("$", 1)
+        digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120000)
+        return secrets.compare_digest(digest.hex(), expected)
+    except ValueError:
+        return False
+
+codex
+İlk dosyaları okudum. Şimdi `main.py` ve `panels.py`’yi satır numaralarıyla tam olarak inceliyorum.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$p='"'sepet/api/panels.py'; "'$i=0; Get-Content -LiteralPath $p | ForEach-Object { $i++; '"'{0,4}: {1}' -f "'$i, $_ }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$p='"'sepet/api/main.py'; "'$i=0; Get-Content -LiteralPath $p | ForEach-Object { $i++; '"'{0,4}: {1}' -f "'$i, $_ }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 41ms:
+   1: from datetime import datetime, timezone
+   2: from typing import Any
+   3: 
+   4: from fastapi import Depends, FastAPI, HTTPException
+   5: from pydantic import BaseModel, Field
+   6: 
+   7: from accounts import router as accounts_router
+   8: from auth import get_optional_user, require_customer
+   9: from db import get_db
+  10: from panels import router as panels_router
+  11: from reviews import displayed_rating, router as reviews_router
+  12: 
+  13: app = FastAPI(title="Sepet API")
+  14: 
+  15: app.include_router(accounts_router)
+  16: app.include_router(panels_router)
+  17: app.include_router(reviews_router)
+  18: 
+  19: 
+  20: class OrderItemInput(BaseModel):
+  21:     menu_item_id: int
+  22:     quantity: int = Field(gt=0)
+  23: 
+  24: 
+  25: class OrderInput(BaseModel):
+  26:     restaurant_id: int
+  27:     address: str
+  28:     phone: str
+  29:     note: str = ""
+  30:     items: list[OrderItemInput]
+  31: 
+  32: 
+  33: @app.get("/api/restaurants")
+  34: def list_restaurants(q: str = "", cuisine: str = "", min_rating: float = 0.0, max_delivery_fee: float = 999.0, max_eta_minutes: int = 999, sort: str = "rating") -> list[dict[str, Any]]:
+  35:     conditions = []
+  36:     params: list[str] = []
+  37:     if q:
+  38:         conditions.append("(name LIKE ? OR cuisine LIKE ?)")
+  39:         search = f"%{q.lower()}%"
+  40:         params.extend([search, search])
+  41:     if cuisine:
+  42:         conditions.append("cuisine = ?")
+  43:         params.append(cuisine.lower())
+  44:     query = "SELECT * FROM restaurant"
+  45:     if conditions:
+  46:         query += " WHERE " + " AND ".join(conditions)
+  47:     with get_db() as conn:
+  48:         rows = conn.execute(query, params).fetchall()
+  49:         review_stats = {
+  50:             row["restaurant_id"]: row["avg_rating"]
+  51:             for row in conn.execute(
+  52:                 "SELECT restaurant_id, AVG(rating) AS avg_rating FROM restaurant_review GROUP BY restaurant_id"
+  53:             ).fetchall()
+  54:         }
+  55:         result = []
+  56:         for row in rows:
+  57:             item = dict(row)
+  58:             if row["id"] in review_stats:
+  59:                 item["rating"] = displayed_rating(
+  60:                     row["rating"], [{"rating": review_stats[row["id"]]}]
+  61:                 )
+  62:             result.append(item)
+  63:     result = [item for item in result if item["rating"] >= min_rating and item["delivery_fee"] <= max_delivery_fee and item["eta_minutes"] <= max_eta_minutes]
+  64:     sorters = {
+  65:         "rating": lambda item: item["rating"],
+  66:         "eta": lambda item: item["eta_minutes"],
+  67:         "delivery_fee": lambda item: item["delivery_fee"],
+  68:         "min_order": lambda item: item["min_order"],
+  69:     }
+  70:     return sorted(result, key=sorters.get(sort, sorters["rating"]))
+  71: 
+  72: 
+  73: @app.get("/api/cuisines")
+  74: def list_cuisines() -> list[str]:
+  75:     with get_db() as conn:
+  76:         rows = conn.execute(
+  77:             "SELECT DISTINCT cuisine FROM restaurant ORDER BY cuisine"
+  78:         ).fetchall()
+  79:     return [row["cuisine"] for row in rows]
+  80: 
+  81: 
+  82: @app.get("/api/restaurants/{restaurant_id}")
+  83: def get_restaurant(restaurant_id: int, user=Depends(get_optional_user)) -> dict[str, Any]:
+  84:     with get_db() as conn:
+  85:         restaurant = conn.execute(
+  86:             "SELECT * FROM restaurant WHERE id = ?", (restaurant_id,)
+  87:         ).fetchone()
+  88:         if not restaurant:
+  89:             raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+  90:         menu = conn.execute(
+  91:             "SELECT * FROM menu_item WHERE restaurant_id = ? ORDER BY category, name",
+  92:             (restaurant_id,),
+  93:         ).fetchall()
+  94:         reviews = conn.execute(
+  95:             """SELECT rr.id, rr.rating, rr.comment, rr.created_at, u.email AS user_email
+  96:                FROM restaurant_review rr JOIN "user" u ON u.id = rr.user_id
+  97:                WHERE rr.restaurant_id = ? ORDER BY rr.created_at DESC""",
+  98:             (restaurant_id,),
+  99:         ).fetchall()
+ 100:     result = dict(restaurant)
+ 101:     result["menu_items"] = [dict(item) for item in menu]
+ 102:     result["reviews"] = [dict(review) for review in reviews]
+ 103:     result["rating"] = displayed_rating(result["rating"], reviews)
+ 104:     result["can_review"] = False
+ 105:     result["has_review"] = False
+ 106:     if user and user["role"] == "customer":
+ 107:         result["can_review"] = bool(conn.execute(
+ 108:             """SELECT 1 FROM "order"
+ 109:                WHERE customer_id = ? AND restaurant_id = ? AND status = 'onaylandÃ„Â±'""",
+ 110:             (user["id"], restaurant_id),
+ 111:         ).fetchone())
+ 112:         result["has_review"] = bool(conn.execute(
+ 113:             "SELECT 1 FROM restaurant_review WHERE restaurant_id = ? AND user_id = ?",
+ 114:             (restaurant_id, user["id"]),
+ 115:         ).fetchone())
+ 116:     return result
+ 117: 
+ 118: 
+ 119: @app.get("/api/orders/{order_id}")
+ 120: def get_order(order_id: int) -> dict[str, Any]:
+ 121:     with get_db() as conn:
+ 122:         order = conn.execute(
+ 123:             """SELECT o.*, r.name AS restaurant_name
+ 124:                FROM "order" o
+ 125:                JOIN restaurant r ON r.id = o.restaurant_id
+ 126:                WHERE o.id = ?""",
+ 127:             (order_id,),
+ 128:         ).fetchone()
+ 129:         if not order:
+ 130:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 131:         items = conn.execute(
+ 132:             """SELECT oi.id, oi.menu_item_id, oi.name, oi.unit_price, oi.quantity,
+ 133:                       oi.unit_price * oi.quantity AS line_total
+ 134:                FROM order_item oi WHERE oi.order_id = ? ORDER BY oi.id""",
+ 135:             (order_id,),
+ 136:         ).fetchall()
+ 137:     result = dict(order)
+ 138:     result["items"] = [dict(item) for item in items]
+ 139:     return result
+ 140: 
+ 141: 
+ 142: @app.post("/api/orders", status_code=201)
+ 143: def create_order(payload: OrderInput, user=Depends(require_customer)) -> dict[str, Any]:
+ 144:     if not payload.items:
+ 145:         raise HTTPException(status_code=400, detail="Siparis icin en az bir urun gerekli")
+ 146:     if user and user["role"] != "customer":
+ 147:         raise HTTPException(status_code=403, detail="Siparis icin musteri hesabi kullanin")
+ 148: 
+ 149:     with get_db() as conn:
+ 150:         restaurant = conn.execute(
+ 151:             "SELECT * FROM restaurant WHERE id = ?", (payload.restaurant_id,)
+ 152:         ).fetchone()
+ 153:         if not restaurant:
+ 154:             raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+ 155: 
+ 156:         placeholders = ",".join("?" for _ in payload.items)
+ 157:         menu_rows = conn.execute(
+ 158:             f"""SELECT id, name, price FROM menu_item
+ 159:                 WHERE restaurant_id = ? AND id IN ({placeholders})""",
+ 160:             [payload.restaurant_id, *[item.menu_item_id for item in payload.items]],
+ 161:         ).fetchall()
+ 162:         menu_by_id = {row["id"]: row for row in menu_rows}
+ 163:         if len(menu_by_id) != len({item.menu_item_id for item in payload.items}):
+ 164:             raise HTTPException(status_code=404, detail="Menu urunu bulunamadi")
+ 165: 
+ 166:         subtotal = sum(menu_by_id[item.menu_item_id]["price"] * item.quantity for item in payload.items)
+ 167:         if subtotal < restaurant["min_order"]:
+ 168:             missing = restaurant["min_order"] - subtotal
+ 169:             raise HTTPException(
+ 170:                 status_code=400,
+ 171:                 detail=f"Minimum sepet tutarinin {missing:.2f} TL altindasiniz",
+ 172:             )
+ 173: 
+ 174:         total = round(subtotal + restaurant["delivery_fee"], 2)
+ 175:         missing_balance = round(max(0, total - user["balance"]), 2)
+ 176:         if missing_balance > 0:
+ 177:             raise HTTPException(
+ 178:                 status_code=400,
+ 179:                 detail=f"Bakiyeniz yetersiz. Siparis icin {missing_balance:.2f} TL daha yukleyin",
+ 180:             )
+ 181:         deducted = conn.execute(
+ 182:             'UPDATE "user" SET balance = balance - ? WHERE id = ? AND balance >= ?',
+ 183:             (total, user["id"], total),
+ 184:         ).rowcount
+ 185:         if not deducted:
+ 186:             raise HTTPException(status_code=400, detail="Bakiye dusurulemedi")
+ 187: 
+ 188:         now = datetime.now(timezone.utc).isoformat()
+ 189:         cursor = conn.execute(
+ 190:             """INSERT INTO "order"
+ 191:                (restaurant_id, address, phone, note, total, status, created_at, customer_id)
+ 192:                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+ 193:             (
+ 194:                 payload.restaurant_id,
+ 195:                 payload.address,
+ 196:                 payload.phone,
+ 197:                 payload.note,
+ 198:                 total,
+ 199:                 "hazÃ„Â±rlanÃ„Â±yor",
+ 200:                 now,
+ 201:                 user["id"],
+ 202:             ),
+ 203:         )
+ 204:         order_id = cursor.lastrowid
+ 205:         for item in payload.items:
+ 206:             menu_item = menu_by_id[item.menu_item_id]
+ 207:             conn.execute(
+ 208:                 """INSERT INTO order_item
+ 209:                    (order_id, menu_item_id, name, unit_price, quantity)
+ 210:                    VALUES (?, ?, ?, ?, ?)""",
+ 211:                 (order_id, item.menu_item_id, menu_item["name"], menu_item["price"], item.quantity),
+ 212:             )
+ 213: 
+ 214:     return {"id": order_id, "status": "hazÃ„Â±rlanÃ„Â±yor", "total": total}
+ 215: 
+ 216: 
+
+ succeeded in 44ms:
+   1: from typing import Any, Literal
+   2: 
+   3: from fastapi import APIRouter, Depends, HTTPException
+   4: from pydantic import BaseModel, Field
+   5: 
+   6: from auth import require_courier, require_customer, require_restaurant
+   7: from db import get_db, hash_password, utc_now
+   8: 
+   9: 
+  10: router = APIRouter(prefix="/api")
+  11: 
+  12: 
+  13: class CourierInput(BaseModel):
+  14:     email: str
+  15:     password: str
+  16:     name: str
+  17: 
+  18: 
+  19: class MenuItemInput(BaseModel):
+  20:     name: str
+  21:     description: str
+  22:     price: float = Field(gt=0)
+  23:     category: str
+  24: 
+  25: 
+  26: class AssignCourierInput(BaseModel):
+  27:     courier_id: int
+  28: 
+  29: 
+  30: class ReviewInput(BaseModel):
+  31:     rating: int = Field(ge=1, le=5)
+  32:     comment: str
+  33: 
+  34: 
+  35: def serialize_orders(conn, rows) -> list[dict[str, Any]]:
+  36:     result = []
+  37:     for row in rows:
+  38:         order = dict(row)
+  39:         order["items"] = [
+  40:             dict(item)
+  41:             for item in conn.execute(
+  42:                 """SELECT id, menu_item_id, name, unit_price, quantity,
+  43:                           unit_price * quantity AS line_total
+  44:                    FROM order_item WHERE order_id = ? ORDER BY id""",
+  45:                 (order["id"],),
+  46:             ).fetchall()
+  47:         ]
+  48:         result.append(order)
+  49:     return result
+  50: 
+  51: 
+  52: def order_with_items(conn, order_id: int):
+  53:     order = conn.execute(
+  54:         """SELECT o.*, r.name AS restaurant_name,
+  55:                   u.email AS customer_email, c.name AS courier_name
+  56:            FROM "order" o
+  57:            JOIN restaurant r ON r.id = o.restaurant_id
+  58:            LEFT JOIN "user" u ON u.id = o.customer_id
+  59:            LEFT JOIN courier c ON c.id = o.courier_id
+  60:            WHERE o.id = ?""",
+  61:         (order_id,),
+  62:     ).fetchone()
+  63:     if not order:
+  64:         return None
+  65:     return serialize_orders(conn, [order])[0]
+  66: 
+  67: 
+  68: @router.get("/orders/history")
+  69: def order_history(user=Depends(require_customer)) -> list[dict[str, Any]]:
+  70:     with get_db() as conn:
+  71:         rows = conn.execute(
+  72:             """SELECT o.*, r.name AS restaurant_name,
+  73:                       u.email AS customer_email, c.name AS courier_name
+  74:                FROM "order" o
+  75:                JOIN restaurant r ON r.id = o.restaurant_id
+  76:                LEFT JOIN "user" u ON u.id = o.customer_id
+  77:                LEFT JOIN courier c ON c.id = o.courier_id
+  78:                WHERE o.customer_id = ? ORDER BY o.created_at DESC""",
+  79:             (user["id"],),
+  80:         ).fetchall()
+  81:     return serialize_orders(conn, rows)
+  82: 
+  83: 
+  84: @router.get("/restaurant/orders")
+  85: def restaurant_orders(
+  86:     status: str = "",
+  87:     user_restaurant=Depends(require_restaurant),
+  88: ) -> list[dict[str, Any]]:
+  89:     _, restaurant = user_restaurant
+  90:     query = """SELECT o.*, r.name AS restaurant_name,
+  91:                       u.email AS customer_email, c.name AS courier_name
+  92:                FROM "order" o
+  93:                JOIN restaurant r ON r.id = o.restaurant_id
+  94:                LEFT JOIN "user" u ON u.id = o.customer_id
+  95:                LEFT JOIN courier c ON c.id = o.courier_id
+  96:                WHERE o.restaurant_id = ?"""
+  97:     params: list[Any] = [restaurant["id"]]
+  98:     if status:
+  99:         query += " AND o.status = ?"
+ 100:         params.append(status)
+ 101:     with get_db() as conn:
+ 102:         rows = conn.execute(query + " ORDER BY o.created_at DESC", params).fetchall()
+ 103:     return serialize_orders(conn, rows)
+ 104: 
+ 105: 
+ 106: @router.get("/restaurant/couriers")
+ 107: def list_couriers(user_restaurant=Depends(require_restaurant)) -> list[dict[str, Any]]:
+ 108:     _, restaurant = user_restaurant
+ 109:     with get_db() as conn:
+ 110:         rows = conn.execute(
+ 111:             "SELECT id, name, user_id FROM courier WHERE restaurant_id = ? ORDER BY name",
+ 112:             (restaurant["id"],),
+ 113:         ).fetchall()
+ 114:     return [dict(row) for row in rows]
+ 115: 
+ 116: 
+ 117: @router.get("/restaurant/menu-items")
+ 118: def list_menu_items(user_restaurant=Depends(require_restaurant)) -> list[dict[str, Any]]:
+ 119:     _, restaurant = user_restaurant
+ 120:     with get_db() as conn:
+ 121:         rows = conn.execute(
+ 122:             "SELECT * FROM menu_item WHERE restaurant_id = ? ORDER BY category, name",
+ 123:             (restaurant["id"],),
+ 124:         ).fetchall()
+ 125:     return [dict(row) for row in rows]
+ 126: 
+ 127: 
+ 128: @router.post("/restaurant/couriers", status_code=201)
+ 129: def create_courier(payload: CourierInput, user_restaurant=Depends(require_restaurant)) -> dict:
+ 130:     _, restaurant = user_restaurant
+ 131:     if not payload.name.strip():
+ 132:         raise HTTPException(status_code=400, detail="Kurye adi zorunludur")
+ 133:     with get_db() as conn:
+ 134:         if conn.execute('SELECT 1 FROM "user" WHERE email = ?', (payload.email,)).fetchone():
+ 135:             raise HTTPException(status_code=409, detail="Bu e-posta zaten kayitli")
+ 136:         cursor = conn.execute(
+ 137:             'INSERT INTO "user" (email, password_hash, role) VALUES (?, ?, ?)',
+ 138:             (payload.email, hash_password(payload.password), "courier"),
+ 139:         )
+ 140:         courier_id = cursor.lastrowid
+ 141:         conn.execute(
+ 142:             "INSERT INTO courier (user_id, restaurant_id, name) VALUES (?, ?, ?)",
+ 143:             (courier_id, restaurant["id"], payload.name),
+ 144:         )
+ 145:     return {"id": courier_id, "name": payload.name, "restaurant_id": restaurant["id"]}
+ 146: 
+ 147: 
+ 148: @router.post("/restaurant/menu-items", status_code=201)
+ 149: def add_menu_item(payload: MenuItemInput, user_restaurant=Depends(require_restaurant)) -> dict:
+ 150:     _, restaurant = user_restaurant
+ 151:     with get_db() as conn:
+ 152:         cursor = conn.execute(
+ 153:             """INSERT INTO menu_item (restaurant_id, name, description, price, category)
+ 154:                VALUES (?, ?, ?, ?, ?)""",
+ 155:             (restaurant["id"], payload.name, payload.description, payload.price, payload.category),
+ 156:         )
+ 157:     return {"id": cursor.lastrowid, **payload.model_dump(), "restaurant_id": restaurant["id"]}
+ 158: 
+ 159: 
+ 160: @router.post("/restaurant/orders/{order_id}/assign-courier")
+ 161: def assign_courier(
+ 162:     order_id: int,
+ 163:     payload: AssignCourierInput,
+ 164:     user_restaurant=Depends(require_restaurant),
+ 165: ) -> dict[str, str]:
+ 166:     _, restaurant = user_restaurant
+ 167:     now = utc_now()
+ 168:     with get_db() as conn:
+ 169:         order = conn.execute(
+ 170:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 171:         ).fetchone()
+ 172:         if not order or order["restaurant_id"] != restaurant["id"]:
+ 173:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 174:         if order["status"] != "hazÄ±rlanÄ±yor":
+ 175:             raise HTTPException(status_code=409, detail="Bu siparis icin kurye atanamaz")
+ 176:         courier = conn.execute(
+ 177:             "SELECT * FROM courier WHERE id = ? AND restaurant_id = ?",
+ 178:             (payload.courier_id, restaurant["id"]),
+ 179:         ).fetchone()
+ 180:         if not courier:
+ 181:             raise HTTPException(status_code=403, detail="Kurye bu restorana ait degil")
+ 182:         conn.execute(
+ 183:             """UPDATE "order" SET courier_id = ?, courier_assigned_at = ?, status = 'kuryede'
+ 184:                WHERE id = ?""",
+ 185:             (courier["id"], now, order_id),
+ 186:         )
+ 187:     return {"status": "kuryede", "courier_name": courier["name"]}
+ 188: 
+ 189: 
+ 190: @router.get("/courier/orders")
+ 191: def courier_orders(courier_data=Depends(require_courier)) -> list[dict[str, Any]]:
+ 192:     _, courier = courier_data
+ 193:     with get_db() as conn:
+ 194:         rows = conn.execute(
+ 195:             """SELECT o.*, r.name AS restaurant_name,
+ 196:                       u.email AS customer_email, c.name AS courier_name
+ 197:                FROM "order" o
+ 198:                JOIN restaurant r ON r.id = o.restaurant_id
+ 199:                LEFT JOIN "user" u ON u.id = o.customer_id
+ 200:                JOIN courier c ON c.id = o.courier_id
+ 201:                WHERE o.courier_id = ? ORDER BY o.created_at DESC""",
+ 202:             (courier["id"],),
+ 203:         ).fetchall()
+ 204:     return serialize_orders(conn, rows)
+ 205: 
+ 206: 
+ 207: @router.post("/courier/orders/{order_id}/deliver")
+ 208: def deliver_order(order_id: int, courier_data=Depends(require_courier)) -> dict[str, str]:
+ 209:     _, courier = courier_data
+ 210:     now = utc_now()
+ 211:     with get_db() as conn:
+ 212:         order = conn.execute(
+ 213:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 214:         ).fetchone()
+ 215:         if not order or order["courier_id"] != courier["id"]:
+ 216:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 217:         if order["status"] != "kuryede":
+ 218:             raise HTTPException(status_code=409, detail="Bu siparis teslim edilemez")
+ 219:         conn.execute(
+ 220:             """UPDATE "order" SET status = 'teslim_edildi', delivered_at = ? WHERE id = ?""",
+ 221:             (now, order_id),
+ 222:         )
+ 223:     return {"status": "teslim_edildi"}
+ 224: 
+ 225: 
+ 226: @router.post("/orders/{order_id}/confirm_delivery")
+ 227: def confirm_delivery(order_id: int, user=Depends(require_customer)) -> dict[str, str]:
+ 228:     now = utc_now()
+ 229:     with get_db() as conn:
+ 230:         order = conn.execute(
+ 231:             'SELECT * FROM "order" WHERE id = ?', (order_id,)
+ 232:         ).fetchone()
+ 233:         if not order or order["customer_id"] != user["id"]:
+ 234:             raise HTTPException(status_code=404, detail="Siparis bulunamadi")
+ 235:         if order["status"] != "teslim_edildi":
+ 236:             raise HTTPException(status_code=409, detail="Bu siparis onaylanamaz")
+ 237:         conn.execute(
+ 238:             """UPDATE "order" SET status = 'onaylandÄ±', confirmed_at = ? WHERE id = ?""",
+ 239:             (now, order_id),
+ 240:         )
+ 241:     return {"status": "onaylandÄ±"}
+ 242: 
+ 243: 
+ 244: 
+ 245: 
+ 246: 
+ 247: @router.get("/restaurant/earnings")
+ 248: def restaurant_earnings(user_restaurant=Depends(require_restaurant)) -> dict[str, Any]:
+ 249:     _, restaurant = user_restaurant
+ 250:     with get_db() as conn:
+ 251:         overall = conn.execute(
+ 252:             """SELECT COUNT(*) AS order_count,
+ 253:                       COALESCE(SUM(total), 0) AS revenue
+ 254:                FROM "order" WHERE restaurant_id = ?""",
+ 255:             (restaurant["id"],),
+ 256:         ).fetchone()
+ 257:         confirmed = conn.execute(
+ 258:             """SELECT COUNT(*) AS order_count,
+ 259:                       COALESCE(SUM(total), 0) AS revenue
+ 260:                FROM "order"
+ 261:                WHERE restaurant_id = ? AND status = 'onayland\u0131'""",
+ 262:             (restaurant["id"],),
+ 263:         ).fetchone()
+ 264:     average = round(overall["revenue"] / overall["order_count"], 2) if overall["order_count"] else 0
+ 265:     return {
+ 266:         "total_revenue": round(overall["revenue"], 2),
+ 267:         "confirmed_revenue": round(confirmed["revenue"], 2),
+ 268:         "pending_revenue": round(overall["revenue"] - confirmed["revenue"], 2),
+ 269:         "order_count": overall["order_count"],
+ 270:         "confirmed_order_count": confirmed["order_count"],
+ 271:         "average_order_value": average,
+ 272:     }
+
+codex
+Kaynağın tamamı elden geçirildi; şimdi kalan dosyaların satır numaralarını netleştirip belgelere geçiriyorum.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'foreach($p in '"'sepet/api/accounts.py','sepet/api/auth.py','sepet/api/db.py','sepet/api/reviews.py','sepet/api/schema.sql','sepet/api/seed.py'){ \"### "'$p"; $i=0; Get-Content -LiteralPath $p | ForEach-Object { $i++; '"'{0,4}: {1}' -f "'$i, $_ } }' in C:\Users\Bedirhan\Desktop\agent\ab\base-docs
+ succeeded in 40ms:
+  16: 
+  17: 
+  18: @router.post("/restaurants/{restaurant_id}/reviews", status_code=201)
+  19: def create_review(
+  20:     restaurant_id: int,
+  21:     payload: ReviewInput,
+  22:     user=Depends(require_customer),
+  23: ) -> dict[str, Any]:
+  24:     if not payload.comment.strip():
+  25:         raise HTTPException(status_code=400, detail="Yorum metni zorunludur")
+  26:     with get_db() as conn:
+  27:         restaurant = conn.execute(
+  28:             "SELECT id FROM restaurant WHERE id = ?", (restaurant_id,)
+  29:         ).fetchone()
+  30:         if not restaurant:
+  31:             raise HTTPException(status_code=404, detail="Restoran bulunamadi")
+  32:         approved = conn.execute(
+  33:             """SELECT 1 FROM "order"
+  34:                WHERE customer_id = ? AND restaurant_id = ? AND status = 'onaylandı'""",
+  35:             (user["id"], restaurant_id),
+  36:         ).fetchone()
+  37:         if not approved:
+  38:             raise HTTPException(status_code=403, detail="Yorum icin onayli siparis gerekli")
+  39:         if conn.execute(
+  40:             "SELECT 1 FROM restaurant_review WHERE restaurant_id = ? AND user_id = ?",
+  41:             (restaurant_id, user["id"]),
+  42:         ).fetchone():
+  43:             raise HTTPException(status_code=409, detail="Bu restorana yorum yaptiniz")
+  44:         cursor = conn.execute(
+  45:             """INSERT INTO restaurant_review
+  46:                (restaurant_id, user_id, rating, comment, created_at)
+  47:                VALUES (?, ?, ?, ?, ?)""",
+  48:             (restaurant_id, user["id"], payload.rating, payload.comment.strip(), utc_now()),
+  49:         )
+  50:     return {"id": cursor.lastrowid, "rating": payload.rating, "comment": payload.comment.strip(), "user_email": user["email"]}
+  51: 
+### sepet/api/schema.sql
+   1: CREATE TABLE IF NOT EXISTS restaurant (
+   2:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+   3:     name TEXT NOT NULL,
+   4:     cuisine TEXT NOT NULL,
+   5:     rating REAL NOT NULL,
+   6:     delivery_fee REAL NOT NULL,
+   7:     min_order REAL NOT NULL,
+   8:     eta_minutes INTEGER NOT NULL,
+   9:     image_emoji TEXT NOT NULL,
+  10:     user_id INTEGER REFERENCES "user"(id)
+  11: );
+  12: 
+  13: CREATE TABLE IF NOT EXISTS "user" (
+  14:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  15:     email TEXT NOT NULL UNIQUE,
+  16:     password_hash TEXT NOT NULL,
+  17:     role TEXT NOT NULL CHECK (role IN ('customer', 'restaurant', 'courier')),
+  18:     balance REAL NOT NULL DEFAULT 0
+  19: );
+  20: 
+  21: CREATE TABLE IF NOT EXISTS auth_token (
+  22:     token TEXT PRIMARY KEY,
+  23:     user_id INTEGER NOT NULL REFERENCES "user"(id),
+  24:     created_at TEXT NOT NULL
+  25: );
+  26: 
+  27: CREATE TABLE IF NOT EXISTS courier (
+  28:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  29:     user_id INTEGER NOT NULL UNIQUE REFERENCES "user"(id),
+  30:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  31:     name TEXT NOT NULL
+  32: );
+  33: 
+  34: CREATE TABLE IF NOT EXISTS restaurant_review (
+  35:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  36:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  37:     user_id INTEGER NOT NULL REFERENCES "user"(id),
+  38:     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  39:     comment TEXT NOT NULL,
+  40:     created_at TEXT NOT NULL,
+  41:     UNIQUE (restaurant_id, user_id)
+  42: );
+  43: 
+  44: CREATE TABLE IF NOT EXISTS menu_item (
+  45:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  46:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  47:     name TEXT NOT NULL,
+  48:     description TEXT NOT NULL,
+  49:     price REAL NOT NULL,
+  50:     category TEXT NOT NULL
+  51: );
+  52: 
+  53: CREATE TABLE IF NOT EXISTS "order" (
+  54:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  55:     restaurant_id INTEGER NOT NULL REFERENCES restaurant(id),
+  56:     address TEXT NOT NULL,
+  57:     phone TEXT NOT NULL,
+  58:     note TEXT NOT NULL DEFAULT '',
+  59:     total REAL NOT NULL,
+  60:     status TEXT NOT NULL DEFAULT 'hazÃ„Â±rlanÃ„Â±yor',
+  61:     created_at TEXT NOT NULL,
+  62:     customer_id INTEGER REFERENCES "user"(id),
+  63:     courier_id INTEGER REFERENCES courier(id),
+  64:     courier_assigned_at TEXT,
+  65:     delivered_at TEXT,
+  66:     confirmed_at TEXT
+  67: );
+  68: 
+  69: CREATE TABLE IF NOT EXISTS order_item (
+  70:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+  71:     order_id INTEGER NOT NULL REFERENCES "order"(id),
+  72:     menu_item_id INTEGER NOT NULL REFERENCES menu_item(id),
+  73:     name TEXT NOT NULL,
+  74:     unit_price REAL NOT NULL,
+  75:     quantity INTEGER NOT NULL
+  76: );
+  77: 
+### sepet/api/seed.py
+   1: import sqlite3
+   2: from pathlib import Path
+   3: 
+   4: from db import hash_password, utc_now
+   5: 
+   6: 
+   7: DB_PATH = Path(__file__).with_name("sepet.db")
+   8: SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+   9: 
+  10: 
+  11: RESTAURANTS = [
+  12:     {
+  13:         "name": "Anadolu AteÅŸi",
+  14:         "cuisine": "kebap",
+  15:         "rating": 4.7,
+  16:         "delivery_fee": 14.90,
+  17:         "min_order": 120.00,
+  18:         "eta_minutes": 35,
+  19:         "image_emoji": "ğŸ¢",
+  20:         "menu": [
+  21:             ("Adana Kebap Porsiyon", "AcÄ±lÄ± kÄ±yma kebap, lavaÅŸ, kÃ¶zlenmiÅŸ domates ve yeÅŸil biber", 185.00, "Kebaplar"),
+  22:             ("Urfa Kebap Porsiyon", "AcÄ±sÄ±z kÄ±yma kebap, bulgur pilavÄ± ve turÅŸu eÅŸliÄŸinde", 175.00, "Kebaplar"),
+  23:             ("Kuzu ÅiÅŸ", "Marine kuzu eti, kÃ¶zlenmiÅŸ sebze ve pirinÃ§ pilavÄ±", 225.00, "Kebaplar"),
+  24:             ("Beyti Sarma", "Izgara dana kebap, yoÄŸurt ve tereyaÄŸlÄ± sos", 210.00, "Kebaplar"),
+  25:             ("Humus", "Nohut, tahin, limon ve zeytinyaÄŸÄ± ile yumuÅŸak bir baÅŸlangÄ±Ã§", 78.00, "BaÅŸlangÄ±Ã§lar"),
+  26:             ("KÃ¼nefe", "Tel kadayÄ±f, peynir, tereyaÄŸÄ± ve ÅŸerbet", 105.00, "TatlÄ±lar"),
+  27:         ],
+  28:     },
+  29:     {
+  30:         "name": "Napoli FÄ±rÄ±nÄ±",
+  31:         "cuisine": "pizza",
+  32:         "rating": 4.5,
+  33:         "delivery_fee": 12.50,
+  34:         "min_order": 90.00,
+  35:         "eta_minutes": 30,
+  36:         "image_emoji": "ğŸ•",
+  37:         "menu": [
+  38:             ("Margherita", "San Marzano domates, mozzarella ve taze fesleÄŸen", 145.00, "Pizzalar"),
+  39:             ("Diavola", "AcÄ±lÄ± salam, mozzarella, chilli yaÄŸÄ± ve zeytin", 165.00, "Pizzalar"),
+  40:             ("Quattro Formaggi", "Mozzarella, gorgonzola, parmesan ve kaÅŸar", 185.00, "Pizzalar"),
+  41:             ("Prosciutto E Rucola", "Parma jambonu, roka, parmesan ve balzamik sos", 195.00, "Pizzalar"),
+  42:             ("Bruschetta", "FÄ±rÄ±nlanmÄ±ÅŸ ekÅŸi maya ekmek, domates, sarÄ±msak ve fesleÄŸen", 68.00, "BaÅŸlangÄ±Ã§lar"),
+  43:             ("Tiramisu", "Mascarpone, kahve ve kakao ile klasik Ä°talyan tatlÄ±sÄ±", 95.00, "TatlÄ±lar"),
+  44:         ],
+  45:     },
+  46:     {
+  47:         "name": "Cadde Burger",
+  48:         "cuisine": "burger",
+  49:         "rating": 4.4,
+  50:         "delivery_fee": 9.90,
+  51:         "min_order": 80.00,
+  52:         "eta_minutes": 25,
+  53:         "image_emoji": "ğŸ”",
+  54:         "menu": [
+  55:             ("Cadde Classic", "Dana kÃ¶fte, cheddar, marul, domates ve Ã¶zel sos", 132.00, "Burgerler"),
+  56:             ("Smoky BBQ", "Izgara dana kÃ¶fte, cheddar, karamelize soÄŸan ve bbq sos", 158.00, "Burgerler"),
+  57:             ("Blue Cheese Burger", "Dana kÃ¶fte, gorgonzola, soÄŸan halkasÄ± ve roka", 172.00, "Burgerler"),
+  58:             ("Tavuk Crispy", "Ã‡Ä±tÄ±r tavuk gÃ¶ÄŸsÃ¼, acÄ± mayo, turÅŸu ve marul", 128.00, "Burgerler"),
+  59:             ("Patates KÄ±zartmasÄ±", "KalÄ±n dilim, dÄ±ÅŸÄ± Ã§Ä±tÄ±r patates ve tuz", 48.00, "YanÄ±nda"),
+  60:             ("Ã‡ikolatalÄ± Brownie", "SÄ±cak Ã§ikolatalÄ± brownie ve vanilyalÄ± sos", 72.00, "TatlÄ±lar"),
+  61:         ],
+  62:     },
+  63:     {
+  64:         "name": "ÅanlÄ± Ã‡iÄŸkÃ¶fte Evi",
+  65:         "cuisine": "Ã§iÄŸ kÃ¶fte",
+  66:         "rating": 4.6,
+  67:         "delivery_fee": 7.50,
+  68:         "min_order": 55.00,
+  69:         "eta_minutes": 20,
+  70:         "image_emoji": "ğŸŒ¯",
+  71:         "menu": [
+  72:             ("Ã‡iÄŸ KÃ¶fte DÃ¼rÃ¼m", "AcÄ±lÄ± Ã§iÄŸ kÃ¶fte, marul, nar ekÅŸisi ve limon", 72.00, "DÃ¼rÃ¼mler"),
+  73:             ("Nohutlu Ã‡iÄŸ KÃ¶fte DÃ¼rÃ¼m", "Nohutlu Ã§iÄŸ kÃ¶fte, yeÅŸillik ve nar ekÅŸisi", 78.00, "DÃ¼rÃ¼mler"),
+  74:             ("Ã‡iÄŸ KÃ¶fte Servis", "Ä°ki kiÅŸilik Ã§iÄŸ kÃ¶fte, lavaÅŸ, marul ve limon", 135.00, "Servisler"),
+  75:             ("Ayran", "Ev yapÄ±mÄ± yoÄŸurttan soÄŸuk ayran", 25.00, "Ä°Ã§ecekler"),
+  76:             ("Åalgam Suyu", "AcÄ±lÄ± veya acÄ±sÄ±z gelen taze ÅŸalgam", 22.00, "Ä°Ã§ecekler"),
+  77:             ("Åekerpare", "Åerbetli, tereyaÄŸlÄ± ÅanlÄ±urfa usulÃ¼ tatlÄ±", 48.00, "TatlÄ±lar"),
+  78:         ],
+  79:     },
+  80:     {
+  81:         "name": "Sakura Sushi Bar",
+  82:         "cuisine": "sushi",
+  83:         "rating": 4.8,
+  84:         "delivery_fee": 18.00,
+  85:         "min_order": 160.00,
+  86:         "eta_minutes": 40,
+  87:         "image_emoji": "ğŸ£",
+  88:         "menu": [
+  89:             ("Salmon Nigiri Seti", "AltÄ± parÃ§a taze somon nigiri", 210.00, "Sushiler"),
+  90:             ("California Roll", "YengeÃ§ salatasÄ±, avokado, salatalÄ±k ve susam", 185.00, "Roller"),
+  91:             ("Spicy Tuna Roll", "AcÄ± ton balÄ±ÄŸÄ±, salatalÄ±k ve sesame mayo", 198.00, "Roller"),
+  92:             ("Dragon Roll", "Karides tempura, avokado ve unagi sos", 225.00, "Roller"),
+  93:             ("Miso Ã‡orbasÄ±", "Tofu, wakame ve mantarlÄ± miso Ã§orbasÄ±", 52.00, "BaÅŸlangÄ±Ã§lar"),
+  94:             ("Matcha Cheesecake", "YeÅŸil Ã§aylÄ±, hafif tatlÄ± cheesecake", 98.00, "TatlÄ±lar"),
+  95:         ],
+  96:     },
+  97:     {
+  98:         "name": "BaklavacÄ± MemiÅŸ",
+  99:         "cuisine": "tatlÄ±",
+ 100:         "rating": 4.9,
+ 101:         "delivery_fee": 8.00,
+ 102:         "min_order": 70.00,
+ 103:         "eta_minutes": 22,
+ 104:         "image_emoji": "ğŸ¥®",
+ 105:         "menu": [
+ 106:             ("FÄ±stÄ±klÄ± Baklava", "Antep fÄ±stÄ±ÄŸÄ±, tereyaÄŸÄ± ve ince yufka", 165.00, "Baklava"),
+ 107:             ("Cevizli Baklava", "Ceviz dolgulu, ÅŸerbetli klasik baklava", 145.00, "Baklava"),
+ 108:             ("ÅÃ¶biyet", "KaymaklÄ± ve fÄ±stÄ±klÄ± ÅŸerbetli tatlÄ±", 175.00, "Åerbetliler"),
+ 109:             ("SÃ¼tlaÃ§", "FÄ±rÄ±nlanmÄ±ÅŸ, tarÃ§Ä±nlÄ± ev sÃ¼tlacÄ±", 68.00, "SÃ¼tlÃ¼ler"),
+ 110:             ("AÅŸure", "Baklagil, kuru meyve ve fÄ±ndÄ±klÄ± geleneksel aÅŸure", 58.00, "Klasikler"),
+ 111:             ("KadÄ±nlÄ± GÃ¶ÄŸsÃ¼", "Tavuk gÃ¶ÄŸsÃ¼, ÅŸerbet ve tarÃ§Ä±n ile hafif tatlÄ±", 72.00, "SÃ¼tlÃ¼ler"),
+ 112:         ],
+ 113:     },
+ 114:     {
+ 115:         "name": "Levent'in MutfaÄŸÄ±",
+ 116:         "cuisine": "ev yemeÄŸi",
+ 117:         "rating": 4.3,
+ 118:         "delivery_fee": 11.00,
+ 119:         "min_order": 85.00,
+ 120:         "eta_minutes": 28,
+ 121:         "image_emoji": "ğŸ²",
+ 122:         "menu": [
+ 123:             ("Mercimek Ã‡orbasÄ±", "KÄ±rmÄ±zÄ± mercimek, nane ve limon", 52.00, "Ã‡orbalar"),
+ 124:             ("Etli Nohut", "Kuzu etli nohut ve bulgur pilavÄ±", 138.00, "Ana Yemekler"),
+ 125:             ("KarnÄ±yarÄ±k", "KÄ±ymalÄ± patlÄ±can, pirinÃ§ pilavÄ± ve cacÄ±k", 125.00, "Ana Yemekler"),
+ 126:             ("MantÄ±", "YoÄŸurtlu, naneli ve tereyaÄŸlÄ± ev mantÄ±sÄ±", 145.00, "Ana Yemekler"),
+ 127:             ("ZeytinyaÄŸlÄ± Yaprak Sarma", "ZeytinyaÄŸlÄ± pirinÃ§li sarma ve limon", 82.00, "ZeytinyaÄŸlÄ±lar"),
+ 128:             ("Kabak TatlÄ±sÄ±", "Cevizli ve tahinli fÄ±rÄ±n kabak tatlÄ±sÄ±", 64.00, "TatlÄ±lar"),
+ 129:         ],
+ 130:     },
+ 131:     {
+ 132:         "name": "Karadeniz BalÄ±k Evi",
+ 133:         "cuisine": "deniz Ã¼rÃ¼nleri",
+ 134:         "rating": 4.2,
+ 135:         "delivery_fee": 15.00,
+ 136:         "min_order": 150.00,
+ 137:         "eta_minutes": 38,
+ 138:         "image_emoji": "ğŸŸ",
+ 139:         "menu": [
+ 140:             ("Levrek Izgara", "Marine levrek, mevsim yeÅŸillikleri ve limon", 245.00, "BalÄ±klar"),
+ 141:             ("Hamsi Tava", "Karadeniz usulÃ¼ unlu hamsi ve turÅŸu", 185.00, "BalÄ±klar"),
+ 142:             ("Kalamar Tava", "Ã‡Ä±tÄ±r kalamar ve tartar sos", 158.00, "BaÅŸlangÄ±Ã§lar"),
+ 143:             ("BalÄ±k Ã‡orbasÄ±", "Kemikli balÄ±k suyu, sebze ve limon", 82.00, "Ã‡orbalar"),
+ 144:             ("MÄ±sÄ±r EkmeÄŸi", "FÄ±rÄ±ndan sÄ±cak Karadeniz mÄ±sÄ±r ekmeÄŸi", 42.00, "Ekmekler"),
+ 145:             ("Kabak MÃ¼cver", "Kabak, dereotu ve yoÄŸurt soslu mÃ¼cver", 78.00, "BaÅŸlangÄ±Ã§lar"),
+ 146:         ],
+ 147:     },
+ 148: ]
+ 149: 
+ 150: RESTAURANT_SLUGS = [
+ 151:     "anadolu-atesi",
+ 152:     "napoli-firini",
+ 153:     "cadde-burger",
+ 154:     "sanli-cigkofte-evi",
+ 155:     "sakura-sushi-bar",
+ 156:     "baklavaci-memis",
+ 157:     "leventin-mutfagi",
+ 158:     "karadeniz-balik-evi",
+ 159: ]
+ 160: 
+ 161: 
+ 162: def main() -> None:
+ 163:     DB_PATH.unlink(missing_ok=True)
+ 164:     with sqlite3.connect(DB_PATH) as conn, open(SCHEMA_PATH, encoding="utf-8") as schema_file:
+ 165:         conn.row_factory = sqlite3.Row
+ 166:         conn.executescript(schema_file.read())
+ 167:         for restaurant in RESTAURANTS:
+ 168:             cursor = conn.execute(
+ 169:                 """INSERT INTO restaurant
+ 170:                    (name, cuisine, rating, delivery_fee, min_order, eta_minutes, image_emoji)
+ 171:                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+ 172:                 (
+ 173:                     restaurant["name"],
+ 174:                     restaurant["cuisine"],
+ 175:                     restaurant["rating"],
+ 176:                     restaurant["delivery_fee"],
+ 177:                     restaurant["min_order"],
+ 178:                     restaurant["eta_minutes"],
+ 179:                     restaurant["image_emoji"],
+ 180:                 ),
+ 181:             )
+ 182:             restaurant_id = cursor.lastrowid
+ 183:             conn.executemany(
+ 184:                 """INSERT INTO menu_item
+ 185:                    (restaurant_id, name, description, price, category)
+ 186:                    VALUES (?, ?, ?, ?, ?)""",
+ 187:                 [
+ 188:                     (restaurant_id, item[0], item[1], item[2], item[3])
+ 189:                     for item in restaurant["menu"]
+ 190:                 ],
+ 191:             )
+ 192: 
+ 193:         password_hash = hash_password("sepet123")
+ 194:         now = utc_now()
+ 195:         customer_cursor = conn.execute(
+ 196:             'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+ 197:             ("musteri@sepet.test", password_hash, "customer", 250.0),
+ 198:         )
+ 199: 
+ 200:         for restaurant, slug in zip(RESTAURANTS, RESTAURANT_SLUGS):
+ 201:             row = conn.execute(
+ 202:                 "SELECT id FROM restaurant WHERE name = ?", (restaurant["name"],)
+ 203:             ).fetchone()
+ 204:             if not row:
+ 205:                 continue
+ 206:             restaurant_id = row["id"]
+ 207:             owner_cursor = conn.execute(
+ 208:                 'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+ 209:                 (f"sahip.{slug}@sepet.test", password_hash, "restaurant", 0.0),
+ 210:             )
+ 211:             conn.execute(
+ 212:                 "UPDATE restaurant SET user_id = ? WHERE id = ?",
+ 213:                 (owner_cursor.lastrowid, restaurant_id),
+ 214:             )
+ 215:             for number in (1, 2):
+ 216:                 courier_user = conn.execute(
+ 217:                     'INSERT INTO "user" (email, password_hash, role, balance) VALUES (?, ?, ?, ?)',
+ 218:                     (f"kurye{number}.{slug}@sepet.test", password_hash, "courier", 0.0),
+ 219:                 )
+ 220:                 conn.execute(
+ 221:                     "INSERT INTO courier (user_id, restaurant_id, name) VALUES (?, ?, ?)",
+ 222:                     (
+ 223:                         courier_user.lastrowid,
+ 224:                         restaurant_id,
+ 225:                         f"{restaurant['name']} Kurye {number}",
+ 226:                     ),
+ 227:                 )
+ 228: 
+ 229:         print("Demo musteri: musteri@sepet.test / sepet123")
+ 230:         print(f"{len(RESTAURANTS)} restoran ve veritabani olusturuldu: {DB_PATH}")
+ 231: 
+ 232: 
+ 233: if __name__ == "__main__":
+ 234:     main()
+
