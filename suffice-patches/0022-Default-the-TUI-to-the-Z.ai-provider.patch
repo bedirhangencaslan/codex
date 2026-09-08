@@ -1,0 +1,81 @@
+From af298167b2f03fb9347ee2895ad2daaa98d5c1b5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 20:47:23 +0300
+Subject: [PATCH 22/71] Default the TUI to the Z.ai provider
+
+An unset model_provider resolved to OpenAI even though the default model is
+served by Z.ai, so a fresh install opened on OpenAI's login screen and then
+pointed at the wrong endpoint. Resolve the default in the TUI's config funnel
+rather than in the loader, so the in-process harnesses that expect OpenAI's
+wire format are untouched. An explicit model_provider still wins.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/tui/src/lib.rs | 32 +++++++++++++++++++++++++++++++-
+ 1 file changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/codex-rs/tui/src/lib.rs b/codex-rs/tui/src/lib.rs
+index d1043145ed..6bf2900f7f 100644
+--- a/codex-rs/tui/src/lib.rs
++++ b/codex-rs/tui/src/lib.rs
+@@ -55,6 +55,7 @@ use codex_login::default_client::originator;
+ use codex_login::default_client::set_default_client_residency_requirement;
+ use codex_login::enforce_login_restrictions;
+ use codex_login::is_workload_identity_selected;
++use codex_model_provider_info::ZAI_PROVIDER_ID;
+ use codex_protocol::ThreadId;
+ use codex_protocol::auth::AuthMode;
+ use codex_protocol::config_types::AltScreenMode;
+@@ -1853,6 +1854,7 @@ async fn load_config_or_exit_with_fallback_cwd(
+     strict_config: bool,
+     fallback_cwd: Option<PathBuf>,
+ ) -> Config {
++    let provider_overridden = overrides.model_provider.is_some();
+     #[allow(clippy::print_stderr)]
+     match ConfigBuilder::default()
+         .cli_overrides(cli_kv_overrides)
+@@ -1864,7 +1866,12 @@ async fn load_config_or_exit_with_fallback_cwd(
+         .build()
+         .await
+     {
+-        Ok(config) => config,
++        Ok(mut config) => {
++            if !provider_overridden {
++                apply_default_model_provider(&mut config);
++            }
++            config
++        }
+         Err(err) => {
+             restore_terminal_before_fatal_exit();
+             eprintln!("Error loading configuration: {err}");
+@@ -1914,6 +1921,29 @@ async fn load_bootstrap_config_or_exit(
+     }
+ }
+ 
++/// Point an unconfigured install at Z.ai rather than OpenAI.
++///
++/// The default model is served by Z.ai, but an unset `model_provider` resolves
++/// to OpenAI, so a fresh install opens on OpenAI's login screen and then talks
++/// to the wrong endpoint. Correcting the resolved provider here instead of in
++/// the config loader keeps the default out of the many in-process harnesses
++/// that build a `Config` and expect OpenAI's wire format.
++fn apply_default_model_provider(config: &mut Config) {
++    if config
++        .config_layer_stack
++        .effective_config()
++        .get("model_provider")
++        .is_some()
++    {
++        return;
++    }
++    let Some(provider) = config.model_providers.get(ZAI_PROVIDER_ID) else {
++        return;
++    };
++    config.model_provider = provider.clone();
++    config.model_provider_id = ZAI_PROVIDER_ID.to_string();
++}
++
+ /// Determine if the user has decided whether to trust the current directory.
+ fn should_show_trust_screen(config: &Config) -> bool {
+     config.active_project.trust_level.is_none()

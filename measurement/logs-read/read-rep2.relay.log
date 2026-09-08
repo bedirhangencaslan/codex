@@ -1,0 +1,375 @@
+relay suffice on 127.0.0.1:8788 -> https://api.z.ai/api/paas/v4
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49552)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49556)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49558)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49562)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49565)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49580)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49584)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49586)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49607)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49723)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49733)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49790)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49793)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49795)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49797)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49804)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49811)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49822)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49929)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49976)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49977)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 49982)
+Traceback (most recent call last):
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socketserver.py", line 747, in __init__
+    self.handle()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 429, in handle
+    self.handle_one_request()
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\http\server.py", line 395, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Bedirhan\AppData\Local\Programs\Python\Python310\lib\socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+ConnectionAbortedError: [WinError 10053] Kurulan bir baðlantý, ana makinenizdeki yazýlým tarafýndan iptal edildi
+----------------------------------------

@@ -1,0 +1,807 @@
+Suffice v0.0.0
+--------
+workdir: C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+model: glm-5.3-flash
+provider: zai-relay
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+session id: 01a08040-add7-7dd1-b677-243c1fbeba90
+--------
+user
+Read every `.rs` file under `codex-api/src/` and write `WIRE.md`.
+
+For each file, write one line: the path, what it translates or handles, and one `file:line`
+citation backing it. Group the lines under the directory each file lives in.
+
+Do not modify any file except `WIRE.md`.
+
+STOP CONDITION. When `WIRE.md` has a line for every `.rs` file under `codex-api/src/`, count the
+files you covered and print `CHECKPOINT REACHED: <n> files`. Then stop. Do not review anything
+else and do not write any other file.
+
+codex
+I’ll inventory every Rust file under `codex-api/src/`, then read them in batches so each `WIRE.md` entry has an accurate citation.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command "rg --files codex-api/src -g '*.rs' | Sort-Object" in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ exited 1 in 40ms:
+rg: codex-api/src: IO error for operation on codex-api/src: Sistem belirtilen yolu bulamıyor. (os error 3)
+
+codex
+The requested directory is not present at the workspace root, so I’m checking the actual layout to locate it before treating this as missing.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command 'Get-ChildItem -Force | Select-Object Name,Mode; Get-ChildItem -Recurse -Directory -Filter codex-api | Select-Object -First 20 -ExpandProperty FullName' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 102ms:
+
+Name        Mode  
+----        ----  
+core        d-----
+exec-server d-----
+ext         d-----
+seed-rs     d-----
+skills      d-----
+utils       d-----
+C:\Users\Bedirhan\Desktop\agent\ab\par-suffice\seed-rs\codex-api
+
+
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command "rg --files seed-rs/codex-api/src -g '*.rs' | Sort-Object" in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 52ms:
+seed-rs/codex-api/src\api_bridge.rs
+seed-rs/codex-api/src\api_bridge_tests.rs
+seed-rs/codex-api/src\auth.rs
+seed-rs/codex-api/src\common.rs
+seed-rs/codex-api/src\endpoint\compact.rs
+seed-rs/codex-api/src\endpoint\images.rs
+seed-rs/codex-api/src\endpoint\memories.rs
+seed-rs/codex-api/src\endpoint\mod.rs
+seed-rs/codex-api/src\endpoint\models.rs
+seed-rs/codex-api/src\endpoint\realtime_call.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v2.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\mod.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v2.rs
+seed-rs/codex-api/src\endpoint\responses.rs
+seed-rs/codex-api/src\endpoint\responses_websocket.rs
+seed-rs/codex-api/src\endpoint\search.rs
+seed-rs/codex-api/src\endpoint\session.rs
+seed-rs/codex-api/src\error.rs
+seed-rs/codex-api/src\files.rs
+seed-rs/codex-api/src\images.rs
+seed-rs/codex-api/src\lib.rs
+seed-rs/codex-api/src\provider.rs
+seed-rs/codex-api/src\rate_limits.rs
+seed-rs/codex-api/src\requests\chat.rs
+seed-rs/codex-api/src\requests\headers.rs
+seed-rs/codex-api/src\requests\mod.rs
+seed-rs/codex-api/src\requests\responses.rs
+seed-rs/codex-api/src\safety_buffering.rs
+seed-rs/codex-api/src\search.rs
+seed-rs/codex-api/src\sse\chat.rs
+seed-rs/codex-api/src\sse\mod.rs
+seed-rs/codex-api/src\sse\responses.rs
+seed-rs/codex-api/src\telemetry.rs
+
+codex
+I found the crate at `seed-rs/codex-api/src` (there is no top-level `codex-api`). There are 45 Rust files; I’m reading them by directory so the summary and line citations match the real implementation.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command "Get-ChildItem seed-rs/codex-api/src -Recurse -Filter *.rs | Sort-Object FullName | ForEach-Object { '{0}"'`t{1}'"' -f "'$_.FullName.Substring((Get-Location).Path.Length + 1), $_.Length }' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 81ms:
+seed-rs\codex-api\src\api_bridge.rs`t12190
+seed-rs\codex-api\src\api_bridge_tests.rs`t18230
+seed-rs\codex-api\src\auth.rs`t3776
+seed-rs\codex-api\src\common.rs`t14455
+seed-rs\codex-api\src\endpoint\compact.rs`t3564
+seed-rs\codex-api\src\endpoint\images.rs`t11342
+seed-rs\codex-api\src\endpoint\memories.rs`t7306
+seed-rs\codex-api\src\endpoint\mod.rs`t1457
+seed-rs\codex-api\src\endpoint\models.rs`t9087
+seed-rs\codex-api\src\endpoint\realtime_call.rs`t28363
+seed-rs\codex-api\src\endpoint\realtime_websocket\methods.rs`t111745
+seed-rs\codex-api\src\endpoint\realtime_websocket\methods_common.rs`t7993
+seed-rs\codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs`t5476
+seed-rs\codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs`t4055
+seed-rs\codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs`t2959
+seed-rs\codex-api\src\endpoint\realtime_websocket\methods_v1.rs`t3129
+seed-rs\codex-api\src\endpoint\realtime_websocket\methods_v2.rs`t8996
+seed-rs\codex-api\src\endpoint\realtime_websocket\mod.rs`t712
+seed-rs\codex-api\src\endpoint\realtime_websocket\protocol.rs`t8688
+seed-rs\codex-api\src\endpoint\realtime_websocket\protocol_common.rs`t2614
+seed-rs\codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs`t3826
+seed-rs\codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs`t2141
+seed-rs\codex-api\src\endpoint\realtime_websocket\protocol_v1.rs`t4413
+seed-rs\codex-api\src\endpoint\realtime_websocket\protocol_v2.rs`t8228
+seed-rs\codex-api\src\endpoint\responses.rs`t7829
+seed-rs\codex-api\src\endpoint\responses_websocket.rs`t47413
+seed-rs\codex-api\src\endpoint\search.rs`t11762
+seed-rs\codex-api\src\endpoint\session.rs`t4602
+seed-rs\codex-api\src\error.rs`t1529
+seed-rs\codex-api\src\files.rs`t29017
+seed-rs\codex-api\src\images.rs`t1991
+seed-rs\codex-api\src\lib.rs`t5089
+seed-rs\codex-api\src\provider.rs`t5407
+seed-rs\codex-api\src\rate_limits.rs`t12899
+seed-rs\codex-api\src\requests\chat.rs`t23245
+seed-rs\codex-api\src\requests\headers.rs`t1484
+seed-rs\codex-api\src\requests\mod.rs`t109
+seed-rs\codex-api\src\requests\responses.rs`t120
+seed-rs\codex-api\src\safety_buffering.rs`t2174
+seed-rs\codex-api\src\search.rs`t10549
+seed-rs\codex-api\src\sse\chat.rs`t18871
+seed-rs\codex-api\src\sse\mod.rs`t236
+seed-rs\codex-api\src\sse\responses.rs`t73896
+seed-rs\codex-api\src\telemetry.rs`t2810
+
+codex
+The non-realtime endpoint layer is mapped: small clients wrap a shared authenticated endpoint session, while `responses.rs` is the Responses/Chat translation boundary. Next I’m reading the realtime WebSocket protocol and methods, including their tests, because that is where most of the wire translation lives.
+context compacted
+warning: Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.
+codex
+I’m resuming at the point where `WIRE.md` is not yet created. I’m reading only the remaining source files needed to complete the coverage, then I’ll write and verify `WIRE.md`.
+codex
+The remaining files are mostly stream and WebSocket translation code. I’m finishing those reads, including the rest of the large files, so the citations cover actual wire handling rather than only module headers.
+codex
+A few large files still have unread tails. I’m closing those gaps now; after that I’ll generate `WIRE.md` only.
+codex
+The request, file upload, and both Responses transports are now read. One tail of `sse/responses.rs` remains, then I can enumerate and write the report.
+context compacted
+warning: Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.
+codex
+I’m closing the last two-line read gap and confirming the exact Rust file inventory before writing `WIRE.md`.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @(rg --files seed-rs/codex-api/src -g '"'*.rs' | Sort-Object); \""'$($files.Count)"; $files' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 92ms:
+44
+seed-rs/codex-api/src\api_bridge.rs
+seed-rs/codex-api/src\api_bridge_tests.rs
+seed-rs/codex-api/src\auth.rs
+seed-rs/codex-api/src\common.rs
+seed-rs/codex-api/src\endpoint\compact.rs
+seed-rs/codex-api/src\endpoint\images.rs
+seed-rs/codex-api/src\endpoint\memories.rs
+seed-rs/codex-api/src\endpoint\mod.rs
+seed-rs/codex-api/src\endpoint\models.rs
+seed-rs/codex-api/src\endpoint\realtime_call.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v2.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\mod.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v2.rs
+seed-rs/codex-api/src\endpoint\responses.rs
+seed-rs/codex-api/src\endpoint\responses_websocket.rs
+seed-rs/codex-api/src\endpoint\search.rs
+seed-rs/codex-api/src\endpoint\session.rs
+seed-rs/codex-api/src\error.rs
+seed-rs/codex-api/src\files.rs
+seed-rs/codex-api/src\images.rs
+seed-rs/codex-api/src\lib.rs
+seed-rs/codex-api/src\provider.rs
+seed-rs/codex-api/src\rate_limits.rs
+seed-rs/codex-api/src\requests\chat.rs
+seed-rs/codex-api/src\requests\headers.rs
+seed-rs/codex-api/src\requests\mod.rs
+seed-rs/codex-api/src\requests\responses.rs
+seed-rs/codex-api/src\safety_buffering.rs
+seed-rs/codex-api/src\search.rs
+seed-rs/codex-api/src\sse\chat.rs
+seed-rs/codex-api/src\sse\mod.rs
+seed-rs/codex-api/src\sse\responses.rs
+seed-rs/codex-api/src\telemetry.rs
+
+codex
+The inventory confirms 44 files and the remaining enum tail is read. I’m now creating `WIRE.md` with exactly one entry per file, grouped by directory.
+apply patch
+patch: completed
+C:\Users\Bedirhan\Desktop\agent\ab\par-suffice\WIRE.md
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..50eef2778a840174930e8a076796e11bdb4bf0a2
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Coverage
++
++## seed-rs/codex-api/src
++
++- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
++- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
++- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
++- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
++- `seed-rs/codex-api/src/error.rs` — defines the API transport and protocol error variants (`error.rs:6`).
++- `seed-rs/codex-api/src/files.rs` — handles OpenAI file creation, authorized uploads, blob PUTs, finalization, and retry behavior (`files.rs:121`, `files.rs:185`, `files.rs:256`).
++- `seed-rs/codex-api/src/images.rs` — defines image generation and edit request/response wire types (`images.rs:3`).
++- `seed-rs/codex-api/src/lib.rs` — declares and re-exports the crate's API modules (`lib.rs:1`).
++- `seed-rs/codex-api/src/provider.rs` — defines provider configuration, `WireApi`, and endpoint URL construction (`provider.rs:48`, `provider.rs:68`).
++- `seed-rs/codex-api/src/rate_limits.rs` — parses rate-limit headers into codex rate-limit structures (`rate_limits.rs:18`).
++- `seed-rs/codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers (`safety_buffering.rs:12`).
++- `seed-rs/codex-api/src/search.rs` — defines search request, command, and response wire types (`search.rs:7`).
++- `seed-rs/codex-api/src/telemetry.rs` — defines SSE and WebSocket telemetry hooks (`telemetry.rs:14`, `telemetry.rs:22`).
++
++## seed-rs/codex-api/src/endpoint
++
++- `seed-rs/codex-api/src/endpoint/mod.rs` — declares the endpoint modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/compact.rs` — POSTs Responses compaction requests (`compact.rs:23`).
++- `seed-rs/codex-api/src/endpoint/images.rs` — POSTs image generation and edit requests (`images.rs:25`).
++- `seed-rs/codex-api/src/endpoint/memories.rs` — POSTs memory trace-summary requests (`memories.rs:23`).
++- `seed-rs/codex-api/src/endpoint/models.rs` — GETs the available model list (`models.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_call.rs` — POSTs WebRTC SDP offers to establish realtime calls (`realtime_call.rs:57`).
++- `seed-rs/codex-api/src/endpoint/responses.rs` — translates Responses and Chat requests and routes them to their endpoint transport (`responses.rs:80`).
++- `seed-rs/codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses WebSockets, serializes requests, and maps wrapped errors into event streams (`responses_websocket.rs:344`, `responses_websocket.rs:397`, `responses_websocket.rs:685`, `responses_websocket.rs:728`, `responses_websocket.rs:920`).
++- `seed-rs/codex-api/src/endpoint/search.rs` — POSTs alpha search requests (`search.rs:18`).
++- `seed-rs/codex-api/src/endpoint/session.rs` — executes shared authenticated endpoint requests (`session.rs:45`).
++
++## seed-rs/codex-api/src/endpoint/realtime_websocket
++
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol and method modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods.rs` — handles realtime WebSocket client and connection lifecycles, URL construction, and the event pump (`methods.rs:390`, `methods.rs:400`, `methods.rs:590`, `methods.rs:650`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches realtime method calls by protocol version (`methods_common.rs:26`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests common realtime method dispatch (`methods_common_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless bidirectional messages and chunks 500-byte context (`methods_frameless_bidi.rs:20`, `methods_frameless_bidi.rs:65`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless bidirectional message construction (`methods_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds realtime v1 outbound messages and `quicksilver` intents (`methods_v1.rs:8`, `methods_v1.rs:50`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds realtime v2 outbound messages, tool outputs, `background_agent`, and `remain_silent` controls (`methods_v2.rs:10`, `methods_v2.rs:24`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser, outbound, configuration, and session types (`protocol.rs:12`, `protocol.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses shared realtime payloads, sessions, transcripts, and errors (`protocol_common.rs:6`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional inbound events (`protocol_frameless_bidi.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing (`protocol_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses realtime v1 inbound events (`protocol_v1.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses realtime v2 inbound events (`protocol_v2.rs:17`).
++
++## seed-rs/codex-api/src/requests
++
++- `seed-rs/codex-api/src/requests/chat.rs` — translates outbound Responses requests into Chat Completions payloads (`chat.rs:18`, `chat.rs:208`, `chat.rs:260`).
++- `seed-rs/codex-api/src/requests/headers.rs` — builds session, thread, and subagent request headers (`headers.rs:5`, `headers.rs:16`).
++- `seed-rs/codex-api/src/requests/mod.rs` — declares request translation modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/requests/responses.rs` — defines compression encodings accepted by Responses requests (`responses.rs:1`).
++
++## seed-rs/codex-api/src/sse
++
++- `seed-rs/codex-api/src/sse/chat.rs` — translates inbound Chat Completions SSE into Responses stream events (`sse/chat.rs:30`, `sse/chat.rs:77`, `sse/chat.rs:246`).
++- `seed-rs/codex-api/src/sse/mod.rs` — declares and re-exports SSE translation modules (`sse/mod.rs:1`).
++- `seed-rs/codex-api/src/sse/responses.rs` — parses Responses SSE, verifies metadata and model output, tracks safety buffering, and classifies completion and error events (`sse/responses.rs:36`, `sse/responses.rs:169`, `sse/responses.rs:353`, `sse/responses.rs:557`).
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..50eef2778a840174930e8a076796e11bdb4bf0a2
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Coverage
++
++## seed-rs/codex-api/src
++
++- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
++- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
++- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
++- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
++- `seed-rs/codex-api/src/error.rs` — defines the API transport and protocol error variants (`error.rs:6`).
++- `seed-rs/codex-api/src/files.rs` — handles OpenAI file creation, authorized uploads, blob PUTs, finalization, and retry behavior (`files.rs:121`, `files.rs:185`, `files.rs:256`).
++- `seed-rs/codex-api/src/images.rs` — defines image generation and edit request/response wire types (`images.rs:3`).
++- `seed-rs/codex-api/src/lib.rs` — declares and re-exports the crate's API modules (`lib.rs:1`).
++- `seed-rs/codex-api/src/provider.rs` — defines provider configuration, `WireApi`, and endpoint URL construction (`provider.rs:48`, `provider.rs:68`).
++- `seed-rs/codex-api/src/rate_limits.rs` — parses rate-limit headers into codex rate-limit structures (`rate_limits.rs:18`).
++- `seed-rs/codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers (`safety_buffering.rs:12`).
++- `seed-rs/codex-api/src/search.rs` — defines search request, command, and response wire types (`search.rs:7`).
++- `seed-rs/codex-api/src/telemetry.rs` — defines SSE and WebSocket telemetry hooks (`telemetry.rs:14`, `telemetry.rs:22`).
++
++## seed-rs/codex-api/src/endpoint
++
++- `seed-rs/codex-api/src/endpoint/mod.rs` — declares the endpoint modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/compact.rs` — POSTs Responses compaction requests (`compact.rs:23`).
++- `seed-rs/codex-api/src/endpoint/images.rs` — POSTs image generation and edit requests (`images.rs:25`).
++- `seed-rs/codex-api/src/endpoint/memories.rs` — POSTs memory trace-summary requests (`memories.rs:23`).
++- `seed-rs/codex-api/src/endpoint/models.rs` — GETs the available model list (`models.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_call.rs` — POSTs WebRTC SDP offers to establish realtime calls (`realtime_call.rs:57`).
++- `seed-rs/codex-api/src/endpoint/responses.rs` — translates Responses and Chat requests and routes them to their endpoint transport (`responses.rs:80`).
++- `seed-rs/codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses WebSockets, serializes requests, and maps wrapped errors into event streams (`responses_websocket.rs:344`, `responses_websocket.rs:397`, `responses_websocket.rs:685`, `responses_websocket.rs:728`, `responses_websocket.rs:920`).
++- `seed-rs/codex-api/src/endpoint/search.rs` — POSTs alpha search requests (`search.rs:18`).
++- `seed-rs/codex-api/src/endpoint/session.rs` — executes shared authenticated endpoint requests (`session.rs:45`).
++
++## seed-rs/codex-api/src/endpoint/realtime_websocket
++
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol and method modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods.rs` — handles realtime WebSocket client and connection lifecycles, URL construction, and the event pump (`methods.rs:390`, `methods.rs:400`, `methods.rs:590`, `methods.rs:650`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches realtime method calls by protocol version (`methods_common.rs:26`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests common realtime method dispatch (`methods_common_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless bidirectional messages and chunks 500-byte context (`methods_frameless_bidi.rs:20`, `methods_frameless_bidi.rs:65`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless bidirectional message construction (`methods_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds realtime v1 outbound messages and `quicksilver` intents (`methods_v1.rs:8`, `methods_v1.rs:50`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds realtime v2 outbound messages, tool outputs, `background_agent`, and `remain_silent` controls (`methods_v2.rs:10`, `methods_v2.rs:24`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser, outbound, configuration, and session types (`protocol.rs:12`, `protocol.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses shared realtime payloads, sessions, transcripts, and errors (`protocol_common.rs:6`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional inbound events (`protocol_frameless_bidi.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing (`protocol_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses realtime v1 inbound events (`protocol_v1.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses realtime v2 inbound events (`protocol_v2.rs:17`).
++
++## seed-rs/codex-api/src/requests
++
++- `seed-rs/codex-api/src/requests/chat.rs` — translates outbound Responses requests into Chat Completions payloads (`chat.rs:18`, `chat.rs:208`, `chat.rs:260`).
++- `seed-rs/codex-api/src/requests/headers.rs` — builds session, thread, and subagent request headers (`headers.rs:5`, `headers.rs:16`).
++- `seed-rs/codex-api/src/requests/mod.rs` — declares request translation modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/requests/responses.rs` — defines compression encodings accepted by Responses requests (`responses.rs:1`).
++
++## seed-rs/codex-api/src/sse
++
++- `seed-rs/codex-api/src/sse/chat.rs` — translates inbound Chat Completions SSE into Responses stream events (`sse/chat.rs:30`, `sse/chat.rs:77`, `sse/chat.rs:246`).
++- `seed-rs/codex-api/src/sse/mod.rs` — declares and re-exports SSE translation modules (`sse/mod.rs:1`).
++- `seed-rs/codex-api/src/sse/responses.rs` — parses Responses SSE, verifies metadata and model output, tracks safety buffering, and classifies completion and error events (`sse/responses.rs:36`, `sse/responses.rs:169`, `sse/responses.rs:353`, `sse/responses.rs:557`).
+
+codex
+`WIRE.md` is written. I’m doing a final inventory-versus-document count, then I’ll report the checkpoint only.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @(rg --files seed-rs/codex-api/src -g '"'*.rs' | Sort-Object); "'$lines = @(Get-Content -LiteralPath WIRE.md | Where-Object { $_ -match '"'"'^`seed-rs/codex-api/src.*` — '"' }); \"rs="'$($files.Count) entries=$($lines.Count)"; $missing = @($files | Where-Object { $p = $_ -replace '"'\\\\','/'; -not ("'$lines | Where-Object { $_.StartsWith("- ``$p``") -or $_.StartsWith("- `$p``") }) }); "missing=$($missing.Count)"; $missing' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 69ms:
+rs=44 entries=0
+missing=44
+seed-rs/codex-api/src\api_bridge.rs
+seed-rs/codex-api/src\api_bridge_tests.rs
+seed-rs/codex-api/src\auth.rs
+seed-rs/codex-api/src\common.rs
+seed-rs/codex-api/src\endpoint\compact.rs
+seed-rs/codex-api/src\endpoint\images.rs
+seed-rs/codex-api/src\endpoint\memories.rs
+seed-rs/codex-api/src\endpoint\mod.rs
+seed-rs/codex-api/src\endpoint\models.rs
+seed-rs/codex-api/src\endpoint\realtime_call.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v2.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\mod.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v2.rs
+seed-rs/codex-api/src\endpoint\responses.rs
+seed-rs/codex-api/src\endpoint\responses_websocket.rs
+seed-rs/codex-api/src\endpoint\search.rs
+seed-rs/codex-api/src\endpoint\session.rs
+seed-rs/codex-api/src\error.rs
+seed-rs/codex-api/src\files.rs
+seed-rs/codex-api/src\images.rs
+seed-rs/codex-api/src\lib.rs
+seed-rs/codex-api/src\provider.rs
+seed-rs/codex-api/src\rate_limits.rs
+seed-rs/codex-api/src\requests\chat.rs
+seed-rs/codex-api/src\requests\headers.rs
+seed-rs/codex-api/src\requests\mod.rs
+seed-rs/codex-api/src\requests\responses.rs
+seed-rs/codex-api/src\safety_buffering.rs
+seed-rs/codex-api/src\search.rs
+seed-rs/codex-api/src\sse\chat.rs
+seed-rs/codex-api/src\sse\mod.rs
+seed-rs/codex-api/src\sse\responses.rs
+seed-rs/codex-api/src\telemetry.rs
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..50eef2778a840174930e8a076796e11bdb4bf0a2
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Coverage
++
++## seed-rs/codex-api/src
++
++- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
++- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
++- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
++- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
++- `seed-rs/codex-api/src/error.rs` — defines the API transport and protocol error variants (`error.rs:6`).
++- `seed-rs/codex-api/src/files.rs` — handles OpenAI file creation, authorized uploads, blob PUTs, finalization, and retry behavior (`files.rs:121`, `files.rs:185`, `files.rs:256`).
++- `seed-rs/codex-api/src/images.rs` — defines image generation and edit request/response wire types (`images.rs:3`).
++- `seed-rs/codex-api/src/lib.rs` — declares and re-exports the crate's API modules (`lib.rs:1`).
++- `seed-rs/codex-api/src/provider.rs` — defines provider configuration, `WireApi`, and endpoint URL construction (`provider.rs:48`, `provider.rs:68`).
++- `seed-rs/codex-api/src/rate_limits.rs` — parses rate-limit headers into codex rate-limit structures (`rate_limits.rs:18`).
++- `seed-rs/codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers (`safety_buffering.rs:12`).
++- `seed-rs/codex-api/src/search.rs` — defines search request, command, and response wire types (`search.rs:7`).
++- `seed-rs/codex-api/src/telemetry.rs` — defines SSE and WebSocket telemetry hooks (`telemetry.rs:14`, `telemetry.rs:22`).
++
++## seed-rs/codex-api/src/endpoint
++
++- `seed-rs/codex-api/src/endpoint/mod.rs` — declares the endpoint modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/compact.rs` — POSTs Responses compaction requests (`compact.rs:23`).
++- `seed-rs/codex-api/src/endpoint/images.rs` — POSTs image generation and edit requests (`images.rs:25`).
++- `seed-rs/codex-api/src/endpoint/memories.rs` — POSTs memory trace-summary requests (`memories.rs:23`).
++- `seed-rs/codex-api/src/endpoint/models.rs` — GETs the available model list (`models.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_call.rs` — POSTs WebRTC SDP offers to establish realtime calls (`realtime_call.rs:57`).
++- `seed-rs/codex-api/src/endpoint/responses.rs` — translates Responses and Chat requests and routes them to their endpoint transport (`responses.rs:80`).
++- `seed-rs/codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses WebSockets, serializes requests, and maps wrapped errors into event streams (`responses_websocket.rs:344`, `responses_websocket.rs:397`, `responses_websocket.rs:685`, `responses_websocket.rs:728`, `responses_websocket.rs:920`).
++- `seed-rs/codex-api/src/endpoint/search.rs` — POSTs alpha search requests (`search.rs:18`).
++- `seed-rs/codex-api/src/endpoint/session.rs` — executes shared authenticated endpoint requests (`session.rs:45`).
++
++## seed-rs/codex-api/src/endpoint/realtime_websocket
++
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol and method modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods.rs` — handles realtime WebSocket client and connection lifecycles, URL construction, and the event pump (`methods.rs:390`, `methods.rs:400`, `methods.rs:590`, `methods.rs:650`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches realtime method calls by protocol version (`methods_common.rs:26`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests common realtime method dispatch (`methods_common_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless bidirectional messages and chunks 500-byte context (`methods_frameless_bidi.rs:20`, `methods_frameless_bidi.rs:65`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless bidirectional message construction (`methods_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds realtime v1 outbound messages and `quicksilver` intents (`methods_v1.rs:8`, `methods_v1.rs:50`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds realtime v2 outbound messages, tool outputs, `background_agent`, and `remain_silent` controls (`methods_v2.rs:10`, `methods_v2.rs:24`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser, outbound, configuration, and session types (`protocol.rs:12`, `protocol.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses shared realtime payloads, sessions, transcripts, and errors (`protocol_common.rs:6`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional inbound events (`protocol_frameless_bidi.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing (`protocol_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses realtime v1 inbound events (`protocol_v1.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses realtime v2 inbound events (`protocol_v2.rs:17`).
++
++## seed-rs/codex-api/src/requests
++
++- `seed-rs/codex-api/src/requests/chat.rs` — translates outbound Responses requests into Chat Completions payloads (`chat.rs:18`, `chat.rs:208`, `chat.rs:260`).
++- `seed-rs/codex-api/src/requests/headers.rs` — builds session, thread, and subagent request headers (`headers.rs:5`, `headers.rs:16`).
++- `seed-rs/codex-api/src/requests/mod.rs` — declares request translation modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/requests/responses.rs` — defines compression encodings accepted by Responses requests (`responses.rs:1`).
++
++## seed-rs/codex-api/src/sse
++
++- `seed-rs/codex-api/src/sse/chat.rs` — translates inbound Chat Completions SSE into Responses stream events (`sse/chat.rs:30`, `sse/chat.rs:77`, `sse/chat.rs:246`).
++- `seed-rs/codex-api/src/sse/mod.rs` — declares and re-exports SSE translation modules (`sse/mod.rs:1`).
++- `seed-rs/codex-api/src/sse/responses.rs` — parses Responses SSE, verifies metadata and model output, tracks safety buffering, and classifies completion and error events (`sse/responses.rs:36`, `sse/responses.rs:169`, `sse/responses.rs:353`, `sse/responses.rs:557`).
+
+codex
+The first verification query had a matching bug in its regex, not a content problem. I’m rerunning it with a simple path containment check against the actual file contents.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @(rg --files seed-rs/codex-api/src -g '"'*.rs' | Sort-Object); "'$wire = @(Get-Content -LiteralPath WIRE.md); $entries = @($wire | Where-Object { $_.StartsWith('"'- "'`seed-rs/codex-api/src/'"') -and "'$_.Contains('"'"'` — '"') }); "'$missing = @($files | Where-Object { $p = $_ -replace '"'\\\\','/'; @("'$entries | Where-Object { $_.Contains("``$p``") }).Count -eq 0 }); "rs=$($files.Count) entries=$($entries.Count) missing=$($missing.Count)"; if ($missing.Count -gt 0) { $missing }' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 101ms:
+rs=44 entries=0 missing=44
+seed-rs/codex-api/src\api_bridge.rs
+seed-rs/codex-api/src\api_bridge_tests.rs
+seed-rs/codex-api/src\auth.rs
+seed-rs/codex-api/src\common.rs
+seed-rs/codex-api/src\endpoint\compact.rs
+seed-rs/codex-api/src\endpoint\images.rs
+seed-rs/codex-api/src\endpoint\memories.rs
+seed-rs/codex-api/src\endpoint\mod.rs
+seed-rs/codex-api/src\endpoint\models.rs
+seed-rs/codex-api/src\endpoint\realtime_call.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\methods_v2.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\mod.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_common.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v1.rs
+seed-rs/codex-api/src\endpoint\realtime_websocket\protocol_v2.rs
+seed-rs/codex-api/src\endpoint\responses.rs
+seed-rs/codex-api/src\endpoint\responses_websocket.rs
+seed-rs/codex-api/src\endpoint\search.rs
+seed-rs/codex-api/src\endpoint\session.rs
+seed-rs/codex-api/src\error.rs
+seed-rs/codex-api/src\files.rs
+seed-rs/codex-api/src\images.rs
+seed-rs/codex-api/src\lib.rs
+seed-rs/codex-api/src\provider.rs
+seed-rs/codex-api/src\rate_limits.rs
+seed-rs/codex-api/src\requests\chat.rs
+seed-rs/codex-api/src\requests\headers.rs
+seed-rs/codex-api/src\requests\mod.rs
+seed-rs/codex-api/src\requests\responses.rs
+seed-rs/codex-api/src\safety_buffering.rs
+seed-rs/codex-api/src\search.rs
+seed-rs/codex-api/src\sse\chat.rs
+seed-rs/codex-api/src\sse\mod.rs
+seed-rs/codex-api/src\sse\responses.rs
+seed-rs/codex-api/src\telemetry.rs
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..50eef2778a840174930e8a076796e11bdb4bf0a2
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Coverage
++
++## seed-rs/codex-api/src
++
++- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
++- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
++- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
++- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
++- `seed-rs/codex-api/src/error.rs` — defines the API transport and protocol error variants (`error.rs:6`).
++- `seed-rs/codex-api/src/files.rs` — handles OpenAI file creation, authorized uploads, blob PUTs, finalization, and retry behavior (`files.rs:121`, `files.rs:185`, `files.rs:256`).
++- `seed-rs/codex-api/src/images.rs` — defines image generation and edit request/response wire types (`images.rs:3`).
++- `seed-rs/codex-api/src/lib.rs` — declares and re-exports the crate's API modules (`lib.rs:1`).
++- `seed-rs/codex-api/src/provider.rs` — defines provider configuration, `WireApi`, and endpoint URL construction (`provider.rs:48`, `provider.rs:68`).
++- `seed-rs/codex-api/src/rate_limits.rs` — parses rate-limit headers into codex rate-limit structures (`rate_limits.rs:18`).
++- `seed-rs/codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers (`safety_buffering.rs:12`).
++- `seed-rs/codex-api/src/search.rs` — defines search request, command, and response wire types (`search.rs:7`).
++- `seed-rs/codex-api/src/telemetry.rs` — defines SSE and WebSocket telemetry hooks (`telemetry.rs:14`, `telemetry.rs:22`).
++
++## seed-rs/codex-api/src/endpoint
++
++- `seed-rs/codex-api/src/endpoint/mod.rs` — declares the endpoint modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/compact.rs` — POSTs Responses compaction requests (`compact.rs:23`).
++- `seed-rs/codex-api/src/endpoint/images.rs` — POSTs image generation and edit requests (`images.rs:25`).
++- `seed-rs/codex-api/src/endpoint/memories.rs` — POSTs memory trace-summary requests (`memories.rs:23`).
++- `seed-rs/codex-api/src/endpoint/models.rs` — GETs the available model list (`models.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_call.rs` — POSTs WebRTC SDP offers to establish realtime calls (`realtime_call.rs:57`).
++- `seed-rs/codex-api/src/endpoint/responses.rs` — translates Responses and Chat requests and routes them to their endpoint transport (`responses.rs:80`).
++- `seed-rs/codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses WebSockets, serializes requests, and maps wrapped errors into event streams (`responses_websocket.rs:344`, `responses_websocket.rs:397`, `responses_websocket.rs:685`, `responses_websocket.rs:728`, `responses_websocket.rs:920`).
++- `seed-rs/codex-api/src/endpoint/search.rs` — POSTs alpha search requests (`search.rs:18`).
++- `seed-rs/codex-api/src/endpoint/session.rs` — executes shared authenticated endpoint requests (`session.rs:45`).
++
++## seed-rs/codex-api/src/endpoint/realtime_websocket
++
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol and method modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods.rs` — handles realtime WebSocket client and connection lifecycles, URL construction, and the event pump (`methods.rs:390`, `methods.rs:400`, `methods.rs:590`, `methods.rs:650`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches realtime method calls by protocol version (`methods_common.rs:26`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests common realtime method dispatch (`methods_common_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless bidirectional messages and chunks 500-byte context (`methods_frameless_bidi.rs:20`, `methods_frameless_bidi.rs:65`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless bidirectional message construction (`methods_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds realtime v1 outbound messages and `quicksilver` intents (`methods_v1.rs:8`, `methods_v1.rs:50`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds realtime v2 outbound messages, tool outputs, `background_agent`, and `remain_silent` controls (`methods_v2.rs:10`, `methods_v2.rs:24`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser, outbound, configuration, and session types (`protocol.rs:12`, `protocol.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses shared realtime payloads, sessions, transcripts, and errors (`protocol_common.rs:6`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional inbound events (`protocol_frameless_bidi.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing (`protocol_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses realtime v1 inbound events (`protocol_v1.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses realtime v2 inbound events (`protocol_v2.rs:17`).
++
++## seed-rs/codex-api/src/requests
++
++- `seed-rs/codex-api/src/requests/chat.rs` — translates outbound Responses requests into Chat Completions payloads (`chat.rs:18`, `chat.rs:208`, `chat.rs:260`).
++- `seed-rs/codex-api/src/requests/headers.rs` — builds session, thread, and subagent request headers (`headers.rs:5`, `headers.rs:16`).
++- `seed-rs/codex-api/src/requests/mod.rs` — declares request translation modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/requests/responses.rs` — defines compression encodings accepted by Responses requests (`responses.rs:1`).
++
++## seed-rs/codex-api/src/sse
++
++- `seed-rs/codex-api/src/sse/chat.rs` — translates inbound Chat Completions SSE into Responses stream events (`sse/chat.rs:30`, `sse/chat.rs:77`, `sse/chat.rs:246`).
++- `seed-rs/codex-api/src/sse/mod.rs` — declares and re-exports SSE translation modules (`sse/mod.rs:1`).
++- `seed-rs/codex-api/src/sse/responses.rs` — parses Responses SSE, verifies metadata and model output, tracks safety buffering, and classifies completion and error events (`sse/responses.rs:36`, `sse/responses.rs:169`, `sse/responses.rs:353`, `sse/responses.rs:557`).
+
+codex
+The second check still reports zero because PowerShell is treating backticks specially in the matching expression. I’ll inspect the file directly and use a Unicode-free textual comparison that avoids PowerShell escape processing.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Select-String -LiteralPath WIRE.md -Pattern 'seed-rs/codex-api/src' | Select-Object -First 5 | ForEach-Object { "'$_.Line }' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 21ms:
+## seed-rs/codex-api/src
+- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
+- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
+- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
+- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..50eef2778a840174930e8a076796e11bdb4bf0a2
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Coverage
++
++## seed-rs/codex-api/src
++
++- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
++- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
++- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
++- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
++- `seed-rs/codex-api/src/error.rs` — defines the API transport and protocol error variants (`error.rs:6`).
++- `seed-rs/codex-api/src/files.rs` — handles OpenAI file creation, authorized uploads, blob PUTs, finalization, and retry behavior (`files.rs:121`, `files.rs:185`, `files.rs:256`).
++- `seed-rs/codex-api/src/images.rs` — defines image generation and edit request/response wire types (`images.rs:3`).
++- `seed-rs/codex-api/src/lib.rs` — declares and re-exports the crate's API modules (`lib.rs:1`).
++- `seed-rs/codex-api/src/provider.rs` — defines provider configuration, `WireApi`, and endpoint URL construction (`provider.rs:48`, `provider.rs:68`).
++- `seed-rs/codex-api/src/rate_limits.rs` — parses rate-limit headers into codex rate-limit structures (`rate_limits.rs:18`).
++- `seed-rs/codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers (`safety_buffering.rs:12`).
++- `seed-rs/codex-api/src/search.rs` — defines search request, command, and response wire types (`search.rs:7`).
++- `seed-rs/codex-api/src/telemetry.rs` — defines SSE and WebSocket telemetry hooks (`telemetry.rs:14`, `telemetry.rs:22`).
++
++## seed-rs/codex-api/src/endpoint
++
++- `seed-rs/codex-api/src/endpoint/mod.rs` — declares the endpoint modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/compact.rs` — POSTs Responses compaction requests (`compact.rs:23`).
++- `seed-rs/codex-api/src/endpoint/images.rs` — POSTs image generation and edit requests (`images.rs:25`).
++- `seed-rs/codex-api/src/endpoint/memories.rs` — POSTs memory trace-summary requests (`memories.rs:23`).
++- `seed-rs/codex-api/src/endpoint/models.rs` — GETs the available model list (`models.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_call.rs` — POSTs WebRTC SDP offers to establish realtime calls (`realtime_call.rs:57`).
++- `seed-rs/codex-api/src/endpoint/responses.rs` — translates Responses and Chat requests and routes them to their endpoint transport (`responses.rs:80`).
++- `seed-rs/codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses WebSockets, serializes requests, and maps wrapped errors into event streams (`responses_websocket.rs:344`, `responses_websocket.rs:397`, `responses_websocket.rs:685`, `responses_websocket.rs:728`, `responses_websocket.rs:920`).
++- `seed-rs/codex-api/src/endpoint/search.rs` — POSTs alpha search requests (`search.rs:18`).
++- `seed-rs/codex-api/src/endpoint/session.rs` — executes shared authenticated endpoint requests (`session.rs:45`).
++
++## seed-rs/codex-api/src/endpoint/realtime_websocket
++
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol and method modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods.rs` — handles realtime WebSocket client and connection lifecycles, URL construction, and the event pump (`methods.rs:390`, `methods.rs:400`, `methods.rs:590`, `methods.rs:650`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches realtime method calls by protocol version (`methods_common.rs:26`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests common realtime method dispatch (`methods_common_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless bidirectional messages and chunks 500-byte context (`methods_frameless_bidi.rs:20`, `methods_frameless_bidi.rs:65`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless bidirectional message construction (`methods_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds realtime v1 outbound messages and `quicksilver` intents (`methods_v1.rs:8`, `methods_v1.rs:50`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds realtime v2 outbound messages, tool outputs, `background_agent`, and `remain_silent` controls (`methods_v2.rs:10`, `methods_v2.rs:24`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser, outbound, configuration, and session types (`protocol.rs:12`, `protocol.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses shared realtime payloads, sessions, transcripts, and errors (`protocol_common.rs:6`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional inbound events (`protocol_frameless_bidi.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing (`protocol_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses realtime v1 inbound events (`protocol_v1.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses realtime v2 inbound events (`protocol_v2.rs:17`).
++
++## seed-rs/codex-api/src/requests
++
++- `seed-rs/codex-api/src/requests/chat.rs` — translates outbound Responses requests into Chat Completions payloads (`chat.rs:18`, `chat.rs:208`, `chat.rs:260`).
++- `seed-rs/codex-api/src/requests/headers.rs` — builds session, thread, and subagent request headers (`headers.rs:5`, `headers.rs:16`).
++- `seed-rs/codex-api/src/requests/mod.rs` — declares request translation modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/requests/responses.rs` — defines compression encodings accepted by Responses requests (`responses.rs:1`).
++
++## seed-rs/codex-api/src/sse
++
++- `seed-rs/codex-api/src/sse/chat.rs` — translates inbound Chat Completions SSE into Responses stream events (`sse/chat.rs:30`, `sse/chat.rs:77`, `sse/chat.rs:246`).
++- `seed-rs/codex-api/src/sse/mod.rs` — declares and re-exports SSE translation modules (`sse/mod.rs:1`).
++- `seed-rs/codex-api/src/sse/responses.rs` — parses Responses SSE, verifies metadata and model output, tracks safety buffering, and classifies completion and error events (`sse/responses.rs:36`, `sse/responses.rs:169`, `sse/responses.rs:353`, `sse/responses.rs:557`).
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$files = @(rg --files seed-rs/codex-api/src -g '"'*.rs' | Sort-Object); "'$wire = @(Get-Content -LiteralPath WIRE.md); $missing = @(); foreach ($f in $files) { $p = $f -replace '"'\\\\','/'; "'$found = $false; foreach ($line in $wire) { if ($line.IndexOf($p, [System.StringComparison]::Ordinal) -ge 0) { $found = $true; break } }; if (-not $found) { $missing += $p } }; "rs=$($files.Count) missing=$($missing.Count)"; if ($missing.Count -gt 0) { $missing }' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 49ms:
+rs=44 missing=0
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..50eef2778a840174930e8a076796e11bdb4bf0a2
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Coverage
++
++## seed-rs/codex-api/src
++
++- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
++- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
++- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
++- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
++- `seed-rs/codex-api/src/error.rs` — defines the API transport and protocol error variants (`error.rs:6`).
++- `seed-rs/codex-api/src/files.rs` — handles OpenAI file creation, authorized uploads, blob PUTs, finalization, and retry behavior (`files.rs:121`, `files.rs:185`, `files.rs:256`).
++- `seed-rs/codex-api/src/images.rs` — defines image generation and edit request/response wire types (`images.rs:3`).
++- `seed-rs/codex-api/src/lib.rs` — declares and re-exports the crate's API modules (`lib.rs:1`).
++- `seed-rs/codex-api/src/provider.rs` — defines provider configuration, `WireApi`, and endpoint URL construction (`provider.rs:48`, `provider.rs:68`).
++- `seed-rs/codex-api/src/rate_limits.rs` — parses rate-limit headers into codex rate-limit structures (`rate_limits.rs:18`).
++- `seed-rs/codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers (`safety_buffering.rs:12`).
++- `seed-rs/codex-api/src/search.rs` — defines search request, command, and response wire types (`search.rs:7`).
++- `seed-rs/codex-api/src/telemetry.rs` — defines SSE and WebSocket telemetry hooks (`telemetry.rs:14`, `telemetry.rs:22`).
++
++## seed-rs/codex-api/src/endpoint
++
++- `seed-rs/codex-api/src/endpoint/mod.rs` — declares the endpoint modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/compact.rs` — POSTs Responses compaction requests (`compact.rs:23`).
++- `seed-rs/codex-api/src/endpoint/images.rs` — POSTs image generation and edit requests (`images.rs:25`).
++- `seed-rs/codex-api/src/endpoint/memories.rs` — POSTs memory trace-summary requests (`memories.rs:23`).
++- `seed-rs/codex-api/src/endpoint/models.rs` — GETs the available model list (`models.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_call.rs` — POSTs WebRTC SDP offers to establish realtime calls (`realtime_call.rs:57`).
++- `seed-rs/codex-api/src/endpoint/responses.rs` — translates Responses and Chat requests and routes them to their endpoint transport (`responses.rs:80`).
++- `seed-rs/codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses WebSockets, serializes requests, and maps wrapped errors into event streams (`responses_websocket.rs:344`, `responses_websocket.rs:397`, `responses_websocket.rs:685`, `responses_websocket.rs:728`, `responses_websocket.rs:920`).
++- `seed-rs/codex-api/src/endpoint/search.rs` — POSTs alpha search requests (`search.rs:18`).
++- `seed-rs/codex-api/src/endpoint/session.rs` — executes shared authenticated endpoint requests (`session.rs:45`).
++
++## seed-rs/codex-api/src/endpoint/realtime_websocket
++
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol and method modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods.rs` — handles realtime WebSocket client and connection lifecycles, URL construction, and the event pump (`methods.rs:390`, `methods.rs:400`, `methods.rs:590`, `methods.rs:650`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches realtime method calls by protocol version (`methods_common.rs:26`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests common realtime method dispatch (`methods_common_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless bidirectional messages and chunks 500-byte context (`methods_frameless_bidi.rs:20`, `methods_frameless_bidi.rs:65`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless bidirectional message construction (`methods_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds realtime v1 outbound messages and `quicksilver` intents (`methods_v1.rs:8`, `methods_v1.rs:50`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds realtime v2 outbound messages, tool outputs, `background_agent`, and `remain_silent` controls (`methods_v2.rs:10`, `methods_v2.rs:24`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser, outbound, configuration, and session types (`protocol.rs:12`, `protocol.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses shared realtime payloads, sessions, transcripts, and errors (`protocol_common.rs:6`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional inbound events (`protocol_frameless_bidi.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing (`protocol_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses realtime v1 inbound events (`protocol_v1.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses realtime v2 inbound events (`protocol_v2.rs:17`).
++
++## seed-rs/codex-api/src/requests
++
++- `seed-rs/codex-api/src/requests/chat.rs` — translates outbound Responses requests into Chat Completions payloads (`chat.rs:18`, `chat.rs:208`, `chat.rs:260`).
++- `seed-rs/codex-api/src/requests/headers.rs` — builds session, thread, and subagent request headers (`headers.rs:5`, `headers.rs:16`).
++- `seed-rs/codex-api/src/requests/mod.rs` — declares request translation modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/requests/responses.rs` — defines compression encodings accepted by Responses requests (`responses.rs:1`).
++
++## seed-rs/codex-api/src/sse
++
++- `seed-rs/codex-api/src/sse/chat.rs` — translates inbound Chat Completions SSE into Responses stream events (`sse/chat.rs:30`, `sse/chat.rs:77`, `sse/chat.rs:246`).
++- `seed-rs/codex-api/src/sse/mod.rs` — declares and re-exports SSE translation modules (`sse/mod.rs:1`).
++- `seed-rs/codex-api/src/sse/responses.rs` — parses Responses SSE, verifies metadata and model output, tracks safety buffering, and classifies completion and error events (`sse/responses.rs:36`, `sse/responses.rs:169`, `sse/responses.rs:353`, `sse/responses.rs:557`).
+
+codex
+CHECKPOINT REACHED: 44 files
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..50eef2778a840174930e8a076796e11bdb4bf0a2
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Coverage
++
++## seed-rs/codex-api/src
++
++- `seed-rs/codex-api/src/api_bridge.rs` — maps API and transport failures into `CodexErr`, including request IDs, Cloudflare blocks, usage, and rate limits (`api_bridge.rs:14`).
++- `seed-rs/codex-api/src/api_bridge_tests.rs` — tests API and transport failure translation (`api_bridge_tests.rs:1`).
++- `seed-rs/codex-api/src/auth.rs` — defines the API auth-provider contract and auth telemetry hooks (`auth.rs:21`, `auth.rs:53`).
++- `seed-rs/codex-api/src/common.rs` — defines shared Responses request, event, stream, error, and usage wire types (`common.rs:130`).
++- `seed-rs/codex-api/src/error.rs` — defines the API transport and protocol error variants (`error.rs:6`).
++- `seed-rs/codex-api/src/files.rs` — handles OpenAI file creation, authorized uploads, blob PUTs, finalization, and retry behavior (`files.rs:121`, `files.rs:185`, `files.rs:256`).
++- `seed-rs/codex-api/src/images.rs` — defines image generation and edit request/response wire types (`images.rs:3`).
++- `seed-rs/codex-api/src/lib.rs` — declares and re-exports the crate's API modules (`lib.rs:1`).
++- `seed-rs/codex-api/src/provider.rs` — defines provider configuration, `WireApi`, and endpoint URL construction (`provider.rs:48`, `provider.rs:68`).
++- `seed-rs/codex-api/src/rate_limits.rs` — parses rate-limit headers into codex rate-limit structures (`rate_limits.rs:18`).
++- `seed-rs/codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers (`safety_buffering.rs:12`).
++- `seed-rs/codex-api/src/search.rs` — defines search request, command, and response wire types (`search.rs:7`).
++- `seed-rs/codex-api/src/telemetry.rs` — defines SSE and WebSocket telemetry hooks (`telemetry.rs:14`, `telemetry.rs:22`).
++
++## seed-rs/codex-api/src/endpoint
++
++- `seed-rs/codex-api/src/endpoint/mod.rs` — declares the endpoint modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/compact.rs` — POSTs Responses compaction requests (`compact.rs:23`).
++- `seed-rs/codex-api/src/endpoint/images.rs` — POSTs image generation and edit requests (`images.rs:25`).
++- `seed-rs/codex-api/src/endpoint/memories.rs` — POSTs memory trace-summary requests (`memories.rs:23`).
++- `seed-rs/codex-api/src/endpoint/models.rs` — GETs the available model list (`models.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_call.rs` — POSTs WebRTC SDP offers to establish realtime calls (`realtime_call.rs:57`).
++- `seed-rs/codex-api/src/endpoint/responses.rs` — translates Responses and Chat requests and routes them to their endpoint transport (`responses.rs:80`).
++- `seed-rs/codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses WebSockets, serializes requests, and maps wrapped errors into event streams (`responses_websocket.rs:344`, `responses_websocket.rs:397`, `responses_websocket.rs:685`, `responses_websocket.rs:728`, `responses_websocket.rs:920`).
++- `seed-rs/codex-api/src/endpoint/search.rs` — POSTs alpha search requests (`search.rs:18`).
++- `seed-rs/codex-api/src/endpoint/session.rs` — executes shared authenticated endpoint requests (`session.rs:45`).
++
++## seed-rs/codex-api/src/endpoint/realtime_websocket
++
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol and method modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods.rs` — handles realtime WebSocket client and connection lifecycles, URL construction, and the event pump (`methods.rs:390`, `methods.rs:400`, `methods.rs:590`, `methods.rs:650`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches realtime method calls by protocol version (`methods_common.rs:26`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests common realtime method dispatch (`methods_common_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless bidirectional messages and chunks 500-byte context (`methods_frameless_bidi.rs:20`, `methods_frameless_bidi.rs:65`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless bidirectional message construction (`methods_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds realtime v1 outbound messages and `quicksilver` intents (`methods_v1.rs:8`, `methods_v1.rs:50`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds realtime v2 outbound messages, tool outputs, `background_agent`, and `remain_silent` controls (`methods_v2.rs:10`, `methods_v2.rs:24`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser, outbound, configuration, and session types (`protocol.rs:12`, `protocol.rs:30`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses shared realtime payloads, sessions, transcripts, and errors (`protocol_common.rs:6`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional inbound events (`protocol_frameless_bidi.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing (`protocol_frameless_bidi_tests.rs:1`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses realtime v1 inbound events (`protocol_v1.rs:15`).
++- `seed-rs/codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses realtime v2 inbound events (`protocol_v2.rs:17`).
++
++## seed-rs/codex-api/src/requests
++
++- `seed-rs/codex-api/src/requests/chat.rs` — translates outbound Responses requests into Chat Completions payloads (`chat.rs:18`, `chat.rs:208`, `chat.rs:260`).
++- `seed-rs/codex-api/src/requests/headers.rs` — builds session, thread, and subagent request headers (`headers.rs:5`, `headers.rs:16`).
++- `seed-rs/codex-api/src/requests/mod.rs` — declares request translation modules (`mod.rs:1`).
++- `seed-rs/codex-api/src/requests/responses.rs` — defines compression encodings accepted by Responses requests (`responses.rs:1`).
++
++## seed-rs/codex-api/src/sse
++
++- `seed-rs/codex-api/src/sse/chat.rs` — translates inbound Chat Completions SSE into Responses stream events (`sse/chat.rs:30`, `sse/chat.rs:77`, `sse/chat.rs:246`).
++- `seed-rs/codex-api/src/sse/mod.rs` — declares and re-exports SSE translation modules (`sse/mod.rs:1`).
++- `seed-rs/codex-api/src/sse/responses.rs` — parses Responses SSE, verifies metadata and model output, tracks safety buffering, and classifies completion and error events (`sse/responses.rs:36`, `sse/responses.rs:169`, `sse/responses.rs:353`, `sse/responses.rs:557`).
+
+tokens used
+219.205
+CHECKPOINT REACHED: 44 files

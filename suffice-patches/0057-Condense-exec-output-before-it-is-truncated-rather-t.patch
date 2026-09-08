@@ -1,0 +1,943 @@
+From 9020af6b683286e6651a602760deec59017272e4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Sun, 6 Sep 2026 17:01:54 +0300
+Subject: [PATCH 57/71] Condense exec output before it is truncated rather than
+ after
+
+`shrink_exec_output` ran in `to_response_item`, on text that
+`truncated_output_with_policy` had already cut to the model's budget and that
+`response_header` had already been prepended to. Both orderings were wrong, and
+the recorded sessions show what they cost. One `Get-ChildItem -Recurse`
+returned 16,154 tokens of which 82% were paths under `node_modules`; the budget
+was spent on those and the middle truncation dropped the project's own files to
+make room. And the header is four to five lines, so `KEEP_HEAD_LINES = 5` was
+keeping `Chunk ID`, `Wall time`, `Process exited with code 0` and
+`Original token count` rather than the first lines of what ran.
+
+Condensing now happens on the raw text, before either step, in three stages
+ordered cheapest and safest first. `normalize` is lossless and unconditional:
+escape sequences, carriage-return overwrites, `\r\n` terminators and the column
+padding `Format-Table` and `Select-String` add carry nothing a reader could act
+on. `filter_artifact_paths` drops listing lines under a generated directory,
+matching path components rather than the text of a line so an ignore file that
+names `dist` keeps its lines. `shrink_text` is unchanged and still last, so it
+counts the command's own lines.
+
+Two gates are new. A poll of a still-running session carries no command, so the
+allowlist could never match it, and it has no exit code, so the clean-exit gate
+refused it -- yet that is where output is largest: one measured `write_stdin`
+poll returned 45,319 tokens of server log whose only useful line, the traceback
+the model then fixed, was the last one. It is now shrinkable on the strength of
+the live process. And a lossy stage must remove more than the notice explaining
+it: the stages are gated on line counts, and a `git commit` printing fifty
+one-word lines clears every line threshold while amounting to less than the
+notice.
+
+The notice itself is only written for the lossy stages. Announcing the lossless
+ones would have cost more than they save -- 59% of recorded outputs carry some
+padding or a stray escape sequence, against 12-25% that lose content -- so the
+header names what the model can no longer see and nothing else, and the marker
+in the body only marks where the gap is, since the header carries the rest one
+screen above.
+
+Measured by replaying the real condenser over 892 recorded tool outputs:
+476,400 tokens to 439,130, a 7.8% reduction, with 389 tokens spent on nine
+notices and no output where a notice cost more than it saved. That replay also
+caught a bug this change would otherwise have shipped: taking the last
+carriage-return-separated segment of a line deletes every line of Windows
+output, because a trailing `\r` is the terminator rather than the start of an
+overwrite. It read as a 75.9% saving.
+
+Not validated live.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0156uYU7hEWMfdx4m8WUF9cX
+---
+ codex-rs/cli/src/transcript.rs                |  17 +-
+ .../core/src/context_manager/tool_output.rs   | 297 ++++++++++++++++--
+ .../src/context_manager/tool_output_tests.rs  | 246 ++++++++++++---
+ codex-rs/core/src/tools/context.rs            |  74 +++--
+ 4 files changed, 528 insertions(+), 106 deletions(-)
+
+diff --git a/codex-rs/cli/src/transcript.rs b/codex-rs/cli/src/transcript.rs
+index 30085f814c..ca68a434c6 100644
+--- a/codex-rs/cli/src/transcript.rs
++++ b/codex-rs/cli/src/transcript.rs
+@@ -342,8 +342,11 @@ fn write_request_facts(out: &mut String, request: &Request) {
+     }
+ }
+ 
+-/// The fragment `shrink_exec_output` writes into an output it trimmed.
+-const SHRINK_MARKER: &str = "the harness trimmed this output, the command did not";
++/// The fragment the response header carries when `condense_exec_output` removed anything.
++///
++/// Keyed on the header notice rather than on the head/tail marker, because filtering a
++/// listing or stripping escape sequences condenses an output without trimming its middle.
++const CONDENSE_MARKER: &str = "Harness trimmed ";
+ 
+ fn write_items(out: &mut String, request: &Request) {
+     for item in &request.items {
+@@ -373,15 +376,15 @@ fn write_items(out: &mut String, request: &Request) {
+                     continue;
+                 };
+                 let call_id = call_id.as_deref().unwrap_or("?");
+-                // The shrinker runs as the tool returns, so the trimmed text is the only
+-                // version history ever held, and its marker is right here in it.
+-                let was_shrunk = text.contains(SHRINK_MARKER);
++                // Condensing runs as the tool returns, so the condensed text is the only
++                // version history ever held, and its notice is right here in it.
++                let was_condensed = text.contains(CONDENSE_MARKER);
+                 let total = text.lines().count();
+                 let _ = writeln!(
+                     out,
+                     "\n> tool_output {call_id} — {}",
+-                    if was_shrunk {
+-                        format!("{total} lines, trimmed by the harness on its way to the model")
++                    if was_condensed {
++                        format!("{total} lines, condensed by the harness on its way to the model")
+                     } else {
+                         format!("{total} lines, seen whole")
+                     }
+diff --git a/codex-rs/core/src/context_manager/tool_output.rs b/codex-rs/core/src/context_manager/tool_output.rs
+index 64cba2de29..898fab5bc0 100644
+--- a/codex-rs/core/src/context_manager/tool_output.rs
++++ b/codex-rs/core/src/context_manager/tool_output.rs
+@@ -1,16 +1,29 @@
+-//! Shrinking of tool output that belongs to a finished turn.
++//! Condensing of exec output on its way to the model.
+ //!
+ //! A coding agent spends most of its context on command output, and most of that output is
+-//! progress noise: `Compiling ...` lines, per-test `ok` lines, npm's package tree. What the
+-//! model still needs afterwards is the summary at the end, plus enough of the head to
+-//! recognize what ran.
++//! noise: terminal escape sequences, column padding, the dependency tree under
++//! `node_modules`, a build's `Compiling ...` lines. What the model still needs is the
++//! summary at the end, plus enough of the head to recognize what ran.
+ //!
+-//! Shrinking happens on the copy of history built for a request, never on stored history, so
+-//! the transcript and the UI keep the real output. It applies only to turns that have
+-//! finished, and only from the point where the prompt cache is already invalidated by a
+-//! dropped item, so it never costs a re-prefill of its own.
++//! Three stages, cheapest and safest first:
++//!
++//! 1. [`normalize`] is lossless and unconditional. Escape sequences, carriage-return
++//!    overwrites and trailing padding carry no information a reader could act on, so there is
++//!    no case in which keeping them is right.
++//! 2. [`filter_artifact_paths`] drops listing lines that live under a build or dependency
++//!    directory. Lossy, so it is gated on the command not having asked for one.
++//! 3. [`shrink_text`] keeps the head and tail of output whose middle is a receipt.
++//!
++//! All of it runs before the output is truncated to the model's budget, so noise is never
++//! what pushes real content past the limit, and before the harness header is prepended, so
++//! the head that is kept is the command's own first lines rather than the harness's metadata.
++//! The condensed text is the only version the prompt ever holds, which is why this costs no
++//! cache: rewriting history afterwards would re-prefill everything after the rewrite.
++
++use std::sync::LazyLock;
+ 
+ use codex_utils_output_truncation::approx_token_count;
++use regex_lite::Regex;
+ 
+ /// Lines kept from the start, so the model can still tell what ran.
+ const KEEP_HEAD_LINES: usize = 5;
+@@ -19,6 +32,102 @@ const KEEP_TAIL_LINES: usize = 30;
+ /// Shrinking below this size would remove almost nothing while still costing information.
+ const MIN_LINES_TO_SHRINK: usize = KEEP_HEAD_LINES + KEEP_TAIL_LINES + 10;
+ 
++/// Path components whose contents are generated, vendored, or version-control internals.
++///
++/// A recursive listing of a JavaScript or Rust workspace is mostly these: one measured
++/// `Get-ChildItem -Recurse` returned 500 lines of which 82% were under `node_modules`, and the
++/// truncation that followed dropped the project's own files to make room for them.
++const ARTIFACT_DIRECTORIES: &[&str] = &[
++    "node_modules",
++    ".git",
++    "dist",
++    "build",
++    ".next",
++    "target",
++    "__pycache__",
++    ".venv",
++    ".pytest_cache",
++    ".mypy_cache",
++    ".gradle",
++    "vendor",
++];
++
++/// Below this, filtering costs a line of explanation to save less than it spends.
++const MIN_ARTIFACT_LINES: usize = 10;
++
++/// What a lossy stage has to remove before it is worth running at all.
++///
++/// The stages below are gated on line counts, and a line count says nothing about size: a
++/// `git commit` that prints fifty one-word lines is over every line threshold and still
++/// smaller than the notice explaining what was cut. The notice is ~40 tokens in the header
++/// plus ~16 in the body marker, so anything under roughly double that is a loss.
++const MIN_LOSSY_TOKENS: usize = 120;
++/// Above this share the listing *is* the artifact tree, so the model went looking for it.
++const MAX_ARTIFACT_SHARE: f32 = 0.9;
++
++/// CSI escape sequences, which is what colour and cursor movement are made of.
++///
++/// `regex-lite` is already a dependency of this crate. The `codex-ansi-escape` crate is not
++/// usable here: it renders into `ratatui` types and would pull a TUI dependency into core.
++static CSI_ESCAPE: LazyLock<Regex> =
++    LazyLock::new(|| Regex::new(r"\x1b\[[0-9;?]*[ -/]*[@-~]").unwrap());
++
++/// What condensing removed, so the harness can say so in the response header.
++///
++/// Counted rather than merely flagged: a model that is told output was altered but not how
++/// much has no way to judge whether re-running the command would show it more.
++#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
++pub(crate) struct CondenseReport {
++    /// Terminal escape sequences removed.
++    pub(crate) escape_sequences: usize,
++    /// Lines that lost a carriage-return overwrite or trailing padding.
++    pub(crate) rewritten_lines: usize,
++    /// Listing lines dropped for living under a build or dependency directory.
++    pub(crate) artifact_lines: usize,
++    /// Middle lines dropped by head/tail shrinking.
++    pub(crate) middle_lines: usize,
++    /// Approximate tokens the whole pass removed.
++    pub(crate) removed_tokens: usize,
++}
++
++impl CondenseReport {
++    pub(crate) fn is_empty(&self) -> bool {
++        *self == Self::default()
++    }
++
++    /// One line for the response header, naming what the model can no longer see.
++    ///
++    /// **Lossless removals are not announced.** Nothing was lost, so there is nothing the
++    /// model could do differently, and the notice would cost more than it saved: 59% of
++    /// measured outputs carry some padding or a stray escape sequence, and a line of
++    /// explanation on each of them outweighs the padding removed from all of them. Announcing
++    /// only the lossy stages moves the notice from 59% of outputs to 12-25% of them.
++    ///
++    /// What it does say is short and load-bearing: a model that reads a gap, blames the
++    /// command and runs it again spends a whole request, which is worth far more than this
++    /// line.
++    pub(crate) fn summary(&self) -> Option<String> {
++        let mut causes = Vec::new();
++        if self.middle_lines > 0 {
++            causes.push(format!("{} middle lines", self.middle_lines));
++        }
++        if self.artifact_lines > 0 {
++            causes.push(format!(
++                "{} generated-directory lines",
++                self.artifact_lines
++            ));
++        }
++        if causes.is_empty() {
++            return None;
++        }
++        Some(format!(
++            "Harness trimmed {} (~{} tokens); re-running is identical.",
++            causes.join(", "),
++            self.removed_tokens,
++        ))
++    }
++}
++
+ /// Commands whose successful output is progress noise around a final summary line.
+ ///
+ /// This is an allowlist rather than a list of commands to protect. A command we fail to
+@@ -97,25 +206,157 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
+     ),
+ ];
+ 
+-/// Shrinks one exec result before it is ever sent to the model.
++/// Condenses one exec result before it is ever sent to the model.
++///
++/// Returns `None` when nothing was removed, so the caller can keep the original string rather
++/// than pay for a copy of it.
+ ///
+-/// This is the cheap place to do it. Shrinking history after the fact rewrites a prompt the
+-/// cache has already seen, so it can only pay for itself from a prefix break someone else
+-/// already paid for; shrinking the output as the tool returns it costs no cache at all, because
+-/// the smaller text is the only version the prefix has ever held.
++/// `arguments` is the tool call's JSON, which carries the command matched against the
++/// allowlist and checked for an explicit request for a generated directory. `exit_code` and
++/// `process_id` together say which shrinking rule applies:
+ ///
+-/// `arguments` is the tool call's JSON, which carries the command matched against the allowlist.
+-/// Only a clean exit is shrunk: a failure's output is the most valuable thing in the context and
+-/// is always kept whole.
+-pub(crate) fn shrink_exec_output(
++/// - a clean exit of an allowlisted command is a receipt around a summary;
++/// - no exit code but a live process is a poll of a still-running session, whose log is
++///   unbounded and whose tail is the answer — that is where a server prints the traceback the
++///   model is waiting for;
++/// - a failure keeps its output whole, because it is the most valuable thing in the context.
++pub(crate) fn condense_exec_output(
+     arguments: &str,
+     exit_code: Option<i32>,
++    process_id: Option<i32>,
++    text: &str,
++) -> Option<(String, CondenseReport)> {
++    let mut report = CondenseReport::default();
++
++    let normalized = normalize(text, &mut report);
++    // Measured after normalizing, so the reported size is what the model can no longer see
++    // rather than padding it was never going to read.
++    let visible_tokens = approx_token_count(&normalized);
++
++    // The lossy stages are attempted against a copy, because whether they are worth running
++    // is not known until their size is: they are gated on line counts, and ten short lines
++    // cost less than the line that has to announce their removal.
++    let mut lossy = CondenseReport::default();
++    let mut candidate: Option<String> = filter_artifact_paths(arguments, &normalized, &mut lossy);
++
++    let shrinkable = match (exit_code, process_id) {
++        // A finished command whose output is progress noise around a final summary.
++        (Some(0), _) => command_is_shrinkable(arguments),
++        // A poll of a still-running session: unbounded log, and the tail is the answer.
++        (None, Some(_)) => true,
++        _ => false,
++    };
++    if shrinkable
++        && let Some((shrunk, removed)) = shrink_text(candidate.as_deref().unwrap_or(&normalized))
++    {
++        lossy.middle_lines = removed;
++        candidate = Some(shrunk);
++    }
++
++    let mut current = normalized;
++    if let Some(condensed) = candidate {
++        let removed = visible_tokens.saturating_sub(approx_token_count(&condensed));
++        if removed >= MIN_LOSSY_TOKENS {
++            report.artifact_lines = lossy.artifact_lines;
++            report.middle_lines = lossy.middle_lines;
++            report.removed_tokens = removed;
++            current = condensed;
++        }
++        // Otherwise the lossless result stands: losing content the model might want is only
++        // justified when it buys more than the notice explaining the loss.
++    }
++
++    if report.is_empty() {
++        return None;
++    }
++    Some((current, report))
++}
++
++/// Removes what a terminal would never have shown a reader, and nothing else.
++///
++/// Three things, none of which a model can act on:
++///
++/// - **Escape sequences.** Colour and cursor codes from dev servers and test runners.
++/// - **Carriage-return overwrites.** A progress bar writes `10%\r20%\r30%` into one line; a
++///   terminal shows only the last. Deleting the `\r` instead would splice the discarded
++///   states into one very long line, which is worse than leaving them alone.
++/// - **Windows line terminators.** `\r\n` becomes `\n`, one character a line.
++/// - **Trailing padding.** `Format-Table` and `Select-String` pad every row to a fixed width.
++fn normalize(text: &str, report: &mut CondenseReport) -> String {
++    let mut lines: Vec<String> = Vec::new();
++    for raw_line in text.split('\n') {
++        // The line terminator first: on Windows every line ends `\r\n`, and a trailing `\r` is
++        // the end of this line rather than the start of an overwrite. Taking the last
++        // carriage-return-separated segment without removing it would leave the empty string
++        // after that `\r`, which silently deletes every line of Windows output. Measured
++        // against real rollouts that bug read as a 75.9% saving.
++        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
++        // Then the overwrites: a progress bar writes `10%\r50%\r100%` into one line and a
++        // terminal shows only the last state.
++        let visible = line.rsplit('\r').next().unwrap_or(line);
++        let escapes = CSI_ESCAPE.find_iter(visible).count();
++        let stripped = if escapes > 0 {
++            CSI_ESCAPE.replace_all(visible, "")
++        } else {
++            std::borrow::Cow::Borrowed(visible)
++        };
++        let trimmed = stripped.trim_end();
++        report.escape_sequences += escapes;
++        // Counted against the escape-stripped text so a coloured line is not also reported as
++        // a rewritten one; escapes have their own counter.
++        if raw_line.len() != line.len()
++            || visible.len() != line.len()
++            || trimmed.len() != stripped.len()
++        {
++            report.rewritten_lines += 1;
++        }
++        lines.push(trimmed.to_string());
++    }
++    lines.join("\n")
++}
++
++/// Drops listing lines that live inside a build or dependency directory.
++///
++/// Unlike [`normalize`] this loses information, so three things have to hold: the command did
++/// not name one of these directories itself, enough lines match to be worth explaining, and
++/// they are not almost the whole output. The last two are what separate "a project listing
++/// buried under its dependencies" from "the model is reading `node_modules` on purpose".
++///
++/// The match is on path *components*, not on the text of the line, so a `.gitignore` listing
++/// `dist` or a log mentioning a build does not lose lines.
++fn filter_artifact_paths(
++    arguments: &str,
+     text: &str,
++    report: &mut CondenseReport,
+ ) -> Option<String> {
+-    if exit_code != Some(0) || !command_is_shrinkable(arguments) {
++    if ARTIFACT_DIRECTORIES
++        .iter()
++        .any(|directory| arguments.contains(directory))
++    {
+         return None;
+     }
+-    shrink_text(text).map(|(shrunk, _)| shrunk)
++    let lines: Vec<&str> = text.split('\n').collect();
++    let kept: Vec<&str> = lines
++        .iter()
++        .copied()
++        .filter(|line| !is_artifact_path(line))
++        .collect();
++    let dropped = lines.len() - kept.len();
++    if dropped < MIN_ARTIFACT_LINES || dropped as f32 > lines.len() as f32 * MAX_ARTIFACT_SHARE {
++        return None;
++    }
++    report.artifact_lines = dropped;
++    Some(kept.join("\n"))
++}
++
++fn is_artifact_path(line: &str) -> bool {
++    let trimmed = line.trim();
++    if !trimmed.contains(['/', '\\']) {
++        return false;
++    }
++    trimmed
++        .split(['/', '\\'])
++        .any(|component| ARTIFACT_DIRECTORIES.contains(&component))
+ }
+ 
+ /// Reads the command out of a tool call's JSON arguments and matches it against the allowlist.
+@@ -215,18 +456,14 @@ fn shrink_text(text: &str) -> Option<(String, usize)> {
+     let removed = lines.len() - KEEP_HEAD_LINES - KEEP_TAIL_LINES;
+     let head = lines[..KEEP_HEAD_LINES].join("\n");
+     let tail = lines[lines.len() - KEEP_TAIL_LINES..].join("\n");
+-    // Named in the marker so the saving can be totalled from a rollout on its own, without
+-    // instrumentation the baseline does not have.
+-    let removed_tokens =
+-        approx_token_count(&lines[KEEP_HEAD_LINES..lines.len() - KEEP_TAIL_LINES].join("\n"));
+-    // The marker names the exit status and the actor. A model that cannot tell whether the
+-    // command succeeded, or whether the command itself printed nothing, will run it again.
++    // The marker's whole job is to put the gap where the gap is, so the model reads a cut
++    // rather than the end of the output. Everything else it could say is already one screen
++    // away in the header -- who cut it, how many tokens, that re-running is identical -- and
++    // the header is not repeated here because both are paid on every request that carries
++    // this output. Shrinking only ever runs on a clean exit, so the model can also see
++    // `Process exited with code 0` right above.
+     Some((
+-        format!(
+-            "{head}\n\n[system] exit 0 - the harness trimmed this output, the command did not. \
+-             {removed} middle lines (~{removed_tokens} tokens) removed; re-running the command \
+-             produces the same trimmed result.\n\n{tail}"
+-        ),
++        format!("{head}\n\n[system] {removed} lines trimmed\n\n{tail}"),
+         removed,
+     ))
+ }
+diff --git a/codex-rs/core/src/context_manager/tool_output_tests.rs b/codex-rs/core/src/context_manager/tool_output_tests.rs
+index ffe060bbdf..105d501220 100644
+--- a/codex-rs/core/src/context_manager/tool_output_tests.rs
++++ b/codex-rs/core/src/context_manager/tool_output_tests.rs
+@@ -1,7 +1,4 @@
+ use super::*;
+-use codex_protocol::models::FunctionCallOutputPayload;
+-
+-const CALL_ID: &str = "call-1";
+ 
+ /// Output long enough to be worth shrinking, with a recognizable first and last line.
+ fn noisy_output() -> String {
+@@ -13,29 +10,49 @@ fn noisy_output() -> String {
+     lines.join("\n")
+ }
+ 
+-/// Runs the live shrinker over one call's arguments and output.
+-fn shrink_pair(arguments: &str, text: &str, success: Option<bool>) -> String {
++/// A recursive listing whose project files are buried under its dependency tree.
++fn listing(project_lines: usize, artifact_lines: usize) -> String {
++    let mut lines = Vec::new();
++    for index in 0..project_lines {
++        lines.push(format!("C:\\work\\app\\src\\page-{index}.tsx"));
++    }
++    for index in 0..artifact_lines {
++        lines.push(format!("C:\\work\\app\\node_modules\\dep-{index}\\index.js"));
++    }
++    lines.join("\n")
++}
++
++/// Runs the live condenser over one finished call's arguments and output.
++fn condense_pair(arguments: &str, text: &str, success: Option<bool>) -> String {
+     let exit_code = match success {
+         Some(true) => Some(0),
+         Some(false) => Some(1),
+         None => None,
+     };
+-    shrink_exec_output(arguments, exit_code, text).unwrap_or_else(|| text.to_string())
++    condense_exec_output(arguments, exit_code, /*process_id*/ None, text)
++        .map(|(condensed, _)| condensed)
++        .unwrap_or_else(|| text.to_string())
+ }
+ 
+-fn shrink_command(command: &str) -> String {
++fn condense_command(command: &str) -> String {
+     let arguments = serde_json::json!({ "command": command }).to_string();
+-    shrink_pair(&arguments, &noisy_output(), Some(true))
++    condense_pair(&arguments, &noisy_output(), Some(true))
++}
++
++fn report_for(arguments: &str, text: &str) -> CondenseReport {
++    condense_exec_output(arguments, Some(0), /*process_id*/ None, text)
++        .map(|(_, report)| report)
++        .unwrap_or_default()
+ }
+ 
+ fn was_shrunk(text: &str) -> bool {
+-    text.contains("[system] exit 0")
++    text.contains("[system] ") && text.contains(" lines trimmed")
+ }
+ 
+ #[test]
+ fn shrinks_a_successful_allowlisted_command() {
+     let arguments = serde_json::json!({ "command": "cargo build --release" }).to_string();
+-    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = condense_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+     // The head and tail survive, so the model can still tell what ran and how it ended.
+     assert!(shrunk.starts_with("first\n"), "{shrunk}");
+@@ -47,15 +64,15 @@ fn shrinks_a_successful_allowlisted_command() {
+ fn keeps_failed_output_whole() {
+     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+     let text = noisy_output();
+-    assert_eq!(shrink_pair(&arguments, &text, Some(false)), text);
+-    assert_eq!(shrink_pair(&arguments, &text, None), text);
++    assert_eq!(condense_pair(&arguments, &text, Some(false)), text);
++    assert_eq!(condense_pair(&arguments, &text, None), text);
+ }
+ 
+ #[test]
+ fn keeps_short_output_whole() {
+     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+     let text = "one\ntwo\nthree";
+-    assert_eq!(shrink_pair(&arguments, text, Some(true)), text);
++    assert_eq!(condense_pair(&arguments, text, Some(true)), text);
+ }
+ 
+ #[test]
+@@ -69,7 +86,7 @@ fn keeps_commands_that_are_not_allowlisted() {
+         "gh pr view 12",
+         "ls -la",
+     ] {
+-        let shrunk = shrink_command(command);
++        let shrunk = condense_command(command);
+         assert!(!was_shrunk(&shrunk), "{command} should not be shrunk");
+     }
+ }
+@@ -91,7 +108,7 @@ fn shrinks_common_build_and_test_commands() {
+         "CI=1 npm test",
+         "eslint src",
+     ] {
+-        let shrunk = shrink_command(command);
++        let shrunk = condense_command(command);
+         assert!(was_shrunk(&shrunk), "{command} should be shrunk");
+     }
+ }
+@@ -105,7 +122,7 @@ fn refuses_chained_or_redirected_command_lines() {
+         "cargo build; cat out.txt",
+         "cargo build $(echo --release)",
+     ] {
+-        let shrunk = shrink_command(command);
++        let shrunk = condense_command(command);
+         assert!(!was_shrunk(&shrunk), "{command} should not be shrunk");
+     }
+ }
+@@ -114,55 +131,167 @@ fn refuses_chained_or_redirected_command_lines() {
+ fn unwraps_a_shell_wrapper_argv() {
+     let arguments =
+         serde_json::json!({ "command": ["bash", "-lc", "cargo build --release"] }).to_string();
+-    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = condense_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+ 
+     let arguments = serde_json::json!({ "command": ["bash", "-lc", "git status"] }).to_string();
+-    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = condense_pair(&arguments, &noisy_output(), Some(true));
+     assert!(!was_shrunk(&shrunk), "{shrunk}");
+ }
+ 
+ #[test]
+ fn accepts_a_plain_argv_command() {
+     let arguments = serde_json::json!({ "command": ["cargo", "test", "--all"] }).to_string();
+-    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = condense_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+ }
+ 
+ #[test]
+-fn marker_reports_the_exit_status_and_the_actor() {
+-    let shrunk = shrink_command("cargo build");
+-    // A model that cannot tell the harness did this will run the command again.
+-    assert!(shrunk.contains("exit 0"), "{shrunk}");
+-    assert!(
+-        shrunk.contains("the harness trimmed this output, the command did not"),
+-        "{shrunk}"
+-    );
+-    assert!(shrunk.contains("re-running the command"), "{shrunk}");
+-    assert!(shrunk.contains("167 middle lines"), "{shrunk}");
+-    // The size is named so a rollout can be priced without the sidecar.
+-    assert!(shrunk.contains("tokens) removed"), "{shrunk}");
++fn marker_marks_the_gap_and_nothing_else() {
++    let shrunk = condense_command("cargo build");
++    // The marker only marks the gap. Who trimmed it, how much, and that re-running is
++    // identical are all in the header one screen above; repeating any of it here would be
++    // paid twice on every request that carries this output.
++    assert!(was_shrunk(&shrunk), "{shrunk}");
++    assert!(shrunk.contains("[system] 167 lines trimmed"), "{shrunk}");
++    assert!(!shrunk.contains("re-running"), "{shrunk}");
+ }
+ 
+ #[test]
+-fn exec_output_is_shrunk_on_the_way_to_the_model() {
+-    let arguments = r#"{"command":"cargo build"}"#;
+-    let noisy = noisy_output();
++fn polls_of_a_running_session_keep_the_head_and_tail() {
++    // A `write_stdin` poll carries no command, so the allowlist can never match it; the gate
++    // is the live process. One measured poll returned 45,319 tokens of server log whose only
++    // useful line -- the traceback the model then fixed -- was the last one.
++    let arguments = serde_json::json!({ "session_id": 20885, "chars": "" }).to_string();
++    let mut log: Vec<String> = (0..200)
++        .map(|index| format!("INFO: 127.0.0.1:{index} - \"POST /api/auth/login HTTP/1.1\" 200 OK"))
++        .collect();
++    log.push("sqlite3.ProgrammingError: objects created in a thread".to_string());
++    let text = log.join("\n");
+ 
+-    let shrunk = shrink_exec_output(arguments, Some(0), &noisy).expect("clean build is shrinkable");
+-    assert!(shrunk.len() < noisy.len(), "{shrunk}");
+-    assert!(shrunk.starts_with("first"), "{shrunk}");
+-    assert!(shrunk.ends_with("last"), "{shrunk}");
++    let (condensed, report) =
++        condense_exec_output(&arguments, /*exit_code*/ None, Some(20885), &text)
++            .expect("a live session poll is shrinkable");
++    assert!(was_shrunk(&condensed), "{condensed}");
++    assert!(condensed.ends_with("sqlite3.ProgrammingError: objects created in a thread"));
++    assert!(report.middle_lines > 0);
++    assert!(condensed.len() < text.len());
+ 
+-    // A failure's output is the most valuable thing in the context.
+-    assert_eq!(shrink_exec_output(arguments, Some(1), &noisy), None);
+-    // So is the output of a command the allowlist does not recognize.
++    // Without a live process there is nothing known to be running, so nothing is assumed.
+     assert_eq!(
+-        shrink_exec_output(r#"{"command":"Get-Content big.log"}"#, Some(0), &noisy),
++        condense_exec_output(&arguments, /*exit_code*/ None, None, &text),
+         None
+     );
+-    // An interactive session reports no exit code, so nothing is known to have finished.
+-    assert_eq!(shrink_exec_output(arguments, None, &noisy), None);
++}
++
++#[test]
++fn strips_escape_sequences_and_padding() {
++    let text = "\u{1b}[32mINFO\u{1b}[0m   ready   \nplain line";
++    let (condensed, report) =
++        condense_exec_output("{}", Some(0), None, text).expect("noise is removed");
++    assert_eq!(condensed, "INFO   ready\nplain line");
++    assert_eq!(report.escape_sequences, 2);
++    assert_eq!(report.rewritten_lines, 1);
++    // Nothing was lost, so nothing is announced. 59% of measured outputs carry some padding;
++    // a line of explanation on each would cost more than the padding removed from all of them.
++    assert_eq!(report.summary(), None);
++}
++
++#[test]
++fn keeps_windows_line_endings_intact() {
++    // A trailing carriage return ends the line; treating it as an overwrite separator would
++    // leave the empty string after it and delete every line of Windows output. Measured
++    // against real rollouts this bug looked like a 75.9% saving.
++    let text = "first line\r\nsecond line\r\nthird line";
++    let (condensed, _) =
++        condense_exec_output("{}", Some(0), None, text).expect("the terminators are removed");
++    assert_eq!(condensed, "first line\nsecond line\nthird line");
++}
++
++#[test]
++fn keeps_only_the_last_state_of_a_carriage_return_overwrite() {
++    // Deleting the carriage return instead would splice every discarded state into one line.
++    let text = "10%\r50%\r100% done\nnext";
++    let (condensed, report) =
++        condense_exec_output("{}", Some(0), None, text).expect("the overwrite is removed");
++    assert_eq!(condensed, "100% done\nnext");
++    assert_eq!(report.rewritten_lines, 1);
++}
++
++#[test]
++fn leaves_clean_output_untouched() {
++    // Nothing removed means no copy and no notice in the header.
++    assert_eq!(condense_exec_output("{}", Some(0), None, "one\ntwo"), None);
++}
++
++#[test]
++fn drops_generated_directory_lines_from_a_listing() {
++    let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
++    let text = listing(/*project*/ 10, /*artifact*/ 20);
++    let report = report_for(&arguments, &text);
++    assert_eq!(report.artifact_lines, 20);
++
++    let (condensed, _) = condense_exec_output(&arguments, Some(0), None, &text).expect("filtered");
++    assert!(!condensed.contains("node_modules"), "{condensed}");
++    assert!(condensed.contains("page-0.tsx"), "{condensed}");
++    assert!(condensed.contains("page-9.tsx"), "{condensed}");
++}
++
++#[test]
++fn matches_path_components_rather_than_the_text_of_a_line() {
++    // A listing of ignore rules names these directories without being one.
++    let arguments = serde_json::json!({ "cmd": "Get-Content .gitignore" }).to_string();
++    let text = (0..20)
++        .map(|index| format!("dist-{index}/"))
++        .collect::<Vec<_>>()
++        .join("\n");
++    assert_eq!(report_for(&arguments, &text).artifact_lines, 0);
++}
++
++#[test]
++fn keeps_a_listing_the_command_asked_for() {
++    // If the model went looking inside the dependency tree, the answer is the dependency tree.
++    let arguments =
++        serde_json::json!({ "cmd": "Get-ChildItem -Recurse app/node_modules" }).to_string();
++    let text = listing(/*project*/ 10, /*artifact*/ 20);
++    assert_eq!(report_for(&arguments, &text).artifact_lines, 0);
++}
++
++#[test]
++fn keeps_a_listing_with_too_few_artifact_lines() {
++    let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
++    let text = listing(/*project*/ 20, /*artifact*/ 5);
++    assert_eq!(report_for(&arguments, &text).artifact_lines, 0);
++}
++
++#[test]
++fn keeps_a_listing_that_is_almost_entirely_artifacts() {
++    let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
++    let text = listing(/*project*/ 1, /*artifact*/ 19);
++    assert_eq!(report_for(&arguments, &text).artifact_lines, 0);
++}
++
++#[test]
++fn summary_names_every_cause_and_the_size() {
++    let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
++    let mut text = listing(/*project*/ 10, /*artifact*/ 20);
++    text.push_str("\n\u{1b}[32mdone\u{1b}[0m   ");
++
++    let report = report_for(&arguments, &text);
++    let summary = report.summary().expect("something was removed");
++    assert!(
++        summary.contains("Harness trimmed 20 generated-directory lines"),
++        "{summary}"
++    );
++    assert!(summary.contains("re-running is identical"), "{summary}");
++    assert!(report.removed_tokens > 0);
++    // Lossless causes were counted but are deliberately absent from the notice.
++    assert_eq!(report.escape_sequences, 2);
++    assert_eq!(report.rewritten_lines, 1);
++    assert!(!summary.contains("escape"), "{summary}");
++    assert!(!summary.contains("padding"), "{summary}");
++
++    assert_eq!(CondenseReport::default().summary(), None);
+ }
+ 
+ #[test]
+@@ -174,3 +303,32 @@ fn reads_the_command_from_either_shell_tool() {
+     ));
+     assert!(!command_is_shrinkable(r#"{"cmd":"Get-Content big.log"}"#));
+ }
++
++#[test]
++fn leaves_a_short_lined_output_alone_even_when_it_is_long() {
++    // Fifty one-word lines clear every line threshold and still amount to less than the
++    // notice that would explain the cut. A `git commit` listing changed files looks like this.
++    let text = (0..60)
++        .map(|index| format!("M f{index}"))
++        .collect::<Vec<_>>()
++        .join("\n");
++    let arguments = serde_json::json!({ "cmd": "git commit -m x" }).to_string();
++    let condensed = condense_pair(&arguments, &text, Some(true));
++    assert_eq!(condensed, text);
++
++    // The same command with real output to remove is still shrunk.
++    let big = (0..60)
++        .map(|index| format!("   Compiling some-fairly-long-crate-name-{index} v0.1.0 (/w/{index})"))
++        .collect::<Vec<_>>()
++        .join("\n");
++    assert!(was_shrunk(&condense_pair(&arguments, &big, Some(true))));
++}
++
++#[test]
++fn leaves_a_listing_alone_when_its_artifact_lines_are_tiny() {
++    let mut lines: Vec<String> = (0..10).map(|i| format!("src/a{i}.ts")).collect();
++    lines.extend((0..15).map(|i| format!("node_modules/{i}")));
++    let text = lines.join("\n");
++    let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
++    assert_eq!(report_for(&arguments, &text).artifact_lines, 0);
++}
+diff --git a/codex-rs/core/src/tools/context.rs b/codex-rs/core/src/tools/context.rs
+index 7f7b86b3f0..f8e328f886 100644
+--- a/codex-rs/core/src/tools/context.rs
++++ b/codex-rs/core/src/tools/context.rs
+@@ -1,4 +1,5 @@
+-use crate::context_manager::tool_output::shrink_exec_output;
++use crate::context_manager::tool_output::CondenseReport;
++use crate::context_manager::tool_output::condense_exec_output;
+ use crate::original_image_detail::sanitize_original_image_detail;
+ use crate::session::session::Session;
+ use crate::session::step_context::StepContext;
+@@ -370,7 +371,12 @@ impl ToolOutput for ExecCommandToolOutput {
+                 output = format!("{marker}\n{output}");
+             }
+         }
+-        format!("{}\n{output}", self.response_header())
++        // Telemetry records what the command actually printed, so it carries no condense
++        // notice: nothing was condensed on this path.
++        format!(
++            "{}\n{output}",
++            self.response_header(&CondenseReport::default())
++        )
+     }
+ 
+     fn success_for_logging(&self) -> bool {
+@@ -378,19 +384,12 @@ impl ToolOutput for ExecCommandToolOutput {
+     }
+ 
+     fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem {
+-        let mut text = self.response_text();
+-        // Noisy build and test output is trimmed here, on its way to the model, rather than in
+-        // history afterwards. Rewriting a prompt the cache has already seen costs a re-prefill of
+-        // everything after it; the text that never entered the prefix costs nothing.
+-        if let ToolPayload::Function { arguments } = payload
+-            && let Some(shrunk) = shrink_exec_output(arguments, self.exit_code, &text)
+-        {
+-            text = shrunk;
+-        }
+         function_tool_response(
+             call_id,
+             payload,
+-            vec![FunctionCallOutputContentItem::InputText { text }],
++            vec![FunctionCallOutputContentItem::InputText {
++                text: self.response_text(payload),
++            }],
+             Some(true),
+         )
+     }
+@@ -414,8 +413,11 @@ impl ToolOutput for ExecCommandToolOutput {
+             return None;
+         }
+ 
++        // A post-tool-use hook is shown what the command printed, not what the model was
++        // shown: a hook that greps for a line the harness condensed away would misfire.
++        let raw = String::from_utf8_lossy(&self.raw_output);
+         Some(JsonValue::String(
+-            self.truncated_output_with_policy(self.model_output_policy()),
++            self.truncated_output_with_policy(&raw, self.model_output_policy()),
+         ))
+     }
+ 
+@@ -463,19 +465,21 @@ impl ExecCommandToolOutput {
+     }
+ 
+     pub(crate) fn truncated_output(&self, max_tokens: usize) -> String {
+-        self.truncated_output_with_policy(TruncationPolicy::Tokens(max_tokens))
++        let text = String::from_utf8_lossy(&self.raw_output);
++        self.truncated_output_with_policy(&text, TruncationPolicy::Tokens(max_tokens))
+     }
+ 
+-    fn truncated_output_with_policy(&self, policy: TruncationPolicy) -> String {
+-        let text = String::from_utf8_lossy(&self.raw_output).to_string();
++    /// Applies the byte/token budget to `text`, which is the raw output for callers that want
++    /// it verbatim and the condensed output on the path to the model.
++    fn truncated_output_with_policy(&self, text: &str, policy: TruncationPolicy) -> String {
+         let Some(omitted_bytes) = self.output_omitted_bytes else {
+-            return formatted_truncate_text(&text, policy);
++            return formatted_truncate_text(text, policy);
+         };
+ 
+         let marker = format_output_omission_marker(omitted_bytes.get());
+         if text.len() <= policy.byte_budget() {
+             return if text.contains(&marker) {
+-                text
++                text.to_string()
+             } else {
+                 format!("{marker}\n{text}")
+             };
+@@ -483,8 +487,8 @@ impl ExecCommandToolOutput {
+ 
+         let original_token_count = self
+             .original_token_count
+-            .unwrap_or_else(|| approx_token_count(&text));
+-        let truncated = truncate_text(&text, policy);
++            .unwrap_or_else(|| approx_token_count(text));
++        let truncated = truncate_text(text, policy);
+         let omission_notice = if truncated.contains(&marker) {
+             String::new()
+         } else {
+@@ -495,7 +499,7 @@ impl ExecCommandToolOutput {
+         )
+     }
+ 
+-    fn response_header(&self) -> String {
++    fn response_header(&self, condensed: &CondenseReport) -> String {
+         let mut sections = Vec::new();
+ 
+         if !self.chunk_id.is_empty() {
+@@ -517,17 +521,37 @@ impl ExecCommandToolOutput {
+             sections.push(format!("Original token count: {original_token_count}"));
+         }
+ 
++        // The header is where the harness already speaks for itself, so the notice that it
++        // altered the output belongs here rather than in a marker of its own.
++        if let Some(summary) = condensed.summary() {
++            sections.push(summary);
++        }
++
+         sections.push("Output:".to_string());
+         sections.join("\n")
+     }
+ 
+-    fn response_text(&self) -> String {
+-        let header = self.response_header();
++    fn response_text(&self, payload: &ToolPayload) -> String {
++        // Condensing runs before truncation so that noise never spends the model's budget: a
++        // recursive listing whose dependency tree is dropped first fits whole, where the same
++        // listing truncated first loses its own files to make room for `node_modules`.
++        let raw = String::from_utf8_lossy(&self.raw_output);
++        let arguments = match payload {
++            ToolPayload::Function { arguments } => arguments.as_str(),
++            _ => "",
++        };
++        let (text, condensed) =
++            match condense_exec_output(arguments, self.exit_code, self.process_id, &raw) {
++                Some((condensed_text, report)) => (condensed_text, report),
++                None => (raw.into_owned(), CondenseReport::default()),
++            };
++
++        let header = self.response_header(&condensed);
+         let output_budget = (self.truncation_policy * 1.2)
+             .byte_budget()
+             .saturating_sub(header.len().saturating_add(/*rhs*/ 1));
+         let mut policy = self.model_output_policy();
+-        let mut output = self.truncated_output_with_policy(policy);
++        let mut output = self.truncated_output_with_policy(&text, policy);
+ 
+         // History applies this same serialization budget to the complete response.
+         // Reserve room for metadata, warning headers, and the truncation marker so
+@@ -542,7 +566,7 @@ impl ExecCommandToolOutput {
+                     tokens.saturating_sub(TruncationPolicy::Bytes(excess_bytes).token_budget()),
+                 ),
+             };
+-            output = self.truncated_output_with_policy(policy);
++            output = self.truncated_output_with_policy(&text, policy);
+         }
+ 
+         format!("{header}\n{output}")

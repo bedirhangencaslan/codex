@@ -1,0 +1,851 @@
+From 4a8a2cfc528450f20404c82d1884d16b8dd20f76 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 22:45:05 +0300
+Subject: [PATCH 36/71] Log per-request token statistics so the cost mechanisms
+ can be priced
+
+Nine mechanisms trim what reaches the model and every one of them is
+silent, so their savings have only ever been estimated from item sizes.
+Each row pairs the provider's billed usage with the filtering report for
+the prompt that produced it, which is enough to reconstruct the prompt an
+unoptimised harness would have sent.
+
+Rows go to a sidecar under the Codex home rather than into the rollout: a
+new RolloutItem variant would reach the generated schemas, the TypeScript
+bindings and the store migrations, and would make measurement part of the
+resumable-session contract. The write happens where the provider's usage
+lands, which covers ordinary turns, the memory refresh and compaction
+without any of them knowing about it.
+
+Off unless the request_stats feature is set, and nothing on the wire
+changes: only the assembled Prompt is inspected, and only for counts.
+---
+ codex-rs/core/config.schema.json             |   6 +
+ codex-rs/core/src/agents_md_memory.rs        |  16 +-
+ codex-rs/core/src/context_manager/history.rs |   2 +-
+ codex-rs/core/src/context_manager/mod.rs     |   2 +
+ codex-rs/core/src/lib.rs                     |   1 +
+ codex-rs/core/src/request_stats.rs           | 410 +++++++++++++++++++
+ codex-rs/core/src/request_stats_tests.rs     |  92 +++++
+ codex-rs/core/src/session/mod.rs             |  29 ++
+ codex-rs/core/src/session/session.rs         |  13 +-
+ codex-rs/core/src/session/tests.rs           |   2 +
+ codex-rs/core/src/session/turn.rs            |  21 +-
+ codex-rs/features/src/lib.rs                 |   8 +
+ 12 files changed, 581 insertions(+), 21 deletions(-)
+ create mode 100644 codex-rs/core/src/request_stats.rs
+ create mode 100644 codex-rs/core/src/request_stats_tests.rs
+
+diff --git a/codex-rs/core/config.schema.json b/codex-rs/core/config.schema.json
+index 139f3007a4..9ab20f3b95 100644
+--- a/codex-rs/core/config.schema.json
++++ b/codex-rs/core/config.schema.json
+@@ -868,6 +868,9 @@
+             "request_rule": {
+               "type": "boolean"
+             },
++            "request_stats": {
++              "type": "boolean"
++            },
+             "resize_all_images": {
+               "type": "boolean"
+             },
+@@ -6154,6 +6157,9 @@
+         "request_rule": {
+           "type": "boolean"
+         },
++        "request_stats": {
++          "type": "boolean"
++        },
+         "resize_all_images": {
+           "type": "boolean"
+         },
+diff --git a/codex-rs/core/src/agents_md_memory.rs b/codex-rs/core/src/agents_md_memory.rs
+index 51ecbfce40..fa592329f3 100644
+--- a/codex-rs/core/src/agents_md_memory.rs
++++ b/codex-rs/core/src/agents_md_memory.rs
+@@ -57,7 +57,12 @@ pub(crate) async fn refresh_agents_md_before_compaction(
+         return;
+     };
+ 
+-    run_memory_turn(sess, turn_context, codex_prompts::agents_md_memory_prompt(&target)).await;
++    run_memory_turn(
++        sess,
++        turn_context,
++        codex_prompts::agents_md_memory_prompt(&target),
++    )
++    .await;
+ 
+     // The manager's cache key is the environment selections and the trust level, neither of which
+     // changed here, so without this the file the agent just wrote stays invisible for the rest of
+@@ -167,12 +172,9 @@ async fn run_memory_turn(sess: &Arc<Session>, parent: &TurnContext, prompt: Stri
+         else {
+             return;
+         };
+-        // `Some(sub_id)` is what lets this turn see its own items; every later prompt passes a
+-        // different id, or none, and so sees none of them.
+-        let input = sess.clone_history().await.for_prompt(
+-            &step_context.settings.model_info.input_modalities,
+-            Some(turn_context.sub_id.as_str()),
+-        );
++        // Naming this turn as the active one is what lets it see its own items; every later
++        // prompt names a different turn, or none, and so sees none of them.
++        let input = sess.prompt_input_for_step(step_context.as_ref()).await;
+         let result = run_sampling_request(
+             Arc::clone(sess),
+             Arc::clone(&step_context),
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index 62ee34d891..8fff589dcc 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -741,7 +741,7 @@ fn dropped_reason(
+ /// [`estimate_item_token_count`] reports reasoning as zero, because everywhere else in this
+ /// codebase reasoning is something the server bills rather than something the prompt carries.
+ /// Here the prompt is exactly what is being measured, so reasoning is measured directly.
+-fn measured_item_token_count(item: &ResponseItem) -> i64 {
++pub(crate) fn measured_item_token_count(item: &ResponseItem) -> i64 {
+     match item {
+         ResponseItem::Reasoning { .. } => crate::reasoning_retention::reasoning_tokens(item),
+         item => estimate_item_token_count(item),
+diff --git a/codex-rs/core/src/context_manager/mod.rs b/codex-rs/core/src/context_manager/mod.rs
+index 6f1910a8dd..6c1e416683 100644
+--- a/codex-rs/core/src/context_manager/mod.rs
++++ b/codex-rs/core/src/context_manager/mod.rs
+@@ -3,8 +3,10 @@ mod normalize;
+ mod tool_output;
+ pub(crate) mod updates;
+ 
++pub(crate) use history::ContextFilterReport;
+ pub(crate) use history::ContextManager;
+ pub(crate) use history::HistoryReplacement;
+ pub(crate) use history::estimate_image_bytes;
+ pub(crate) use history::estimate_item_token_count;
+ pub(crate) use history::is_user_turn_boundary;
++pub(crate) use history::measured_item_token_count;
+diff --git a/codex-rs/core/src/lib.rs b/codex-rs/core/src/lib.rs
+index cdbffa38c4..1b99c54047 100644
+--- a/codex-rs/core/src/lib.rs
++++ b/codex-rs/core/src/lib.rs
+@@ -140,6 +140,7 @@ mod agents_md_memory;
+ mod prompt_cache_keep_alive;
+ mod reasoning_retention;
+ mod request_density;
++mod request_stats;
+ pub use agents_md::DEFAULT_AGENTS_MD_FILENAME;
+ pub use agents_md::LOCAL_AGENTS_MD_FILENAME;
+ pub use agents_md::LoadedAgentsMd;
+diff --git a/codex-rs/core/src/request_stats.rs b/codex-rs/core/src/request_stats.rs
+new file mode 100644
+index 0000000000..8546cef6a4
+--- /dev/null
++++ b/codex-rs/core/src/request_stats.rs
+@@ -0,0 +1,410 @@
++//! Per-request token statistics, so this fork's cost mechanisms can be measured rather than
++//! estimated.
++//!
++//! Nine mechanisms trim what reaches the model, and every one of them is silent. Reasoning
++//! retention writes a verdict nobody reads back, the output shrinker leaves a marker inside
++//! text, the keep-alive deliberately emits nothing, and none of it appears in the rollout, which
++//! records what the harness *stored* rather than what it *sent*. So the savings are estimated
++//! from item sizes and the estimates have never met a real session.
++//!
++//! One line per request fixes that. Each row pairs the provider's billed usage with the
++//! [`ContextFilterReport`] for the prompt that produced it, and those two together reconstruct
++//! the counterfactual: the prompt an unoptimised harness would have sent is the one that was
++//! sent plus everything the report says was removed. No second model call, no second wire
++//! format, and nothing on the request changes.
++//!
++//! Rows are written next to the rollout rather than into it. A new `RolloutItem` variant would
++//! propagate into the generated protocol schemas, the TypeScript bindings, the app-server's
++//! thread-read surface and the store migrations, and would make measurement part of the
++//! resumable-session contract; rollout writing is also governed by `ThreadHistoryMode`, so a
++//! history-disabled session would silently lose everything. A sidecar keyed on the same thread
++//! id joins from either side and costs none of that.
++//!
++//! Unlike [`crate::request_density`] this file is append-only, so there is no read-modify-write
++//! to serialise and no file lock: one handle is opened for the session and each row is one
++//! `write_all`.
++
++use std::fs::File;
++use std::fs::OpenOptions;
++use std::io::Write;
++use std::sync::Mutex as StdMutex;
++use std::sync::PoisonError;
++use std::sync::atomic::AtomicU64;
++use std::sync::atomic::Ordering;
++use std::time::Instant;
++
++use chrono::SecondsFormat;
++use chrono::Utc;
++use codex_features::Feature;
++use codex_protocol::openai_models::ReasoningEffort;
++use codex_protocol::protocol::TokenUsage;
++use codex_utils_absolute_path::AbsolutePathBuf;
++use codex_utils_string::approx_token_count;
++use serde::Serialize;
++
++use crate::client_common::Prompt;
++use crate::config::Config;
++use crate::context_manager::ContextFilterReport;
++use crate::context_manager::measured_item_token_count;
++use crate::session::turn_context::TurnContext;
++
++/// Sidecar location, deliberately outside `sessions/`: the compression and pagination
++/// migrations walk that tree and have no reason to meet these files.
++const DIRECTORY: &str = "analytics";
++
++/// The switches that change the bill. Recording which were live is what makes two runs an A/B
++/// rather than two unrelated sessions.
++const MEASURED_FEATURES: &[Feature] = &[
++    Feature::ProjectMemory,
++    Feature::PromptCacheKeepAlive,
++    Feature::ReasoningCostModel,
++];
++
++/// Session-wide facts, written once as the first line of the file.
++#[derive(Serialize)]
++struct RequestStatsHeader {
++    thread_id: String,
++    started_at: String,
++    model: String,
++    provider: String,
++    reasoning_effort: Option<String>,
++    codex_version: &'static str,
++    features: Vec<&'static str>,
++    /// The density retention priced against. Held fixed for the session, so it belongs here
++    /// rather than on every row.
++    requests_per_window: f64,
++}
++
++/// One request: what it was billed, what was sent, and what was left out of it.
++#[derive(Serialize)]
++struct RequestStatsLine {
++    sequence: u64,
++    timestamp: String,
++    turn_id: String,
++    response_id: Option<String>,
++    invisible: bool,
++
++    // Provider truth. This is the entire bill; everything below only attributes it.
++    input_tokens: i64,
++    cached_input_tokens: i64,
++    output_tokens: i64,
++    /// The quality dial. Thoughts of a few dozen tokens at `high` effort mean the model is not
++    /// thinking, and that the optimisations are not why the answers got worse.
++    reasoning_output_tokens: i64,
++    total_tokens: i64,
++
++    // What was sent, measured on the exact `Prompt`. `None` for requests this module never saw
++    // armed, such as compaction, which builds its own prompt.
++    prompt_items: Option<usize>,
++    prompt_tokens_estimated: Option<i64>,
++    /// The fixed-prefix term, and a silent cache killer: an MCP server connecting mid-session
++    /// changes the tool list and rewrites the prompt from its first token.
++    prompt_tool_specs: Option<usize>,
++
++    // The counterfactual. `prompt_tokens_estimated` plus the dropped and shrunk sizes is the
++    // prompt an unoptimised harness would have sent.
++    /// `null` means the prompt was byte-identical to the previous one and nothing was paid for
++    /// it. The distribution of nulls is the direct answer to why the shrinker never fires.
++    prefix_break: Option<usize>,
++    prefix_break_tokens: i64,
++    dropped_invisible_items: usize,
++    dropped_invisible_tokens: i64,
++    dropped_reasoning_items: usize,
++    dropped_reasoning_tokens: i64,
++    retained_reasoning_items: usize,
++    retained_reasoning_tokens: i64,
++    /// What `horizon()` predicted. The realised horizon is countable from the log, so this is
++    /// the one number that says whether the measured density generalises. `None` where no
++    /// verdict was frozen, which is every request with no budget left to amortise over.
++    retention_horizon: Option<i64>,
++    shrunk_outputs: usize,
++    shrunk_tokens_removed: i64,
++    shrunk_lines_removed: usize,
++    shrinkable_before_break: usize,
++    /// Join keys, so a renderer can put both versions of one tool output side by side.
++    dropped_call_ids: Vec<String>,
++    shrunk_call_ids: Vec<String>,
++
++    tool_calls: usize,
++    /// With `timestamp`, this gives the idle gap before the next request, which is the only
++    /// visible signature of the prompt-cache keep-alive.
++    duration_ms: u64,
++}
++
++/// Facts about the request in flight, gathered as they become known.
++///
++/// The report is produced two frames above the usage that prices it, and `run_sampling_request`
++/// rebuilds its input on every retry, so the last arm wins and there is no cancellation to
++/// plumb: a superseded record is simply overwritten before anything reads it.
++#[derive(Default)]
++struct ArmedRequest {
++    started_at: Option<Instant>,
++    report: ContextFilterReport,
++    prompt_items: usize,
++    prompt_tokens_estimated: i64,
++    prompt_tool_specs: usize,
++    response_id: Option<String>,
++    tool_calls: usize,
++}
++
++#[derive(Default)]
++pub(crate) struct RequestStats {
++    /// `None` when the feature is off or the file could not be opened, which is what makes
++    /// every method below a no-op for ordinary users.
++    sink: Option<StdMutex<File>>,
++    armed: StdMutex<Option<ArmedRequest>>,
++    /// The horizon the turn's retention verdict was priced against. Frozen once per turn, before
++    /// the prompt is built, so it lives here rather than on a record the retries replace.
++    retention_horizon: StdMutex<Option<i64>>,
++    sequence: AtomicU64,
++}
++
++impl std::fmt::Debug for RequestStats {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.debug_struct("RequestStats").finish_non_exhaustive()
++    }
++}
++
++impl RequestStats {
++    /// Opens the sidecar for a session, or returns a disabled recorder.
++    ///
++    /// Sub-agents get their own [`crate::session::Session`] and so their own file. Separate
++    /// files mean concurrent helpers never contend; a reader that wants the whole picture has
++    /// to look for the child thread ids as well.
++    pub(crate) fn open(config: &Config, thread_id: &str, requests_per_window: f64) -> Self {
++        if !config.features.enabled(Feature::RequestStats) {
++            return Self::default();
++        }
++        let header = header(config, thread_id, requests_per_window);
++        match open_sink(&config.codex_home, thread_id, header) {
++            Ok(file) => Self {
++                sink: Some(StdMutex::new(file)),
++                ..Self::default()
++            },
++            Err(error) => {
++                tracing::warn!("failed to open the request statistics sidecar: {error:#}");
++                Self::default()
++            }
++        }
++    }
++
++    fn enabled(&self) -> bool {
++        self.sink.is_some()
++    }
++
++    /// Adds to the record in flight, if there is one. There is no record on the paths that build
++    /// their own prompt, and inventing an empty one there would report a prompt that was never
++    /// built rather than admitting the prompt is unknown.
++    fn with_armed(&self, edit: impl FnOnce(&mut ArmedRequest)) {
++        if !self.enabled() {
++            return;
++        }
++        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
++        if let Some(armed) = armed.as_mut() {
++            edit(armed);
++        }
++    }
++
++    /// Records what the retention pass priced this turn against, `None` where it declined to
++    /// decide because there was no budget left to amortise a retained token over.
++    pub(crate) fn record_retention_horizon(&self, horizon: Option<i64>) {
++        if !self.enabled() {
++            return;
++        }
++        *self
++            .retention_horizon
++            .lock()
++            .unwrap_or_else(PoisonError::into_inner) = horizon;
++    }
++
++    /// Records the history filtering that produced this request's input.
++    pub(crate) fn arm(&self, report: ContextFilterReport) {
++        if !self.enabled() {
++            return;
++        }
++        let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
++        *armed = Some(ArmedRequest {
++            started_at: Some(Instant::now()),
++            report,
++            ..ArmedRequest::default()
++        });
++    }
++
++    /// Records the shape of the prompt as finally assembled, which is the only point where the
++    /// parts history never saw — the tool specs and the base instructions — are in one place.
++    pub(crate) fn record_prompt(&self, prompt: &Prompt) {
++        if !self.enabled() {
++            return;
++        }
++        let tokens_estimated = prompt
++            .input
++            .iter()
++            .map(measured_item_token_count)
++            .fold(0i64, i64::saturating_add)
++            .saturating_add(estimated_tokens(&prompt.base_instructions.text))
++            .saturating_add(
++                serde_json::to_string(&prompt.tools).map_or(0, |tools| estimated_tokens(&tools)),
++            );
++        self.with_armed(|armed| {
++            armed.prompt_items = prompt.input.len();
++            armed.prompt_tokens_estimated = tokens_estimated;
++            armed.prompt_tool_specs = prompt.tools.len();
++        });
++    }
++
++    /// Records what the model answered with. `tool_calls` is the batching measurement.
++    pub(crate) fn record_response(&self, response_id: &str, tool_calls: usize) {
++        self.with_armed(|armed| {
++            armed.response_id = Some(response_id.to_string());
++            armed.tool_calls = tool_calls;
++        });
++    }
++
++    /// Writes one row and clears the armed slot.
++    ///
++    /// Called wherever the provider's usage lands, which covers ordinary turns, the project
++    /// memory turn, and compaction alike. Compaction builds its own prompt and never arms, so
++    /// its row carries the bill with the prompt columns null rather than with a stale report.
++    /// Taking the slot is what guarantees that: a superseded record can never outlive its
++    /// request.
++    pub(crate) fn flush(&self, turn_context: &TurnContext, token_usage: Option<&TokenUsage>) {
++        let Some(sink) = self.sink.as_ref() else {
++            return;
++        };
++        let armed = self
++            .armed
++            .lock()
++            .unwrap_or_else(PoisonError::into_inner)
++            .take();
++        let Some(token_usage) = token_usage else {
++            return;
++        };
++        let retention_horizon = *self
++            .retention_horizon
++            .lock()
++            .unwrap_or_else(PoisonError::into_inner);
++        let line = line(
++            self.sequence.fetch_add(1, Ordering::SeqCst),
++            &turn_context.sub_id,
++            turn_context.invisible,
++            armed,
++            retention_horizon,
++            token_usage,
++        );
++        if let Err(error) = append(sink, &line) {
++            tracing::warn!("failed to record request statistics: {error:#}");
++        }
++    }
++}
++
++fn header(config: &Config, thread_id: &str, requests_per_window: f64) -> RequestStatsHeader {
++    RequestStatsHeader {
++        thread_id: thread_id.to_string(),
++        started_at: timestamp(),
++        model: config.model.clone().unwrap_or_default(),
++        provider: config.model_provider_id.clone(),
++        reasoning_effort: config
++            .model_reasoning_effort
++            .as_ref()
++            .map(ReasoningEffort::to_string),
++        codex_version: env!("CARGO_PKG_VERSION"),
++        features: MEASURED_FEATURES
++            .iter()
++            .filter(|feature| config.features.enabled(**feature))
++            .map(|feature| feature.key())
++            .collect(),
++        requests_per_window,
++    }
++}
++
++fn line(
++    sequence: u64,
++    turn_id: &str,
++    invisible: bool,
++    armed: Option<ArmedRequest>,
++    retention_horizon: Option<i64>,
++    token_usage: &TokenUsage,
++) -> RequestStatsLine {
++    // A request nobody armed still gets a row, but its prompt columns stay null rather than
++    // reporting a zero-sized prompt that was never built.
++    let was_armed = armed.is_some();
++    let armed = armed.unwrap_or_default();
++    let report = armed.report;
++    RequestStatsLine {
++        sequence,
++        timestamp: timestamp(),
++        turn_id: turn_id.to_string(),
++        response_id: armed.response_id,
++        invisible,
++        input_tokens: token_usage.input_tokens,
++        cached_input_tokens: token_usage.cached_input_tokens,
++        output_tokens: token_usage.output_tokens,
++        reasoning_output_tokens: token_usage.reasoning_output_tokens,
++        total_tokens: token_usage.total_tokens,
++        prompt_items: was_armed.then_some(armed.prompt_items),
++        prompt_tokens_estimated: was_armed.then_some(armed.prompt_tokens_estimated),
++        prompt_tool_specs: was_armed.then_some(armed.prompt_tool_specs),
++        prefix_break: report.prefix_break,
++        prefix_break_tokens: report.prefix_break_tokens,
++        dropped_invisible_items: report.dropped_invisible_items,
++        dropped_invisible_tokens: report.dropped_invisible_tokens,
++        dropped_reasoning_items: report.dropped_reasoning_items,
++        dropped_reasoning_tokens: report.dropped_reasoning_tokens,
++        retained_reasoning_items: report.retained_reasoning_items,
++        retained_reasoning_tokens: report.retained_reasoning_tokens,
++        retention_horizon,
++        shrunk_outputs: report.shrink.outputs,
++        shrunk_tokens_removed: report.shrink.tokens_removed,
++        shrunk_lines_removed: report.shrink.lines_removed,
++        shrinkable_before_break: report.shrink.shrinkable_before_break,
++        dropped_call_ids: report.dropped_call_ids,
++        shrunk_call_ids: report.shrink.call_ids,
++        tool_calls: armed.tool_calls,
++        duration_ms: armed
++            .started_at
++            .map(|started_at| started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64)
++            .unwrap_or_default(),
++    }
++}
++
++/// The same rule the rest of the context accounting uses, so this estimate is comparable with
++/// the sizes the report carries.
++fn estimated_tokens(text: &str) -> i64 {
++    i64::try_from(approx_token_count(text)).unwrap_or(i64::MAX)
++}
++
++fn timestamp() -> String {
++    Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
++}
++
++fn open_sink(
++    codex_home: &AbsolutePathBuf,
++    thread_id: &str,
++    header: RequestStatsHeader,
++) -> std::io::Result<File> {
++    let directory = codex_home.join(DIRECTORY);
++    std::fs::create_dir_all(&directory)?;
++    let mut file = OpenOptions::new()
++        .create(true)
++        .append(true)
++        .open(directory.join(format!("{thread_id}.jsonl")))?;
++    // A resumed session appends to the file it left behind, so the header repeats. It carries
++    // the version and the feature set, both of which may have changed in between.
++    write_line(&mut file, &header)?;
++    Ok(file)
++}
++
++fn append(sink: &StdMutex<File>, line: &RequestStatsLine) -> std::io::Result<()> {
++    let mut file = sink.lock().unwrap_or_else(PoisonError::into_inner);
++    write_line(&mut file, line)
++}
++
++fn write_line(file: &mut File, value: &impl Serialize) -> std::io::Result<()> {
++    let mut encoded = serde_json::to_vec(value)?;
++    encoded.push(b'\n');
++    file.write_all(&encoded)
++}
++
++#[cfg(test)]
++#[path = "request_stats_tests.rs"]
++mod tests;
+diff --git a/codex-rs/core/src/request_stats_tests.rs b/codex-rs/core/src/request_stats_tests.rs
+new file mode 100644
+index 0000000000..d42793b4fb
+--- /dev/null
++++ b/codex-rs/core/src/request_stats_tests.rs
+@@ -0,0 +1,92 @@
++use super::*;
++use pretty_assertions::assert_eq;
++
++const TURN: &str = "turn-1";
++
++fn usage() -> TokenUsage {
++    TokenUsage {
++        input_tokens: 60_000,
++        cached_input_tokens: 56_000,
++        output_tokens: 400,
++        reasoning_output_tokens: 120,
++        total_tokens: 60_400,
++        ..TokenUsage::default()
++    }
++}
++
++#[test]
++fn a_request_is_priced_against_what_the_filters_removed() {
++    let mut report = ContextFilterReport {
++        prefix_break: Some(118),
++        prefix_break_tokens: 4_200,
++        dropped_reasoning_items: 3,
++        dropped_reasoning_tokens: 1_204,
++        retained_reasoning_items: 1,
++        retained_reasoning_tokens: 300,
++        ..ContextFilterReport::default()
++    };
++    report.shrink.outputs = 1;
++    report.shrink.tokens_removed = 900;
++    report.shrink.lines_removed = 377;
++    report.shrink.call_ids = vec!["call-abc".to_string()];
++    let armed = ArmedRequest {
++        started_at: Some(Instant::now()),
++        report,
++        prompt_items: 214,
++        prompt_tokens_estimated: 62_100,
++        prompt_tool_specs: 9,
++        response_id: Some("resp-1".to_string()),
++        tool_calls: 2,
++    };
++
++    let line = line(
++        /*sequence*/ 41,
++        TURN,
++        /*invisible*/ false,
++        Some(armed),
++        /*retention_horizon*/ Some(160),
++        &usage(),
++    );
++
++    // The whole point of the row: the prompt an unoptimised harness would have sent is the one
++    // that was sent plus everything the report says was left out of it.
++    assert_eq!(
++        line.prompt_tokens_estimated.unwrap_or_default()
++            + line.dropped_reasoning_tokens
++            + line.dropped_invisible_tokens
++            + line.shrunk_tokens_removed,
++        62_100 + 1_204 + 900
++    );
++    assert_eq!(line.prefix_break, Some(118));
++    assert_eq!(line.prefix_break_tokens, 4_200);
++    assert_eq!(line.retained_reasoning_tokens, 300);
++    assert_eq!(line.retention_horizon, Some(160));
++    assert_eq!(line.shrunk_call_ids, vec!["call-abc".to_string()]);
++    assert_eq!(line.tool_calls, 2);
++    assert_eq!(line.response_id.as_deref(), Some("resp-1"));
++    assert_eq!(line.input_tokens, 60_000);
++    assert_eq!(line.cached_input_tokens, 56_000);
++}
++
++#[test]
++fn a_completion_with_no_armed_context_still_records_its_usage() {
++    // Compaction builds its own prompt and never arms. Its bill is still part of the session's,
++    // so the row has to exist; what it must not do is report a prompt that was never measured.
++    let line = line(
++        /*sequence*/ 0,
++        TURN,
++        /*invisible*/ true,
++        /*armed*/ None,
++        /*retention_horizon*/ None,
++        &usage(),
++    );
++
++    assert_eq!(line.input_tokens, 60_000);
++    assert_eq!(line.total_tokens, 60_400);
++    assert_eq!(line.invisible, true);
++    assert_eq!(line.prompt_items, None);
++    assert_eq!(line.prompt_tokens_estimated, None);
++    assert_eq!(line.prompt_tool_specs, None);
++    assert_eq!(line.prefix_break, None);
++    assert_eq!(line.duration_ms, 0);
++}
+diff --git a/codex-rs/core/src/session/mod.rs b/codex-rs/core/src/session/mod.rs
+index 9333bd323a..c3e6f3bcb8 100644
+--- a/codex-rs/core/src/session/mod.rs
++++ b/codex-rs/core/src/session/mod.rs
+@@ -4023,6 +4023,23 @@ impl Session {
+         state.clone_history()
+     }
+ 
++    /// Builds the model input for a step, and hands the statistics recorder the account of what
++    /// building it left out.
++    ///
++    /// Every attempt at a request goes through here, including the retries that rebuild the
++    /// input, so the recorded filtering is always the one that produced the prompt actually sent.
++    pub(crate) async fn prompt_input_for_step(
++        &self,
++        step_context: &StepContext,
++    ) -> Vec<ResponseItem> {
++        let (input, report) = self.clone_history().await.for_prompt_measured(
++            &step_context.settings.model_info.input_modalities,
++            Some(step_context.turn.sub_id.as_str()),
++        );
++        self.request_stats.arm(report);
++        input
++    }
++
+     /// Prices the reasoning of the turn that has just finished, and freezes the answer.
+     ///
+     /// Called as the next turn is about to be sampled, which is the one moment where the
+@@ -4035,8 +4052,16 @@ impl Session {
+         let status = context_window::context_window_token_status(self, &step_context.turn).await;
+         // With no budget to amortise over there is nothing to trade against a re-prefill.
+         let Some(budget_remaining) = status.base_window_tokens_remaining else {
++            self.request_stats.record_retention_horizon(None);
+             return;
+         };
++        self.request_stats
++            .record_retention_horizon(Some(crate::reasoning_retention::horizon(
++                &crate::reasoning_retention::RetentionInputs {
++                    budget_remaining,
++                    requests_per_window: self.request_density.requests_per_window(),
++                },
++            )));
+         let growth = {
+             let mut state = self.state.lock().await;
+             state.history.freeze_reasoning_retention(
+@@ -4250,6 +4275,10 @@ impl Session {
+         turn_context: &TurnContext,
+         token_usage: Option<&TokenUsage>,
+     ) -> CodexResult<()> {
++        // Every completed request lands here, whether it came from a turn, the project memory
++        // refresh, or compaction, which makes this the one place a row can be written per
++        // request without teaching each of those paths about statistics.
++        self.request_stats.flush(turn_context, token_usage);
+         if let Some(token_usage) = token_usage {
+             let token_info = {
+                 let mut state = self.state.lock().await;
+diff --git a/codex-rs/core/src/session/session.rs b/codex-rs/core/src/session/session.rs
+index 281f2078cd..cbed432ace 100644
+--- a/codex-rs/core/src/session/session.rs
++++ b/codex-rs/core/src/session/session.rs
+@@ -11,6 +11,7 @@ use crate::environment_selection::ThreadEnvironments;
+ use crate::environment_selection::TurnEnvironmentSnapshot;
+ use crate::hook_mcp_executor::CoreHookMcpExecutor;
+ use crate::request_density::RequestDensity;
++use crate::request_stats::RequestStats;
+ use crate::responses_metadata::CodexResponsesMetadata;
+ use crate::responses_metadata::CodexResponsesRequestKind;
+ use crate::shell_snapshot::ShellSnapshot;
+@@ -77,6 +78,9 @@ pub(crate) struct Session {
+     /// Requests a context window buys this user, measured across their recent windows and used
+     /// to price how long a retained token would keep being re-billed.
+     pub(super) request_density: RequestDensity,
++    /// Prices every request against what building its prompt removed. Off unless
++    /// [`Feature::RequestStats`] is set, and never observable by the model.
++    pub(super) request_stats: RequestStats,
+ }
+ 
+ #[derive(Clone)]
+@@ -1471,6 +1475,12 @@ impl Session {
+                 turn_environments: Arc::clone(&turn_environments),
+             };
+             let (mcp_prewarm_tx, mcp_prewarm_rx) = async_channel::bounded(1);
++            let request_density = RequestDensity::load(&config.codex_home).await;
++            let request_stats = RequestStats::open(
++                config.as_ref(),
++                &thread_id.to_string(),
++                request_density.requests_per_window(),
++            );
+             let sess = Arc::new(Session {
+                 thread_id,
+                 installation_id,
+@@ -1498,7 +1508,8 @@ impl Session {
+                 fork_persistence,
+                 forked_from_ordinal_exclusive,
+                 next_internal_sub_id: AtomicU64::new(0),
+-                request_density: RequestDensity::load(&config.codex_home).await,
++                request_density,
++                request_stats,
+             });
+             if let Some(network_policy_decider_session) = network_policy_decider_session {
+                 let mut guard = network_policy_decider_session.write().await;
+diff --git a/codex-rs/core/src/session/tests.rs b/codex-rs/core/src/session/tests.rs
+index 3c9b20d215..e5081dac1f 100644
+--- a/codex-rs/core/src/session/tests.rs
++++ b/codex-rs/core/src/session/tests.rs
+@@ -6549,6 +6549,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
+         forked_from_ordinal_exclusive: None,
+         next_internal_sub_id: AtomicU64::new(0),
+         request_density: Default::default(),
++        request_stats: Default::default(),
+     };
+     let per_turn_config =
+         session.build_per_turn_config(&session_configuration, session_configuration.cwd().clone());
+@@ -8830,6 +8831,7 @@ where
+         forked_from_ordinal_exclusive: None,
+         next_internal_sub_id: AtomicU64::new(0),
+         request_density: Default::default(),
++        request_stats: Default::default(),
+     });
+     let per_turn_config =
+         session.build_per_turn_config(&session_configuration, session_configuration.cwd().clone());
+diff --git a/codex-rs/core/src/session/turn.rs b/codex-rs/core/src/session/turn.rs
+index 55ba1e2844..fbb7e322ab 100644
+--- a/codex-rs/core/src/session/turn.rs
++++ b/codex-rs/core/src/session/turn.rs
+@@ -374,14 +374,10 @@ pub(crate) async fn run_turn(
+             sess.freeze_reasoning_retention(step_context.as_ref()).await;
+ 
+             // Construct the input that we will send to the model.
+-            let sampling_request_input: Vec<ResponseItem> = async {
+-                sess.clone_history().await.for_prompt(
+-                    &step_context.settings.model_info.input_modalities,
+-                    Some(step_context.turn.sub_id.as_str()),
+-                )
+-            }
+-            .instrument(trace_span!("run_turn.prepare_sampling_request_input"))
+-            .await;
++            let sampling_request_input: Vec<ResponseItem> = sess
++                .prompt_input_for_step(step_context.as_ref())
++                .instrument(trace_span!("run_turn.prepare_sampling_request_input"))
++                .await;
+ 
+             let responses_metadata = sess
+                 .responses_metadata(turn_context.as_ref(), CodexResponsesRequestKind::Turn)
+@@ -1398,10 +1394,7 @@ pub(crate) async fn run_sampling_request(
+         let prompt_input = if let Some(input) = initial_input.take() {
+             input
+         } else {
+-            sess.clone_history().await.for_prompt(
+-                &step_context.settings.model_info.input_modalities,
+-                Some(step_context.turn.sub_id.as_str()),
+-            )
++            sess.prompt_input_for_step(step_context.as_ref()).await
+         };
+         let mut prompt_input = prompt_input;
+         if let Some(executed_tool_calls) = sess.services.executed_tool_calls.as_ref()
+@@ -1415,6 +1408,7 @@ pub(crate) async fn run_sampling_request(
+             step_context.as_ref(),
+             base_instructions.clone(),
+         );
++        sess.request_stats.record_prompt(&prompt);
+         let err = match try_run_sampling_request(
+             tool_runtime.clone(),
+             Arc::clone(&sess),
+@@ -2581,6 +2575,9 @@ async fn try_run_sampling_request(
+                 usage_metadata,
+                 end_turn,
+             } => {
++                // Read before the take below empties it.
++                sess.request_stats
++                    .record_response(&response_id, analytics_tool_call_ids.len());
+                 sess.services
+                     .analytics_events_client
+                     .track_code_mode_tool_call(
+diff --git a/codex-rs/features/src/lib.rs b/codex-rs/features/src/lib.rs
+index f29ec71fec..314d7e9747 100644
+--- a/codex-rs/features/src/lib.rs
++++ b/codex-rs/features/src/lib.rs
+@@ -175,6 +175,8 @@ pub enum Feature {
+     PromptCacheKeepAlive,
+     /// Price keeping a finished turn's reasoning against the cache miss dropping it would cost.
+     ReasoningCostModel,
++    /// Log per-request token statistics to the Codex home so the cost mechanisms can be measured.
++    RequestStats,
+     /// Enable importing project-scoped memory from external agents.
+     ExternalAgentMemoryImport,
+     /// Compress cold local thread-store rollout files.
+@@ -1090,6 +1092,12 @@ pub const FEATURES: &[FeatureSpec] = &[
+         stage: Stage::Stable,
+         default_enabled: true,
+     },
++    FeatureSpec {
++        id: Feature::RequestStats,
++        key: "request_stats",
++        stage: Stage::Stable,
++        default_enabled: false,
++    },
+     FeatureSpec {
+         id: Feature::ExternalAgentMemoryImport,
+         key: "external_agent_memory_import",

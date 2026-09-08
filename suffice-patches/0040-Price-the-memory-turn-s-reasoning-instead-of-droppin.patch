@@ -1,0 +1,156 @@
+From d47feaa7adfec25e3dc7e8c903fc596a5a849fa8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Fri, 4 Sep 2026 01:33:59 +0300
+Subject: [PATCH 40/71] Price the memory turn's reasoning instead of dropping
+ it at full price
+
+The pre-compaction memory turn ran the sampling loop without
+freeze_reasoning_retention, and unstamped reasoning defaults to being
+dropped, so the first prompt that named a different active turn discarded
+a whole turn's reasoning without ever consulting the cost model. It landed
+where the context was largest: one live session lost 63.6K of cached prefix
+to save 5.9K of reasoning.
+
+Call the pricing pass where run_turn calls it, and correct the two
+constants the measurement exposed. A horizon of zero is an answer, not a
+degenerate case: with the budget spent, compaction rewrites the prefix
+before another request is billed for a retained token. The cold-start
+density of 160 came from reply size alone and ignored the tool output that
+dominates context growth, which inflated every horizon and biased the
+verdict toward paying for a re-prefill.
+
+A compaction prompt now drops reasoning whatever the frozen verdict says.
+Every caller that names no active turn is a compaction path, and those
+build their own prompt with their own instructions and no tools, so they
+share no cached prefix for a keep verdict to protect.
+
+Measured over one full compaction cycle, before and after: dropped
+reasoning 23,444 tokens to 0, cache collapses 2 to 1, and the effective
+cost of the collapses 132.3K to 79.5K.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/agents_md_memory.rs         |  6 ++++
+ codex-rs/core/src/context_manager/history.rs  |  7 ++++
+ .../core/src/context_manager/history_tests.rs | 33 +++++++++++++++++++
+ codex-rs/core/src/reasoning_retention.rs      |  6 ++--
+ codex-rs/core/src/request_density.rs          |  9 +++--
+ 5 files changed, 56 insertions(+), 5 deletions(-)
+
+diff --git a/codex-rs/core/src/agents_md_memory.rs b/codex-rs/core/src/agents_md_memory.rs
+index fa592329f3..8c12c27eb6 100644
+--- a/codex-rs/core/src/agents_md_memory.rs
++++ b/codex-rs/core/src/agents_md_memory.rs
+@@ -172,6 +172,12 @@ async fn run_memory_turn(sess: &Arc<Session>, parent: &TurnContext, prompt: Stri
+         else {
+             return;
+         };
++        // Price the previous turn's reasoning before this prompt is built, exactly as `run_turn`
++        // does. This turn is the first one to name a different turn as active, so it is the first
++        // prompt that can drop that reasoning — and unpriced reasoning defaults to being dropped.
++        // Skipping the call here therefore does not mean "decide later", it means "drop at full
++        // price", and it lands where the context is at its largest.
++        sess.freeze_reasoning_retention(step_context.as_ref()).await;
+         // Naming this turn as the active one is what lets it see its own items; every later
+         // prompt names a different turn, or none, and so sees none of them.
+         let input = sess.prompt_input_for_step(step_context.as_ref()).await;
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index 8fff589dcc..04ec8fc850 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -729,6 +729,13 @@ fn dropped_reason(
+     ) {
+         return None;
+     }
++    // Every caller that names no active turn is a compaction path, and a compaction prompt sends
++    // its own instructions with no tools, so it shares no cached prefix with the requests around
++    // it. There is no prefix for a keep verdict to protect here, and the summary about to replace
++    // this history carries no reasoning forward either, so it is dropped whatever the verdict.
++    if active_turn_id.is_none() {
++        return Some(DropReason::Reasoning);
++    }
+     // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the cached
+     // prefix than the re-prefill dropping it would cost. Reasoning that predates that verdict,
+     // or that was never stamped, is dropped as it always was.
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index d450a8b271..7d3fea2624 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -734,6 +734,39 @@ fn the_report_names_what_the_prompt_no_longer_carries() {
+     );
+ }
+ 
++#[test]
++fn a_prompt_with_no_active_turn_carries_no_reasoning_even_when_it_was_kept() {
++    let asked = user_msg("do the thing");
++    let mut history = ContextManager::new();
++    history.replace_annotated(vec![
++        ResponseItemEnvelope::new(asked.clone()),
++        ResponseItemEnvelope {
++            item: reasoning_msg("worth keeping while the prefix is cached"),
++            metadata: Some(CodexHarnessMetadata {
++                reasoning_turn: Some("turn-1".to_string()),
++                reasoning_retained: Some(true),
++                ..Default::default()
++            }),
++        },
++    ]);
++
++    // A keep verdict is a statement about a cached prefix. The compaction paths are the only
++    // callers that name no turn, and they send a prompt of their own shape that shares no prefix
++    // with the conversation, so there is nothing for the verdict to protect.
++    assert_eq!(
++        history
++            .clone()
++            .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
++        vec![asked]
++    );
++    assert_eq!(
++        history
++            .for_prompt(&default_input_modalities(), Some("turn-2"))
++            .len(),
++        2
++    );
++}
++
+ #[test_case(None, 100, 5, true; "model policy")]
+ #[test_case(Some(200), 100, 200, false; "configured override")]
+ #[test_case(Some(100), 85, 100, true; "saved limit has no additional allowance")]
+diff --git a/codex-rs/core/src/reasoning_retention.rs b/codex-rs/core/src/reasoning_retention.rs
+index 1e603bd8e1..9d58afe2ca 100644
+--- a/codex-rs/core/src/reasoning_retention.rs
++++ b/codex-rs/core/src/reasoning_retention.rs
+@@ -32,8 +32,10 @@ use crate::request_density::WINDOW_TOKENS;
+ 
+ /// Cached input price as a fraction of uncached, for the providers this fork ships.
+ const CACHED_INPUT_PRICE_RATIO: f64 = 0.1;
+-/// Bounds on the horizon, so a tiny or absent density estimate cannot make keeping free.
+-const MIN_HORIZON: i64 = 1;
++/// Bounds on the horizon. Zero is an answer, not a degenerate case: with the budget spent,
++/// compaction rewrites the prefix before another request is billed for a retained token, so
++/// there is nothing left to amortise a re-prefill over and breaking the prefix can only lose.
++const MIN_HORIZON: i64 = 0;
+ const MAX_HORIZON: i64 = 200;
+ 
+ pub(crate) struct RetentionInputs {
+diff --git a/codex-rs/core/src/request_density.rs b/codex-rs/core/src/request_density.rs
+index 995f60936b..cd7fe48754 100644
+--- a/codex-rs/core/src/request_density.rs
++++ b/codex-rs/core/src/request_density.rs
+@@ -27,9 +27,12 @@ use serde::Serialize;
+ pub(crate) const WINDOW_TOKENS: i64 = 80_000;
+ /// Windows the moving average covers.
+ const MAX_SAMPLES: usize = 20;
+-/// Density assumed before any window has been measured. Real sessions ran at 345-850 tokens of
+-/// context growth per request, so a full window buys roughly this many.
+-const DEFAULT_REQUESTS_PER_WINDOW: f64 = 160.0;
++/// Density assumed before any window has been measured. The earlier figure of 160 came from reply
++/// size alone, which leaves out the tool output that dominates real context growth; measured
++/// windows on this fork close at 25-94 requests. Overstating the density inflates the horizon, and
++/// an inflated horizon makes carrying reasoning look expensive enough to drop — which is the side
++/// that pays for a full re-prefill.
++const DEFAULT_REQUESTS_PER_WINDOW: f64 = 70.0;
+ const FILENAME: &str = "request_density.json";
+ 
+ #[derive(Default, Serialize, Deserialize)]

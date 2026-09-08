@@ -1,0 +1,55 @@
+From 89fef09581fcccc12f351988519b328bb2f13cd5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Mon, 7 Sep 2026 17:22:39 +0300
+Subject: [PATCH 63/71] Assemble a streamed assistant message into one content
+ part
+
+A Chat stream delivers an assistant message a token at a time, and the SSE
+reader pushed one `ContentItem::OutputText` per delta, so a finished message
+carried 25-54 parts. That is invisible while the parts are concatenated - the
+request builder does `text.push_str(t)` - but `content_items_to_text` rejoins
+them with a newline, which is right for the Responses API, where a completed
+message arrives whole from `response.output_item.done`. On this wire it put a
+newline between every single token.
+
+The retired verbatim assistant tail was the one hot caller: measured over the
+332 assistant messages retained by the recorded compactions, 45,101 tokens as
+stored against 21,773 for the same text concatenated - 2.07x, paid for on every
+request that carried the tail, and mangled prose for the model to read. The
+remaining callers are a fallback in the memories runtime that only fires when no
+text delta arrived, plus the guardian and realtime paths, neither of which runs
+against this provider.
+
+Both halves are upstream's and correct apart from each other, so the fix belongs
+at the source, in this fork's wire adapter: coalesce into the last part and hand
+the rest of the code the single part it expects. Verified on a live session -
+one content part, 1.00x against the concatenated text.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ codex-rs/codex-api/src/sse/chat.rs | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/codex-rs/codex-api/src/sse/chat.rs b/codex-rs/codex-api/src/sse/chat.rs
+index a2931b5585..eb72066624 100644
+--- a/codex-rs/codex-api/src/sse/chat.rs
++++ b/codex-rs/codex-api/src/sse/chat.rs
+@@ -409,7 +409,16 @@ async fn append_assistant(
+     }
+ 
+     if let Some(ResponseItem::Message { content, .. }) = assistant {
+-        content.push(ContentItem::OutputText { text: text.clone() });
++        // Coalesce deltas into one part. A Chat stream delivers a message a token at a time, and
++        // one `OutputText` per delta leaves the finished item with hundreds of parts. Consumers
++        // that rejoin those parts with a separator - `content_items_to_text` joins with a newline,
++        // which is correct for the Responses API, where a completed message arrives whole - then
++        // put that separator between every token. Building the single part the rest of the code
++        // expects keeps the two wires equivalent.
++        match content.last_mut() {
++            Some(ContentItem::OutputText { text: existing }) => existing.push_str(&text),
++            _ => content.push(ContentItem::OutputText { text: text.clone() }),
++        }
+         let _ = tx_event
+             .send(Ok(ResponseEvent::OutputTextDelta(text)))
+             .await;

@@ -1,0 +1,29 @@
+From 375170eb2fa9cd3fd7fbcf3faf66e7ebfc6a4684 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Fri, 4 Sep 2026 16:41:43 +0300
+Subject: [PATCH 48/71] Turn on the built-in memories pipeline
+
+With the AGENTS.md refresh gone, durable memory is upstream's memories
+pipeline: at session start it extracts memories from earlier rollouts and
+consolidates them in a detached session, outside the live conversation's
+context. Upstream ships the `memories` feature off by default; the packaged
+defaults layer turns it on for this product.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RVZHG9H5htyFpi1B6xbmp8
+---
+ codex-rs/config/defaults.toml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/codex-rs/config/defaults.toml b/codex-rs/config/defaults.toml
+index e91fdc52a4..53c53a070a 100644
+--- a/codex-rs/config/defaults.toml
++++ b/codex-rs/config/defaults.toml
+@@ -16,3 +16,6 @@ project_root_markers = [".git"]
+ 
+ [history]
+ persistence = "save-all"
++
++[features]
++memories = true

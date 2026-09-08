@@ -1,0 +1,908 @@
+From 87ad58278462ee5b4375d38c3873322976d34c4e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 11:52:29 +0300
+Subject: [PATCH 27/71] Price reasoning retention against cache invalidation
+
+Dropping every finished turn's reasoning rewrote the assistant message it is
+folded into on the Chat wire, invalidating the prompt cache from there to the
+end of the prompt. At low effort that traded a five-figure uncached re-prefill
+for a two-digit token saving. The verdict is now priced per think stage and
+frozen on the history envelope so it can never flip and cost the same miss
+twice, and tool-output shrinking only runs from the break the drop already paid
+for.
+---
+ codex-rs/codex-api/src/requests/chat.rs       |  61 +++-
+ codex-rs/core/config.schema.json              |   6 +
+ codex-rs/core/src/context_manager/history.rs  |  95 +++--
+ .../core/src/context_manager/history_tests.rs |  54 +++
+ .../core/src/context_manager/tool_output.rs   |  17 +-
+ .../src/context_manager/tool_output_tests.rs  |   4 +-
+ codex-rs/core/src/lib.rs                      |   1 +
+ codex-rs/core/src/reasoning_retention.rs      | 339 ++++++++++++++++++
+ codex-rs/core/src/session/mod.rs              |  22 ++
+ codex-rs/core/src/session/turn.rs             |   4 +
+ codex-rs/features/src/lib.rs                  |   8 +
+ codex-rs/history/src/lib.rs                   |  12 +
+ codex-rs/history/src/tests.rs                 |   2 +
+ 13 files changed, 583 insertions(+), 42 deletions(-)
+ create mode 100644 codex-rs/core/src/reasoning_retention.rs
+
+diff --git a/codex-rs/codex-api/src/requests/chat.rs b/codex-rs/codex-api/src/requests/chat.rs
+index 11a933ec6c..1068e81742 100644
+--- a/codex-rs/codex-api/src/requests/chat.rs
++++ b/codex-rs/codex-api/src/requests/chat.rs
+@@ -23,7 +23,7 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
+     }
+ 
+     let input = request.input.as_slice();
+-    let reasoning_by_anchor_index = anchor_trailing_reasoning(input);
++    let reasoning_by_anchor_index = anchor_reasoning(input);
+     let mut last_assistant_text: Option<String> = None;
+ 
+     for (idx, item) in input.iter().enumerate() {
+@@ -249,25 +249,18 @@ fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) ->
+         .collect()
+ }
+ 
+-/// Attaches each trailing `Reasoning` item to the assistant message or tool call
+-/// it belongs to, so it can ride along as `reasoning_content`.
++/// Attaches each `Reasoning` item to the assistant message or tool call it belongs
++/// to, so it can ride along as `reasoning_content`.
+ ///
+-/// Only reasoning produced after the last user message is carried; earlier
+-/// reasoning is history the provider does not need and we do not want to pay for.
+-fn anchor_trailing_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
++/// Every reasoning item still present in `input` is carried. Which reasoning survives
++/// a finished turn is decided in history, where the size of the reasoning can be
++/// weighed against the prompt-cache invalidation that removing it costs. Dropping more
++/// of it here would rewrite the messages history deliberately left alone, and cost
++/// exactly the cache miss that decision was made to avoid.
++fn anchor_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
+     let mut anchored: HashMap<usize, String> = HashMap::new();
+ 
+-    let last_user_index = input.iter().rposition(
+-        |item| matches!(item, ResponseItem::Message { role, .. } if role == "user"),
+-    );
+-
+     for (idx, item) in input.iter().enumerate() {
+-        if let Some(user_idx) = last_user_index
+-            && idx <= user_idx
+-        {
+-            continue;
+-        }
+-
+         let ResponseItem::Reasoning {
+             content: Some(items),
+             ..
+@@ -532,7 +525,7 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn carries_trailing_reasoning_on_the_tool_call_it_explains() {
++    fn carries_reasoning_on_the_tool_call_it_explains() {
+         let body = chat_body_from_responses_request(&request(
+             vec![
+                 user("go"),
+@@ -555,4 +548,38 @@ mod tests {
+         assert_eq!(assistant["role"], "assistant");
+         assert_eq!(assistant["reasoning_content"], "check the file");
+     }
++
++    #[test]
++    fn carries_reasoning_that_history_kept_from_an_earlier_turn() {
++        let thinking = |text: &str| ResponseItem::Reasoning {
++            id: None,
++            summary: Vec::new(),
++            content: Some(vec![ReasoningItemContent::ReasoningText {
++                text: text.to_string(),
++            }]),
++            encrypted_content: None,
++            internal_chat_message_metadata_passthrough: None,
++        };
++
++        let body = chat_body_from_responses_request(&request(
++            vec![
++                user("go"),
++                thinking("check the file"),
++                call("call-a", "read_file", "{}"),
++                user("now do the next thing"),
++                thinking("write the file"),
++                call("call-b", "write_file", "{}"),
++            ],
++            None,
++        ));
++
++        // History is the only place that decides what a finished turn keeps. Stripping the
++        // earlier reasoning here would rewrite a message the prefix cache still matches on.
++        let messages = body["messages"].as_array().expect("messages");
++        let earlier = messages
++            .iter()
++            .find(|message| message["tool_calls"][0]["id"] == "call-a")
++            .expect("earlier tool call");
++        assert_eq!(earlier["reasoning_content"], "check the file");
++    }
+ }
+diff --git a/codex-rs/core/config.schema.json b/codex-rs/core/config.schema.json
+index d1e3294b98..139f3007a4 100644
+--- a/codex-rs/core/config.schema.json
++++ b/codex-rs/core/config.schema.json
+@@ -841,6 +841,9 @@
+             "realtime_conversation": {
+               "type": "boolean"
+             },
++            "reasoning_cost_model": {
++              "type": "boolean"
++            },
+             "recommended_plugins": {
+               "type": "boolean"
+             },
+@@ -6124,6 +6127,9 @@
+         "realtime_conversation": {
+           "type": "boolean"
+         },
++        "reasoning_cost_model": {
++          "type": "boolean"
++        },
+         "recommended_plugins": {
+           "type": "boolean"
+         },
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index 77208a2519..a349fc3500 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -8,6 +8,7 @@ use crate::context_manager::tool_output::shrink_completed_outputs;
+ use crate::event_mapping::has_non_contextual_dev_message_content;
+ use crate::event_mapping::is_contextual_dev_message_content;
+ use crate::event_mapping::is_contextual_user_message_content;
++use crate::reasoning_retention::RetentionInputs;
+ use crate::session::turn_context::TurnContext;
+ use crate::utils::json::serialized_json_bytes;
+ use base64::Engine;
+@@ -59,6 +60,11 @@ pub(crate) struct ContextManager {
+     /// running, then dropped from the prompt forever. So once that turn ends this amount is still
+     /// part of the reported usage but no longer part of the next request's input.
+     turn_reasoning_output_tokens: Option<(String, i64)>,
++    /// Active context size the last time reasoning retention was priced.
++    last_decision_context_tokens: Option<i64>,
++    /// Running (sum, count) of context growth between those pricing points, so the horizon a
++    /// retention decision amortises over is observed rather than guessed.
++    turn_growth: (i64, u32),
+     /// Reference context snapshot used for diffing and producing model-visible
+     /// settings update items.
+     ///
+@@ -120,6 +126,8 @@ impl ContextManager {
+                 &None, &None, /*model_context_window*/ None,
+             ),
+             turn_reasoning_output_tokens: None,
++            last_decision_context_tokens: None,
++            turn_growth: (0, 0),
+             reference_context_item: None,
+             world_state_baseline: None,
+         }
+@@ -250,26 +258,63 @@ impl ContextManager {
+             .collect()
+     }
+ 
++    /// Freezes the keep/drop verdict on reasoning whose turn has ended.
++    ///
++    /// `context_tokens` is the active context size right now; successive calls turn it into the
++    /// mean per-turn growth, which is what says how many more requests this prefix has to live
++    /// through before compaction rewrites it anyway.
++    pub(crate) fn freeze_reasoning_retention(
++        &mut self,
++        active_turn_id: Option<&str>,
++        budget_remaining: i64,
++        context_tokens: i64,
++    ) {
++        let turn_growth_tokens = self.observe_turn_growth(context_tokens);
++        crate::reasoning_retention::freeze_reasoning_retention(
++            Arc::make_mut(&mut self.items).as_mut_slice(),
++            active_turn_id,
++            RetentionInputs {
++                budget_remaining,
++                turn_growth_tokens,
++            },
++        );
++    }
++
++    fn observe_turn_growth(&mut self, context_tokens: i64) -> Option<i64> {
++        if let Some(previous) = self.last_decision_context_tokens.replace(context_tokens) {
++            let growth = context_tokens.saturating_sub(previous);
++            // Compaction and rollback shrink the context; only forward growth says anything
++            // about what the next turn will add.
++            if growth > 0 {
++                self.turn_growth.0 = self.turn_growth.0.saturating_add(growth);
++                self.turn_growth.1 = self.turn_growth.1.saturating_add(1);
++            }
++        }
++        (self.turn_growth.1 > 0).then(|| self.turn_growth.0 / i64::from(self.turn_growth.1))
++    }
++
+     /// Returns normalized history envelopes for internal consumers that must retain metadata.
+     ///
+     /// Two kinds of item are scoped to the turn that produced them and are dropped once
+-    /// that turn finishes: everything recorded by an invisible turn, and every reasoning
+-    /// item. The still-running turn named by `active_turn_id` keeps its own items, so the
+-    /// model can act on the request it is answering and follow its own thinking across the
+-    /// tool-call loop. Passing `None` means no turn is running, which drops all of them.
++    /// that turn finishes: everything recorded by an invisible turn, and reasoning that was
++    /// priced as cheaper to drop than to keep. The still-running turn named by `active_turn_id`
++    /// keeps its own items, so the model can act on the request it is answering and follow its
++    /// own thinking across the tool-call loop. Passing `None` means no turn is running, which
++    /// drops all of them.
+     ///
+-    /// Tool output from a finished turn survives, but noisy build and test output is
+-    /// shrunk to its head and tail. That happens at the same boundary, so it costs no
+-    /// prompt-cache invalidation beyond what dropping reasoning already costs.
++    /// Tool output from a finished turn survives, but noisy build and test output is shrunk to
++    /// its head and tail. Shrinking rewrites the output in place, so it is only free from the
++    /// first dropped item onwards, where the prompt cache is already invalidated. When nothing
++    /// was dropped, nothing is shrunk and the prefix stays byte-identical.
+     pub(crate) fn for_prompt_annotated(
+         mut self,
+         input_modalities: &[InputModality],
+         active_turn_id: Option<&str>,
+     ) -> Vec<ResponseItemEnvelope> {
+-        self.drop_completed_turn_scoped_items(active_turn_id);
++        let prefix_break = self.drop_completed_turn_scoped_items(active_turn_id);
+         self.normalize_history(input_modalities);
+         let mut items = Arc::unwrap_or_clone(self.items);
+-        shrink_completed_outputs(&mut items, |envelope| {
++        shrink_completed_outputs(&mut items, prefix_break, |envelope| {
+             let owner = envelope
+                 .metadata
+                 .as_ref()
+@@ -279,7 +324,11 @@ impl ContextManager {
+         items
+     }
+ 
+-    fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) {
++    /// Drops turn-scoped items and returns the index the prompt cache is invalidated from.
++    ///
++    /// Removing an item rewrites the prompt from its position to the end, so the index of the
++    /// first removal is exactly where the surviving prefix stops being byte-identical.
++    fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) -> Option<usize> {
+         let is_completed = |envelope: &ResponseItemEnvelope| {
+             let metadata = envelope.metadata.as_ref();
+             let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
+@@ -287,17 +336,23 @@ impl ContextManager {
+             {
+                 return true;
+             }
+-            // Reasoning that predates this metadata, or that was never stamped, has no
+-            // owning turn to compare against and is treated as finished.
+-            matches!(envelope.item, ResponseItem::Reasoning { .. })
+-                && !belongs_to_active_turn(
+-                    active_turn_id,
+-                    metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
+-                )
++            if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
++                return false;
++            }
++            if belongs_to_active_turn(
++                active_turn_id,
++                metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
++            ) {
++                return false;
++            }
++            // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the
++            // cached prefix than the re-prefill dropping it would cost. Reasoning that predates
++            // that verdict, or that was never stamped, is dropped as it always was.
++            metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true)
+         };
+-        if self.items.iter().any(is_completed) {
+-            Arc::make_mut(&mut self.items).retain(|envelope| !is_completed(envelope));
+-        }
++        let first_dropped = self.items.iter().position(is_completed)?;
++        Arc::make_mut(&mut self.items).retain(|envelope| !is_completed(envelope));
++        Some(first_dropped)
+     }
+ 
+     /// Iterates over raw response items without exposing their history envelopes.
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index 233b0b6623..5f0215dbac 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -602,6 +602,60 @@ fn reasoning_stays_in_the_prompt_only_while_its_own_turn_runs() {
+     );
+ }
+ 
++#[test]
++fn retained_reasoning_keeps_the_prompt_byte_identical() {
++    let noisy = format!("cargo build\n{}", "Compiling something\n".repeat(100));
++    let call = ResponseItem::FunctionCall {
++        id: None,
++        name: "shell".to_string(),
++        namespace: None,
++        arguments: serde_json::json!({ "command": "cargo build" }).to_string(),
++        encrypted_function_args: None,
++        call_id: "call-1".to_string(),
++        internal_chat_message_metadata_passthrough: None,
++    };
++    let output = ResponseItem::FunctionCallOutput {
++        id: None,
++        call_id: Some("call-1".to_string()),
++        name: None,
++        namespace: None,
++        output: FunctionCallOutputPayload {
++            body: FunctionCallOutputBody::Text(noisy),
++            success: Some(true),
++        },
++        internal_chat_message_metadata_passthrough: None,
++    };
++    let asked = user_msg("do the thing");
++    let thinking = reasoning_msg("worth keeping");
++    let mut history = ContextManager::new();
++    history.replace_annotated(vec![
++        ResponseItemEnvelope::new(asked.clone()),
++        ResponseItemEnvelope {
++            item: thinking.clone(),
++            metadata: Some(CodexHarnessMetadata {
++                reasoning_turn: Some("turn-1".to_string()),
++                reasoning_retained: Some(true),
++                ..Default::default()
++            }),
++        },
++        ResponseItemEnvelope::new(call.clone()),
++        ResponseItemEnvelope {
++            item: output.clone(),
++            metadata: Some(CodexHarnessMetadata {
++                tool_output_turn: Some("turn-1".to_string()),
++                ..Default::default()
++            }),
++        },
++    ]);
++
++    // Nothing was dropped, so nothing may be rewritten either: shrinking the finished turn's
++    // output here would break the very prefix the retention verdict paid to preserve.
++    assert_eq!(
++        history.for_prompt(&default_input_modalities(), Some("turn-2")),
++        vec![asked, thinking, call, output]
++    );
++}
++
+ #[test_case(None, 100, 5, true; "model policy")]
+ #[test_case(Some(200), 100, 200, false; "configured override")]
+ #[test_case(Some(100), 85, 100, true; "saved limit has no additional allowance")]
+diff --git a/codex-rs/core/src/context_manager/tool_output.rs b/codex-rs/core/src/context_manager/tool_output.rs
+index 81221047e2..b8b2362a05 100644
+--- a/codex-rs/core/src/context_manager/tool_output.rs
++++ b/codex-rs/core/src/context_manager/tool_output.rs
+@@ -7,8 +7,8 @@
+ //!
+ //! Shrinking happens on the copy of history built for a request, never on stored history, so
+ //! the transcript and the UI keep the real output. It applies only to turns that have
+-//! finished, which is the same boundary where reasoning drops out, so it costs no additional
+-//! prompt-cache invalidation.
++//! finished, and only from the point where the prompt cache is already invalidated by a
++//! dropped item, so it never costs a re-prefill of its own.
+ 
+ use std::collections::HashMap;
+ use std::collections::HashSet;
+@@ -104,17 +104,28 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
+ 
+ /// Replaces the middle of successful, noisy tool output with an explicit marker.
+ ///
++/// `prefix_break` is the index the prompt cache is already invalidated from, or `None` when the
++/// prompt is byte-identical to the last one. Shrinking rewrites the output in place and so
++/// invalidates the cache from there to the end; doing it before the break would pay for a
++/// re-prefill in order to save tokens, which is the trade this harness exists to avoid.
++///
+ /// `is_completed` reports whether an item's turn has finished. Output from the running turn
+ /// is left alone, because the model is still acting on it.
+ pub(crate) fn shrink_completed_outputs(
+     items: &mut [ResponseItemEnvelope],
++    prefix_break: Option<usize>,
+     is_completed: impl Fn(&ResponseItemEnvelope) -> bool,
+ ) {
++    let Some(prefix_break) = prefix_break else {
++        return;
++    };
++    // The call ids are collected from the whole history: a call may sit in the untouched prefix
++    // while its output sits after the break.
+     let shrinkable = shrinkable_call_ids(items);
+     if shrinkable.is_empty() {
+         return;
+     }
+-    for envelope in items.iter_mut() {
++    for envelope in items.iter_mut().skip(prefix_break) {
+         if !is_completed(envelope) {
+             continue;
+         }
+diff --git a/codex-rs/core/src/context_manager/tool_output_tests.rs b/codex-rs/core/src/context_manager/tool_output_tests.rs
+index 650249073c..4b3392ad34 100644
+--- a/codex-rs/core/src/context_manager/tool_output_tests.rs
++++ b/codex-rs/core/src/context_manager/tool_output_tests.rs
+@@ -42,7 +42,7 @@ fn output(text: &str, success: Option<bool>) -> ResponseItemEnvelope {
+ /// Runs the shrinker over one call/output pair and returns the resulting output text.
+ fn shrink_pair(arguments: &str, text: &str, success: Option<bool>) -> String {
+     let mut items = vec![call(arguments), output(text, success)];
+-    shrink_completed_outputs(&mut items, |_| true);
++    shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| true);
+     let ResponseItem::FunctionCallOutput { output, .. } = &items[1].item else {
+         panic!("expected a function call output");
+     };
+@@ -162,7 +162,7 @@ fn leaves_output_from_the_running_turn_alone() {
+     let text = noisy_output();
+     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+     let mut items = vec![call(&arguments), output(&text, Some(true))];
+-    shrink_completed_outputs(&mut items, |_| false);
++    shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| false);
+     let ResponseItem::FunctionCallOutput { output, .. } = &items[1].item else {
+         panic!("expected a function call output");
+     };
+diff --git a/codex-rs/core/src/lib.rs b/codex-rs/core/src/lib.rs
+index 5f20ec98c6..975602d098 100644
+--- a/codex-rs/core/src/lib.rs
++++ b/codex-rs/core/src/lib.rs
+@@ -138,6 +138,7 @@ pub(crate) mod agents_md;
+ mod agents_md_manager;
+ mod agents_md_memory;
+ mod prompt_cache_keep_alive;
++mod reasoning_retention;
+ pub use agents_md::DEFAULT_AGENTS_MD_FILENAME;
+ pub use agents_md::LOCAL_AGENTS_MD_FILENAME;
+ pub use agents_md::LoadedAgentsMd;
+diff --git a/codex-rs/core/src/reasoning_retention.rs b/codex-rs/core/src/reasoning_retention.rs
+new file mode 100644
+index 0000000000..d0ac145257
+--- /dev/null
++++ b/codex-rs/core/src/reasoning_retention.rs
+@@ -0,0 +1,339 @@
++//! Decides whether reasoning is cheaper to keep than to drop, once per turn boundary.
++//!
++//! Reasoning used to be dropped the instant its turn ended, on the assumption that a smaller
++//! context is always a cheaper context. That is only half of the price. On the Chat wire
++//! reasoning is not a free-floating item: it is folded into the assistant message or tool call
++//! it explains, so removing it *rewrites* that message, and prefix caching invalidates from the
++//! first differing token to the end of the prompt. The first reasoning item of a turn sits at
++//! the start of that turn, so dropping it re-bills the entire turn at the uncached rate.
++//!
++//! Measured against a real session, a `low`-effort turn produced reasoning with a median of 32
++//! tokens. Keeping 32 tokens in a cached prefix costs a rounding error; dropping them cost a
++//! five-figure re-prefill. At `max` effort the same reasoning is orders of magnitude larger and
++//! the trade flips. So this is arithmetic, not a constant, and it is done here.
++//!
++//! Two properties make the pass cheap and safe:
++//!
++//! - **Cascade.** Invalidation runs from the first difference to the end, so once anything is
++//!   dropped every droppable item after it costs no additional cache. There is therefore only
++//!   ever one real decision to make: where to break.
++//! - **Freezing.** A verdict is written onto the item and never recomputed. A decision that
++//!   flipped between requests would produce exactly the cache miss the whole pass exists to
++//!   avoid.
++
++use codex_history::ResponseItemEnvelope;
++use codex_protocol::models::ReasoningItemContent;
++use codex_protocol::models::ReasoningItemReasoningSummary;
++use codex_protocol::models::ResponseItem;
++use codex_utils_output_truncation::approx_token_count;
++
++use crate::context_manager::estimate_item_token_count;
++
++/// Cached input price as a fraction of uncached, for the providers this fork ships.
++const CACHED_INPUT_PRICE_RATIO: f64 = 0.1;
++/// Context growth assumed for a turn before any has been observed. The measured session
++/// added 1–2.8K tokens per request.
++const DEFAULT_TURN_GROWTH_TOKENS: i64 = 2_000;
++/// Bounds on the horizon, so a tiny or absent growth estimate cannot make keeping free.
++const MIN_HORIZON: i64 = 1;
++const MAX_HORIZON: i64 = 200;
++
++pub(crate) struct RetentionInputs {
++    /// Tokens left before the next auto-compaction.
++    pub budget_remaining: i64,
++    /// Observed mean context growth per turn, or `None` before the second turn.
++    pub turn_growth_tokens: Option<i64>,
++}
++
++/// Requests expected before compaction resets the prefix anyway.
++///
++/// Beyond that point the prefix is rewritten wholesale, so reasoning kept past it is never
++/// re-billed and must not be counted as if it were.
++fn horizon(inputs: &RetentionInputs) -> i64 {
++    let growth = inputs
++        .turn_growth_tokens
++        .filter(|growth| *growth > 0)
++        .unwrap_or(DEFAULT_TURN_GROWTH_TOKENS);
++    (inputs.budget_remaining / growth).clamp(MIN_HORIZON, MAX_HORIZON)
++}
++
++/// Cost of breaking the prefix at one candidate, in uncached-input token equivalents.
++///
++/// `suffix_tokens` is re-prefilled once, at the premium an uncached token carries over a cached
++/// one. `retained_reasoning_tokens` instead rides along in the cached prefix for the whole
++/// horizon. The break that minimizes this sum is the one to take.
++fn break_cost(suffix_tokens: i64, retained_reasoning_tokens: i64, horizon: i64) -> f64 {
++    let cached_ratio = CACHED_INPUT_PRICE_RATIO;
++    (suffix_tokens as f64) * (1.0 - cached_ratio)
++        + (horizon as f64) * cached_ratio * (retained_reasoning_tokens as f64)
++}
++
++/// Freezes a keep/drop verdict on every reasoning item whose turn has ended.
++///
++/// The candidates are evaluated from the newest backwards, because the cost of dropping an
++/// early reasoning item is not its own size: dropping it also drops every reasoning item after
++/// it for free, and it is only worth paying for if the *later* reasoning is not going to force
++/// a break anyway. An earliest-first pass that stopped at the first profitable candidate would
++/// break the prefix too early and pay for a re-prefill that a later break would have covered.
++///
++/// Reasoning belonging to `active_turn_id` is left undecided: the model is still following it,
++/// and its final size is not known yet.
++pub(crate) fn freeze_reasoning_retention(
++    items: &mut [ResponseItemEnvelope],
++    active_turn_id: Option<&str>,
++    inputs: RetentionInputs,
++) {
++    // Where the prefix is already broken by something this pass does not control: an item from
++    // a finished invisible turn, reasoning already sentenced to be dropped, or reasoning that
++    // predates this metadata and is dropped for the same reason it always was.
++    let forced_break = items
++        .iter()
++        .position(|envelope| is_dropped_regardless(envelope, active_turn_id))
++        .unwrap_or(items.len());
++
++    let mut candidates = Vec::new();
++    let mut free_drops = Vec::new();
++    for (index, envelope) in items.iter().enumerate() {
++        if !is_undecided_completed_reasoning(envelope, active_turn_id) {
++            continue;
++        }
++        if index >= forced_break {
++            // Free: everything from `forced_break` on is re-prefilled either way.
++            free_drops.push(index);
++        } else {
++            candidates.push((index, reasoning_tokens(&envelope.item)));
++        }
++    }
++    for index in free_drops {
++        stamp(&mut items[index], false);
++    }
++    if candidates.is_empty() {
++        return;
++    }
++
++    // Tokens from each index to the end of history. Reasoning contributes nothing here, which
++    // is why its size is measured separately.
++    let mut suffix_tokens = vec![0i64; items.len() + 1];
++    for (index, envelope) in items.iter().enumerate().rev() {
++        suffix_tokens[index] =
++            suffix_tokens[index + 1].saturating_add(estimate_item_token_count(&envelope.item));
++    }
++
++    let horizon = horizon(&inputs);
++    let total: i64 = candidates
++        .iter()
++        .map(|(_, tokens)| *tokens)
++        .fold(0i64, i64::saturating_add);
++
++    // Start at the latest possible break, which keeps every candidate, then walk backwards
++    // trading one more re-prefilled suffix against the reasoning that break drops.
++    let mut best_break = forced_break;
++    let mut best_cost = break_cost(suffix_tokens[forced_break], total, horizon);
++    let mut dropped = 0i64;
++    for (index, tokens) in candidates.iter().rev() {
++        dropped = dropped.saturating_add(*tokens);
++        let cost = break_cost(
++            suffix_tokens[*index],
++            total.saturating_sub(dropped),
++            horizon,
++        );
++        if cost < best_cost {
++            best_cost = cost;
++            best_break = *index;
++        }
++    }
++
++    for (index, _) in candidates {
++        stamp(&mut items[index], index < best_break);
++    }
++}
++
++fn stamp(envelope: &mut ResponseItemEnvelope, retained: bool) {
++    envelope.metadata.get_or_insert_default().reasoning_retained = Some(retained);
++}
++
++/// Whether an item is removed from the prompt whatever this pass decides.
++fn is_dropped_regardless(envelope: &ResponseItemEnvelope, active_turn_id: Option<&str>) -> bool {
++    let metadata = envelope.metadata.as_ref();
++    let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
++    if invisible_owner.is_some() && !belongs_to_active_turn(active_turn_id, invisible_owner) {
++        return true;
++    }
++    if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
++        return false;
++    }
++    let Some(metadata) = metadata else {
++        // Reasoning recorded before this metadata existed. It has always been dropped.
++        return true;
++    };
++    match metadata.reasoning_retained {
++        Some(retained) => !retained,
++        // An unstamped item with no owning turn cannot have been produced by this build.
++        None => metadata.reasoning_turn.is_none(),
++    }
++}
++
++fn is_undecided_completed_reasoning(
++    envelope: &ResponseItemEnvelope,
++    active_turn_id: Option<&str>,
++) -> bool {
++    if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
++        return false;
++    }
++    let Some(metadata) = envelope.metadata.as_ref() else {
++        return false;
++    };
++    metadata.reasoning_retained.is_none()
++        && metadata.reasoning_turn.is_some()
++        && !belongs_to_active_turn(active_turn_id, metadata.reasoning_turn.as_deref())
++}
++
++fn belongs_to_active_turn(active_turn_id: Option<&str>, owner: Option<&str>) -> bool {
++    matches!((active_turn_id, owner), (Some(active), Some(owner)) if active == owner)
++}
++
++/// Size of the reasoning text that actually goes on the wire.
++///
++/// The history-wide estimator reports reasoning as zero tokens, because for most of this
++/// codebase reasoning is something the server bills rather than something the prompt carries.
++/// Here it is precisely the thing being priced, so it is measured directly.
++fn reasoning_tokens(item: &ResponseItem) -> i64 {
++    let ResponseItem::Reasoning {
++        summary, content, ..
++    } = item
++    else {
++        return 0;
++    };
++    let summary = summary.iter().map(|entry| match entry {
++        ReasoningItemReasoningSummary::SummaryText { text } => text.as_str(),
++    });
++    let content = content.iter().flatten().map(|entry| match entry {
++        ReasoningItemContent::ReasoningText { text } | ReasoningItemContent::Text { text } => {
++            text.as_str()
++        }
++    });
++    summary
++        .chain(content)
++        .map(|text| i64::try_from(approx_token_count(text)).unwrap_or(i64::MAX))
++        .fold(0i64, i64::saturating_add)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use codex_history::CodexHarnessMetadata;
++    use codex_protocol::models::ContentItem;
++
++    const TURN: &str = "turn-1";
++
++    /// Roughly `tokens` tokens of history, so suffix sizes are readable in the tests.
++    fn filler(tokens: usize) -> ResponseItemEnvelope {
++        ResponseItemEnvelope::new(ResponseItem::Message {
++            id: None,
++            role: "user".to_string(),
++            content: vec![ContentItem::InputText {
++                text: "x".repeat(tokens.saturating_mul(4)),
++            }],
++            phase: None,
++            internal_chat_message_metadata_passthrough: None,
++        })
++    }
++
++    fn thinking(tokens: usize, turn: &str) -> ResponseItemEnvelope {
++        ResponseItemEnvelope {
++            item: ResponseItem::Reasoning {
++                id: None,
++                summary: Vec::new(),
++                content: Some(vec![ReasoningItemContent::ReasoningText {
++                    text: "x".repeat(tokens.saturating_mul(4)),
++                }]),
++                encrypted_content: None,
++                internal_chat_message_metadata_passthrough: None,
++            },
++            metadata: Some(CodexHarnessMetadata {
++                reasoning_turn: Some(turn.to_string()),
++                ..Default::default()
++            }),
++        }
++    }
++
++    fn retained(items: &[ResponseItemEnvelope]) -> Vec<Option<bool>> {
++        items
++            .iter()
++            .filter(|envelope| matches!(envelope.item, ResponseItem::Reasoning { .. }))
++            .map(|envelope| {
++                envelope
++                    .metadata
++                    .as_ref()
++                    .and_then(|metadata| metadata.reasoning_retained)
++            })
++            .collect()
++    }
++
++    /// A 40-request horizon: 80K of budget left, growing 2K per turn.
++    fn inputs() -> RetentionInputs {
++        RetentionInputs {
++            budget_remaining: 80_000,
++            turn_growth_tokens: Some(2_000),
++        }
++    }
++
++    #[test]
++    fn tiny_reasoning_is_kept_because_dropping_it_rewrites_the_whole_turn() {
++        let mut items = vec![thinking(32, TURN), filler(15_000)];
++
++        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
++
++        assert_eq!(retained(&items), vec![Some(true)]);
++    }
++
++    #[test]
++    fn large_reasoning_is_dropped_once_it_outweighs_the_reprefill() {
++        let mut items = vec![thinking(5_000, TURN), filler(15_000)];
++
++        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
++
++        assert_eq!(retained(&items), vec![Some(false)]);
++    }
++
++    #[test]
++    fn later_reasoning_is_dropped_for_free_once_the_prefix_is_already_broken() {
++        let mut items = vec![
++            thinking(5_000, TURN),
++            filler(15_000),
++            thinking(32, "turn-2"),
++            filler(10),
++        ];
++
++        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
++
++        assert_eq!(retained(&items), vec![Some(false), Some(false)]);
++    }
++
++    #[test]
++    fn a_decision_is_never_revisited() {
++        let mut items = vec![thinking(32, TURN), filler(15_000)];
++
++        freeze_reasoning_retention(&mut items, /*active_turn_id*/ None, inputs());
++        let frozen = retained(&items);
++        freeze_reasoning_retention(
++            &mut items,
++            /*active_turn_id*/ None,
++            RetentionInputs {
++                budget_remaining: 0,
++                turn_growth_tokens: Some(1),
++            },
++        );
++
++        assert_eq!(retained(&items), frozen);
++    }
++
++    #[test]
++    fn active_turn_reasoning_is_left_undecided() {
++        let mut items = vec![thinking(5_000, TURN), filler(15_000)];
++
++        freeze_reasoning_retention(&mut items, Some(TURN), inputs());
++
++        assert_eq!(retained(&items), vec![None]);
++    }
++}
+diff --git a/codex-rs/core/src/session/mod.rs b/codex-rs/core/src/session/mod.rs
+index 4b56c5ff7d..b1fa9acbb6 100644
+--- a/codex-rs/core/src/session/mod.rs
++++ b/codex-rs/core/src/session/mod.rs
+@@ -4023,6 +4023,28 @@ impl Session {
+         state.clone_history()
+     }
+ 
++    /// Prices the reasoning of the turn that has just finished, and freezes the answer.
++    ///
++    /// Called as the next turn is about to be sampled, which is the one moment where the
++    /// previous turn's reasoning is both complete and not yet needed: its size is final, and
++    /// nothing has been sent that would have to stay byte-identical to a different verdict.
++    pub(crate) async fn freeze_reasoning_retention(&self, step_context: &StepContext) {
++        if !self.features.enabled(Feature::ReasoningCostModel) {
++            return;
++        }
++        let status = context_window::context_window_token_status(self, &step_context.turn).await;
++        // With no budget to amortise over there is nothing to trade against a re-prefill.
++        let Some(budget_remaining) = status.base_window_tokens_remaining else {
++            return;
++        };
++        let mut state = self.state.lock().await;
++        state.history.freeze_reasoning_retention(
++            Some(step_context.turn.sub_id.as_str()),
++            budget_remaining,
++            status.active_context_tokens,
++        );
++    }
++
+     pub(crate) async fn conversation_history_snapshot(
+         &self,
+     ) -> Arc<dyn ConversationHistorySnapshot> {
+diff --git a/codex-rs/core/src/session/turn.rs b/codex-rs/core/src/session/turn.rs
+index f3764c4922..55ba1e2844 100644
+--- a/codex-rs/core/src/session/turn.rs
++++ b/codex-rs/core/src/session/turn.rs
+@@ -369,6 +369,10 @@ pub(crate) async fn run_turn(
+                 .record_step_world_state_if_changed(&world_state, step_context.as_ref())
+                 .await?;
+ 
++            // Decide, once, whether the previous turn's reasoning is worth keeping. This has to
++            // happen before the prompt is built and never again while it is being retried.
++            sess.freeze_reasoning_retention(step_context.as_ref()).await;
++
+             // Construct the input that we will send to the model.
+             let sampling_request_input: Vec<ResponseItem> = async {
+                 sess.clone_history().await.for_prompt(
+diff --git a/codex-rs/features/src/lib.rs b/codex-rs/features/src/lib.rs
+index 7ce9ffef39..f29ec71fec 100644
+--- a/codex-rs/features/src/lib.rs
++++ b/codex-rs/features/src/lib.rs
+@@ -173,6 +173,8 @@ pub enum Feature {
+     ProjectMemory,
+     /// Replay the last request while idle so the provider's prompt cache stays warm.
+     PromptCacheKeepAlive,
++    /// Price keeping a finished turn's reasoning against the cache miss dropping it would cost.
++    ReasoningCostModel,
+     /// Enable importing project-scoped memory from external agents.
+     ExternalAgentMemoryImport,
+     /// Compress cold local thread-store rollout files.
+@@ -1082,6 +1084,12 @@ pub const FEATURES: &[FeatureSpec] = &[
+         stage: Stage::Stable,
+         default_enabled: true,
+     },
++    FeatureSpec {
++        id: Feature::ReasoningCostModel,
++        key: "reasoning_cost_model",
++        stage: Stage::Stable,
++        default_enabled: true,
++    },
+     FeatureSpec {
+         id: Feature::ExternalAgentMemoryImport,
+         key: "external_agent_memory_import",
+diff --git a/codex-rs/history/src/lib.rs b/codex-rs/history/src/lib.rs
+index 12c35be12a..f772982c63 100644
+--- a/codex-rs/history/src/lib.rs
++++ b/codex-rs/history/src/lib.rs
+@@ -71,6 +71,18 @@ pub struct CodexHarnessMetadata {
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub reasoning_turn: Option<String>,
+ 
++    /// Whether this reasoning survives its own turn, decided once and never revisited.
++    ///
++    /// Reasoning is folded into its anchor message on the Chat wire, so removing it rewrites
++    /// that message and invalidates the prompt cache from there to the end. Keeping it instead
++    /// re-bills it at the cached rate on every later request. Which is cheaper depends on how
++    /// large the reasoning is and how many requests remain, so it is priced at the moment the
++    /// turn ends. Recomputing it later would let the answer flip and break the prefix for
++    /// nothing, so the verdict is stored. `None` means undecided; legacy items without it are
++    /// dropped, matching the behaviour they were recorded under.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub reasoning_retained: Option<bool>,
++
+     /// Id of the turn that produced this tool output.
+     ///
+     /// While the turn is running the model sees the output whole, because it is acting on
+diff --git a/codex-rs/history/src/tests.rs b/codex-rs/history/src/tests.rs
+index 43cbc0ca85..31a3d0088d 100644
+--- a/codex-rs/history/src/tests.rs
++++ b/codex-rs/history/src/tests.rs
+@@ -75,6 +75,7 @@ fn response_item_envelope_stores_metadata_beside_rollout_payload() -> Result<()>
+                 fallback_token_limit_override: Some(20_000),
+                 invisible_turn: None,
+                 reasoning_turn: None,
++                reasoning_retained: None,
+                 tool_output_turn: None,
+             }),
+         }),
+@@ -104,6 +105,7 @@ fn response_item_envelope_stores_metadata_beside_rollout_payload() -> Result<()>
+             fallback_token_limit_override: Some(20_000),
+             invisible_turn: None,
+             reasoning_turn: None,
++            reasoning_retained: None,
+             tool_output_turn: None,
+         })
+     );

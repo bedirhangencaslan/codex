@@ -1,0 +1,125 @@
+From a740367dd1679d0671e80716d3963013368fe8f1 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 16:51:09 +0300
+Subject: [PATCH 16/71] Send the reasoning effort instead of inheriting GLM's
+ max default
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The chat adapter turned thinking on but never forwarded a depth, and GLM
+reads a missing `reasoning_effort` as `max` — the deepest and most expensive
+rung it offers. Every request was running there, and whatever the user chose
+in the model picker was dropped on the way to the wire.
+
+The ladder GLM-5.3 accepts is only `low`, `high` and `max`; any other value
+is rejected outright, so an effort inherited from a config written for
+another provider has to be projected onto one of the three rather than
+forwarded. Clamping at the wire boundary keeps the rest of Codex on its own
+wider ladder. Rungs with no depth ordering to project fall back to `high`,
+which is the model default.
+
+`thinking` stays pinned to enabled: GLM-5.3 errors on `disabled`, so depth
+is the only dial left.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/codex-api/src/requests/chat.rs | 62 ++++++++++++++++++++++++-
+ 1 file changed, 61 insertions(+), 1 deletion(-)
+
+diff --git a/codex-rs/codex-api/src/requests/chat.rs b/codex-rs/codex-api/src/requests/chat.rs
+index 4f43fc4088..4622e29e54 100644
+--- a/codex-rs/codex-api/src/requests/chat.rs
++++ b/codex-rs/codex-api/src/requests/chat.rs
+@@ -10,6 +10,7 @@ use codex_protocol::models::ContentItem;
+ use codex_protocol::models::FunctionCallOutputContentItem;
+ use codex_protocol::models::ReasoningItemContent;
+ use codex_protocol::models::ResponseItem;
++use codex_protocol::openai_models::ReasoningEffort;
+ use serde_json::Value;
+ use serde_json::json;
+ use std::collections::HashMap;
+@@ -167,8 +168,16 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
+     }
+ 
+     // Z.ai/GLM gate chain-of-thought behind `thinking` rather than `reasoning`.
+-    if request.reasoning.is_some() {
++    // GLM-5.3 rejects `{"type": "disabled"}` outright, so enabled is the only value
++    // worth sending; depth is chosen with `reasoning_effort` instead.
++    if let Some(reasoning) = request.reasoning.as_ref() {
+         obj.insert("thinking".to_string(), json!({"type": "enabled"}));
++        if let Some(effort) = reasoning.effort.as_ref() {
++            obj.insert(
++                "reasoning_effort".to_string(),
++                json!(glm_reasoning_effort(effort)),
++            );
++        }
+     }
+ 
+     if let Some(text) = request.text.as_ref()
+@@ -181,6 +190,24 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
+     body
+ }
+ 
++/// Projects Codex's effort ladder onto the three rungs GLM-5.3 accepts.
++///
++/// `low`, `high` and `max` are the only legal values; anything else is rejected outright,
++/// and omitting the field entirely silently selects `max`, the most expensive rung. So a
++/// config still carrying an effort written for another provider must be clamped rather than
++/// forwarded or dropped. Clamping at the wire boundary leaves the rest of Codex free to keep
++/// its own wider ladder.
++fn glm_reasoning_effort(effort: &ReasoningEffort) -> &'static str {
++    match effort {
++        ReasoningEffort::None | ReasoningEffort::Minimal | ReasoningEffort::Low => "low",
++        ReasoningEffort::Medium | ReasoningEffort::High => "high",
++        ReasoningEffort::XHigh | ReasoningEffort::Max | ReasoningEffort::Ultra => "max",
++        // Rungs with no depth ordering to project. `high` is the model default here, and the
++        // cheaper of the two rungs the picker offers without an explicit detour.
++        ReasoningEffort::Persistent | ReasoningEffort::Custom(_) => "high",
++    }
++}
++
+ /// Rewrites Responses tool specs (`{type, name, parameters}`) into the nested
+ /// Chat Completions shape (`{type, function: {name, parameters}}`).
+ fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) -> Vec<Value> {
+@@ -440,6 +467,39 @@ mod tests {
+         assert_eq!(body["tool_choice"], "auto");
+     }
+ 
++    #[test]
++    fn sends_thinking_and_clamps_the_effort_to_a_rung_glm_accepts() {
++        let mut request = request(vec![user("hi")], None);
++        request.reasoning = Some(crate::common::Reasoning {
++            effort: Some(ReasoningEffort::Medium),
++            summary: None,
++            context: None,
++        });
++
++        let body = chat_body_from_responses_request(&request);
++
++        assert_eq!(body["thinking"]["type"], "enabled");
++        assert_eq!(
++            body["reasoning_effort"], "high",
++            "medium is not a GLM rung and would be rejected on the wire"
++        );
++    }
++
++    #[test]
++    fn omits_the_effort_when_reasoning_carries_none() {
++        let mut request = request(vec![user("hi")], None);
++        request.reasoning = Some(crate::common::Reasoning {
++            effort: None,
++            summary: None,
++            context: None,
++        });
++
++        let body = chat_body_from_responses_request(&request);
++
++        assert_eq!(body["thinking"]["type"], "enabled");
++        assert!(body.get("reasoning_effort").is_none());
++    }
++
+     #[test]
+     fn carries_trailing_reasoning_on_the_tool_call_it_explains() {
+         let body = chat_body_from_responses_request(&request(

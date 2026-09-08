@@ -1,0 +1,181 @@
+From 8f150f1dcde82af0a91555471e31f4a028b9c893 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 12:17:34 +0300
+Subject: [PATCH 28/71] Keep the prompt cache warm while a tool call runs
+
+The idle refresh budget prices the chance that a paused session has been
+abandoned, and stops after five refreshes. A build or a test suite is not that
+case: it routinely outlasts the cache TTL several times over, and the request
+carrying its output is already scheduled, so the refresh is certain to be
+claimed. Tool dispatch now holds the budget open for its duration, released by
+a guard so a failed or cancelled call cannot leak the suspension.
+---
+ codex-rs/core/src/client.rs                  |  9 +++
+ codex-rs/core/src/prompt_cache_keep_alive.rs | 70 +++++++++++++++++++-
+ codex-rs/core/src/tools/router.rs            |  6 ++
+ 3 files changed, 83 insertions(+), 2 deletions(-)
+
+diff --git a/codex-rs/core/src/client.rs b/codex-rs/core/src/client.rs
+index e0d180930a..251ccbecf9 100644
+--- a/codex-rs/core/src/client.rs
++++ b/codex-rs/core/src/client.rs
+@@ -127,6 +127,7 @@ use crate::context::BaseInstructionsFragment;
+ use crate::context::ContextualUserFragment;
+ use crate::cyber_access_program;
+ use crate::feedback_tags;
++use crate::prompt_cache_keep_alive::KeepAliveHold;
+ use crate::prompt_cache_keep_alive::PromptCacheKeepAlive;
+ use crate::responses_metadata::CodexResponsesMetadata;
+ use crate::responses_metadata::subagent_header_value;
+@@ -554,6 +555,14 @@ impl ModelClient {
+             .then(|| Arc::new(OnceLock::new()))
+     }
+ 
++    /// Keeps the idle keep-alive refreshing for as long as the returned guard is held.
++    ///
++    /// Handed out so callers that block on their own work can say so without learning anything
++    /// about the schedule; see [`KeepAliveHold`].
++    pub(crate) fn hold_prompt_cache_keep_alive(&self) -> KeepAliveHold {
++        self.state.prompt_cache_keep_alive.hold()
++    }
++
+     pub(crate) fn with_session_context(
+         mut self,
+         prompt_cache_key_override: Option<String>,
+diff --git a/codex-rs/core/src/prompt_cache_keep_alive.rs b/codex-rs/core/src/prompt_cache_keep_alive.rs
+index 8c6081a99f..2f2699f500 100644
+--- a/codex-rs/core/src/prompt_cache_keep_alive.rs
++++ b/codex-rs/core/src/prompt_cache_keep_alive.rs
+@@ -19,7 +19,9 @@
+ //!
+ //! The budget is deliberately small. One replay costs about as much as a rounding error, but five
+ //! of them cost roughly one avoided cache miss, so after ten idle minutes the session parks and
+-//! waits for a real request to re-arm it.
++//! waits for a real request to re-arm it. That budget prices the risk that an idle user never comes
++//! back; it is suspended by [`PromptCacheKeepAlive::hold`] while the harness is waiting on work it
++//! started itself, where there is no such risk.
+ 
+ use std::sync::Arc;
+ use std::sync::Mutex as StdMutex;
+@@ -27,6 +29,7 @@ use std::sync::OnceLock;
+ use std::sync::PoisonError;
+ use std::sync::Weak;
+ use std::sync::atomic::AtomicBool;
++use std::sync::atomic::AtomicUsize;
+ use std::sync::atomic::Ordering;
+ use std::time::Duration;
+ use std::time::Instant;
+@@ -79,6 +82,29 @@ pub(crate) struct PromptCacheKeepAlive {
+     /// there is no ordering between separate atomics to reason about.
+     armed: StdMutex<Option<Armed>>,
+     task_started: AtomicBool,
++    /// How many pieces of work the harness is currently waiting on. Read only to decide whether
++    /// the budget applies, so it needs no ordering relative to the snapshot above.
++    holds: AtomicUsize,
++}
++
++/// Suspends the refresh budget for as long as it is held.
++///
++/// The budget prices the chance that a paused session is abandoned rather than idle: past some
++/// point the refreshes are warming an entry nobody will ever claim. That reasoning does not apply
++/// while the harness is blocked on something it started itself, such as a long shell command. There
++/// the next request is not a guess but a certainty, and so is the cache miss the refresh prevents,
++/// so the budget is suspended rather than merely widened — a command that runs for an hour is
++/// covered for an hour.
++///
++/// The suspension is a guard rather than a pair of calls because tool dispatch can fail or be
++/// cancelled, and a hold leaked by an early return would disable the budget for the rest of the
++/// session.
++pub(crate) struct KeepAliveHold(Arc<PromptCacheKeepAlive>);
++
++impl Drop for KeepAliveHold {
++    fn drop(&mut self) {
++        self.0.holds.fetch_sub(1, Ordering::SeqCst);
++    }
+ }
+ 
+ impl std::fmt::Debug for PromptCacheKeepAlive {
+@@ -102,9 +128,16 @@ impl PromptCacheKeepAlive {
+         Self {
+             armed: StdMutex::new(None),
+             task_started: AtomicBool::new(false),
++            holds: AtomicUsize::new(0),
+         }
+     }
+ 
++    /// Marks the harness as waiting on work it started, suspending the budget until the guard drops.
++    pub(crate) fn hold(self: &Arc<Self>) -> KeepAliveHold {
++        self.holds.fetch_add(1, Ordering::SeqCst);
++        KeepAliveHold(Arc::clone(self))
++    }
++
+     /// Records a real request as the one to replay while the session is idle.
+     ///
+     /// The idle task is spawned here rather than at construction because clients are built from
+@@ -149,9 +182,11 @@ impl PromptCacheKeepAlive {
+             *fires = 0;
+             return Tick::Rearm;
+         }
+-        if *fires >= MAX_CONSECUTIVE_KEEP_ALIVES {
++        if *fires >= MAX_CONSECUTIVE_KEEP_ALIVES && self.holds.load(Ordering::SeqCst) == 0 {
+             return Tick::Park;
+         }
++        // Counted even when the budget is suspended: `next_deadline` reads this to place the next
++        // wake-up, so a fire that did not advance it would leave the deadline in the past and spin.
+         *fires += 1;
+         Tick::Fire(armed.clone())
+     }
+@@ -337,4 +372,35 @@ mod tests {
+             Tick::Park
+         ));
+     }
++
++    #[tokio::test]
++    async fn waiting_on_a_tool_call_outlasts_the_idle_budget() {
++        let keep_alive = keep_alive();
++        let (mut seen, mut fires) = (0, 0);
++
++        arm(&keep_alive);
++        assert!(matches!(
++            keep_alive.on_tick(&mut seen, &mut fires),
++            Tick::Rearm
++        ));
++
++        let hold = keep_alive.hold();
++        // A build that runs far past the idle budget still has a request waiting behind it, so
++        // parking here would hand back the whole prefix moments before it is needed.
++        for _ in 0..MAX_CONSECUTIVE_KEEP_ALIVES * 3 {
++            assert!(matches!(
++                keep_alive.on_tick(&mut seen, &mut fires),
++                Tick::Fire(_)
++            ));
++        }
++        // The schedule still advanced, or the idle task would wake on a deadline in the past and
++        // spin through requests as fast as the provider answered them.
++        assert_eq!(fires, MAX_CONSECUTIVE_KEEP_ALIVES * 3);
++
++        drop(hold);
++        assert!(matches!(
++            keep_alive.on_tick(&mut seen, &mut fires),
++            Tick::Park
++        ));
++    }
+ }
+diff --git a/codex-rs/core/src/tools/router.rs b/codex-rs/core/src/tools/router.rs
+index f7d65f5185..98fdb73d59 100644
+--- a/codex-rs/core/src/tools/router.rs
++++ b/codex-rs/core/src/tools/router.rs
+@@ -362,6 +362,12 @@ impl ToolRouter {
+             ..
+         } = call;
+ 
++        // A tool call is the longest the harness ever goes without sending a request: a build or a
++        // test suite can outlast the provider's prompt-cache TTL several times over. Unlike a pause
++        // at the composer, the request that follows is certain, so the refresh is certain to be
++        // claimed and the idle budget must not cut it short.
++        let _keep_alive = session.services.model_client.hold_prompt_cache_keep_alive();
++
+         // Keep the legacy ToolInvocation.turn field tied to the same request state until handlers migrate.
+         let turn = Arc::clone(&step_context.turn);
+         let invocation = ToolInvocation {

@@ -1,0 +1,258 @@
+From 5897bc0370c2a2ee7944badeb8ffae1ebf29fa1b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Sun, 6 Sep 2026 22:07:54 +0300
+Subject: [PATCH 58/71] Run a here-document under bash when no shell was
+ requested
+
+PowerShell reserves `<<` as a redirection operator and never implemented input
+redirection, so a here-document is a parse error before the command runs:
+`python - <<'PY'` reports "The '<' operator is reserved for future use." No
+PowerShell invocation can be asking for one, which makes the shell choice
+unambiguous whenever a command carries a here-document.
+
+The model already knows this half the time. Across 15 rollouts (814 exec calls)
+eight commands outside `apply_patch` carried a here-document: the five that
+passed `shell: "bash"` all succeeded, and the three that omitted it all failed.
+Resolve bash for those three instead of handing back a syntax error.
+
+Detection asks `codex_shell_command::bash`, the tree-sitter grammar the
+workspace already ships, for a `heredoc_redirect` node. Scanning for `<<`
+cannot separate a redirection from the same two characters inside a quoted
+body, and `Set-Content out.cpp -Value 'std::cout << x'` is a valid PowerShell
+command that has to keep running there.
+
+The fallback declines in three cases, each leaving the command in the session
+shell exactly as before: the model named a shell itself, no bash is installed,
+or the first `bash` on PATH is one of Windows' own shims. `System32\bash.exe`
+and the `WindowsApps` alias launch WSL, whose filesystem shares nothing with
+the Windows cwd the command runs in, so routing there would be worse than the
+parse error it replaces.
+
+Nothing else changes: `apply_patch` is intercepted before shell selection, the
+sandbox sees a `ShellType::Bash` it already produces when the model passes
+`shell` itself, and no prompt text was touched.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0156uYU7hEWMfdx4m8WUF9cX
+---
+ .../core/src/tools/handlers/unified_exec.rs   | 72 +++++++++++++-
+ .../src/tools/handlers/unified_exec_tests.rs  | 99 +++++++++++++++++++
+ 2 files changed, 170 insertions(+), 1 deletion(-)
+
+diff --git a/codex-rs/core/src/tools/handlers/unified_exec.rs b/codex-rs/core/src/tools/handlers/unified_exec.rs
+index 9f9f8a8cf1..b2b639da56 100644
+--- a/codex-rs/core/src/tools/handlers/unified_exec.rs
++++ b/codex-rs/core/src/tools/handlers/unified_exec.rs
+@@ -1,6 +1,7 @@
+ use crate::sandboxing::SandboxPermissions;
+ use crate::shell::Shell;
+ use crate::shell::ShellType;
++use crate::shell::get_shell;
+ use crate::shell::get_shell_by_model_provided_path;
+ use crate::tools::context::ToolInvocation;
+ use crate::tools::context::ToolOutput;
+@@ -9,8 +10,10 @@ use crate::tools::hook_names::HookToolName;
+ use crate::tools::registry::PostToolUsePayload;
+ use codex_exec_server::Environment;
+ use codex_protocol::models::AdditionalPermissionProfile;
++use codex_shell_command::bash::try_parse_shell;
+ use codex_tools::UnifiedExecShellMode;
+ use serde::Deserialize;
++use std::path::Path;
+ use std::path::PathBuf;
+ use std::sync::Arc;
+ 
+@@ -117,7 +120,8 @@ pub(crate) fn get_command(
+             let model_shell = args
+                 .shell
+                 .as_ref()
+-                .map(|shell_str| get_shell_by_model_provided_path(&PathBuf::from(shell_str)));
++                .map(|shell_str| get_shell_by_model_provided_path(&PathBuf::from(shell_str)))
++                .or_else(|| heredoc_fallback_shell(&args.cmd, session_shell.as_ref()));
+             let shell = model_shell.as_ref().unwrap_or(session_shell.as_ref());
+             Ok(ResolvedCommand {
+                 command: shell.derive_exec_args(&args.cmd, use_login_shell),
+@@ -143,6 +147,72 @@ pub(crate) fn get_command(
+     }
+ }
+ 
++/// Runs a here-document under bash when the model did not name a shell itself.
++///
++/// PowerShell reserves `<<` as a redirection operator, so a here-document fails to parse before
++/// the command runs and no PowerShell invocation can be asking for one. The model already passes
++/// `shell` for most here-documents; this covers the rest instead of handing back a syntax error.
++/// It stays out of the way whenever the model chose a shell, and falls through to the session
++/// shell when no usable bash is installed.
++fn heredoc_fallback_shell(cmd: &str, session_shell: &Shell) -> Option<Shell> {
++    if session_shell.shell_type != ShellType::PowerShell || !contains_heredoc(cmd) {
++        return None;
++    }
++
++    let bash = get_shell(ShellType::Bash)?;
++    if is_windows_bash_shim(&bash.shell_path) {
++        return None;
++    }
++    Some(bash)
++}
++
++/// Whether `cmd` redirects a here-document into a command.
++///
++/// Asks the bash grammar the workspace already ships rather than scanning for `<<`: only a parse
++/// separates a redirection from the same two characters inside a quoted body, and
++/// `Set-Content out.cpp -Value 'std::cout << x'` is a valid PowerShell command that has to keep
++/// running there. A script the grammar cannot parse simply reports no here-document, which leaves
++/// the command in the session shell.
++fn contains_heredoc(cmd: &str) -> bool {
++    let Some(tree) = try_parse_shell(cmd) else {
++        return false;
++    };
++
++    let mut stack = vec![tree.root_node()];
++    while let Some(node) = stack.pop() {
++        if node.kind() == "heredoc_redirect" {
++            return true;
++        }
++
++        let mut cursor = node.walk();
++        for child in node.named_children(&mut cursor) {
++            stack.push(child);
++        }
++    }
++
++    false
++}
++
++/// Whether `path` is one of Windows' own `bash.exe` shims rather than a real bash.
++///
++/// `System32\bash.exe` and the `WindowsApps` execution alias both launch WSL, which has its own
++/// filesystem: the Windows cwd this command runs in, and the paths it carries, mean nothing there.
++/// Shell lookup takes whichever `bash` comes first on PATH, so on a machine that orders those
++/// ahead of Git for Windows the here-document would quietly run against the wrong filesystem.
++/// Decline, and let it fail in the session shell the way it did before this fallback existed —
++/// only a bash that shares the filesystem is an improvement.
++fn is_windows_bash_shim(path: &Path) -> bool {
++    const WINDOWS_SHIM_DIRS: [&str; 4] = ["system32", "sysnative", "syswow64", "windowsapps"];
++
++    let normalized = path
++        .to_string_lossy()
++        .to_ascii_lowercase()
++        .replace('\\', "/");
++    WINDOWS_SHIM_DIRS
++        .iter()
++        .any(|dir| normalized.contains(&format!("/{dir}/")))
++}
++
+ pub(crate) fn shell_mode_for_environment(
+     turn_shell_mode: &UnifiedExecShellMode,
+     environment: &Environment,
+diff --git a/codex-rs/core/src/tools/handlers/unified_exec_tests.rs b/codex-rs/core/src/tools/handlers/unified_exec_tests.rs
+index 775d78cc1f..08e06d614b 100644
+--- a/codex-rs/core/src/tools/handlers/unified_exec_tests.rs
++++ b/codex-rs/core/src/tools/handlers/unified_exec_tests.rs
+@@ -155,6 +155,105 @@ fn test_get_command_respects_explicit_cmd_shell() -> anyhow::Result<()> {
+     Ok(())
+ }
+ 
++#[test]
++fn test_contains_heredoc_recognizes_redirections() {
++    for cmd in [
++        "python - <<'PY'\nprint(1)\nPY",
++        "cat <<EOF\nhello\nEOF",
++        "bash <<-\"END\"\n\techo hi\n\tEND",
++        "sort file.txt && cat <<'IN'\na\nIN",
++    ] {
++        assert!(contains_heredoc(cmd), "should be a here-document: {cmd:?}");
++    }
++}
++
++#[test]
++fn test_contains_heredoc_leaves_powershell_commands_alone() {
++    for cmd in [
++        "Get-Content src/main.rs",
++        // `<<` inside a quoted body is data, not a redirection.
++        "Set-Content out.cpp -Value 'std::cout << x'",
++        // A here-string is a different redirection, with no here-document body.
++        "cat <<< 'hello'",
++        "Get-ChildItem | Where-Object { $_.Length -gt 10 }",
++    ] {
++        assert!(!contains_heredoc(cmd), "should be left alone: {cmd:?}");
++    }
++}
++
++#[test]
++fn test_is_windows_bash_shim_rejects_only_the_wsl_launchers() {
++    for path in [
++        r"C:\Windows\System32\bash.exe",
++        r"C:\Windows\Sysnative\bash.exe",
++        r"C:\Windows\SysWOW64\bash.exe",
++        r"C:\WINDOWS\SYSTEM32\BASH.EXE",
++        r"C:\Users\user\AppData\Local\Microsoft\WindowsApps\bash.exe",
++    ] {
++        assert!(
++            is_windows_bash_shim(std::path::Path::new(path)),
++            "should be declined: {path}"
++        );
++    }
++
++    for path in [
++        r"C:\Program Files\Git\usr\bin\bash.exe",
++        r"C:\msys64\usr\bin\bash.exe",
++        "/usr/bin/bash",
++        "/bin/bash",
++    ] {
++        assert!(
++            !is_windows_bash_shim(std::path::Path::new(path)),
++            "should be accepted: {path}"
++        );
++    }
++}
++
++#[test]
++fn test_get_command_routes_an_unrouted_heredoc_to_bash() -> anyhow::Result<()> {
++    let (Some(powershell), Some(bash)) =
++        (get_shell(ShellType::PowerShell), get_shell(ShellType::Bash))
++    else {
++        // Nothing to assert on a machine without both shells installed.
++        return Ok(());
++    };
++    if is_windows_bash_shim(&bash.shell_path) {
++        // This machine's first `bash` on PATH launches WSL, which the fallback declines.
++        return Ok(());
++    }
++
++    let json = serde_json::json!({ "cmd": "python - <<'PY'\nprint(1)\nPY" }).to_string();
++    let args: ExecCommandArgs = parse_arguments(&json)?;
++    assert!(args.shell.is_none());
++
++    let resolved = get_command(
++        &args,
++        Arc::new(powershell.clone()),
++        &UnifiedExecShellMode::Direct,
++        /*allow_login_shell*/ true,
++    )
++    .map_err(anyhow::Error::msg)?;
++
++    assert_eq!(resolved.shell_type, ShellType::Bash);
++    assert_eq!(
++        resolved.command,
++        bash.derive_exec_args(&args.cmd, /*use_login_shell*/ true)
++    );
++
++    // A command with no here-document still runs in the session shell.
++    let json = serde_json::json!({ "cmd": "Get-Content src/main.rs" }).to_string();
++    let args: ExecCommandArgs = parse_arguments(&json)?;
++    let resolved = get_command(
++        &args,
++        Arc::new(powershell),
++        &UnifiedExecShellMode::Direct,
++        /*allow_login_shell*/ true,
++    )
++    .map_err(anyhow::Error::msg)?;
++    assert_eq!(resolved.shell_type, ShellType::PowerShell);
++    Ok(())
++}
++
+ #[test]
+ fn test_get_command_rejects_explicit_login_when_disallowed() -> anyhow::Result<()> {
+     let json = r#"{"cmd": "echo hello", "login": true}"#;

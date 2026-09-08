@@ -1,0 +1,471 @@
+From ed3ed47a78175e1001906ed9ebefd991297d0752 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 14:27:12 +0300
+Subject: [PATCH 32/71] Measure the retention horizon in requests per window
+
+The horizon a retention decision amortises over is a count of requests, not
+of tokens: a kept token is re-billed once per request that follows it. It was
+derived from a compiled 2K-per-turn growth guess, which puts 40 requests in a
+window. Five real sessions ran at 345-850 tokens per request, so a window
+actually buys around 160. Understating the horizon by four makes keeping
+reasoning look four times cheaper than it is, and biases every verdict the
+same way for a whole class of user.
+
+Measure it instead. Each time a window's worth of context has been consumed,
+the number of requests it took is appended to a short history in the Codex
+home, and the mean of the last twenty windows is what the next session prices
+against. The average is read once at session start and held fixed, so a
+sample written mid-session cannot move a horizon that earlier decisions in
+the same prefix were already frozen against.
+
+This replaces the in-session growth mean, which was thrown away when the
+session ended and so never accumulated enough to correct the guess.
+---
+ codex-rs/core/src/context_manager/history.rs |  36 ++--
+ codex-rs/core/src/lib.rs                     |   1 +
+ codex-rs/core/src/reasoning_retention.rs     |  31 ++-
+ codex-rs/core/src/request_density.rs         | 192 +++++++++++++++++++
+ codex-rs/core/src/session/mod.rs             |  16 +-
+ codex-rs/core/src/session/session.rs         |   5 +
+ codex-rs/core/src/session/tests.rs           |   2 +
+ 7 files changed, 240 insertions(+), 43 deletions(-)
+ create mode 100644 codex-rs/core/src/request_density.rs
+
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index a349fc3500..110692ed2b 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -62,9 +62,6 @@ pub(crate) struct ContextManager {
+     turn_reasoning_output_tokens: Option<(String, i64)>,
+     /// Active context size the last time reasoning retention was priced.
+     last_decision_context_tokens: Option<i64>,
+-    /// Running (sum, count) of context growth between those pricing points, so the horizon a
+-    /// retention decision amortises over is observed rather than guessed.
+-    turn_growth: (i64, u32),
+     /// Reference context snapshot used for diffing and producing model-visible
+     /// settings update items.
+     ///
+@@ -127,7 +124,6 @@ impl ContextManager {
+             ),
+             turn_reasoning_output_tokens: None,
+             last_decision_context_tokens: None,
+-            turn_growth: (0, 0),
+             reference_context_item: None,
+             world_state_baseline: None,
+         }
+@@ -258,39 +254,37 @@ impl ContextManager {
+             .collect()
+     }
+ 
+-    /// Freezes the keep/drop verdict on reasoning whose turn has ended.
++    /// Freezes the keep/drop verdict on reasoning whose turn has ended, and reports how much
++    /// context this request added so the caller can keep measuring the user's request density.
+     ///
+-    /// `context_tokens` is the active context size right now; successive calls turn it into the
+-    /// mean per-turn growth, which is what says how many more requests this prefix has to live
+-    /// through before compaction rewrites it anyway.
++    /// `requests_per_window` is that density: how many more requests this prefix has to live
++    /// through per window of budget, before compaction rewrites it anyway.
+     pub(crate) fn freeze_reasoning_retention(
+         &mut self,
+         active_turn_id: Option<&str>,
+         budget_remaining: i64,
+         context_tokens: i64,
+-    ) {
+-        let turn_growth_tokens = self.observe_turn_growth(context_tokens);
++        requests_per_window: f64,
++    ) -> i64 {
++        let growth = self.observe_context_growth(context_tokens);
+         crate::reasoning_retention::freeze_reasoning_retention(
+             Arc::make_mut(&mut self.items).as_mut_slice(),
+             active_turn_id,
+             RetentionInputs {
+                 budget_remaining,
+-                turn_growth_tokens,
++                requests_per_window,
+             },
+         );
++        growth
+     }
+ 
+-    fn observe_turn_growth(&mut self, context_tokens: i64) -> Option<i64> {
+-        if let Some(previous) = self.last_decision_context_tokens.replace(context_tokens) {
+-            let growth = context_tokens.saturating_sub(previous);
+-            // Compaction and rollback shrink the context; only forward growth says anything
+-            // about what the next turn will add.
+-            if growth > 0 {
+-                self.turn_growth.0 = self.turn_growth.0.saturating_add(growth);
+-                self.turn_growth.1 = self.turn_growth.1.saturating_add(1);
+-            }
++    /// Context added since the previous pricing point. Compaction and rollback shrink the
++    /// context; only forward growth says anything about what the next request will add.
++    fn observe_context_growth(&mut self, context_tokens: i64) -> i64 {
++        match self.last_decision_context_tokens.replace(context_tokens) {
++            Some(previous) => context_tokens.saturating_sub(previous).max(0),
++            None => 0,
+         }
+-        (self.turn_growth.1 > 0).then(|| self.turn_growth.0 / i64::from(self.turn_growth.1))
+     }
+ 
+     /// Returns normalized history envelopes for internal consumers that must retain metadata.
+diff --git a/codex-rs/core/src/lib.rs b/codex-rs/core/src/lib.rs
+index 975602d098..cdbffa38c4 100644
+--- a/codex-rs/core/src/lib.rs
++++ b/codex-rs/core/src/lib.rs
+@@ -139,6 +139,7 @@ mod agents_md_manager;
+ mod agents_md_memory;
+ mod prompt_cache_keep_alive;
+ mod reasoning_retention;
++mod request_density;
+ pub use agents_md::DEFAULT_AGENTS_MD_FILENAME;
+ pub use agents_md::LOCAL_AGENTS_MD_FILENAME;
+ pub use agents_md::LoadedAgentsMd;
+diff --git a/codex-rs/core/src/reasoning_retention.rs b/codex-rs/core/src/reasoning_retention.rs
+index d0ac145257..e6e24cef44 100644
+--- a/codex-rs/core/src/reasoning_retention.rs
++++ b/codex-rs/core/src/reasoning_retention.rs
+@@ -28,33 +28,32 @@ use codex_protocol::models::ResponseItem;
+ use codex_utils_output_truncation::approx_token_count;
+ 
+ use crate::context_manager::estimate_item_token_count;
++use crate::request_density::WINDOW_TOKENS;
+ 
+ /// Cached input price as a fraction of uncached, for the providers this fork ships.
+ const CACHED_INPUT_PRICE_RATIO: f64 = 0.1;
+-/// Context growth assumed for a turn before any has been observed. The measured session
+-/// added 1–2.8K tokens per request.
+-const DEFAULT_TURN_GROWTH_TOKENS: i64 = 2_000;
+-/// Bounds on the horizon, so a tiny or absent growth estimate cannot make keeping free.
++/// Bounds on the horizon, so a tiny or absent density estimate cannot make keeping free.
+ const MIN_HORIZON: i64 = 1;
+ const MAX_HORIZON: i64 = 200;
+ 
+ pub(crate) struct RetentionInputs {
+     /// Tokens left before the next auto-compaction.
+     pub budget_remaining: i64,
+-    /// Observed mean context growth per turn, or `None` before the second turn.
+-    pub turn_growth_tokens: Option<i64>,
++    /// Requests this user gets out of a full context window, from
++    /// [`crate::request_density::RequestDensity`].
++    pub requests_per_window: f64,
+ }
+ 
+ /// Requests expected before compaction resets the prefix anyway.
+ ///
+ /// Beyond that point the prefix is rewritten wholesale, so reasoning kept past it is never
+-/// re-billed and must not be counted as if it were.
++/// re-billed and must not be counted as if it were. What is left of the budget is a fraction of
++/// a window; the user's measured density turns that fraction into the count of requests that a
++/// retained token would actually be re-billed on.
+ fn horizon(inputs: &RetentionInputs) -> i64 {
+-    let growth = inputs
+-        .turn_growth_tokens
+-        .filter(|growth| *growth > 0)
+-        .unwrap_or(DEFAULT_TURN_GROWTH_TOKENS);
+-    (inputs.budget_remaining / growth).clamp(MIN_HORIZON, MAX_HORIZON)
++    let windows_remaining = inputs.budget_remaining.max(0) as f64 / WINDOW_TOKENS as f64;
++    ((windows_remaining * inputs.requests_per_window).round() as i64)
++        .clamp(MIN_HORIZON, MAX_HORIZON)
+ }
+ 
+ /// Cost of breaking the prefix at one candidate, in uncached-input token equivalents.
+@@ -270,11 +269,11 @@ mod tests {
+             .collect()
+     }
+ 
+-    /// A 40-request horizon: 80K of budget left, growing 2K per turn.
++    /// A 40-request horizon: a full window of budget left, and 40 requests to a window.
+     fn inputs() -> RetentionInputs {
+         RetentionInputs {
+-            budget_remaining: 80_000,
+-            turn_growth_tokens: Some(2_000),
++            budget_remaining: WINDOW_TOKENS,
++            requests_per_window: 40.0,
+         }
+     }
+ 
+@@ -321,7 +320,7 @@ mod tests {
+             /*active_turn_id*/ None,
+             RetentionInputs {
+                 budget_remaining: 0,
+-                turn_growth_tokens: Some(1),
++                requests_per_window: 1.0,
+             },
+         );
+ 
+diff --git a/codex-rs/core/src/request_density.rs b/codex-rs/core/src/request_density.rs
+new file mode 100644
+index 0000000000..995f60936b
+--- /dev/null
++++ b/codex-rs/core/src/request_density.rs
+@@ -0,0 +1,192 @@
++//! How many requests a context window actually buys, averaged over the user's recent windows.
++//!
++//! Reasoning retention trades a one-off re-prefill against carrying tokens in the cached prefix
++//! for the rest of the window, so what it needs is a count of *requests*, not a count of tokens:
++//! a kept token is re-billed once per request that follows it. Converting the remaining token
++//! budget into a request count needs the density of one against the other, and that varies by
++//! more than an order of magnitude between a conversational session and a tool-heavy one.
++//!
++//! A compiled guess therefore biases every decision the same way for a whole class of user, so
++//! the density is measured instead. Each time a window's worth of context has been consumed, the
++//! number of requests it took is appended to a short history in the Codex home, and the mean of
++//! the last [`MAX_SAMPLES`] windows is what the next session prices against.
++
++use std::fs::OpenOptions;
++use std::io::Read;
++use std::io::Seek;
++use std::io::SeekFrom;
++use std::io::Write;
++use std::sync::Mutex;
++
++use codex_utils_absolute_path::AbsolutePathBuf;
++use serde::Deserialize;
++use serde::Serialize;
++
++/// Context consumed by one sample, which is the auto-compaction budget this fork ships. The unit
++/// only has to be stable across releases for old samples to stay comparable to new ones.
++pub(crate) const WINDOW_TOKENS: i64 = 80_000;
++/// Windows the moving average covers.
++const MAX_SAMPLES: usize = 20;
++/// Density assumed before any window has been measured. Real sessions ran at 345-850 tokens of
++/// context growth per request, so a full window buys roughly this many.
++const DEFAULT_REQUESTS_PER_WINDOW: f64 = 160.0;
++const FILENAME: &str = "request_density.json";
++
++#[derive(Default, Serialize, Deserialize)]
++struct Samples {
++    #[serde(default)]
++    requests_per_window: Vec<u32>,
++}
++
++#[derive(Default)]
++struct Window {
++    tokens: i64,
++    requests: u32,
++}
++
++#[derive(Default)]
++pub(crate) struct RequestDensity {
++    /// Absent for sessions with no home to persist to, which then only ever see the default.
++    path: Option<AbsolutePathBuf>,
++    /// Read once at session start and held fixed, so a sample written mid-session cannot move a
++    /// horizon that earlier decisions in the same prefix were already frozen against.
++    average: Option<f64>,
++    window: Mutex<Window>,
++}
++
++impl RequestDensity {
++    pub(crate) async fn load(codex_home: &AbsolutePathBuf) -> Self {
++        let path = codex_home.join(FILENAME);
++        let samples = tokio::fs::read_to_string(&path)
++            .await
++            .ok()
++            .and_then(|contents| serde_json::from_str::<Samples>(&contents).ok())
++            .unwrap_or_default()
++            .requests_per_window;
++        Self {
++            path: Some(path),
++            average: mean(&samples),
++            window: Mutex::default(),
++        }
++    }
++
++    pub(crate) fn requests_per_window(&self) -> f64 {
++        self.average.unwrap_or(DEFAULT_REQUESTS_PER_WINDOW)
++    }
++
++    /// Folds one request's context growth into the window being measured, writing a sample once a
++    /// full window has been consumed.
++    pub(crate) async fn observe(&self, growth_tokens: i64) {
++        let Some(path) = self.path.clone() else {
++            return;
++        };
++        let Some(sample) = self.fold(growth_tokens) else {
++            return;
++        };
++        if let Err(error) = append(path, sample).await {
++            tracing::debug!("failed to record request density sample: {error:#}");
++        }
++    }
++
++    fn fold(&self, growth_tokens: i64) -> Option<u32> {
++        let mut window = self.window.lock().ok()?;
++        window.tokens = window.tokens.saturating_add(growth_tokens.max(0));
++        window.requests = window.requests.saturating_add(1);
++        if window.tokens < WINDOW_TOKENS {
++            return None;
++        }
++        // The window is closed on the request that crossed the line, so it holds slightly more
++        // than a window's tokens. Scale the count back to exactly one window.
++        let sample = f64::from(window.requests) * WINDOW_TOKENS as f64 / window.tokens as f64;
++        *window = Window::default();
++        Some(sample.round().max(1.0) as u32)
++    }
++}
++
++fn mean(samples: &[u32]) -> Option<f64> {
++    let total: f64 = samples.iter().copied().map(f64::from).sum();
++    (!samples.is_empty()).then(|| total / samples.len() as f64)
++}
++
++async fn append(path: AbsolutePathBuf, sample: u32) -> std::io::Result<()> {
++    if let Some(parent) = path.parent() {
++        tokio::fs::create_dir_all(parent).await?;
++    }
++    tokio::task::spawn_blocking(move || {
++        let mut file = OpenOptions::new()
++            .read(true)
++            .write(true)
++            .create(true)
++            .truncate(false)
++            .open(&path)?;
++        file.lock()?;
++
++        let mut contents = String::new();
++        file.read_to_string(&mut contents)?;
++        let mut samples: Samples = serde_json::from_str(&contents).unwrap_or_default();
++        samples.requests_per_window.push(sample);
++        let excess = samples
++            .requests_per_window
++            .len()
++            .saturating_sub(MAX_SAMPLES);
++        samples.requests_per_window.drain(..excess);
++
++        let encoded = serde_json::to_string(&samples)?;
++        file.set_len(0)?;
++        file.seek(SeekFrom::Start(0))?;
++        file.write_all(encoded.as_bytes())?;
++        file.flush()
++    })
++    .await?
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use core_test_support::PathExt;
++    use pretty_assertions::assert_eq;
++    use tempfile::TempDir;
++
++    #[tokio::test]
++    async fn an_unmeasured_home_prices_against_the_default() {
++        let home = TempDir::new().expect("create temp dir");
++
++        let density = RequestDensity::load(&home.path().abs()).await;
++
++        assert_eq!(density.requests_per_window(), DEFAULT_REQUESTS_PER_WINDOW);
++    }
++
++    #[tokio::test]
++    async fn a_window_is_sampled_once_its_tokens_are_spent_and_read_back_next_session() {
++        let home = TempDir::new().expect("create temp dir");
++        let density = RequestDensity::load(&home.path().abs()).await;
++
++        // Forty requests of 2K each spend exactly one window.
++        for _ in 0..40 {
++            density.observe(2_000).await;
++        }
++
++        let next_session = RequestDensity::load(&home.path().abs()).await;
++        assert_eq!(next_session.requests_per_window(), 40.0);
++    }
++
++    #[tokio::test]
++    async fn the_average_covers_only_the_most_recent_windows() {
++        let home = TempDir::new().expect("create temp dir");
++        let path = home.path().abs().join(FILENAME);
++        std::fs::write(
++            &path,
++            serde_json::to_string(&Samples {
++                requests_per_window: vec![1_000; MAX_SAMPLES],
++            })
++            .expect("encode samples"),
++        )
++        .expect("write samples");
++
++        append(path, 60).await.expect("append sample");
++
++        let density = RequestDensity::load(&home.path().abs()).await;
++        let expected = ((MAX_SAMPLES - 1) as f64 * 1_000.0 + 60.0) / MAX_SAMPLES as f64;
++        assert_eq!(density.requests_per_window(), expected);
++    }
++}
+diff --git a/codex-rs/core/src/session/mod.rs b/codex-rs/core/src/session/mod.rs
+index b1fa9acbb6..9333bd323a 100644
+--- a/codex-rs/core/src/session/mod.rs
++++ b/codex-rs/core/src/session/mod.rs
+@@ -4037,12 +4037,16 @@ impl Session {
+         let Some(budget_remaining) = status.base_window_tokens_remaining else {
+             return;
+         };
+-        let mut state = self.state.lock().await;
+-        state.history.freeze_reasoning_retention(
+-            Some(step_context.turn.sub_id.as_str()),
+-            budget_remaining,
+-            status.active_context_tokens,
+-        );
++        let growth = {
++            let mut state = self.state.lock().await;
++            state.history.freeze_reasoning_retention(
++                Some(step_context.turn.sub_id.as_str()),
++                budget_remaining,
++                status.active_context_tokens,
++                self.request_density.requests_per_window(),
++            )
++        };
++        self.request_density.observe(growth).await;
+     }
+ 
+     pub(crate) async fn conversation_history_snapshot(
+diff --git a/codex-rs/core/src/session/session.rs b/codex-rs/core/src/session/session.rs
+index 5403be60d6..281f2078cd 100644
+--- a/codex-rs/core/src/session/session.rs
++++ b/codex-rs/core/src/session/session.rs
+@@ -10,6 +10,7 @@ use crate::config::ConstraintError;
+ use crate::environment_selection::ThreadEnvironments;
+ use crate::environment_selection::TurnEnvironmentSnapshot;
+ use crate::hook_mcp_executor::CoreHookMcpExecutor;
++use crate::request_density::RequestDensity;
+ use crate::responses_metadata::CodexResponsesMetadata;
+ use crate::responses_metadata::CodexResponsesRequestKind;
+ use crate::shell_snapshot::ShellSnapshot;
+@@ -73,6 +74,9 @@ pub(crate) struct Session {
+     pub(super) fork_persistence: ForkPersistence,
+     pub(super) forked_from_ordinal_exclusive: Option<u64>,
+     pub(super) next_internal_sub_id: AtomicU64,
++    /// Requests a context window buys this user, measured across their recent windows and used
++    /// to price how long a retained token would keep being re-billed.
++    pub(super) request_density: RequestDensity,
+ }
+ 
+ #[derive(Clone)]
+@@ -1494,6 +1498,7 @@ impl Session {
+                 fork_persistence,
+                 forked_from_ordinal_exclusive,
+                 next_internal_sub_id: AtomicU64::new(0),
++                request_density: RequestDensity::load(&config.codex_home).await,
+             });
+             if let Some(network_policy_decider_session) = network_policy_decider_session {
+                 let mut guard = network_policy_decider_session.write().await;
+diff --git a/codex-rs/core/src/session/tests.rs b/codex-rs/core/src/session/tests.rs
+index 53000d4fed..3c9b20d215 100644
+--- a/codex-rs/core/src/session/tests.rs
++++ b/codex-rs/core/src/session/tests.rs
+@@ -6548,6 +6548,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
+         fork_persistence: ForkPersistence::Copied,
+         forked_from_ordinal_exclusive: None,
+         next_internal_sub_id: AtomicU64::new(0),
++        request_density: Default::default(),
+     };
+     let per_turn_config =
+         session.build_per_turn_config(&session_configuration, session_configuration.cwd().clone());
+@@ -8828,6 +8829,7 @@ where
+         fork_persistence: ForkPersistence::Copied,
+         forked_from_ordinal_exclusive: None,
+         next_internal_sub_id: AtomicU64::new(0),
++        request_density: Default::default(),
+     });
+     let per_turn_config =
+         session.build_per_turn_config(&session_configuration, session_configuration.cwd().clone());

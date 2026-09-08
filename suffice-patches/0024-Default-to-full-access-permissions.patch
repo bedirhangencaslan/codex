@@ -1,0 +1,386 @@
+From 2950aa15a171d11757ec4928cb7584a69f6ad9bf Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 00:59:50 +0300
+Subject: [PATCH 24/71] Default to full-access permissions
+
+The `auto` default blocks network access, so npm, pip, and git push all stop
+the agent on an approval prompt. Every one of those pauses is a human wait that
+also lets the provider's prompt cache expire, and the next request re-bills the
+whole prefix uncached. Default the resolved approval policy and built-in
+permission profile to full access instead; untrusted projects still start
+read-only, an explicit config still wins, and the sandbox itself is unchanged.
+
+Requirements that forbid danger-full-access previously made the config
+unloadable once the policy was `never`. That error now only fires when the user
+asked for `never` themselves; when full access is merely the default, fall back
+to asking for approval rather than refusing to start. On Windows, skip the
+sandbox setup prompt when the profile is disabled, since opting out of the
+sandbox is exactly what full access means.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/config/config_tests.rs      | 46 ++++++++-----------
+ codex-rs/core/src/config/mod.rs               | 25 ++++++----
+ codex-rs/core/src/config/permissions.rs       | 10 ++--
+ ...get__tests__approvals_selection_popup.snap | 12 ++---
+ ...ts__approvals_selection_popup@windows.snap | 18 ++++----
+ .../tui/src/chatwidget/tests/permissions.rs   | 21 +++++++++
+ .../src/chatwidget/windows_sandbox_prompts.rs |  8 ++++
+ codex-rs/tui/src/status/tests.rs              | 10 ++++
+ 8 files changed, 94 insertions(+), 56 deletions(-)
+
+diff --git a/codex-rs/core/src/config/config_tests.rs b/codex-rs/core/src/config/config_tests.rs
+index 79a3d9f741..6284e2a8fb 100644
+--- a/codex-rs/core/src/config/config_tests.rs
++++ b/codex-rs/core/src/config/config_tests.rs
+@@ -1740,6 +1740,7 @@ async fn network_proxy_feature_is_no_op_without_sandbox_network() -> std::io::Re
+     let config = Config::load_from_base_config_with_overrides(
+         ConfigToml {
+             features: Some(toml::from_str("network_proxy = true").expect("valid features")),
++            sandbox_mode: Some(SandboxMode::ReadOnly),
+             ..Default::default()
+         },
+         ConfigOverrides {
+@@ -2081,6 +2082,12 @@ respect_system_proxy = false
+ #[tokio::test]
+ async fn experimental_network_requirements_enable_proxy_without_feature() -> std::io::Result<()> {
+     let codex_home = TempDir::new()?;
++    // The managed proxy only applies while Suffice owns the network policy, so
++    // this needs a sandboxed profile rather than the full-access default.
++    std::fs::write(
++        codex_home.path().join(CONFIG_TOML_FILE),
++        "sandbox_mode = \"read-only\"\n",
++    )?;
+     let config = ConfigBuilder::without_managed_config_for_tests()
+         .codex_home(codex_home.path().to_path_buf())
+         .fallback_cwd(Some(codex_home.path().to_path_buf()))
+@@ -3417,27 +3424,13 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
+             .active_permission_profile()
+             .as_ref()
+             .map(|active| active.id.as_str()),
+-        Some(if cfg!(target_os = "windows") {
+-            BUILT_IN_PERMISSION_PROFILE_READ_ONLY
+-        } else {
+-            BUILT_IN_PERMISSION_PROFILE_WORKSPACE
+-        })
++        Some(BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS)
+     );
+-    if cfg!(target_os = "windows") {
+-        assert!(
+-            !policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+-            "expected trusted project fallback to stay read-only without Windows sandbox support, policy: {policy:?}"
+-        );
+-    } else {
+-        assert!(
+-            policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+-            "expected trusted project fallback to use :workspace, policy: {policy:?}"
+-        );
+-        assert!(
+-            !policy.can_write_path_with_cwd(&cwd.path().join(".suffice"), cwd.path()),
+-            "expected :workspace metadata carveouts, policy: {policy:?}"
+-        );
+-    }
++    assert!(
++        policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
++        "expected trusted project fallback to use :danger-full-access, policy: {policy:?}"
++    );
++    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
+     Ok(())
+ }
+ 
+@@ -3517,6 +3510,7 @@ async fn implicit_builtin_workspace_profile_preserves_sandbox_workspace_write_se
+                     trust_level: Some(TrustLevel::Trusted),
+                 },
+             )])),
++            sandbox_mode: Some(SandboxMode::WorkspaceWrite),
+             sandbox_workspace_write: Some(SandboxWorkspaceWrite {
+                 writable_roots: vec![extra_root.clone()],
+                 network_access: true,
+@@ -3588,6 +3582,7 @@ async fn implicit_builtin_workspace_profile_preserves_add_dir_metadata_carveouts
+                     trust_level: Some(TrustLevel::Trusted),
+                 },
+             )])),
++            sandbox_mode: Some(SandboxMode::WorkspaceWrite),
+             windows: Some(WindowsToml {
+                 sandbox: Some(WindowsSandboxModeToml::Elevated),
+                 sandbox_private_desktop: None,
+@@ -3620,7 +3615,7 @@ async fn implicit_builtin_workspace_profile_preserves_add_dir_metadata_carveouts
+ }
+ 
+ #[tokio::test]
+-async fn empty_config_defaults_to_builtin_read_only_without_trust_decision() -> std::io::Result<()>
++async fn empty_config_defaults_to_builtin_full_access_without_trust_decision() -> std::io::Result<()>
+ {
+     let codex_home = TempDir::new()?;
+     let cwd = TempDir::new()?;
+@@ -3637,13 +3632,10 @@ async fn empty_config_defaults_to_builtin_read_only_without_trust_decision() ->
+ 
+     let policy = config.permissions.file_system_sandbox_policy();
+     assert!(
+-        policy.can_read_path_with_cwd(cwd.path(), cwd.path()),
+-        "expected :read-only to allow reads, policy: {policy:?}"
+-    );
+-    assert!(
+-        !policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+-        "expected :read-only to deny writes, policy: {policy:?}"
++        policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
++        "expected :danger-full-access to allow writes, policy: {policy:?}"
+     );
++    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
+     Ok(())
+ }
+ 
+diff --git a/codex-rs/core/src/config/mod.rs b/codex-rs/core/src/config/mod.rs
+index 7fd093e745..2187291f1f 100644
+--- a/codex-rs/core/src/config/mod.rs
++++ b/codex-rs/core/src/config/mod.rs
+@@ -3632,12 +3632,10 @@ impl Config {
+         let mut approval_policy = approval_policy_override
+             .or(cfg.approval_policy)
+             .unwrap_or_else(|| {
+-                if active_project.is_trusted() {
+-                    AskForApproval::OnRequest
+-                } else if active_project.is_untrusted() {
++                if active_project.is_untrusted() {
+                     AskForApproval::UnlessTrusted
+                 } else {
+-                    AskForApproval::default()
++                    AskForApproval::Never
+                 }
+             });
+         if !approval_policy_was_explicit
+@@ -3997,10 +3995,21 @@ impl Config {
+             && constrained_permission_profile.get() == &PermissionProfile::read_only()
+             && constrained_approval_policy.value() == AskForApproval::Never
+         {
+-            return Err(std::io::Error::new(
+-                std::io::ErrorKind::InvalidInput,
+-                "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode.",
+-            ));
++            if approval_policy_was_explicit {
++                return Err(std::io::Error::new(
++                    std::io::ErrorKind::InvalidInput,
++                    "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode.",
++                ));
++            }
++            // Full access is the default here rather than something the user
++            // asked for, so requirements forcing read-only must not make the
++            // config unloadable. Ask for approvals instead of refusing to start.
++            apply_requirement_constrained_value(
++                "approval_policy",
++                AskForApproval::OnRequest,
++                &mut constrained_approval_policy,
++                &mut startup_warnings,
++            )?;
+         }
+         if permission_profile_was_constrained {
+             // The selected profile no longer describes the effective
+diff --git a/codex-rs/core/src/config/permissions.rs b/codex-rs/core/src/config/permissions.rs
+index 9844df0e83..489d034264 100644
+--- a/codex-rs/core/src/config/permissions.rs
++++ b/codex-rs/core/src/config/permissions.rs
+@@ -47,14 +47,12 @@ pub(crate) const BUILT_IN_DANGER_FULL_ACCESS_PROFILE: &str =
+ 
+ pub(crate) fn default_builtin_permission_profile_name(
+     active_project: &ProjectConfig,
+-    windows_sandbox_level: WindowsSandboxLevel,
++    _windows_sandbox_level: WindowsSandboxLevel,
+ ) -> &'static str {
+-    if (active_project.is_trusted() || active_project.is_untrusted())
+-        && !(cfg!(target_os = "windows") && windows_sandbox_level == WindowsSandboxLevel::Disabled)
+-    {
+-        BUILT_IN_WORKSPACE_PROFILE
+-    } else {
++    if active_project.is_untrusted() {
+         BUILT_IN_READ_ONLY_PROFILE
++    } else {
++        BUILT_IN_DANGER_FULL_ACCESS_PROFILE
+     }
+ }
+ 
+diff --git a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup.snap b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup.snap
+index 7dc7a6c1a8..861d4bf1f7 100644
+--- a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup.snap
++++ b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup.snap
+@@ -4,11 +4,11 @@ expression: popup
+ ---
+   Update Model Permissions
+ 
+-› 1. Ask for approval  Suffice can read and edit files in the current workspace,
+-                       and run commands. Approval is required to access the
+-                       internet or edit other files.
+-  2. Full Access       Suffice can edit files outside this workspace and access
+-                       the internet without asking for approval. Exercise
+-                       caution when using.
++  1. Ask for approval       Suffice can read and edit files in the current
++                            workspace, and run commands. Approval is required to
++                            access the internet or edit other files.
++› 2. Full Access (current)  Suffice can edit files outside this workspace and
++                            access the internet without asking for approval.
++                            Exercise caution when using.
+ 
+   Press enter to confirm or esc to go back
+diff --git a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup@windows.snap b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup@windows.snap
+index 498764cff1..9efc438f12 100644
+--- a/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup@windows.snap
++++ b/codex-rs/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__approvals_selection_popup@windows.snap
+@@ -4,14 +4,14 @@ expression: popup
+ ---
+   Update Model Permissions
+ 
+-› 1. Read Only (current)  Suffice can read files in the current workspace.
+-                          Approval is required to edit files or access the
+-                          internet.
+-  2. Ask for approval     Suffice can read and edit files in the current
+-                          workspace, and run commands. Approval is required to
+-                          access the internet or edit other files.
+-  3. Full Access          Suffice can edit files outside this workspace and
+-                          access the internet without asking for approval.
+-                          Exercise caution when using.
++  1. Read Only              Suffice can read files in the current workspace.
++                            Approval is required to edit files or access the
++                            internet.
++  2. Ask for approval       Suffice can read and edit files in the current
++                            workspace, and run commands. Approval is required
++                            to access the internet or edit other files.
++› 3. Full Access (current)  Suffice can edit files outside this workspace and
++                            access the internet without asking for approval.
++                            Exercise caution when using.
+ 
+   Press enter to confirm or esc to go back
+diff --git a/codex-rs/tui/src/chatwidget/tests/permissions.rs b/codex-rs/tui/src/chatwidget/tests/permissions.rs
+index 0b024d9e3e..b20d7c8776 100644
+--- a/codex-rs/tui/src/chatwidget/tests/permissions.rs
++++ b/codex-rs/tui/src/chatwidget/tests/permissions.rs
+@@ -2,6 +2,7 @@ use super::*;
+ use crate::legacy_core::config::PermissionProfileCatalogEntry;
+ use codex_protocol::models::ActivePermissionProfile;
+ use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS;
++use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_READ_ONLY;
+ use codex_protocol::models::ManagedFileSystemPermissions;
+ use codex_protocol::permissions::FileSystemAccessMode;
+ use codex_protocol::permissions::FileSystemPath;
+@@ -54,6 +55,19 @@ fn app_server_workspace_write_profile(extra_root: AbsolutePathBuf) -> Permission
+     }
+ }
+ 
++/// Moves the widget off the full-access default so popup navigation starts from
++/// a known row.
++fn select_read_only_permissions(chat: &mut ChatWidget) {
++    chat.config
++        .permissions
++        .set_permission_profile_from_session_snapshot(PermissionProfileSnapshot::active(
++            PermissionProfile::read_only(),
++            ActivePermissionProfile::new(BUILT_IN_PERMISSION_PROFILE_READ_ONLY),
++        ))
++        .expect("set active profile");
++    chat.set_approval_policy(AskForApproval::OnRequest);
++}
++
+ fn windows_sandbox_requirements_stack(
+     allowed_sandbox_implementations: Vec<WindowsSandboxModeToml>,
+ ) -> ConfigLayerStack {
+@@ -107,6 +121,7 @@ async fn profile_permissions_selection_popup_snapshot() {
+             ActivePermissionProfile::new(":workspace"),
+         ))
+         .expect("set active profile");
++    chat.set_approval_policy(AskForApproval::OnRequest);
+ 
+     chat.open_permissions_popup();
+ 
+@@ -120,6 +135,7 @@ async fn profile_permissions_selection_popup_snapshot() {
+ async fn profile_permissions_selection_popup_with_disallowed_full_access_snapshot() {
+     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+     chat.config.explicit_permission_profile_mode = true;
++    select_read_only_permissions(&mut chat);
+     chat.config.config_layer_stack = requirements_stack(codex_config::ConfigRequirementsToml {
+         allowed_sandbox_modes: Some(vec![
+             codex_config::SandboxModeRequirement::ReadOnly,
+@@ -272,6 +288,7 @@ async fn profile_permissions_full_access_always_opens_confirmation() {
+     chat.config.explicit_permission_profile_mode = true;
+     chat.set_feature_enabled(Feature::GuardianApproval, /*enabled*/ false);
+     chat.config.notices.hide_full_access_warning = Some(true);
++    select_read_only_permissions(&mut chat);
+ 
+     chat.open_permissions_popup();
+     chat.handle_key_event(KeyEvent::from(KeyCode::Up));
+@@ -435,6 +452,7 @@ async fn windows_auto_mode_prompt_requests_enabling_sandbox_feature() {
+ async fn startup_prompts_for_windows_sandbox_when_agent_requested() {
+     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+ 
++    select_read_only_permissions(&mut chat);
+     chat.set_feature_enabled(Feature::WindowsSandbox, /*enabled*/ false);
+     chat.set_feature_enabled(Feature::WindowsSandboxElevated, /*enabled*/ false);
+ 
+@@ -464,6 +482,7 @@ async fn startup_prompts_for_windows_sandbox_when_agent_requested() {
+ async fn startup_windows_sandbox_prompt_blocks_disallowed_unelevated_fallback() {
+     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+ 
++    select_read_only_permissions(&mut chat);
+     chat.set_feature_enabled(Feature::WindowsSandbox, /*enabled*/ false);
+     chat.set_feature_enabled(Feature::WindowsSandboxElevated, /*enabled*/ false);
+     chat.config.config_layer_stack =
+@@ -863,6 +882,7 @@ async fn permissions_selection_history_snapshot_after_mode_switch() {
+         chat.config.notices.hide_world_writable_warning = Some(true);
+         chat.set_windows_sandbox_mode(Some(WindowsSandboxModeToml::Unelevated));
+     }
++    select_read_only_permissions(&mut chat);
+     chat.set_feature_enabled(Feature::GuardianApproval, /*enabled*/ false);
+     chat.open_permissions_popup();
+     chat.handle_key_event(KeyEvent::from(KeyCode::Down));
+@@ -1239,6 +1259,7 @@ async fn permissions_full_access_history_cell_emitted_only_after_confirmation()
+         chat.config.notices.hide_world_writable_warning = Some(true);
+         chat.set_windows_sandbox_mode(Some(WindowsSandboxModeToml::Unelevated));
+     }
++    select_read_only_permissions(&mut chat);
+     chat.set_feature_enabled(Feature::GuardianApproval, /*enabled*/ false);
+     chat.open_permissions_popup();
+     chat.handle_key_event(KeyEvent::from(KeyCode::Down));
+diff --git a/codex-rs/tui/src/chatwidget/windows_sandbox_prompts.rs b/codex-rs/tui/src/chatwidget/windows_sandbox_prompts.rs
+index 1dca257c37..f6b6ce61c4 100644
+--- a/codex-rs/tui/src/chatwidget/windows_sandbox_prompts.rs
++++ b/codex-rs/tui/src/chatwidget/windows_sandbox_prompts.rs
+@@ -463,6 +463,14 @@ impl ChatWidget {
+ 
+     #[cfg(target_os = "windows")]
+     pub(crate) fn maybe_prompt_windows_sandbox_enable(&mut self, show_now: bool) {
++        // Full Access already means the sandbox is deliberately off, so offering
++        // to set it up would interrupt every startup for nothing.
++        if matches!(
++            self.config.permissions.effective_permission_profile(),
++            PermissionProfile::Disabled
++        ) {
++            return;
++        }
+         let windows_sandbox_level = crate::windows_sandbox::level_from_config(&self.config);
+         let setup_is_required = windows_sandbox_level == WindowsSandboxLevel::Disabled
+             || self.elevated_windows_sandbox_setup_required();
+diff --git a/codex-rs/tui/src/status/tests.rs b/codex-rs/tui/src/status/tests.rs
+index 9aa0f0184f..d7600be583 100644
+--- a/codex-rs/tui/src/status/tests.rs
++++ b/codex-rs/tui/src/status/tests.rs
+@@ -668,6 +668,11 @@ async fn status_permissions_broadened_workspace_profile_shows_builtin_label() {
+ async fn status_permissions_user_defined_profile_shows_name() {
+     let temp_home = TempDir::new().expect("temp home");
+     let mut config = test_config(&temp_home).await;
++    config
++        .permissions
++        .approval_policy
++        .set(AskForApproval::OnRequest.to_core())
++        .expect("set approval policy");
+     config
+         .permissions
+         .set_permission_profile_from_session_snapshot(PermissionProfileSnapshot::active(
+@@ -844,6 +849,11 @@ async fn status_snapshot_shows_auto_review_permissions() {
+     config.model = Some("gpt-5.1-codex-max".to_string());
+     set_workspace_cwd(&mut config, test_path_buf("/workspace/tests").abs());
+     config.approvals_reviewer = ApprovalsReviewer::AutoReview;
++    config
++        .permissions
++        .approval_policy
++        .set(AskForApproval::OnRequest.to_core())
++        .expect("set approval policy");
+     config
+         .permissions
+         .set_permission_profile_from_session_snapshot(PermissionProfileSnapshot::active(

@@ -1,0 +1,39 @@
+From 0725bed4435f626722de1dd740b4464ba5a7387b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Mon, 7 Sep 2026 17:54:42 +0300
+Subject: [PATCH 65/71] Let glm-5.3-flash accept image input
+
+The catalog entry added in `6a5e29fa1d` declared `input_modalities: ["text"]`,
+so `view_image` refused every call with "view_image is not allowed because you
+do not support image inputs" - three times across the recorded sessions - while
+its spec still cost about 230 tokens of the fixed prefix on every request.
+
+GLM 5.3 Flash is natively multimodal: images are a first-class input to the same
+model in the same call, passed as `image_url` blocks with either a URL or a
+base64 data URL, and billed as ordinary input tokens. The Chat request builder
+already emits exactly that shape, so nothing but the declaration was missing.
+
+Verified live: `view_image` on a 64x64 checkerboard, and the model described the
+pattern. `supports_image_detail_original` stays false; the Chat wire drops the
+detail field and Z.ai documents no equivalent.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ codex-rs/models-manager/models.json | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/codex-rs/models-manager/models.json b/codex-rs/models-manager/models.json
+index 0b8530d3de..f650abd332 100644
+--- a/codex-rs/models-manager/models.json
++++ b/codex-rs/models-manager/models.json
+@@ -8,7 +8,8 @@
+       "apply_patch_tool_type": "freeform",
+       "web_search_tool_type": "text_and_image",
+       "input_modalities": [
+-        "text"
++        "text",
++        "image"
+       ],
+       "supports_image_detail_original": false,
+       "truncation_policy": {

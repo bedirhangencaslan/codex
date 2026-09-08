@@ -1,0 +1,31 @@
+From a27d2c4d0affcdd92096c69be37c51aba11ff983 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 15:21:30 +0300
+Subject: [PATCH 33/71] Map the Chat wire in the test-only remote wire_api
+ encoder
+
+Restoring `WireApi::Chat` left `proto_wire_api` non-exhaustive. It is behind
+`#[cfg(test)]`, so `cargo check` passes and only `cargo test -p codex-config`
+fails to build. The remote thread-config protocol has no Chat variant and its
+decoder already rejects `Unspecified`, so encoding Chat as `Unspecified` keeps
+the round trip failing loudly instead of silently downgrading to Responses.
+---
+ codex-rs/config/src/thread_config/remote.rs | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/codex-rs/config/src/thread_config/remote.rs b/codex-rs/config/src/thread_config/remote.rs
+index 8d5b8febe4..54a6b92e4c 100644
+--- a/codex-rs/config/src/thread_config/remote.rs
++++ b/codex-rs/config/src/thread_config/remote.rs
+@@ -305,6 +305,10 @@ fn proto_string_map(values: HashMap<String, RedactedString>) -> proto::StringMap
+ fn proto_wire_api(wire_api: WireApi) -> proto::WireApi {
+     match wire_api {
+         WireApi::Responses => proto::WireApi::Responses,
++        // The remote thread-config protocol cannot express the Chat wire, and
++        // the decoder above rejects `Unspecified`, so a Chat provider does not
++        // survive a round trip.
++        WireApi::Chat => proto::WireApi::Unspecified,
+     }
+ }
+ 

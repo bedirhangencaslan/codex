@@ -1,0 +1,964 @@
+From ba186a790c52b364eada34bf3d16e50eede1a39d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Tue, 1 Sep 2026 23:28:19 +0300
+Subject: [PATCH 09/71] Make compaction keep per-request outcomes and a
+ verbatim assistant tail
+
+Compaction used to delete every assistant message, so the model lost all
+record of what it had already done for each request and re-did work. The
+summarization prompt now emits one outcome line per numbered user request,
+and the newest assistant answers are carried through verbatim: whole
+request groups are selected newest-first in code, so the boundary is a
+pure function of the history and the prompt prefix stays cache-hot.
+Tool traffic, reasoning, and system messages never consume that budget.
+
+Budgets are sized for the real cost target rather than the upstream
+defaults: the auto-compact trigger drops to 80k, user messages get 12k
+and the assistant tail 8k, leaving ~59k of runway per window.
+
+The trigger measurement was also overstating the next request's input.
+`last_token_usage.total_tokens` bills the reasoning a turn produced, but
+turn-scoped reasoning is only resent while that turn is still running, so
+once the turn ends that amount is discounted. Reasoning is accumulated
+per turn and callers pass the turn they are about to sample for, which
+keeps the mid-turn tool loop measured as-is.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/compact.rs                  | 189 ++++++++++++++++--
+ codex-rs/core/src/compact_remote.rs           |   5 +-
+ codex-rs/core/src/compact_remote_v2.rs        |   5 +-
+ codex-rs/core/src/compact_tests.rs            |  84 +++++++-
+ codex-rs/core/src/context_manager/history.rs  |  36 +++-
+ .../core/src/context_manager/history_tests.rs |  30 ++-
+ codex-rs/core/src/guardian/review_session.rs  |   9 +-
+ codex-rs/core/src/session/context_window.rs   |   6 +-
+ codex-rs/core/src/session/mod.rs              |  13 +-
+ .../src/session/rollout_reconstruction.rs     |   1 +
+ codex-rs/core/src/session/tests.rs            |   4 +-
+ codex-rs/core/src/session/turn.rs             |   4 +-
+ codex-rs/core/src/state/session.rs            |  13 +-
+ codex-rs/core/tests/suite/compact.rs          |  13 +-
+ ...t__manual_compact_with_history_shapes.snap |   9 +-
+ ...mpling_model_switch_compaction_shapes.snap |   9 +-
+ ..._compaction_including_incoming_shapes.snap |  12 +-
+ ...n_strips_incoming_model_switch_shapes.snap |   9 +-
+ ...fork__rollback_past_compaction_shapes.snap |  18 +-
+ codex-rs/models-manager/models.json           |   2 +-
+ codex-rs/prompts/templates/compact/prompt.md  |  19 +-
+ 21 files changed, 411 insertions(+), 79 deletions(-)
+
+diff --git a/codex-rs/core/src/compact.rs b/codex-rs/core/src/compact.rs
+index 6acd1b73b0..344c604426 100644
+--- a/codex-rs/core/src/compact.rs
++++ b/codex-rs/core/src/compact.rs
+@@ -43,6 +43,7 @@ use codex_protocol::models::AgentMessageInputContent;
+ use codex_protocol::models::ContentItem;
+ use codex_protocol::models::ContentItemKind;
+ use codex_protocol::models::InternalChatMessageMetadataPassthrough;
++use codex_protocol::models::MessagePhase;
+ use codex_protocol::models::ResponseInputItem;
+ use codex_protocol::models::ResponseItem;
+ use codex_protocol::protocol::EventMsg;
+@@ -59,7 +60,14 @@ use tracing::error;
+ 
+ pub use codex_prompts::SUMMARIZATION_PROMPT;
+ pub use codex_prompts::SUMMARY_PREFIX;
+-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 20_000;
++/// Budget for the user's own messages, which are always preserved verbatim.
++const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 12_000;
++/// Budget for assistant answers that survive compaction verbatim. Spent newest-first over whole
++/// request groups; a group that does not fit entirely is summarized instead of partially kept.
++///
++/// Together with the user budget and the summary this puts the post-compaction floor around 21k,
++/// leaving roughly 59k of runway before the next compaction at the 80k auto-compact limit.
++const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 8_000;
+ 
+ /// Controls whether compaction replacement history must include initial context.
+ ///
+@@ -252,9 +260,21 @@ async fn run_compact_task_inner_impl(
+     let compaction_item = TurnItem::ContextCompaction(ContextCompactionItem::new());
+     sess.emit_turn_item_started(&turn_context, &compaction_item)
+         .await;
++    let mut history = sess.clone_history().await;
++    // Computed before the summarization call so the model can be told where the verbatim tail
++    // starts, and so the tail never picks up this turn's own summary message.
++    let retained_assistant_messages = select_retained_assistant_tail(
++        &collect_annotated_assistant_messages(history.annotated_items()),
++        COMPACT_ASSISTANT_TAIL_MAX_TOKENS,
++    );
++    let mut input = input;
++    if let Some(note) = retained_assistant_tail_note(&retained_assistant_messages)
++        && let Some(UserInput::Text { text, .. }) = input.last_mut()
++    {
++        text.push_str(&note);
++    }
+     let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input);
+ 
+-    let mut history = sess.clone_history().await;
+     history.record_items(
+         &[initial_input_for_turn.into()],
+         turn_context.model_info().truncation_policy.into(),
+@@ -357,7 +377,12 @@ async fn run_compact_task_inner_impl(
+     let summary_text = format!("{SUMMARY_PREFIX}\n{summary_suffix}");
+     let user_messages = collect_annotated_user_messages(history_items);
+ 
+-    let mut new_history = build_compacted_history(Vec::new(), &user_messages, &summary_text);
++    let mut new_history = build_compacted_history(
++        Vec::new(),
++        &user_messages,
++        &retained_assistant_messages,
++        &summary_text,
++    );
+     if let Some(summary_item) = new_history.last_mut() {
+         // This replacement history skips `record_conversation_items`; only the appended summary
+         // belongs to this compaction turn.
+@@ -429,7 +454,9 @@ impl CompactionAnalyticsAttempt {
+         implementation: CompactionImplementation,
+         phase: CompactionPhase,
+     ) -> Self {
+-        let active_context_tokens_before = sess.get_total_token_usage().await;
++        let active_context_tokens_before = sess
++            .get_total_token_usage(Some(turn_context.sub_id.as_str()))
++            .await;
+         Self {
+             thread_id: sess.thread_id.to_string(),
+             turn_id: turn_context.sub_id.clone(),
+@@ -459,7 +486,8 @@ impl CompactionAnalyticsAttempt {
+         } = details;
+         let active_context_tokens_before =
+             active_context_tokens_before.unwrap_or(self.active_context_tokens_before);
+-        let active_context_tokens_after = sess.get_total_token_usage().await;
++        let active_context_tokens_after =
++            sess.get_total_token_usage(Some(self.turn_id.as_str())).await;
+         sess.services
+             .analytics_events_client
+             .track_compaction(CodexCompactionEvent {
+@@ -570,6 +598,107 @@ fn compacted_user_message(
+     })
+ }
+ 
++/// An assistant answer kept verbatim through compaction, tagged with the 1-based index of the user
++/// request it answered so it can be re-interleaved after that request.
++#[derive(Clone, Debug, PartialEq)]
++pub(crate) struct RetainedAssistantMessage {
++    request_index: usize,
++    text: String,
++    phase: Option<MessagePhase>,
++    internal_chat_message_metadata_passthrough: Option<InternalChatMessageMetadataPassthrough>,
++    harness_metadata: Option<CodexHarnessMetadata>,
++}
++
++/// Collects assistant answers only: tool calls, tool outputs, reasoning, and the synthetic
++/// system/context messages are all skipped, so they never consume the retention budget.
++pub(crate) fn collect_annotated_assistant_messages(
++    items: &[ResponseItemEnvelope],
++) -> Vec<RetainedAssistantMessage> {
++    let mut request_index = 0usize;
++    let mut messages = Vec::new();
++    for envelope in items {
++        // Counts the same messages as `collect_annotated_user_messages`, so request indices line up
++        // between the two collections.
++        if compacted_user_message(&envelope.item, /*harness_metadata*/ None).is_some() {
++            request_index += 1;
++            continue;
++        }
++        if request_index == 0 {
++            continue;
++        }
++        let ResponseItem::Message {
++            role,
++            content,
++            phase,
++            internal_chat_message_metadata_passthrough,
++            ..
++        } = &envelope.item
++        else {
++            continue;
++        };
++        // Commentary is mid-turn progress chatter; only the answers the user actually received are
++        // worth keeping.
++        if role != "assistant" || matches!(phase, Some(MessagePhase::Commentary)) {
++            continue;
++        }
++        let Some(text) = content_items_to_text(content) else {
++            continue;
++        };
++        if text.trim().is_empty() {
++            continue;
++        }
++        messages.push(RetainedAssistantMessage {
++            request_index,
++            text,
++            phase: phase.clone(),
++            internal_chat_message_metadata_passthrough:
++                internal_chat_message_metadata_passthrough.clone(),
++            harness_metadata: envelope.metadata.clone(),
++        });
++    }
++    messages
++}
++
++/// Walks request groups newest-first and keeps those that fit whole. Stopping at the first group
++/// that would overflow makes the boundary a pure function of the history, so it stays stable across
++/// turns and the prompt prefix keeps hitting cache.
++fn select_retained_assistant_tail(
++    messages: &[RetainedAssistantMessage],
++    max_tokens: usize,
++) -> Vec<RetainedAssistantMessage> {
++    let mut selected: Vec<RetainedAssistantMessage> = Vec::new();
++    let mut remaining = max_tokens;
++    let mut rest = messages;
++    while let Some(last) = rest.last() {
++        let group_start = rest.partition_point(|message| message.request_index < last.request_index);
++        let group = &rest[group_start..];
++        let tokens: usize = group
++            .iter()
++            .map(|message| approx_token_count(&message.text))
++            .sum();
++        if tokens > remaining {
++            break;
++        }
++        remaining -= tokens;
++        selected.splice(0..0, group.iter().cloned());
++        rest = &rest[..group_start];
++    }
++    selected
++}
++
++/// Tells the summarizer where the verbatim tail begins so it does not spend output re-describing
++/// answers that are being preserved anyway.
++fn retained_assistant_tail_note(retained: &[RetainedAssistantMessage]) -> Option<String> {
++    let first_retained = retained.first()?.request_index;
++    let last_summarized = first_retained.checked_sub(1)?;
++    if last_summarized == 0 {
++        return None;
++    }
++    Some(format!(
++        "\n\nThe assistant responses for request #{first_retained} and later are preserved verbatim by this compaction. Summarize requests #1 through #{last_summarized} only.",
++    ))
++}
++
+ pub(crate) fn is_summary_message(message: &str) -> bool {
+     message.starts_with(format!("{SUMMARY_PREFIX}\n").as_str())
+ }
+@@ -645,11 +774,13 @@ pub(crate) fn insert_initial_context_before_last_real_user_or_summary(
+ pub(crate) fn build_compacted_history(
+     initial_context: Vec<ResponseItemEnvelope>,
+     user_messages: &[CompactedUserMessage],
++    retained_assistant_messages: &[RetainedAssistantMessage],
+     summary_text: &str,
+ ) -> Vec<ResponseItemEnvelope> {
+     build_compacted_history_with_limit(
+         initial_context,
+         user_messages,
++        retained_assistant_messages,
+         summary_text,
+         COMPACT_USER_MESSAGE_MAX_TOKENS,
+     )
+@@ -658,37 +789,43 @@ pub(crate) fn build_compacted_history(
+ fn build_compacted_history_with_limit(
+     mut history: Vec<ResponseItemEnvelope>,
+     user_messages: &[CompactedUserMessage],
++    retained_assistant_messages: &[RetainedAssistantMessage],
+     summary_text: &str,
+     max_tokens: usize,
+ ) -> Vec<ResponseItemEnvelope> {
+-    let mut selected_messages: Vec<CompactedUserMessage> = Vec::new();
++    // Request indices are 1-based positions in `user_messages`, matching
++    // `collect_annotated_assistant_messages`.
++    let mut selected_messages: Vec<(usize, CompactedUserMessage)> = Vec::new();
+     if max_tokens > 0 {
+         let mut remaining = max_tokens;
+-        for message in user_messages.iter().rev() {
++        for (index, message) in user_messages.iter().enumerate().rev() {
+             if remaining == 0 {
+                 break;
+             }
+             let tokens = approx_token_count(&message.message);
+             if tokens <= remaining {
+-                selected_messages.push(message.clone());
++                selected_messages.push((index + 1, message.clone()));
+                 remaining = remaining.saturating_sub(tokens);
+             } else {
+                 let truncated =
+                     truncate_text(&message.message, TruncationPolicy::Tokens(remaining));
+-                selected_messages.push(CompactedUserMessage {
+-                    message: truncated,
+-                    internal_chat_message_metadata_passthrough: message
+-                        .internal_chat_message_metadata_passthrough
+-                        .clone(),
+-                    harness_metadata: message.harness_metadata.clone(),
+-                });
++                selected_messages.push((
++                    index + 1,
++                    CompactedUserMessage {
++                        message: truncated,
++                        internal_chat_message_metadata_passthrough: message
++                            .internal_chat_message_metadata_passthrough
++                            .clone(),
++                        harness_metadata: message.harness_metadata.clone(),
++                    },
++                ));
+                 break;
+             }
+         }
+         selected_messages.reverse();
+     }
+ 
+-    for message in &selected_messages {
++    for (request_index, message) in &selected_messages {
+         let mut item = ResponseItem::Message {
+             id: None,
+             role: "user".to_string(),
+@@ -718,6 +855,26 @@ fn build_compacted_history_with_limit(
+             item,
+             metadata: message.harness_metadata.clone(),
+         });
++
++        for assistant in retained_assistant_messages
++            .iter()
++            .filter(|assistant| assistant.request_index == *request_index)
++        {
++            history.push(ResponseItemEnvelope {
++                item: ResponseItem::Message {
++                    id: None,
++                    role: "assistant".to_string(),
++                    content: vec![ContentItem::OutputText {
++                        text: assistant.text.clone(),
++                    }],
++                    phase: assistant.phase.clone(),
++                    internal_chat_message_metadata_passthrough: assistant
++                        .internal_chat_message_metadata_passthrough
++                        .clone(),
++                },
++                metadata: assistant.harness_metadata.clone(),
++            });
++        }
+     }
+ 
+     let summary_text = if summary_text.is_empty() {
+diff --git a/codex-rs/core/src/compact_remote.rs b/codex-rs/core/src/compact_remote.rs
+index ea1d5a372d..0b3dd3f7f9 100644
+--- a/codex-rs/core/src/compact_remote.rs
++++ b/codex-rs/core/src/compact_remote.rs
+@@ -126,7 +126,10 @@ async fn run_remote_compact_task_inner(
+     let implementation = compaction_metadata.implementation();
+     let phase = compaction_metadata.phase();
+     let mut analytics_details = CompactionAnalyticsDetails {
+-        active_context_tokens_before: Some(sess.get_total_token_usage().await),
++        active_context_tokens_before: Some(
++            sess.get_total_token_usage(Some(turn_context.sub_id.as_str()))
++                .await,
++        ),
+         ..Default::default()
+     };
+     let attempt = CompactionAnalyticsAttempt::begin(
+diff --git a/codex-rs/core/src/compact_remote_v2.rs b/codex-rs/core/src/compact_remote_v2.rs
+index e36d11387f..53b7b8f1b9 100644
+--- a/codex-rs/core/src/compact_remote_v2.rs
++++ b/codex-rs/core/src/compact_remote_v2.rs
+@@ -154,7 +154,10 @@ async fn run_remote_compact_task_inner(
+     let implementation = compaction_metadata.implementation();
+     let phase = compaction_metadata.phase();
+     let mut analytics_details = CompactionAnalyticsDetails {
+-        active_context_tokens_before: Some(sess.get_total_token_usage().await),
++        active_context_tokens_before: Some(
++            sess.get_total_token_usage(Some(turn_context.sub_id.as_str()))
++                .await,
++        ),
+         ..Default::default()
+     };
+     let attempt = CompactionAnalyticsAttempt::begin(
+diff --git a/codex-rs/core/src/compact_tests.rs b/codex-rs/core/src/compact_tests.rs
+index 44cfad1995..ffd973ca04 100644
+--- a/codex-rs/core/src/compact_tests.rs
++++ b/codex-rs/core/src/compact_tests.rs
+@@ -216,6 +216,86 @@ fn collect_user_messages_filters_legacy_warnings() {
+     assert_eq!(vec![compacted_user_message("real user message")], collected);
+ }
+ 
++fn assistant_message_item(text: &str) -> ResponseItem {
++    ResponseItem::Message {
++        id: None,
++        role: "assistant".to_string(),
++        content: vec![ContentItem::OutputText {
++            text: text.to_string(),
++        }],
++        phase: None,
++        internal_chat_message_metadata_passthrough: None,
++    }
++}
++
++#[test]
++fn retained_assistant_tail_skips_tool_traffic_and_keeps_whole_request_groups() {
++    let items = annotated(vec![
++        user_message("first"),
++        assistant_message_item(&"word ".repeat(200)),
++        ResponseItem::Other,
++        user_message("second"),
++        assistant_message_item("short answer"),
++    ]);
++
++    let collected = collect_annotated_assistant_messages(&items);
++    assert_eq!(
++        collected.iter().map(|m| m.request_index).collect::<Vec<_>>(),
++        vec![1, 2]
++    );
++
++    // Only the second request's answer fits, so the first group is left to the summary.
++    let retained = super::select_retained_assistant_tail(&collected, 16);
++    assert_eq!(
++        retained
++            .iter()
++            .map(|m| (m.request_index, m.text.as_str()))
++            .collect::<Vec<_>>(),
++        vec![(2, "short answer")]
++    );
++}
++
++#[test]
++fn build_compacted_history_interleaves_retained_assistant_messages() {
++    let user_messages = vec![
++        compacted_user_message("first"),
++        compacted_user_message("second"),
++    ];
++    let retained = super::select_retained_assistant_tail(
++        &collect_annotated_assistant_messages(&annotated(vec![
++            user_message("first"),
++            assistant_message_item("answer one"),
++            user_message("second"),
++            assistant_message_item("answer two"),
++        ])),
++        usize::MAX,
++    );
++
++    let history = build_compacted_history(Vec::new(), &user_messages, &retained, "SUMMARY");
++
++    let texts = history
++        .iter()
++        .map(|envelope| match &envelope.item {
++            ResponseItem::Message { role, content, .. } => (
++                role.as_str(),
++                content_items_to_text(content).unwrap_or_default(),
++            ),
++            other => panic!("unexpected item in history: {other:?}"),
++        })
++        .collect::<Vec<_>>();
++
++    assert_eq!(
++        texts,
++        vec![
++            ("user", "first".to_string()),
++            ("assistant", "answer one".to_string()),
++            ("user", "second".to_string()),
++            ("assistant", "answer two".to_string()),
++            ("user", "SUMMARY".to_string()),
++        ]
++    );
++}
++
+ #[test]
+ fn build_token_limited_compacted_history_truncates_overlong_user_messages() {
+     // Use a small truncation limit so the test remains fast while still validating
+@@ -230,6 +310,7 @@ fn build_token_limited_compacted_history_truncates_overlong_user_messages() {
+     let history = super::build_compacted_history_with_limit(
+         Vec::new(),
+         std::slice::from_ref(&user_message),
++        &[],
+         "SUMMARY",
+         max_tokens,
+     );
+@@ -271,7 +352,7 @@ fn build_token_limited_compacted_history_appends_summary_message() {
+     let user_messages = vec![compacted_user_message("first user message")];
+     let summary_text = "summary text";
+ 
+-    let history = build_compacted_history(initial_context, &user_messages, summary_text);
++    let history = build_compacted_history(initial_context, &user_messages, &[], summary_text);
+     assert!(
+         !history.is_empty(),
+         "expected compacted history to include summary"
+@@ -306,6 +387,7 @@ fn build_compacted_history_preserves_user_message_passthrough_metadata() {
+             ),
+             harness_metadata: Some(CodexHarnessMetadata::default()),
+         }],
++        &[],
+         "summary text",
+     );
+ 
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index e491db464d..77208a2519 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -54,6 +54,11 @@ pub(crate) struct ContextManager {
+     /// Monotonic user-input/reset revision, independent of compaction's history generation.
+     user_message_revision: u64,
+     token_info: Option<TokenUsageInfo>,
++    /// Reasoning tokens the server has already charged into `last_token_usage`, together with the
++    /// turn that produced them. Reasoning is turn-scoped: it is resent while its turn is still
++    /// running, then dropped from the prompt forever. So once that turn ends this amount is still
++    /// part of the reported usage but no longer part of the next request's input.
++    turn_reasoning_output_tokens: Option<(String, i64)>,
+     /// Reference context snapshot used for diffing and producing model-visible
+     /// settings update items.
+     ///
+@@ -114,6 +119,7 @@ impl ContextManager {
+             token_info: TokenUsageInfo::new_or_append(
+                 &None, &None, /*model_context_window*/ None,
+             ),
++            turn_reasoning_output_tokens: None,
+             reference_context_item: None,
+             world_state_baseline: None,
+         }
+@@ -456,12 +462,21 @@ impl ContextManager {
+         &mut self,
+         usage: &TokenUsage,
+         model_context_window: Option<i64>,
++        turn_id: &str,
+     ) {
+         self.token_info = TokenUsageInfo::new_or_append(
+             &self.token_info,
+             &Some(usage.clone()),
+             model_context_window,
+         );
++        // A turn can span several requests; every one of them charges reasoning that is only
++        // resent for the remainder of that same turn, so accumulate across the whole turn.
++        match &mut self.turn_reasoning_output_tokens {
++            Some((id, tokens)) if id == turn_id => {
++                *tokens = tokens.saturating_add(usage.reasoning_output_tokens);
++            }
++            slot => *slot = Some((turn_id.to_string(), usage.reasoning_output_tokens)),
++        }
+     }
+ 
+     // These are local items added after the most recent model-emitted item.
+@@ -477,20 +492,31 @@ impl ContextManager {
+         self.items[start..].iter().map(|envelope| &envelope.item)
+     }
+ 
+-    /// Reasoning from finished turns never reaches the model, and reasoning from the
+-    /// running turn is already counted in the server-reported usage for the request that
+-    /// carried it, so the server-side reasoning accounting signal changes nothing here.
+-    pub(crate) fn get_total_token_usage(&self, _server_reasoning_included: bool) -> i64 {
++    /// Approximates the input the next request will actually carry.
++    ///
++    /// `last_token_usage.total_tokens` counts everything the last request billed, including the
++    /// reasoning it produced. Reasoning is turn-scoped, so once the turn that produced it has
++    /// ended it is no longer sent and must be discounted; `active_turn_id` identifies the turn the
++    /// caller is about to sample for, and reasoning still belonging to that turn is left in.
++    pub(crate) fn get_total_token_usage(&self, active_turn_id: Option<&str>) -> i64 {
+         let last_tokens = self
+             .token_info
+             .as_ref()
+             .map(|info| info.last_token_usage.total_tokens)
+             .unwrap_or(0);
++        let finished_turn_reasoning_tokens = self
++            .turn_reasoning_output_tokens
++            .as_ref()
++            .filter(|(turn_id, _)| Some(turn_id.as_str()) != active_turn_id)
++            .map_or(0, |(_, tokens)| *tokens);
+         let items_after_last_model_generated_tokens = self
+             .items_after_last_model_generated_item()
+             .map(estimate_item_token_count)
+             .fold(0i64, i64::saturating_add);
+-        last_tokens.saturating_add(items_after_last_model_generated_tokens)
++        last_tokens
++            .saturating_sub(finished_turn_reasoning_tokens)
++            .max(0)
++            .saturating_add(items_after_last_model_generated_tokens)
+     }
+ 
+     pub(crate) fn estimated_tokens_after_last_model_generated_item(&self) -> i64 {
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index 6db27ef2b1..233b0b6623 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -718,6 +718,7 @@ fn total_token_usage_includes_all_items_after_last_model_generated_item() {
+             ..Default::default()
+         },
+         /*model_context_window*/ None,
++        /*turn_id*/ "turn-1",
+     );
+     let added_user = user_msg("new user message");
+     let added_tool_output = custom_tool_call_output("tool-tail", "new tool output");
+@@ -727,12 +728,39 @@ fn total_token_usage_includes_all_items_after_last_model_generated_item() {
+     );
+ 
+     assert_eq!(
+-        history.get_total_token_usage(/*server_reasoning_included*/ true),
++        history.get_total_token_usage(/*active_turn_id*/ Some("turn-1")),
+         100 + estimate_item_token_count(&added_user)
+             + estimate_item_token_count(&added_tool_output)
+     );
+ }
+ 
++#[test]
++fn total_token_usage_discounts_reasoning_once_its_turn_ends() {
++    let mut history = create_history_with_items(vec![assistant_msg("already counted by API")]);
++    for tokens in [30, 20] {
++        history.update_token_info(
++            &TokenUsage {
++                total_tokens: 100,
++                reasoning_output_tokens: tokens,
++                ..Default::default()
++            },
++            /*model_context_window*/ None,
++            /*turn_id*/ "turn-1",
++        );
++    }
++
++    // Still inside the turn: its reasoning is resent, so nothing is discounted.
++    assert_eq!(
++        history.get_total_token_usage(/*active_turn_id*/ Some("turn-1")),
++        100
++    );
++    // The next turn never sees that reasoning again.
++    assert_eq!(
++        history.get_total_token_usage(/*active_turn_id*/ Some("turn-2")),
++        50
++    );
++}
++
+ #[test]
+ fn for_prompt_strips_media_when_model_does_not_support_it() {
+     let items = vec![
+diff --git a/codex-rs/core/src/guardian/review_session.rs b/codex-rs/core/src/guardian/review_session.rs
+index 98acd64648..f3e2ddc303 100644
+--- a/codex-rs/core/src/guardian/review_session.rs
++++ b/codex-rs/core/src/guardian/review_session.rs
+@@ -1118,7 +1118,14 @@ async fn run_review_on_session(
+                     let history_tokens = reviewer_history
+                         .estimate_token_count_with_base_instructions(&base_instructions)
+                         .unwrap_or(i64::MAX)
+-                        .max(review_session.session.get_total_token_usage().await);
++                        .max(
++                            review_session
++                                .session
++                                // Sizing a prompt that starts a new reviewer turn, so no prior
++                                // reasoning will be resent.
++                                .get_total_token_usage(/*active_turn_id*/ None)
++                                .await,
++                        );
+                     prompt_tokens <= GUARDIAN_MAX_IMAGE_ITEM_TOKENS
+                         && prompt_tokens.saturating_add(history_tokens) <= context_window
+                 } else {
+diff --git a/codex-rs/core/src/session/context_window.rs b/codex-rs/core/src/session/context_window.rs
+index 18ddccd043..d82bfbc616 100644
+--- a/codex-rs/core/src/session/context_window.rs
++++ b/codex-rs/core/src/session/context_window.rs
+@@ -30,6 +30,7 @@ pub(crate) async fn context_window_token_status(
+         sess,
+         turn_context.config.as_ref(),
+         turn_context.model_info().as_ref(),
++        &turn_context.sub_id,
+     )
+     .await
+ }
+@@ -46,15 +47,16 @@ pub(crate) async fn context_window_token_status_for_model(
+         turn_context.use_model_token_budget_defaults,
+         model_info,
+     );
+-    context_window_token_status_with_config(sess, &config, model_info).await
++    context_window_token_status_with_config(sess, &config, model_info, &turn_context.sub_id).await
+ }
+ 
+ async fn context_window_token_status_with_config(
+     sess: &Session,
+     config: &Config,
+     model_info: &ModelInfo,
++    active_turn_id: &str,
+ ) -> ContextWindowTokenStatus {
+-    let active_context_tokens = sess.get_total_token_usage().await;
++    let active_context_tokens = sess.get_total_token_usage(Some(active_turn_id)).await;
+ 
+     // Count either the full active context or only the tokens added after the initial prefix.
+     let (auto_compact_scope_tokens, auto_compact_scope_limit, auto_compact_window_prefill_tokens) =
+diff --git a/codex-rs/core/src/session/mod.rs b/codex-rs/core/src/session/mod.rs
+index 70ea885f98..a538f17f0a 100644
+--- a/codex-rs/core/src/session/mod.rs
++++ b/codex-rs/core/src/session/mod.rs
+@@ -1265,9 +1265,11 @@ impl Session {
+         format!("auto-compact-{id}")
+     }
+ 
+-    pub(crate) async fn get_total_token_usage(&self) -> i64 {
++    /// `active_turn_id` is the turn the caller is about to sample for; reasoning produced by any
++    /// other turn is discounted because it will not be resent.
++    pub(crate) async fn get_total_token_usage(&self, active_turn_id: Option<&str>) -> i64 {
+         let state = self.state.lock().await;
+-        state.get_total_token_usage(state.server_reasoning_included())
++        state.get_total_token_usage(active_turn_id)
+     }
+ 
+     pub(crate) async fn auto_compact_window_snapshot(&self) -> AutoCompactWindowSnapshot {
+@@ -4225,8 +4227,11 @@ impl Session {
+         if let Some(token_usage) = token_usage {
+             let token_info = {
+                 let mut state = self.state.lock().await;
+-                state
+-                    .update_token_info_from_usage(token_usage, turn_context.model_context_window());
++                state.update_token_info_from_usage(
++                    token_usage,
++                    turn_context.model_context_window(),
++                    &turn_context.sub_id,
++                );
+                 if matches!(
+                     turn_context.config.model_auto_compact_token_limit_scope,
+                     AutoCompactTokenLimitScope::BodyAfterPrefix
+diff --git a/codex-rs/core/src/session/rollout_reconstruction.rs b/codex-rs/core/src/session/rollout_reconstruction.rs
+index e087240ccd..1491ebd0ee 100644
+--- a/codex-rs/core/src/session/rollout_reconstruction.rs
++++ b/codex-rs/core/src/session/rollout_reconstruction.rs
+@@ -372,6 +372,7 @@ impl Session {
+                         let rebuilt = compact::build_compacted_history(
+                             Vec::new(),
+                             &user_messages,
++                            /*retained_assistant_messages*/ &[],
+                             &compacted.message,
+                         );
+                         history.replace_annotated(rebuilt);
+diff --git a/codex-rs/core/src/session/tests.rs b/codex-rs/core/src/session/tests.rs
+index e962382eb7..bfb352d1a3 100644
+--- a/codex-rs/core/src/session/tests.rs
++++ b/codex-rs/core/src/session/tests.rs
+@@ -12260,7 +12260,7 @@ async fn sample_rollout(
+     let summary1 = "summary one";
+     let snapshot1 = raw_history_items(&live_history);
+     let user_messages1 = collect_user_messages(&snapshot1);
+-    let rebuilt1 = compact::build_compacted_history(Vec::new(), &user_messages1, summary1);
++    let rebuilt1 = compact::build_compacted_history(Vec::new(), &user_messages1, &[], summary1);
+     live_history.replace_annotated(rebuilt1);
+     let (window_number, window_ids) = session.advance_auto_compact_window().await;
+     rollout_items.push(RolloutItem::Compacted(CompactedItem {
+@@ -12290,7 +12290,7 @@ async fn sample_rollout(
+     let summary2 = "summary two";
+     let snapshot2 = raw_history_items(&live_history);
+     let user_messages2 = collect_user_messages(&snapshot2);
+-    let rebuilt2 = compact::build_compacted_history(Vec::new(), &user_messages2, summary2);
++    let rebuilt2 = compact::build_compacted_history(Vec::new(), &user_messages2, &[], summary2);
+     live_history.replace_annotated(rebuilt2);
+     let (window_number, window_ids) = session.advance_auto_compact_window().await;
+     rollout_items.push(RolloutItem::Compacted(CompactedItem {
+diff --git a/codex-rs/core/src/session/turn.rs b/codex-rs/core/src/session/turn.rs
+index cdb2d9c6b3..89a0b3a11c 100644
+--- a/codex-rs/core/src/session/turn.rs
++++ b/codex-rs/core/src/session/turn.rs
+@@ -1149,7 +1149,9 @@ async fn maybe_run_previous_model_inline_compact(
+     let Some(new_context_window) = turn_context.model_context_window() else {
+         return Ok(());
+     };
+-    let active_context_tokens = sess.get_total_token_usage().await;
++    let active_context_tokens = sess
++        .get_total_token_usage(Some(turn_context.sub_id.as_str()))
++        .await;
+     let previous_model_limit_reached = match turn_context
+         .config
+         .model_auto_compact_token_limit_scope
+diff --git a/codex-rs/core/src/state/session.rs b/codex-rs/core/src/state/session.rs
+index c65eafadbd..7916ca8272 100644
+--- a/codex-rs/core/src/state/session.rs
++++ b/codex-rs/core/src/state/session.rs
+@@ -161,8 +161,10 @@ impl SessionState {
+         &mut self,
+         usage: &TokenUsage,
+         model_context_window: Option<i64>,
++        turn_id: &str,
+     ) {
+-        self.history.update_token_info(usage, model_context_window);
++        self.history
++            .update_token_info(usage, model_context_window, turn_id);
+     }
+ 
+     pub(crate) fn ensure_auto_compact_window_server_prefill_from_usage(
+@@ -244,19 +246,14 @@ impl SessionState {
+         self.history.set_token_usage_full(context_window);
+     }
+ 
+-    pub(crate) fn get_total_token_usage(&self, server_reasoning_included: bool) -> i64 {
+-        self.history
+-            .get_total_token_usage(server_reasoning_included)
++    pub(crate) fn get_total_token_usage(&self, active_turn_id: Option<&str>) -> i64 {
++        self.history.get_total_token_usage(active_turn_id)
+     }
+ 
+     pub(crate) fn set_server_reasoning_included(&mut self, included: bool) {
+         self.server_reasoning_included = included;
+     }
+ 
+-    pub(crate) fn server_reasoning_included(&self) -> bool {
+-        self.server_reasoning_included
+-    }
+-
+     pub(crate) fn record_mcp_dependency_prompted<I>(&mut self, names: I)
+     where
+         I: IntoIterator<Item = String>,
+diff --git a/codex-rs/core/tests/suite/compact.rs b/codex-rs/core/tests/suite/compact.rs
+index 7d91404f8e..7eb642879f 100644
+--- a/codex-rs/core/tests/suite/compact.rs
++++ b/codex-rs/core/tests/suite/compact.rs
+@@ -641,9 +641,16 @@ async fn summarize_context_three_requests_and_instructions() {
+         }
+     }
+ 
+-    // No previous assistant messages should remain and the new user message is present.
+-    let assistant_count = messages.iter().filter(|(r, _)| r == "assistant").count();
+-    assert_eq!(assistant_count, 0, "assistant history should be cleared");
++    // The last assistant answer fits the verbatim retention budget and survives compaction.
++    let assistant_messages: Vec<&String> = messages
++        .iter()
++        .filter_map(|(role, text)| (role == "assistant").then_some(text))
++        .collect();
++    assert_eq!(
++        assistant_messages,
++        vec![FIRST_REPLY],
++        "only the retained assistant answer should remain"
++    );
+     assert!(
+         messages
+             .iter()
+diff --git a/codex-rs/core/tests/suite/snapshots/all__suite__compact__manual_compact_with_history_shapes.snap b/codex-rs/core/tests/suite/snapshots/all__suite__compact__manual_compact_with_history_shapes.snap
+index daa7700601..9ddced43d2 100644
+--- a/codex-rs/core/tests/suite/snapshots/all__suite__compact__manual_compact_with_history_shapes.snap
++++ b/codex-rs/core/tests/suite/snapshots/all__suite__compact__manual_compact_with_history_shapes.snap
+@@ -13,7 +13,8 @@ Scenario: Manual /compact with prior user history compacts existing history and
+ 
+ ## Local Post-Compaction History Layout
+ 00:message/user:first manual turn
+-01:message/user:<COMPACTION_SUMMARY>\nFIRST_MANUAL_SUMMARY
+-02:message/developer:<PERMISSIONS_INSTRUCTIONS>
+-03:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
+-04:message/user:second manual turn
++01:message/assistant:FIRST_REPLY
++02:message/user:<COMPACTION_SUMMARY>\nFIRST_MANUAL_SUMMARY
++03:message/developer:<PERMISSIONS_INSTRUCTIONS>
++04:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
++05:message/user:second manual turn
+diff --git a/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_sampling_model_switch_compaction_shapes.snap b/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_sampling_model_switch_compaction_shapes.snap
+index d63924a44a..0095a4f86d 100644
+--- a/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_sampling_model_switch_compaction_shapes.snap
++++ b/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_sampling_model_switch_compaction_shapes.snap
+@@ -18,9 +18,10 @@ Scenario: Pre-sampling compaction on model switch to a smaller context window: c
+ 
+ ## Post-Compaction Follow-up Request (Next Model)
+ 00:message/user:before switch
+-01:message/user:<COMPACTION_SUMMARY>\nPRE_SAMPLING_SUMMARY
+-02:message/developer[2]:
++01:message/assistant:before switch
++02:message/user:<COMPACTION_SUMMARY>\nPRE_SAMPLING_SUMMARY
++03:message/developer[2]:
+     [01] <model_switch>\nThe user was previously using a different model....
+     [02] <PERMISSIONS_INSTRUCTIONS>
+-03:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
+-04:message/user:after switch
++04:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
++05:message/user:after switch
+diff --git a/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_including_incoming_shapes.snap b/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_including_incoming_shapes.snap
+index 679081353e..82a99075b8 100644
+--- a/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_including_incoming_shapes.snap
++++ b/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_including_incoming_shapes.snap
+@@ -15,10 +15,12 @@ Scenario: Pre-turn auto-compaction with a context override emits the context dif
+ 
+ ## Local Post-Compaction History Layout
+ 00:message/user:USER_ONE
+-01:message/user:USER_TWO
+-02:message/user:<COMPACTION_SUMMARY>\nPRE_TURN_SUMMARY
+-03:message/developer:<PERMISSIONS_INSTRUCTIONS>
+-04:message/user:<ENVIRONMENT_CONTEXT:cwd=PRETURN_CONTEXT_DIFF_CWD>
+-05:message/user[2]:
++01:message/assistant:FIRST_REPLY
++02:message/user:USER_TWO
++03:message/assistant:SECOND_REPLY
++04:message/user:<COMPACTION_SUMMARY>\nPRE_TURN_SUMMARY
++05:message/developer:<PERMISSIONS_INSTRUCTIONS>
++06:message/user:<ENVIRONMENT_CONTEXT:cwd=PRETURN_CONTEXT_DIFF_CWD>
++07:message/user[2]:
+     [01] <input_image:detail,image_url>
+     [02] USER_THREE
+diff --git a/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_strips_incoming_model_switch_shapes.snap b/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_strips_incoming_model_switch_shapes.snap
+index 6dd728d5b8..29acc04527 100644
+--- a/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_strips_incoming_model_switch_shapes.snap
++++ b/codex-rs/core/tests/suite/snapshots/all__suite__compact__pre_turn_compaction_strips_incoming_model_switch_shapes.snap
+@@ -18,9 +18,10 @@ Scenario: Pre-turn compaction during model switch (without pre-sampling model-sw
+ 
+ ## Local Post-Compaction History Layout
+ 00:message/user:BEFORE_SWITCH_USER
+-01:message/user:<COMPACTION_SUMMARY>\nPRETURN_SWITCH_SUMMARY
+-02:message/developer[2]:
++01:message/assistant:BEFORE_SWITCH_REPLY
++02:message/user:<COMPACTION_SUMMARY>\nPRETURN_SWITCH_SUMMARY
++03:message/developer[2]:
+     [01] <model_switch>\nThe user was previously using a different model....
+     [02] <PERMISSIONS_INSTRUCTIONS>
+-03:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
+-04:message/user:AFTER_SWITCH_USER
++04:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
++05:message/user:AFTER_SWITCH_USER
+diff --git a/codex-rs/core/tests/suite/snapshots/all__suite__compact_resume_fork__rollback_past_compaction_shapes.snap b/codex-rs/core/tests/suite/snapshots/all__suite__compact_resume_fork__rollback_past_compaction_shapes.snap
+index bb694af693..1f436a4ccc 100644
+--- a/codex-rs/core/tests/suite/snapshots/all__suite__compact_resume_fork__rollback_past_compaction_shapes.snap
++++ b/codex-rs/core/tests/suite/snapshots/all__suite__compact_resume_fork__rollback_past_compaction_shapes.snap
+@@ -13,14 +13,16 @@ Scenario: rollback past compaction replay after rollback
+ 
+ ## before rollback
+ 00:message/user:hello world
+-01:message/user:<COMPACTION_SUMMARY>\nSUMMARY_ONLY_CONTEXT
+-02:message/developer:<PERMISSIONS_INSTRUCTIONS>
+-03:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
+-04:message/user:EDITED_AFTER_COMPACT
++01:message/assistant:FIRST_REPLY
++02:message/user:<COMPACTION_SUMMARY>\nSUMMARY_ONLY_CONTEXT
++03:message/developer:<PERMISSIONS_INSTRUCTIONS>
++04:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
++05:message/user:EDITED_AFTER_COMPACT
+ 
+ ## after rollback
+ 00:message/user:hello world
+-01:message/user:<COMPACTION_SUMMARY>\nSUMMARY_ONLY_CONTEXT
+-02:message/developer:<PERMISSIONS_INSTRUCTIONS>
+-03:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
+-04:message/user:AFTER_ROLLBACK
++01:message/assistant:FIRST_REPLY
++02:message/user:<COMPACTION_SUMMARY>\nSUMMARY_ONLY_CONTEXT
++03:message/developer:<PERMISSIONS_INSTRUCTIONS>
++04:message/user:<ENVIRONMENT_CONTEXT:cwd=<CWD>>
++05:message/user:AFTER_ROLLBACK
+diff --git a/codex-rs/models-manager/models.json b/codex-rs/models-manager/models.json
+index e3df621041..fc74951acd 100644
+--- a/codex-rs/models-manager/models.json
++++ b/codex-rs/models-manager/models.json
+@@ -28,7 +28,7 @@
+       "model_specialty": null,
+       "context_window": 200000,
+       "max_context_window": 200000,
+-      "auto_compact_token_limit": null,
++      "auto_compact_token_limit": 80000,
+       "comp_hash": "2911",
+       "default_reasoning_summary": "none",
+       "display_name": "GLM 5.3",
+diff --git a/codex-rs/prompts/templates/compact/prompt.md b/codex-rs/prompts/templates/compact/prompt.md
+index 42fae605db..21e454461e 100644
+--- a/codex-rs/prompts/templates/compact/prompt.md
++++ b/codex-rs/prompts/templates/compact/prompt.md
+@@ -1,9 +1,14 @@
+-You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
++You are performing a CONTEXT CHECKPOINT COMPACTION. Everything except the user's own messages is about to be deleted. Write the handoff another LLM will use to resume the task.
+ 
+-Include:
+-- Current progress and key decisions made
+-- Important context, constraints, or user preferences
+-- What remains to be done (clear next steps)
+-- Any critical data, examples, or references needed to continue
++Number the user's requests in order starting at 1, matching the order of the user messages in this conversation. Emit one line per request you are asked to summarize:
+ 
+-Be concise, structured, and focused on helping the next LLM seamlessly continue the work.
++`N. <request in a few words> - <outcome>`
++
++The outcome must say what actually happened. For example: completed, and how; partially done, and what is left; noted for later, not started; the user was asked something and answered; the user was given information (restate the answer if it is still needed); the user rejected the proposal, and why; abandoned or superseded by a later request.
++
++After the list, add only what the next LLM cannot recover from the user messages alone:
++- Decisions, constraints, and preferences that still bind
++- Files, symbols, commands, and data it would otherwise have to rediscover
++- The concrete next step
++
++Keep each entry to one or two lines. Do not restate the user's requests verbatim; they are preserved. Do not narrate tool calls, only what they established.

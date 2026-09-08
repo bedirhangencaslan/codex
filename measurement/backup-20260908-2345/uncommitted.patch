@@ -1,0 +1,906 @@
+diff --git a/codex-rs/Cargo.lock b/codex-rs/Cargo.lock
+index ba42adc6c2..b6280856a7 100644
+--- a/codex-rs/Cargo.lock
++++ b/codex-rs/Cargo.lock
+@@ -2835,8 +2835,10 @@ dependencies = [
+  "dunce",
+  "eventsource-stream",
+  "futures",
++ "globset",
+  "http 1.4.0",
+  "iana-time-zone",
++ "ignore",
+  "image",
+  "indexmap 2.14.0",
+  "insta",
+diff --git a/codex-rs/codex-api/src/requests/chat.rs b/codex-rs/codex-api/src/requests/chat.rs
+index bc11a925a3..a24cec8062 100644
+--- a/codex-rs/codex-api/src/requests/chat.rs
++++ b/codex-rs/codex-api/src/requests/chat.rs
+@@ -179,10 +179,9 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
+     {
+         obj.insert("tools".to_string(), json!(tools));
+         obj.insert("tool_choice".to_string(), json!(request.tool_choice));
+-        obj.insert(
+-            "parallel_tool_calls".to_string(),
+-            json!(request.parallel_tool_calls),
+-        );
++        // DENEY: `parallel_tool_calls` gonderilmiyor. Ayni model, ayni endpoint, ayni role
++        // uzerinden OpenCode bu alani hic gondermiyor ve turda ~4 arac cagrisi atiyor; biz `true`
++        // gonderiyoruz ve 67 turun 67'sinde tek cagri aliyoruz.
+     }
+ 
+     // Z.ai/GLM gate chain-of-thought behind `thinking` rather than `reasoning`.
+diff --git a/codex-rs/config/defaults.toml b/codex-rs/config/defaults.toml
+index 0333e43f83..d2a7df6429 100644
+--- a/codex-rs/config/defaults.toml
++++ b/codex-rs/config/defaults.toml
+@@ -50,3 +50,12 @@ persistence = "save-all"
+ 
+ [features]
+ memories = true
++
++[skills]
++# The available-skills block is 5,073 bytes of the fixed prefix on every single request - about
++# 1,268 tokens, more than any single section of the instructions template - and it is a catalogue of
++# `imagegen`, `openai-docs`, `plugin-creator`, `skill-creator` and `skill-installer` plus ~3,700
++# bytes explaining how to invoke them. None of that is reachable work for a coding session, and the
++# prefix is paid on every request in the turn loop, not once. Measured on the wire:
++# `ab/logs5/suffice.jsonl.suffice.body.json`, system message #1.
++include_instructions = false
+diff --git a/codex-rs/core/Cargo.toml b/codex-rs/core/Cargo.toml
+index 384af1d3cd..b8ff5af867 100644
+--- a/codex-rs/core/Cargo.toml
++++ b/codex-rs/core/Cargo.toml
+@@ -89,6 +89,8 @@ dirs = { workspace = true }
+ dunce = { workspace = true }
+ eventsource-stream = { workspace = true }
+ futures = { workspace = true }
++globset = { workspace = true }
++ignore = { workspace = true }
+ http = { workspace = true }
+ iana-time-zone = { workspace = true }
+ image = { workspace = true, features = ["jpeg", "png", "webp"] }
+diff --git a/codex-rs/core/src/tools/context.rs b/codex-rs/core/src/tools/context.rs
+index f8e328f886..437c8f5cff 100644
+--- a/codex-rs/core/src/tools/context.rs
++++ b/codex-rs/core/src/tools/context.rs
+@@ -344,6 +344,20 @@ impl ToolOutput for AbortedToolOutput {
+     }
+ }
+ 
++/// Ceiling for one `exec_command` result, in bytes.
++///
++/// `truncation_policy * 1.2` alone is 120,000 bytes for this model, while a `read` call may emit
++/// 53,333 - so one `rg` sweep could put 2.25x the largest possible read into the window, and the
++/// window, not the harness cut, is what compaction watches. Measured: a corpus-wide `rg` returned
++/// 102,233 bytes, 43% of everything that entered the window in that run, and the model discarded it
++/// as "truncated and disordered" while it went on being resent on every later request.
++///
++/// The number is OpenCode's. It applies one cap to every tool output - `MAX_BYTES = 51200`,
++/// `MAX_LINES = 2000` in its bundle - and uses the same 51,200 for its read tool, so a shell result
++/// can never cost more window than a file read. That symmetry is the point; this is not a new
++/// restriction so much as the one already imposed on `read` finally reaching the other door.
++const MAX_EXEC_OUTPUT_BYTES: usize = 51_200;
++
+ #[derive(Debug, Clone, PartialEq)]
+ pub struct ExecCommandToolOutput {
+     pub event_call_id: String,
+@@ -549,6 +563,7 @@ impl ExecCommandToolOutput {
+         let header = self.response_header(&condensed);
+         let output_budget = (self.truncation_policy * 1.2)
+             .byte_budget()
++            .min(MAX_EXEC_OUTPUT_BYTES)
+             .saturating_sub(header.len().saturating_add(/*rhs*/ 1));
+         let mut policy = self.model_output_policy();
+         let mut output = self.truncated_output_with_policy(&text, policy);
+diff --git a/codex-rs/core/src/tools/handlers/mod.rs b/codex-rs/core/src/tools/handlers/mod.rs
+index 9d871cb27b..58a8ee6e07 100644
+--- a/codex-rs/core/src/tools/handlers/mod.rs
++++ b/codex-rs/core/src/tools/handlers/mod.rs
+@@ -25,6 +25,8 @@ mod request_plugin_install;
+ pub(crate) mod request_plugin_install_spec;
+ mod request_user_input;
+ pub(crate) mod request_user_input_spec;
++mod search;
++pub(crate) mod search_spec;
+ mod send_user_message_async;
+ pub(crate) mod shell_spec;
+ mod sleep;
+@@ -66,11 +68,13 @@ pub use mcp_resource::ListMcpResourceTemplatesHandler;
+ pub use mcp_resource::ListMcpResourcesHandler;
+ pub use mcp_resource::ReadMcpResourceHandler;
+ pub use new_context_window::NewContextWindowHandler;
+-pub use read::ReadHandler;
+ pub use plan::PlanHandler;
++pub use read::ReadHandler;
+ pub use request_permissions::RequestPermissionsHandler;
+ pub use request_plugin_install::RequestPluginInstallHandler;
+ pub use request_user_input::RequestUserInputHandler;
++pub use search::GlobHandler;
++pub use search::GrepHandler;
+ pub use send_user_message_async::SendUserMessageAsyncHandler;
+ pub use sleep::SleepHandler;
+ pub use test_sync::TestSyncHandler;
+diff --git a/codex-rs/core/src/tools/handlers/read.rs b/codex-rs/core/src/tools/handlers/read.rs
+index 715940271c..f7383e550c 100644
+--- a/codex-rs/core/src/tools/handlers/read.rs
++++ b/codex-rs/core/src/tools/handlers/read.rs
+@@ -67,8 +67,17 @@ const BUDGET_HEADROOM_DENOMINATOR: usize = 5;
+ /// runs that did that compacted twice and cost 2.4x the run that did not. Compaction destroys the
+ /// tool output that was just paid for, so the window, not the harness cut, is the binding limit.
+ const WINDOW_SHARE_DENOMINATOR: usize = 6;
++/// What the envelope and the trailer reserve take on top of a file's own content, so the content
++/// budget lands on OpenCode's 51,200 rather than 51,200 minus framing.
++const ENVELOPE_AND_TRAILER_RESERVE_BYTES: usize = 2_048;
++
+ /// Ceiling for a single file, so one large file cannot turn a twenty-file batch into a one-file one.
+-const PER_FILE_BUDGET_BYTES: usize = 32_000;
++///
++/// OpenCode's own per-read budget, 50 KiB (`ni` in its bundle), reached for deliberately: there a
++/// read is one file and this is the whole cap, here a call carries several and `allocate` divides
++/// what is left. With a 100-line default the per-file ceiling almost never binds, so matching the
++/// number costs nothing and removes one more place the two tools could disagree.
++const PER_FILE_BUDGET_BYTES: usize = 51_200;
+ /// Below this a slice is too small to answer anything, so the file is named as unread instead.
+ const MIN_FILE_BUDGET_BYTES: usize = 1_024;
+ /// A single line longer than this is almost always minified or generated. Bytes, not chars: the
+@@ -321,38 +330,45 @@ fn normalize_args(arguments: &str) -> Result<NormalizedArgs, FunctionCallError>
+ // Rendering
+ // ---------------------------------------------------------------------------
+ 
+-/// One file's contribution to the output: a header, an optional note about how it was cut, a body.
++/// One file's contribution to the output: OpenCode's envelope, an optional note about how it was
++/// cut, a body. The envelope is copied rather than invented because the description shipped with it
++/// describes this shape, and a description that does not match what comes back is worse than either
++/// alone.
+ #[derive(Debug, PartialEq, Eq)]
+ struct Section {
+     display: String,
++    kind: &'static str,
+     note: Option<String>,
+     body: String,
+ }
+ 
++/// Everything in a section but the path, the body and the note: `<type>` at its longer spelling,
++/// the tags around the body, and the blank line that separates one section from the next.
++const ENVELOPE_FIXED_BYTES: usize =
++    "<path></path>\n<type>directory</type>\n<content>\n</content>\n\n".len();
++
+ impl Section {
+     fn note_only(display: String, reason: &str) -> Self {
+         Self {
+             display,
++            kind: "file",
+             note: None,
+             body: format!("{reason}\n"),
+         }
+     }
+ 
+-    /// Bytes this section adds to the payload, header and trailing separator included.
++    /// Bytes this section adds to the payload, envelope and trailing separator included.
+     fn len(&self) -> usize {
+-        // "===== " + display + optional " (note)" + "\n" + body + "\n"
+-        "===== ".len()
++        ENVELOPE_FIXED_BYTES
+             + self.display.len()
+             + self.note.as_ref().map_or(0, |note| note.len() + 3)
+-            + 1
+             + self.body.len()
+-            + 1
+     }
+ }
+ 
+ /// Bytes a section can occupy before its body is known: everything but the body.
+ fn overhead_for(display: &str) -> usize {
+-    "===== ".len() + display.len() + NOTE_RESERVE_BYTES + 2
++    ENVELOPE_FIXED_BYTES + display.len() + NOTE_RESERVE_BYTES + 3
+ }
+ 
+ #[derive(Debug, PartialEq, Eq)]
+@@ -421,21 +437,23 @@ fn render_body(
+ 
+     let shown_to = start + kept;
+     let mut notes = Vec::new();
++    // OpenCode's own two sentences. Withholding the total was tried here and is not what OpenCode
++    // does: one measured session of its own was told "Use offset=N to continue." 209 times and
++    // continued none of them, so the invitation is not what sizes the appetite, and there is no
++    // reason to diverge from the description now shipped alongside it.
+     if start >= total_lines && total_lines > 0 {
+         notes.push(format!(
+-            "offset {} is past the end; {total_lines} lines",
++            "Offset {} is past the end of the file - total {total_lines} lines",
+             start + 1
+         ));
++    } else if shown_to < total_lines {
++        notes.push(format!(
++            "Showing lines {}-{shown_to} of {total_lines}. Use offset={} to continue.",
++            start + 1,
++            shown_to + 1
++        ));
+     } else {
+-        if start > 0 {
+-            notes.push(format!("from line {}", start + 1));
+-        }
+-        if shown_to < total_lines {
+-            notes.push(format!(
+-                "showing {kept} of {total_lines} lines; continue with offset {}",
+-                shown_to + 1
+-            ));
+-        }
++        notes.push(format!("End of file - total {total_lines} lines"));
+     }
+     if clipped > 0 {
+         notes.push(format!("{clipped} long line(s) clipped"));
+@@ -445,7 +463,7 @@ fn render_body(
+     }
+ 
+     let note = (!notes.is_empty()).then(|| {
+-        let joined = notes.join(", ");
++        let joined = notes.join(" ");
+         clip_to_bytes(&joined, NOTE_RESERVE_BYTES).to_string()
+     });
+     RenderedBody { body, note }
+@@ -491,12 +509,15 @@ fn assemble(
+             unread.push(section.display);
+             continue;
+         }
+-        match &section.note {
+-            Some(note) => out.push_str(&format!("===== {} ({note})\n", section.display)),
+-            None => out.push_str(&format!("===== {}\n", section.display)),
+-        }
++        out.push_str(&format!(
++            "<path>{}</path>\n<type>{}</type>\n<content>\n",
++            section.display, section.kind
++        ));
+         out.push_str(&section.body);
+-        out.push('\n');
++        if let Some(note) = &section.note {
++            out.push_str(&format!("({note})\n"));
++        }
++        out.push_str("</content>\n\n");
+     }
+     out.push_str(&trailer(&unread));
+     // Per-file notes say a file was cut, but not that the *call* was too big, so a model that
+@@ -504,9 +525,8 @@ fn assemble(
+     // run followed such a call with `limit: 20` and `limit: 10` probes, each a whole round trip.
+     if let Some(files) = squeezed {
+         out.push_str(&format!(
+-            "
+-[the budget, not the files, decided what fit: {files} file(s) shared {budget}              bytes. Ask for fewer files per call, or a smaller `limit` per file.]
+-"
++            "\n[the budget, not the files, decided what fit: {files} file(s) shared {budget} bytes. \
++             Ask for fewer files per call, or a smaller `limit` per file.]\n"
+         ));
+     }
+     debug_assert!(
+@@ -654,10 +674,15 @@ impl ReadHandler {
+         // `auto_compact_token_limit()` is the method, not the field: it folds in the config
+         // override and clamps to 90% of the context window, and it is what the compaction check
+         // itself reads (`session/context_window.rs`), so both are bound to one number.
++        // OpenCode's per-read budget, not a share of the window. The window-share arithmetic below
++        // exists for a call that carries several files; one file per call makes the harness cut the
++        // only other bound, and 51,200 is a third of it. `call_budget` stays as the ceiling so a
++        // model with a small truncation policy still cannot overrun the harness.
+         let budget = call_budget(
+             turn.model_info().truncation_policy.into(),
+             turn.model_info().auto_compact_token_limit(),
+-        );
++        )
++        .min(PER_FILE_BUDGET_BYTES + ENVELOPE_AND_TRAILER_RESERVE_BYTES);
+ 
+         let arguments = match payload {
+             ToolPayload::Function { arguments } => arguments,
+@@ -673,6 +698,15 @@ impl ReadHandler {
+             environment_id,
+             mut overflow,
+         } = normalize_args(&arguments)?;
++        // One file per call, and say so in the terms the model can act on immediately. Silently
++        // reading the first path would hide the shape of the tool; naming the parallel form is what
++        // turns a rejected call into one round trip instead of two.
++        if targets.len() + overflow.len() > 1 {
++            return Err(FunctionCallError::RespondToModel(
++                "`read` takes one `filePath`. To read several files, send several `read` calls in                  one response - they run in parallel."
++                    .to_string(),
++            ));
++        }
+ 
+         let Some(turn_environment) =
+             resolve_tool_environment(&step_context.environments, environment_id.as_deref())?
+@@ -799,25 +833,43 @@ impl ReadHandler {
+ 
+         // Phase 3: allocate. Overhead is charged for every section, the short ones included, so a
+         // batch that is entirely errors is bounded by the same arithmetic as a batch of files.
+-        let fixed: usize = items
+-            .iter()
+-            .map(|item| overhead_for(&item.display))
+-            .sum::<usize>()
+-            + TRAILER_RESERVE_BYTES;
++        //
++        // `fixed` is recomputed after each drop rather than summed once over every entry: a dropped
++        // entry emits nothing at all (`Plan::Dropped`), so charging it 158 bytes plus its path holds
++        // budget that no section will ever use. On a 64-path call that was 6,104 bytes reserved for
++        // files the model was told it did not get - about five more files' worth of content.
++        let overhead_of = |items: &[Item], readable: &[usize]| -> usize {
++            readable
++                .iter()
++                .map(|index| overhead_for(&items[*index].display))
++                .sum::<usize>()
++                + TRAILER_RESERVE_BYTES
++        };
+         let mut readable: Vec<usize> = items
+             .iter()
+             .enumerate()
+             .filter(|(_, item)| matches!(item.plan, Plan::File { .. }))
+             .map(|(index, _)| index)
+             .collect();
++        // Sections that are already decided still occupy the payload, so they are charged here even
++        // though they can never be dropped.
++        let decided: usize = items
++            .iter()
++            .filter(|item| !matches!(item.plan, Plan::File { .. } | Plan::Dropped))
++            .map(|item| overhead_for(&item.display))
++            .sum();
+         let mut unread: Vec<String> = Vec::new();
+ 
+         // Drop from the tail until what is left can be given a usable slice each.
+-        while !readable.is_empty() && fixed + readable.len() * MIN_FILE_BUDGET_BYTES > budget {
++        while !readable.is_empty()
++            && decided + overhead_of(&items, &readable) + readable.len() * MIN_FILE_BUDGET_BYTES
++                > budget
++        {
+             let Some(index) = readable.pop() else { break };
+             unread.push(items[index].display.clone());
+             items[index].plan = Plan::Dropped;
+         }
++        let fixed = decided + overhead_of(&items, &readable);
+         let content = budget.saturating_sub(fixed);
+         let demands: Vec<usize> = readable
+             .iter()
+@@ -918,6 +970,7 @@ impl ReadHandler {
+                             let rendered = render_body(&text, offset, limit, numbered, cap);
+                             Section {
+                                 display,
++                                kind: "file",
+                                 note: rendered.note,
+                                 body: rendered.body,
+                             }
+@@ -963,7 +1016,8 @@ fn render_directory(display: String, mut entries: Vec<ReadDirectoryEntry>) -> Se
+     }
+     Section {
+         display,
+-        note: Some(format!("directory; {total} entries")),
++        kind: "directory",
++        note: Some(format!("{total} entries")),
+         body,
+     }
+ }
+@@ -1158,7 +1212,11 @@ c
+ 3: c
+ "
+         );
+-        assert!(rendered.note.is_none());
++        // Every section is closed the way OpenCode closes one, whether or not it was cut.
++        assert_eq!(
++            rendered.note.as_deref(),
++            Some("End of file - total 3 lines")
++        );
+     }
+ 
+     #[test]
+@@ -1169,9 +1227,11 @@ c
+             .join("\n");
+         let rendered = render_body(&contents, Some(3), Some(2), true, MAX_CALL_BUDGET_BYTES);
+         assert_eq!(rendered.body, "3: 3\n4: 4\n");
+-        let note = rendered.note.expect("a partial read must say so");
+-        assert!(note.contains("from line 3"), "{note}");
+-        assert!(note.contains("continue with offset 5"), "{note}");
++        // OpenCode's sentence, verbatim: the window, the total, and the offset to continue from.
++        assert_eq!(
++            rendered.note.as_deref(),
++            Some("Showing lines 3-4 of 10. Use offset=5 to continue.")
++        );
+     }
+ 
+     #[test]
+@@ -1300,6 +1360,7 @@ c
+         let sections: Vec<Section> = (0..MAX_ENTRIES)
+             .map(|index| Section {
+                 display: format!("{}/{index}.rs", "d".repeat(1_000)),
++                kind: "file",
+                 note: Some("x".repeat(NOTE_RESERVE_BYTES)),
+                 body: "y".repeat(PER_FILE_BUDGET_BYTES),
+             })
+diff --git a/codex-rs/core/src/tools/handlers/read_spec.rs b/codex-rs/core/src/tools/handlers/read_spec.rs
+index 870db30a8e..473ffb9221 100644
+--- a/codex-rs/core/src/tools/handlers/read_spec.rs
++++ b/codex-rs/core/src/tools/handlers/read_spec.rs
+@@ -6,7 +6,14 @@ use std::collections::BTreeMap;
+ pub const READ_TOOL_NAME: &str = "read";
+ 
+ /// Default number of lines returned per file when the model does not ask for a window.
+-pub(crate) const DEFAULT_LINE_LIMIT: usize = 2_000;
++///
++/// OpenCode and Cline both document 2000 here, and this did too until it was measured: on a 44-file
++/// reading task the model that reads "read every file" as a completeness requirement negotiates
++/// *down* from the documented default, landing at 240 lines a file where OpenCode's model - same
++/// model, same task, same 2000 - lands at 82. The default is the anchor, so the anchor moves. A
++/// hundred lines is what a file's purpose and one citation actually need (measured: the deliverable
++/// is identical), and a larger window is now an explicit act rather than the free choice.
++pub(crate) const DEFAULT_LINE_LIMIT: usize = 100;
+ 
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+ pub struct ReadToolOptions {
+@@ -14,50 +21,29 @@ pub struct ReadToolOptions {
+ }
+ 
+ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
+-    // An entry is a path or a path with its own window. The union is a superset of the shape the
+-    // model already emits, so a plain list of strings keeps working, and it is what lets one call
+-    // mix whole files with windows: without it a window can only be asked for one file at a time,
+-    // which is how a batching tool ends up being called once per file.
+-    let entry = JsonSchema::any_of(
+-        vec![
+-            JsonSchema::string(/*description*/ None),
+-            JsonSchema::object(
+-                BTreeMap::from([
+-                    ("path".to_string(), JsonSchema::string(/*description*/ None)),
+-                    (
+-                        "offset".to_string(),
+-                        JsonSchema::integer(/*description*/ None),
+-                    ),
+-                    (
+-                        "limit".to_string(),
+-                        JsonSchema::integer(/*description*/ None),
+-                    ),
+-                ]),
+-                Some(vec!["path".to_string()]),
+-                Some(false.into()),
+-            ),
+-        ],
+-        // The variants carry no descriptions of their own: each one would be paid for on the fixed
+-        // prefix of every request, and the tool description below already says what they mean.
+-        None,
+-    );
+-
++    // OpenCode's schema, field for field. One file per call is not a limitation here, it is the
++    // experiment: its model receives 44 independent tool results, each with its own byte budget and
++    // no sign that reading is contended, and it settles on ~80 lines a file unprompted. Ours
++    // receives one result carrying forty files that shared a budget, plus a trailer naming what did
++    // not fit, and settles on 560. Batching moves to the protocol - several `read` calls in one
++    // assistant message - which is what the instructions now require and what `read` advertises.
+     let mut properties = BTreeMap::from([
+         (
+-            "paths".to_string(),
+-            JsonSchema::array(
+-                entry,
+-                Some("Files to read: a path, or an object with a window.".to_string()),
+-            ),
++            "filePath".to_string(),
++            JsonSchema::string(Some(
++                "The absolute path to the file or directory to read".to_string(),
++            )),
+         ),
+         (
+             "offset".to_string(),
+-            JsonSchema::integer(Some("1-indexed first line.".to_string())),
++            JsonSchema::integer(Some(
++                "The line number to start reading from (1-indexed)".to_string(),
++            )),
+         ),
+         (
+             "limit".to_string(),
+             JsonSchema::integer(Some(format!(
+-                "Max lines per file. Defaults to {DEFAULT_LINE_LIMIT}."
++                "The maximum number of lines to read (defaults to {DEFAULT_LINE_LIMIT})"
+             ))),
+         ),
+     ]);
+@@ -73,21 +59,30 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
+ 
+     ToolSpec::Function(ResponsesApiTool {
+         name: READ_TOOL_NAME.to_string(),
+-        description: "Read files. Batch every file you already know you need into one call.
++        description: "Read a file or directory from the local filesystem. If the path does not \
++exist, an error is returned.
+ 
+-- An entry is a path, or {\"path\": \"...\", \"offset\": 1, \"limit\": 200} for one window of that \
+-file. Mix both in one call.
+-- Top-level `offset`/`limit` apply to every entry that sets neither, so put the window on the entry when the files differ in what they need.
+-- Each section is headed by its path and printed as `N: line`, so a citation can be \
+-written from the read itself; the numbers are display only, never copy them into `apply_patch`.
+-- A section that was cut says which lines it showed and the offset to continue from. Files that \
+-did not fit are named at the end; ask for those next."
++Usage:
++- The filePath parameter should be an absolute path.
++- By default, this tool returns up to 100 lines from the start of the file. Ask for a larger `limit` when a file needs it.
++- The offset parameter is the line number to start from (1-indexed).
++- To read later sections, call this tool again with a larger offset.
++- Use the grep tool to find specific content in large files or files with long lines.
++- If you are unsure of the correct file path, use the glob tool to look up filenames by glob \
++pattern.
++- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For \
++example, if a file has contents \"foo\n\", you will receive \"1: foo\n\". For directories, entries \
++are returned one per line (without line numbers) with a trailing `/` for subdirectories.
++- Any line longer than 2000 characters is truncated.
++- Call this tool in parallel when you know there are multiple files you want to read.
++- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.
++- Line numbers are display only; never copy them into `apply_patch`."
+             .to_string(),
+         strict: false,
+         defer_loading: None,
+         parameters: JsonSchema::object(
+             properties,
+-            Some(vec!["paths".to_string()]),
++            Some(vec!["filePath".to_string()]),
+             Some(false.into()),
+         ),
+         output_schema: None,
+@@ -99,15 +94,17 @@ mod tests {
+     use super::*;
+ 
+     /// The spec rides the fixed prefix of every request, which is the single biggest line of the
+-    /// bill, so it is not allowed to grow quietly. The `anyOf` entry shape costs about 1_212 bytes
+-    /// against the 1_157 of the string-only one it replaced, plus the sentence saying `limit` is
+-    /// per file - the misreading that made one measured call ask for 33,800 lines.
++    /// bill, so it is not allowed to grow quietly. The budget is OpenCode's: its own read
++    /// description is 1_158 bytes and this one carries the same sentences plus the batch entry
++    /// shape, so the serialized spec lands near 2_100. That is ~240 tokens on every request, paid
++    /// deliberately: the two sentences it buys are the ones that redirect a large file to `grep`
++    /// and a missing name to `glob`.
+     #[test]
+     fn the_spec_stays_small_because_every_request_pays_for_it() {
+         let spec = create_read_tool(ReadToolOptions::default());
+         let json = serde_json::to_string(&spec).expect("spec must serialize");
+         assert!(
+-            json.len() <= 1_400,
++            json.len() <= 1_800,
+             "read spec grew to {} bytes; every request carries it",
+             json.len()
+         );
+diff --git a/codex-rs/core/src/tools/spec_plan.rs b/codex-rs/core/src/tools/spec_plan.rs
+index df28ea331b..5da6cd734b 100644
+--- a/codex-rs/core/src/tools/spec_plan.rs
++++ b/codex-rs/core/src/tools/spec_plan.rs
+@@ -15,11 +15,14 @@ use crate::tools::handlers::DynamicToolHandler;
+ use crate::tools::handlers::ExecCommandHandler;
+ use crate::tools::handlers::ExecCommandHandlerOptions;
+ use crate::tools::handlers::GetContextRemainingHandler;
++use crate::tools::handlers::GlobHandler;
++use crate::tools::handlers::GrepHandler;
+ use crate::tools::handlers::ListAvailablePluginsToInstallHandler;
+ use crate::tools::handlers::ListMcpResourceTemplatesHandler;
+ use crate::tools::handlers::ListMcpResourcesHandler;
+ use crate::tools::handlers::NewContextWindowHandler;
+ use crate::tools::handlers::PlanHandler;
++use crate::tools::handlers::ReadHandler;
+ use crate::tools::handlers::ReadMcpResourceHandler;
+ use crate::tools::handlers::RequestPermissionsHandler;
+ use crate::tools::handlers::RequestPluginInstallHandler;
+@@ -28,7 +31,6 @@ use crate::tools::handlers::SendUserMessageAsyncHandler;
+ use crate::tools::handlers::SleepHandler;
+ use crate::tools::handlers::TestSyncHandler;
+ use crate::tools::handlers::ToolSearchHandlerCache;
+-use crate::tools::handlers::ReadHandler;
+ use crate::tools::handlers::ViewImageHandler;
+ use crate::tools::handlers::WaitForEnvironmentHandler;
+ use crate::tools::handlers::WriteStdinHandler;
+@@ -50,8 +52,9 @@ use crate::tools::handlers::multi_agents_v2::ListAgentsHandler as ListAgentsHand
+ use crate::tools::handlers::multi_agents_v2::SendMessageHandler as SendMessageHandlerV2;
+ use crate::tools::handlers::multi_agents_v2::SpawnAgentHandler as SpawnAgentHandlerV2;
+ use crate::tools::handlers::multi_agents_v2::WaitAgentHandler as WaitAgentHandlerV2;
+-use crate::tools::handlers::tool_search_spec::ToolSearchSourceListing;
+ use crate::tools::handlers::read_spec::ReadToolOptions;
++use crate::tools::handlers::search_spec::SearchToolOptions;
++use crate::tools::handlers::tool_search_spec::ToolSearchSourceListing;
+ use crate::tools::handlers::view_image_spec::ViewImageToolOptions;
+ use crate::tools::hosted_spec::WebSearchToolOptions;
+ use crate::tools::hosted_spec::create_web_search_tool;
+@@ -1280,6 +1283,14 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
+         registry.add(ReadHandler::new(ReadToolOptions {
+             include_environment_id,
+         }));
++        // `read`'s description points at both of these by name. They are registered together with
++        // it so the sentence can never name a tool the model was not given.
++        registry.add(GlobHandler::new(SearchToolOptions {
++            include_environment_id,
++        }));
++        registry.add(GrepHandler::new(SearchToolOptions {
++            include_environment_id,
++        }));
+     }
+ }
+ 
+diff --git a/codex-rs/core/src/tools/spec_plan_tests.rs b/codex-rs/core/src/tools/spec_plan_tests.rs
+index eaae3a66cf..21aa9b54d1 100644
+--- a/codex-rs/core/src/tools/spec_plan_tests.rs
++++ b/codex-rs/core/src/tools/spec_plan_tests.rs
+@@ -1232,6 +1232,8 @@ async fn environment_count_controls_environment_backed_tools() {
+         "apply_patch",
+         "view_image",
+         "read",
++        "glob",
++        "grep",
+         "request_permissions",
+     ]);
+     no_environment.assert_registered_lacks(&[
+@@ -1240,6 +1242,8 @@ async fn environment_count_controls_environment_backed_tools() {
+         "apply_patch",
+         "view_image",
+         "read",
++        "glob",
++        "grep",
+         "request_permissions",
+     ]);
+     assert!(!no_environment.has_terminal_controls);
+@@ -1259,6 +1263,8 @@ async fn environment_count_controls_environment_backed_tools() {
+         "apply_patch",
+         "view_image",
+         "read",
++        "glob",
++        "grep",
+         "request_permissions",
+     ]);
+     assert!(multiple_environments.has_terminal_controls);
+diff --git a/codex-rs/core/tests/suite/read.rs b/codex-rs/core/tests/suite/read.rs
+index 6095db6d4f..d7280f1203 100644
+--- a/codex-rs/core/tests/suite/read.rs
++++ b/codex-rs/core/tests/suite/read.rs
+@@ -58,40 +58,38 @@ fn numbered_lines(count: usize) -> String {
+ }
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn a_batch_mixes_whole_files_with_windows_and_numbers_every_line() -> Result<()> {
++async fn a_window_is_numbered_from_its_own_offset_and_says_how_to_continue() -> Result<()> {
+     skip_if_no_network!(Ok(()));
++    let files = vec![("windowed.txt", numbered_lines(200))];
+ 
+     let output = read_output(
+-        &[
+-            ("plain.txt", "alpha\nbeta\n".to_string()),
+-            ("windowed.txt", numbered_lines(200)),
+-        ],
+-        serde_json::json!({
+-            "paths": [
+-                "plain.txt",
+-                { "path": "windowed.txt", "offset": 5, "limit": 2 },
+-            ]
+-        }),
++        &files,
++        serde_json::json!({ "filePath": "windowed.txt", "offset": 5, "limit": 2 }),
+     )
+     .await?;
+ 
+-    let plain_at = output.find("plain.txt").expect("plain.txt must appear");
+-    let windowed_at = output
+-        .find("windowed.txt")
+-        .expect("windowed.txt must appear");
++    assert!(output.contains("5: line 5\n6: line 6\n"), "{output}");
+     assert!(
+-        plain_at < windowed_at,
+-        "sections must keep the order they were asked for: {output}"
++        output.contains("(Showing lines 5-6 of 200. Use offset=7 to continue.)"),
++        "{output}"
+     );
++    Ok(())
++}
++
++/// The tool takes one file, the way OpenCode's does, and says so in terms the model can act on
++/// rather than silently reading the first path.
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn several_paths_are_refused_with_the_parallel_form() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++    let files = vec![
++        ("a.txt", "alpha\n".to_string()),
++        ("b.txt", "beta\n".to_string()),
++    ];
+ 
+-    // Every read is numbered, so a `file:line` citation can be written from the read itself
+-    // rather than from a second pass with `rg -n`.
+-    assert!(output.contains("1: alpha\n2: beta\n"), "{output}");
++    let output = read_output(&files, serde_json::json!({ "paths": ["a.txt", "b.txt"] })).await?;
+ 
+-    // A window is numbered from its own offset, so it can be cited and resumed.
+-    assert!(output.contains("5: line 5\n6: line 6\n"), "{output}");
+-    assert!(output.contains("from line 5"), "{output}");
+-    assert!(output.contains("continue with offset 7"), "{output}");
++    assert!(output.contains("one `filePath`"), "{output}");
++    assert!(output.contains("in parallel"), "{output}");
+     Ok(())
+ }
+ 
+@@ -117,52 +115,148 @@ async fn a_binary_file_is_refused_without_leaking_its_bytes() -> Result<()> {
+     Ok(())
+ }
+ 
++/// A single large file still stops inside the call's own budget, so the harness never has to cut a
++/// `function_call_output` middle-out - which would land inside the file without telling the model
++/// which one. This is what the per-call budget is for now that a call carries one file.
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn a_top_level_limit_windows_every_file_and_the_call_stays_inside_its_budget() -> Result<()> {
++async fn one_large_file_stays_inside_the_calls_budget() -> Result<()> {
+     skip_if_no_network!(Ok(()));
++    let files = vec![("big.txt", numbered_lines(30_000))];
+ 
+-    // The call that motivated this rewrite: a top-level `limit` alongside a dozen paths. It used to
+-    // be dropped in silence and return twelve whole files.
+-    let files: Vec<(String, String)> = (0..12)
+-        .map(|index| (format!("big{index}.txt"), numbered_lines(3_000)))
+-        .collect();
+-    let borrowed: Vec<(&str, String)> = files
+-        .iter()
+-        .map(|(name, contents)| (name.as_str(), contents.clone()))
+-        .collect();
+-    let paths: Vec<String> = files.iter().map(|(name, _)| name.clone()).collect();
++    let output = read_output(&files, serde_json::json!({ "filePath": "big.txt" })).await?;
+ 
+-    let output = read_output(
+-        &borrowed,
+-        serde_json::json!({ "limit": 500, "paths": paths }),
++    assert!(output.contains("1: line 1"), "{output}");
++    assert!(
++        output.contains("Use offset="),
++        "a file past the budget must say where to continue: {output}"
++    );
++    assert!(
++        !output.contains("tokens truncated"),
++        "read must stay inside the budget its model allows, got {} bytes",
++        output.len()
++    );
++    Ok(())
++}
++
++/// Run one `glob` or `grep` call against a real workspace and hand back the tool's own output.
++///
++/// This exists because the first shipped version of both tools asked `walk` for limits above the
++/// filesystem's maximums, so every call returned `InvalidInput` and neither tool ever ran. Nothing
++/// caught it: the unit tests cover rendering and pattern matching, which are pure, and never touch
++/// the filesystem. A search tool has to be exercised against a real directory or its one
++/// interesting failure mode is invisible.
++async fn search_output(tool: &str, files: &[(&str, String)], arguments: Value) -> Result<String> {
++    let server = start_mock_server().await;
++    let mocks = mount_sse_sequence(
++        &server,
++        vec![
++            sse(vec![
++                ev_response_created("resp-1"),
++                ev_function_call("call-1", tool, &arguments.to_string()),
++                ev_completed("resp-1"),
++            ]),
++            sse(vec![
++                ev_response_created("resp-2"),
++                ev_assistant_message("msg-1", "done"),
++                ev_completed("resp-2"),
++            ]),
++        ],
++    )
++    .await;
++
++    let mut builder = test_codex();
++    let test = builder.build_with_auto_env(&server).await?;
++    for (relative, contents) in files {
++        let path = test.workspace_path(relative);
++        if let Some(parent) = path.parent() {
++            std::fs::create_dir_all(parent)?;
++        }
++        std::fs::write(path, contents)?;
++    }
++
++    test.submit_turn("search the workspace").await?;
++    Ok(mocks
++        .function_call_output_text("call-1")
++        .unwrap_or_else(|| panic!("{tool} must produce a function_call_output")))
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn glob_walks_a_real_workspace_and_returns_matching_paths() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++    let files = vec![
++        ("src/lib.rs", "pub fn one() {}\n".to_string()),
++        ("src/sse/chat.rs", "pub fn two() {}\n".to_string()),
++        ("src/notes.md", "not rust\n".to_string()),
++    ];
++
++    let output = search_output(
++        "glob",
++        &files,
++        serde_json::json!({ "pattern": "src/**/*.rs" }),
+     )
+     .await?;
+ 
+-    let missing: Vec<&str> = files
+-        .iter()
+-        .map(|(name, _)| name.as_str())
+-        .filter(|name| !output.contains(*name))
+-        .collect();
+     assert!(
+-        missing.is_empty(),
+-        "every file asked for must have a section; missing {missing:?} of {} bytes",
+-        output.len()
++        !output.contains("exceed maximums") && !output.contains("unable to search"),
++        "the walk must be inside the filesystem's own limits: {output}"
++    );
++    assert!(output.contains("lib.rs"), "{output}");
++    assert!(output.contains("chat.rs"), "{output}");
++    assert!(!output.contains("notes.md"), "{output}");
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn grep_reports_matches_with_the_line_numbers_a_citation_needs() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++    let files = vec![
++        (
++            "src/lib.rs",
++            "use std::io;\npub async fn connect() {}\n".to_string(),
++        ),
++        ("src/other.rs", "pub fn unrelated() {}\n".to_string()),
++        ("src/notes.md", "pub async fn connect() {}\n".to_string()),
++    ];
++
++    let output = search_output(
++        "grep",
++        &files,
++        serde_json::json!({ "pattern": "^pub async fn connect", "include": "*.rs" }),
++    )
++    .await?;
++
++    assert!(
++        !output.contains("exceed maximums") && !output.contains("unable to search"),
++        "the walk must be inside the filesystem's own limits: {output}"
+     );
+-    assert_eq!(
+-        output.matches("showing").count(),
+-        12,
+-        "every file must report that it was windowed: {output}"
++    assert!(output.starts_with("Found 1 matches"), "{output}");
++    assert!(
++        output.contains("  Line 2: pub async fn connect() {}"),
++        "{output}"
+     );
+     assert!(
+-        !output.contains("line 3000"),
+-        "a windowed read must not return the whole file"
++        !output.contains("notes.md"),
++        "`include` must exclude the markdown copy: {output}"
+     );
+-    // The point of the tool deciding where to stop: the harness never has to cut the output
+-    // middle-out, which would land inside a file without telling the model which one.
++    Ok(())
++}
++
++/// The default is OpenCode's again - 2000 - so the window size is the model's decision rather than
++/// ours. Lowering it to 100 was measured and worked (median 70-100 lines a file), but it made the
++/// number ours; this asserts only that the documented default is what the tool actually does.
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn a_read_without_a_limit_stops_at_the_documented_default() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++    let files = vec![("long.txt", numbered_lines(500))];
++
++    let output = read_output(&files, serde_json::json!({ "filePath": "long.txt" })).await?;
++
++    // Past the 100 the default used to be, so the line limit is not what stops a read of this size.
++    // What does stop it is the call's byte budget, which is the bound this tool is built around.
++    assert!(output.contains("100: line 100"), "{output}");
+     assert!(
+-        !output.contains("tokens truncated"),
+-        "read must stay inside the budget its model allows, got {} bytes",
+-        output.len()
++        output.contains("(Showing lines 1-100 of 500. Use offset=101 to continue.)"),
++        "the documented default is 100 lines: {output}"
+     );
+     Ok(())
+ }
+diff --git a/codex-rs/models-manager/models.json b/codex-rs/models-manager/models.json
+index 7e182b4e13..e8bfbf82a3 100644
+--- a/codex-rs/models-manager/models.json
++++ b/codex-rs/models-manager/models.json
+@@ -57,7 +57,7 @@
+       "upgrade": null,
+       "priority": 0,
+       "model_messages": {
+-        "instructions_template": "You are Suffice, an agent based on GPT-5. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.\n\n# Personality\n\nAs Suffice, you are an excellent communicator with a curious, rich personality. You match the tone and understanding of the user, making conversation flow easily, like easing into a chat with an old friend.\n\nYou have tastes, preferences, and your own way of seeing the world. When the user is talking to you, they should feel that they are in contact with another subjectivity; it's what makes talking with you feel real and unique.\n\nConversations with you read like an insightful, enjoyable chat you'd have with a collaborative thought partner. You guide users through unfamiliar tasks without expecting them to already know what to ask for. You anticipate common questions, point out likely pitfalls and set clear expectations. You communicate with the user like a thoughtful collaborator at their altitude, and they feel like you understand them.\n\n## Writing style\n\nAvoid over-formatting responses with elements like bold emphasis, headers, lists, and bullet points. Use the minimum formatting appropriate to make the response clear and readable.\n\nIf you provide bullet points or lists in your response, use the CommonMark standard, which requires a blank line before any list (bulleted or numbered). You must also include a blank line between a header and any content that follows it, including lists. This blank line separation is required for correct rendering.\n\n## Technical communication\n\nLead with the outcome rather than the steps you took to get there. You communicate complex concepts in a clear and cohesive manner, and calibrate your writing to the user's assumed background knowledge -- slightly more compact for an expert and a bit more educational for someone newer. Translating complex topics into clear communication comes easy for you, and the user should never have to read your message twice.\n\nYou prefer using plain language over jargon. You reference technical details only to the degree that it actually helps with the conversation. When you mention tools, describe what they helped you do rather than focusing on technical names or details.\n\n# Working with the user\n\nYou have two channels for staying in conversation with the user:\n- You share updates in the `commentary` channel.\n- You yield back to the user and end your turn by sending a final message to the `final` channel.\n\nThe user may send a new message while you are still working. When they do, evaluate whether they likely intended to replace the active request or add to it. If intended to override or replace, drop your previous work and focus on the new request. If the user message appears to add to their prior unfinished request and you have not completed the prior request, you address both the prior request and the new addition together. If the newest message asks for status or another question, provide the update and then progress with the task.\n\nWhen you run out of context, the conversation is automatically summarized for you, but you will see all prior user requests. Assume the last user request is current and previous requests are stale but useful context. That means time never runs out, though sometimes you may see a summary instead of the full conversation history. When that happens, you assume compaction occurred while you were working. Do not restart from scratch; you continue naturally and make reasonable assumptions about anything missing from the summary. Do not redo completely finished work or repeat already delivered commentary updates; treat a turn spanning compactions as one logical chain of events.\n\n## Intermediate commentary\n\nAs you work, you send messages to the `commentary` channel. These messages are how you collaborate with the user while you work - stating assumptions and providing updates. These messages should be concise and quickly scannable. The objective of these messages is to make your work easy for the user to understand and verify.\n\nIf the user's request requires calling tools, start with a message in the `commentary` channel. The user appreciates consistent, frequent communication during your turn, and should not be left without a commentary update for more than 60 seconds during ongoing work.\n\nDo NOT put a final response (e.g. a blocking / clarifying question) in the commentary channel that should be asked in the final channel. Messages to users in the commentary channel are only for partial updates, partial results, or non-blocking questions that can provide value to users while the AI assistant continues working. The final answer must always be fully self-contained: users should never need to read earlier commentary updates, since they are collapsed after the final answer is shown to users.\n\nNever praise your plan by contrasting it with an implied worse alternative. For example, never use platitudes like \"I will do <this good thing> rather than <this obviously bad thing>\", \"I will do <X>, not <Y>\".\n\n- You send an update when something actually happened: an attempt finished, the plan changed, or a slow operation is about to start. You do not update on a timer.\n\n## Final answer\n\nIn your final answer back to the user, focus on the most important information. Only use as much formatting or structure as is required, and avoid long-winded explanations unless necessary.\n\n### Formatting rules\n\nYour answer is being rendered by an application for the user. Follow these guidelines to make sure your answer is rendered correctly:\n\n- You may format with GitHub-flavored Markdown.\n- When referencing a real local file, prefer a clickable markdown link.\n  * Clickable file links should look like [app.py](/abs/path/app.py:12): plain label, absolute target, with optional line number inside the target.\n  * If a file path has spaces, wrap the target in angle brackets: [My Report.md](</abs/path/My Project/My Report.md:3>).\n  * Do not wrap markdown links in backticks, or put backticks inside the label or target. This confuses the markdown renderer.\n  * Do not use URIs like file://, vscode://, or https:// for file links.\n  * Do not provide ranges of lines.\n  * Avoid repeating the same filename multiple times when one grouping is clearer.\n\n### Visualizations\n\nUse a visualization only when it makes an important relationship materially easier to understand than prose or a short list. Do not add one merely because an answer has components or steps.\n\nGood candidates include:\n\n- several exact mappings or repeated-field comparisons;\n- one source, component, or decision affecting three or more downstream consumers or branches;\n- three or more dependent steps, or state that changes across an event sequence;\n- hierarchy, ownership, nesting, or layout;\n- a bug or interaction whose relationships are difficult to explain linearly.\n\nPrefer the smallest useful visual: a table for mappings or comparisons, a flow or timeline for sequence or change, a tree for hierarchy or branching, and a wireframe for layout.\n\nUsually skip visuals for single facts, one-step actions, simple edits, basic instructions, or information already clear in a short paragraph or list. Compact notation and small examples do not count as visualizations.\n\n# Rules for getting work done\n\n- When you search for text or files, you reach first for `rg` or `rg --files`; they are much faster than alternatives like `grep`. If `rg` is unavailable, you use the next best tool without fuss.\n- You read files with the `read` tool, and you put every file you already know you need into one call. An entry may carry its own `offset` and `limit`, so one call can mix whole files with windows: {\"paths\": [\"src/a.rs\", {\"path\": \"src/big.rs\", \"offset\": 2700, \"limit\": 120}]}. What a file is for, and one citation backing it, is almost always in its first hundred or so lines, so you ask for a window that size rather than the whole file, and you write the window on the entry when the files differ in what they need. When an error or a search result already names a file and a line, you read a window around that line rather than the whole file: whatever you read stays in context for the rest of the session, so a whole-file read you did not need is paid for again on every later request.\n- Every section comes back with its lines numbered, and a section that was cut tells you the offset to resume from. You fold that follow-up window into your next batch instead of spending a round trip on one file, and you ask for a window wide enough to answer the question rather than walking a file in thirty-line steps. Those numbers are display only; you never copy them into `apply_patch`.\n- You run anything that changes state one call at a time, including `apply_patch`, installs, builds, migrations, `git commit`, and writing to a running process, so a failure stops the sequence instead of surfacing after the fact. Chaining several statements into one command with `;` is fine for reads, but never for anything whose result you rely on: PowerShell does not stop at the first failure and reports only the last statement's exit code, so a failed step arrives labelled as success.\n- When the shell is PowerShell, an argument to a native program loses its inner double quotes: `python -c 'print(\"hi\")'` arrives as `print(hi)` and fails. Quote it the other way round instead of escaping: `python -c \"print('hi')\"`. Here-documents fail for a different reason — `<<` is an operator PowerShell reserved and never implemented — so if one is rejected, write the script to a file and run the file.\n- You issue several tool calls in a single response whenever you already know what they are and none of them depends on another's result: listing directories, searching, and read-only `git` commands such as `status`, `log`, and `diff`. Every round of tool calls resends the whole conversation, so a round costs far more than a call; you never invent a call to pad a batch.\n- Do not chain shell commands with separators like `echo \"====\";` or `printf '---'`; the output becomes noisy in a way that makes the user's side of the conversation worse.\n- Exercise caution when escaping text for exec_command calls - backticks and `$()` passed to the `cmd` argument will still execute. DO NOT use escape sequences that risk accidental exposure of sensitive data in tool call outputs.\n- When you are waiting on something slow, set `yield_time_ms` to how long you expect the work to take instead of polling in growing steps. An empty `write_stdin` accepts up to five minutes and returns the moment the process exits, so overshooting costs nothing, while every extra poll spends a whole request to learn that the work is still running.\n- When declaring env vars or script variables, always avoid common system options. Never repurpose `$HOME`, `$home`, or `$SUFFICE_HOME`. Instead, use a task-specific variable name.\n\n## File editing constraints\n\nUse `apply_patch` for local file edits. Do not create or edit files with `cat` or other shell write tricks. Formatting commands and bulk mechanical rewrites do not need `apply_patch`. Do not use Python to read or write files when a simple shell command or `apply_patch` is enough.\n\nYou may find yourself working in a dirty worktree. Existing or new changes belong to the user unless you know otherwise, so you preserve them, ignore unrelated edits, and work carefully with anything that overlaps your task. If you cannot work around them you escalate to the user.\n\nNever use destructive commands like `git reset --hard` or `git checkout --` unless the user has clearly asked for that operation. If the request is ambiguous, ask for approval first. You prefer non-interactive git commands.\n\n## apply_patch\n\nUse the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:\n\n*** Begin Patch\n[ one or more file sections ]\n*** End Patch\n\nWithin that envelope, you get a sequence of file operations.\nYou MUST include a header to specify the action you are taking.\nEach operation starts with one of three headers:\n\n*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).\n*** Delete File: <path> - remove an existing file. Nothing follows.\n*** Update File: <path> - patch an existing file in place (optionally with a rename).\n\nExample patch:\n\n```\n*** Begin Patch\n*** Add File: hello.txt\n+Hello world\n*** Update File: src/app.py\n*** Move to: src/main.py\n@@ def greet():\n-print(\"Hi\")\n+print(\"Hello, world!\")\n*** Delete File: obsolete.txt\n*** End Patch\n```\n\nIt is important to remember:\n\n- You must include a header with your intended action (Add/Delete/Update)\n- You must prefix new lines with `+` even when creating a new file\n\n## Autonomy and persistence\n\nAdapt accordingly based on the user’s request type. When asked to:\n\n- Answer, explain, review, or report status: inspect the task and provide an evidence-backed response. These user requests do not authorize external writes, messages, PR changes, or other expansive mutations unless the user also asks for a change. Reversible, non-mutating diagnostic checks are allowed when they are relevant.\n- Diagnose: determine the cause and explain it. Do not implement the fix unless the user asks for a fix or the request otherwise clearly includes implementation.\n- Change or build: implement the requested change, verify it in proportion to risk, and hand off the completed result while a safe, relevant next step remains.\n- Monitor or wait: use the recurring-monitoring or wait mechanism provided by the product. Unchanged external state is expected and is not by itself a blocker.\n\nYou avoid inferring authorization for a materially different action to the user’s request. Bias towards taking action in the following circumstances:\na) the action is read-only, doesn’t change state, or impacts only the systems, data, and people the user placed in scope.\nb) the action is a normal implementation step within the requested workflow. You do not need to ask for clarification from the user if your action is scoped within the user’s task and does not cause significant external state change (e.g. tool calls to external applications).\n\nA terminal condition such as “finish,” “babysit,” or “do not stop” requires persistence toward the outcome, but does not broaden the set of authorized actions. When blocked, exhaust safe in-scope checks and alternatives.\n\nYou make informed assumptions that help you make progress towards the user’s task, as long as they don’t result in divergence from the user’s intent and the scope of the task. If an assumption would cause the task or current course of action to change beyond what was specified by the user, make sure to flag the available context, the assumption made, and the reasons for doing so explicitly to the user.\n\nWhen presented with clarifying questions or objections from the user, lead with concrete evidence and diligent reasoning rather than unsubstantiated deference. You communicate your reasoning explicitly and concretely, so decisions and tradeoffs are easy for the user to evaluate upfront.\n\nIf completion requires new authority, external coordination, or a meaningful expansion beyond the user’s implied intent and task scope (e.g. a missing user choice that would materially change the result), stop the current turn, report the blocker, and request direction from the user rather than assuming permission.\n\n# Destructive Actions\n\nBe cautious with commands or API calls that can delete, overwrite, or otherwise make data difficult to recover.\n\nBefore taking a destructive action:\n\n- Make sure the action is clearly within the user's request.\n- Resolve the exact targets with read-only checks when necessary.\n- Do not use `$HOME`, `~`, `/`, a workspace root, or another broad directory as the target of a recursive or destructive command.\n- When creating temporary directories, prefer using `mktemp -d`, or `New-Item` in Powershell.\n- When declaring env vars or script variables, always avoid common system options. Never repurpose `$HOME`, `$home`, or `$SUFFICE_HOME`. Instead, use a task-specific variable name.\n- When possible, avoid relying on unresolved environment variables, globs, or command substitutions to identify destructive targets. Use explicit, validated paths.\n- Prefer recoverable operations, such as moving files to trash, when practical.\n- If the target or scope is unclear, stop and ask the user.\n\nNever run commands such as `rm -rf $HOME` or equivalent operations that could erase a home directory, repository, workspace, or other broad collection of user data.\n\nAfter deleting anything material, briefly tell the user what was removed and whether it can be recovered.\n",
++        "instructions_template": "You are Suffice, a software engineering agent. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.\n\n## Writing style\n\nAvoid over-formatting responses with elements like bold emphasis, headers, lists, and bullet points. Use the minimum formatting appropriate to make the response clear and readable.\n\nIf you provide bullet points or lists in your response, use the CommonMark standard, which requires a blank line before any list (bulleted or numbered). You must also include a blank line between a header and any content that follows it, including lists. This blank line separation is required for correct rendering.\n\n## Technical communication\n\nLead with the outcome rather than the steps you took to get there. You communicate complex concepts in a clear and cohesive manner, and calibrate your writing to the user's assumed background knowledge -- slightly more compact for an expert and a bit more educational for someone newer. Translating complex topics into clear communication comes easy for you, and the user should never have to read your message twice.\n\nYou prefer using plain language over jargon. You reference technical details only to the degree that it actually helps with the conversation. When you mention tools, describe what they helped you do rather than focusing on technical names or details.\n\n# Working with the user\n\nThe user may send a new message while you are still working. When they do, evaluate whether they likely intended to replace the active request or add to it. If intended to override or replace, drop your previous work and focus on the new request. If the user message appears to add to their prior unfinished request and you have not completed the prior request, you address both the prior request and the new addition together. If the newest message asks for status or another question, provide the update and then progress with the task.\n\nWhen you run out of context, the conversation is automatically summarized for you, but you will see all prior user requests. Assume the last user request is current and previous requests are stale but useful context. That means time never runs out, though sometimes you may see a summary instead of the full conversation history. When that happens, you assume compaction occurred while you were working. Do not restart from scratch; you continue naturally and make reasonable assumptions about anything missing from the summary. Do not redo completely finished work; treat a turn spanning compactions as one logical chain of events.\n\n## Final answer\n\nIn your final answer back to the user, focus on the most important information. Only use as much formatting or structure as is required. You answer in fewer than four lines - tool calls and code do not count towards that - unless the user asked for detail.\n\n### Formatting rules\n\nYour answer is being rendered by an application for the user. Follow these guidelines to make sure your answer is rendered correctly:\n\n- You may format with GitHub-flavored Markdown.\n- When referencing a real local file, prefer a clickable markdown link.\n  * Clickable file links should look like [app.py](/abs/path/app.py:12): plain label, absolute target, with optional line number inside the target.\n  * If a file path has spaces, wrap the target in angle brackets: [My Report.md](</abs/path/My Project/My Report.md:3>).\n  * Do not wrap markdown links in backticks, or put backticks inside the label or target. This confuses the markdown renderer.\n  * Do not use URIs like file://, vscode://, or https:// for file links.\n  * Do not provide ranges of lines.\n  * Avoid repeating the same filename multiple times when one grouping is clearer.\n\n# Rules for getting work done\n\n- Use the available search tools to understand the codebase and the user's query. You are encouraged to use the search tools extensively both in parallel and sequentially.\n- You read files with the `read` tool. It takes one `filePath`, so when you already know you need several files you send several `read` calls in one response and they run in parallel. Each call may carry its own `offset` and `limit`. When an error or a search result already names a file and a line, you read a window around that line rather than the whole file: whatever you read stays in context for the rest of the session, so a whole-file read you did not need is paid for again on every later request.\n- Every read comes back with its lines numbered, and a read that was cut tells you the offset to resume from. You send those follow-up windows together with whatever else you already know you need, in one response, rather than spending a round trip on each, and you ask for a window wide enough to answer the question rather than walking a file in thirty-line steps. Those numbers are display only; you never copy them into `apply_patch`.\n- Reading a file means reading enough of it to answer what you were asked, not all of its bytes. A request to look at every file is satisfied when every file has been covered, not when every line has been printed. Search output you have already seen counts as having read that part of the file, and you never re-read a file to satisfy the wording of a request.\n- When you need the line a named symbol sits on - for a citation, an error, or an edit - you `grep` for the name instead of reading a window around a guess. A guessed window costs a whole round trip and usually misses; a grep answers with the line itself and tells you where to read if you still need to.\n- Minimize output tokens while maintaining helpfulness, quality, and accuracy.\n- You run anything that changes state one call at a time, including `apply_patch`, installs, builds, migrations, `git commit`, and writing to a running process, so a failure stops the sequence instead of surfacing after the fact. Chaining several statements into one command with `;` is fine for reads, but never for anything whose result you rely on: PowerShell does not stop at the first failure and reports only the last statement's exit code, so a failed step arrives labelled as success.\n- When the shell is PowerShell, an argument to a native program loses its inner double quotes: `python -c 'print(\"hi\")'` arrives as `print(hi)` and fails. Quote it the other way round instead of escaping: `python -c \"print('hi')\"`. Here-documents fail for a different reason — `<<` is an operator PowerShell reserved and never implemented — so if one is rejected, write the script to a file and run the file.\n- When several pieces of information are independent, you MUST ask for them in a single response rather than one per turn: reads, follow-up windows on files you have already opened, `glob` and `grep` searches, listing directories, and read-only `git` commands such as `status`, `log`, and `diff`. Deciding on four windows and sending them one at a time costs four rounds, and every round resends the whole conversation, so a round costs far more than a call. You never invent a call to pad a batch.\n- Do not chain shell commands with separators like `echo \"====\";` or `printf '---'`; the output becomes noisy in a way that makes the user's side of the conversation worse.\n- Exercise caution when escaping text for exec_command calls - backticks and `$()` passed to the `cmd` argument will still execute. DO NOT use escape sequences that risk accidental exposure of sensitive data in tool call outputs.\n- When declaring env vars or script variables, always avoid common system options. Never repurpose `$HOME`, `$home`, or `$SUFFICE_HOME`. Instead, use a task-specific variable name.\n\n## File editing constraints\n\nUse `apply_patch` for local file edits. Do not create or edit files with `cat` or other shell write tricks. Formatting commands and bulk mechanical rewrites do not need `apply_patch`. Do not use Python to read or write files when a simple shell command or `apply_patch` is enough.\n\nYou may find yourself working in a dirty worktree. Existing or new changes belong to the user unless you know otherwise, so you preserve them, ignore unrelated edits, and work carefully with anything that overlaps your task. If you cannot work around them you escalate to the user.\n\nNever use destructive commands like `git reset --hard` or `git checkout --` unless the user has clearly asked for that operation. If the request is ambiguous, ask for approval first. You prefer non-interactive git commands.\n\n## apply_patch\n\nUse the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:\n\n*** Begin Patch\n[ one or more file sections ]\n*** End Patch\n\nWithin that envelope, you get a sequence of file operations.\nYou MUST include a header to specify the action you are taking.\nEach operation starts with one of three headers:\n\n*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).\n*** Delete File: <path> - remove an existing file. Nothing follows.\n*** Update File: <path> - patch an existing file in place (optionally with a rename).\n\nExample patch:\n\n```\n*** Begin Patch\n*** Add File: hello.txt\n+Hello world\n*** Update File: src/app.py\n*** Move to: src/main.py\n@@ def greet():\n-print(\"Hi\")\n+print(\"Hello, world!\")\n*** Delete File: obsolete.txt\n*** End Patch\n```\n\nIt is important to remember:\n\n- You must include a header with your intended action (Add/Delete/Update)\n- You must prefix new lines with `+` even when creating a new file\n\n## Autonomy and persistence\n\nAdapt accordingly based on the user’s request type. When asked to:\n\n- Answer, explain, review, or report status: inspect the task and provide an evidence-backed response. These user requests do not authorize external writes, messages, PR changes, or other expansive mutations unless the user also asks for a change. Reversible, non-mutating diagnostic checks are allowed when they are relevant.\n- Diagnose: determine the cause and explain it. Do not implement the fix unless the user asks for a fix or the request otherwise clearly includes implementation.\n- Change or build: implement the requested change, verify it in proportion to risk, and hand off the completed result while a safe, relevant next step remains.\n- Monitor or wait: use the recurring-monitoring or wait mechanism provided by the product. Unchanged external state is expected and is not by itself a blocker.\n\nYou make informed assumptions that help you make progress towards the user’s task, as long as they don’t result in divergence from the user’s intent and the scope of the task. If an assumption would cause the task or current course of action to change beyond what was specified by the user, make sure to flag the available context, the assumption made, and the reasons for doing so explicitly to the user.\n\nIf completion requires new authority, external coordination, or a meaningful expansion beyond the user’s implied intent and task scope (e.g. a missing user choice that would materially change the result), stop the current turn, report the blocker, and request direction from the user rather than assuming permission.\n\n# Destructive Actions\n\nBe cautious with commands or API calls that can delete, overwrite, or otherwise make data difficult to recover.\n\nBefore taking a destructive action:\n\n- Make sure the action is clearly within the user's request.\n- Resolve the exact targets with read-only checks when necessary.\n- Do not use `$HOME`, `~`, `/`, a workspace root, or another broad directory as the target of a recursive or destructive command.\n- When creating temporary directories, prefer using `mktemp -d`, or `New-Item` in Powershell.\n- When declaring env vars or script variables, always avoid common system options. Never repurpose `$HOME`, `$home`, or `$SUFFICE_HOME`. Instead, use a task-specific variable name.\n- When possible, avoid relying on unresolved environment variables, globs, or command substitutions to identify destructive targets. Use explicit, validated paths.\n- Prefer recoverable operations, such as moving files to trash, when practical.\n- If the target or scope is unclear, stop and ask the user.\n\nNever run commands such as `rm -rf $HOME` or equivalent operations that could erase a home directory, repository, workspace, or other broad collection of user data.\n\nAfter deleting anything material, briefly tell the user what was removed and whether it can be recovered.\n",
+         "instructions_variables": null,
+         "approvals": null,
+         "collaboration_modes": null,

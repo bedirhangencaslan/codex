@@ -1,0 +1,44 @@
+From 89c024112fce930a38c90eeaf63b84f0e97d7786 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Mon, 7 Sep 2026 22:22:50 +0300
+Subject: [PATCH 68/71] Raise the per-call tool output cap from 10k to 25k
+ tokens
+
+Measured on the `wire` task (read 44 .rs files under codex-api/src, write WIRE.md), fork alone,
+same relay, same prompt:
+
+  cap 10,000   26 requests   2 compactions   $0.0310
+  cap 25,000   18 requests   1 compaction    $0.0177   (-43%)
+
+The 10k cap was binding hard: 6 of 29 tool outputs carried a truncation marker and the largest sat
+pinned at 10,053 tokens. The model batches its reads already - `Get-Content a; '---'; Get-Content b`
+- and the cap was cutting the tail, so it kept batches to three to six files. Every extra read turn
+re-sends the whole window, the window then reaches the 70k compaction limit, compaction destroys
+every tool output, and the model re-derives with `rg` what it had already read. Five consecutive
+search-only turns after the first compaction were exactly that.
+
+Raising the cap breaks the loop at its entry: bigger batches, fewer turns, the window reaches 70k
+once instead of twice. It does not invite runaway outputs - at 25k the largest output settled at
+~11k and only one of 17 was truncated, so the model takes the room it needs and no more.
+
+The deliverable is unchanged: 44 file:line citations, all 44 resolving to real lines.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ codex-rs/models-manager/models.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/codex-rs/models-manager/models.json b/codex-rs/models-manager/models.json
+index 227d379eff..8e20b97a13 100644
+--- a/codex-rs/models-manager/models.json
++++ b/codex-rs/models-manager/models.json
+@@ -14,7 +14,7 @@
+       "supports_image_detail_original": false,
+       "truncation_policy": {
+         "mode": "tokens",
+-        "limit": 10000
++        "limit": 25000
+       },
+       "supports_parallel_tool_calls": true,
+       "tool_mode": null,

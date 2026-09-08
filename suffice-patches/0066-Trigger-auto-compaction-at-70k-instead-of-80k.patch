@@ -1,0 +1,32 @@
+From c1b028d1d483d4dd98f9ff68c1bc8b9bb50408e3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Mon, 7 Sep 2026 18:06:49 +0300
+Subject: [PATCH 66/71] Trigger auto-compaction at 70k instead of 80k
+
+`ModelInfo::auto_compact_token_limit()` is `min(config_limit, context_window *
+9/10)`, so the catalog entry is what binds: 180,000 is never the smaller number.
+
+Compaction now leaves a 6k verbatim assistant tail on top of the user messages,
+the regenerated initial context and the summary, which puts the post-compaction
+floor near 10k rather than the ~3.4k upstream's version left. Triggering at 70k
+holds the peak prompt down while still leaving about 60k of runway per window.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ codex-rs/models-manager/models.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/codex-rs/models-manager/models.json b/codex-rs/models-manager/models.json
+index f650abd332..227d379eff 100644
+--- a/codex-rs/models-manager/models.json
++++ b/codex-rs/models-manager/models.json
+@@ -29,7 +29,7 @@
+       "model_specialty": null,
+       "context_window": 200000,
+       "max_context_window": 200000,
+-      "auto_compact_token_limit": 80000,
++      "auto_compact_token_limit": 70000,
+       "comp_hash": "2911",
+       "default_reasoning_summary": "none",
+       "display_name": "GLM 5.3",

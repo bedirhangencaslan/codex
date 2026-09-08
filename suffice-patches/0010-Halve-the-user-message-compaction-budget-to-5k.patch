@@ -1,0 +1,38 @@
+From 02826906f4a60ed84d1ed7be9425ba3b3777bf96 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 09:58:10 +0300
+Subject: [PATCH 10/71] Halve the user-message compaction budget to 5k
+
+User prompts are short next to what the agent produces, so 12k almost
+never bound. Freeing it lowers the post-compaction floor to ~14k and
+gives every window ~66k of runway instead of ~59k.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/compact.rs | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/codex-rs/core/src/compact.rs b/codex-rs/core/src/compact.rs
+index 344c604426..b3fda1ddb0 100644
+--- a/codex-rs/core/src/compact.rs
++++ b/codex-rs/core/src/compact.rs
+@@ -60,13 +60,14 @@ use tracing::error;
+ 
+ pub use codex_prompts::SUMMARIZATION_PROMPT;
+ pub use codex_prompts::SUMMARY_PREFIX;
+-/// Budget for the user's own messages, which are always preserved verbatim.
+-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 12_000;
++/// Budget for the user's own messages, which are always preserved verbatim. User prompts are
++/// short next to what the agent produces, so this rarely binds.
++const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 5_000;
+ /// Budget for assistant answers that survive compaction verbatim. Spent newest-first over whole
+ /// request groups; a group that does not fit entirely is summarized instead of partially kept.
+ ///
+-/// Together with the user budget and the summary this puts the post-compaction floor around 21k,
+-/// leaving roughly 59k of runway before the next compaction at the 80k auto-compact limit.
++/// Together with the user budget and the summary this puts the post-compaction floor around 14k,
++/// leaving roughly 66k of runway before the next compaction at the 80k auto-compact limit.
+ const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 8_000;
+ 
+ /// Controls whether compaction replacement history must include initial context.

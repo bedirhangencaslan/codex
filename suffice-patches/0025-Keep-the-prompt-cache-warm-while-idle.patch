@@ -1,0 +1,635 @@
+From aa50a7d64de3def3ea2e9bbb53e3da597f792f9f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 01:21:07 +0300
+Subject: [PATCH 25/71] Keep the prompt cache warm while idle
+
+Chat-wire providers key their prompt cache off the literal message prefix, so
+the entry lives on a short server-side TTL with no key to refresh it by name.
+Any pause longer than that TTL makes the next request re-bill the whole prefix
+uncached, which measured as the largest single source of cache-miss cost in a
+normal session. Replay the last request's exact wire body with the output
+capped at one token every two minutes of idleness, five times at most, since
+beyond that the replays cost about as much as the miss they prevent.
+
+The replay lives below the session and is handed only a transport, a provider,
+an auth provider, and the body the endpoint actually sent. It holds no
+reference to history, the rollout, the event channel, or token accounting, so
+it cannot reach anything it would corrupt. Its stream is dropped unread:
+response headers arrive after prefill, which is the moment the entry is
+refreshed. The Responses wire is excluded because it has no output cap and its
+cache is named by a server-owned key that a replay cannot refresh.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/codex-api/src/endpoint/responses.rs |  17 +-
+ codex-rs/codex-api/tests/clients.rs          |   1 +
+ codex-rs/core/config.schema.json             |   6 +
+ codex-rs/core/src/client.rs                  |  48 +++
+ codex-rs/core/src/lib.rs                     |   1 +
+ codex-rs/core/src/prompt_cache_keep_alive.rs | 340 +++++++++++++++++++
+ codex-rs/core/src/session/session.rs         |   1 +
+ codex-rs/features/src/lib.rs                 |   8 +
+ 8 files changed, 421 insertions(+), 1 deletion(-)
+ create mode 100644 codex-rs/core/src/prompt_cache_keep_alive.rs
+
+diff --git a/codex-rs/codex-api/src/endpoint/responses.rs b/codex-rs/codex-api/src/endpoint/responses.rs
+index 9f33197ab1..4f7f709429 100644
+--- a/codex-rs/codex-api/src/endpoint/responses.rs
++++ b/codex-rs/codex-api/src/endpoint/responses.rs
+@@ -63,6 +63,13 @@ pub struct ResponsesOptions {
+     pub extra_headers: HeaderMap,
+     pub compression: Compression,
+     pub turn_state: Option<Arc<OnceLock<String>>>,
++    /// Receives the body that actually went on the wire.
++    ///
++    /// The prompt-cache keep-alive replays it verbatim while the session is
++    /// idle; rebuilding it later would cost a second full translation pass.
++    /// Only filled for [`WireApi::Chat`], the one wire whose cache is keyed by
++    /// the literal message prefix.
++    pub sent_body: Option<Arc<OnceLock<Value>>>,
+ }
+ 
+ impl<T: HttpTransport> ResponsesClient<T> {
+@@ -114,6 +121,7 @@ impl<T: HttpTransport> ResponsesClient<T> {
+             extra_headers,
+             compression,
+             turn_state,
++            sent_body,
+         } = options;
+ 
+         // Chat-only providers get the request rewritten here and their SSE
+@@ -121,7 +129,14 @@ impl<T: HttpTransport> ResponsesClient<T> {
+         // the wire difference.
+         let body = match self.session.provider().wire {
+             WireApi::Responses => EncodedJsonBody::encode(&request),
+-            WireApi::Chat => EncodedJsonBody::encode(&chat_body_from_responses_request(&request)),
++            WireApi::Chat => {
++                let chat_body = chat_body_from_responses_request(&request);
++                let encoded = EncodedJsonBody::encode(&chat_body);
++                if let Some(slot) = sent_body {
++                    let _ = slot.set(chat_body);
++                }
++                encoded
++            }
+         }
+         .map_err(|e| ApiError::Stream(format!("failed to encode responses request: {e}")))?;
+ 
+diff --git a/codex-rs/codex-api/tests/clients.rs b/codex-rs/codex-api/tests/clients.rs
+index 25b7f430b4..ea70cb8fb5 100644
+--- a/codex-rs/codex-api/tests/clients.rs
++++ b/codex-rs/codex-api/tests/clients.rs
+@@ -579,6 +579,7 @@ async fn azure_store_sends_ids_and_headers() -> Result<()> {
+                 extra_headers,
+                 compression: Compression::None,
+                 turn_state: None,
++                sent_body: None,
+             },
+         )
+         .await?;
+diff --git a/codex-rs/core/config.schema.json b/codex-rs/core/config.schema.json
+index a4c8f2b3ff..d1e3294b98 100644
+--- a/codex-rs/core/config.schema.json
++++ b/codex-rs/core/config.schema.json
+@@ -832,6 +832,9 @@
+             "project_memory": {
+               "type": "boolean"
+             },
++            "prompt_cache_keep_alive": {
++              "type": "boolean"
++            },
+             "psp": {
+               "type": "boolean"
+             },
+@@ -6112,6 +6115,9 @@
+         "project_memory": {
+           "type": "boolean"
+         },
++        "prompt_cache_keep_alive": {
++          "type": "boolean"
++        },
+         "psp": {
+           "type": "boolean"
+         },
+diff --git a/codex-rs/core/src/client.rs b/codex-rs/core/src/client.rs
+index f62443086f..e0d180930a 100644
+--- a/codex-rs/core/src/client.rs
++++ b/codex-rs/core/src/client.rs
+@@ -61,6 +61,7 @@ use codex_api::SseTelemetry;
+ use codex_api::StreamOptions;
+ use codex_api::TransportError;
+ use codex_api::WebsocketTelemetry;
++use codex_api::WireApi as ApiWireApi;
+ use codex_api::auth_header_telemetry;
+ use codex_api::build_session_headers;
+ use codex_api::create_text_param_for_request;
+@@ -102,6 +103,7 @@ use futures::StreamExt;
+ use http::HeaderMap as ApiHeaderMap;
+ use http::HeaderValue;
+ use http::StatusCode;
++use serde_json::Value;
+ use std::time::Duration;
+ use std::time::Instant;
+ use tokio::sync::mpsc;
+@@ -125,6 +127,7 @@ use crate::context::BaseInstructionsFragment;
+ use crate::context::ContextualUserFragment;
+ use crate::cyber_access_program;
+ use crate::feedback_tags;
++use crate::prompt_cache_keep_alive::PromptCacheKeepAlive;
+ use crate::responses_metadata::CodexResponsesMetadata;
+ use crate::responses_metadata::subagent_header_value;
+ use crate::util::emit_feedback_auth_recovery_tags;
+@@ -254,6 +257,7 @@ struct ModelClientState {
+     disable_websockets: AtomicBool,
+     agent_identity_session_fallback: AgentIdentitySessionFallback,
+     cached_websocket_session: StdMutex<WebsocketSession>,
++    prompt_cache_keep_alive: Arc<PromptCacheKeepAlive>,
+ }
+ 
+ /// Resolved API client setup for a single request attempt.
+@@ -295,6 +299,7 @@ pub struct ModelClient {
+     agent_identity_policy: AgentIdentityAuthPolicy,
+     prompt_cache_key_override: Option<String>,
+     free_guardian_enabled: bool,
++    prompt_cache_keep_alive_enabled: bool,
+     event_sender: Option<Sender<ProtocolEvent>>,
+     http_client_factory: HttpClientFactory,
+ }
+@@ -513,10 +518,12 @@ impl ModelClient {
+                 disable_websockets: AtomicBool::new(false),
+                 agent_identity_session_fallback: AgentIdentitySessionFallback::default(),
+                 cached_websocket_session: StdMutex::new(WebsocketSession::default()),
++                prompt_cache_keep_alive: Arc::new(PromptCacheKeepAlive::new()),
+             }),
+             agent_identity_policy,
+             prompt_cache_key_override: None,
+             free_guardian_enabled: false,
++            prompt_cache_keep_alive_enabled: false,
+             event_sender: None,
+             http_client_factory,
+         }
+@@ -527,6 +534,26 @@ impl ModelClient {
+         self
+     }
+ 
++    pub(crate) fn with_prompt_cache_keep_alive(
++        mut self,
++        prompt_cache_keep_alive_enabled: bool,
++    ) -> Self {
++        self.prompt_cache_keep_alive_enabled = prompt_cache_keep_alive_enabled;
++        self
++    }
++
++    /// Returns a slot for the outgoing wire body when an idle session could usefully replay it.
++    ///
++    /// Only the Chat wire qualifies. Its prompt cache is keyed by the literal message prefix, so
++    /// resending the body is what refreshes the entry, and its request shape has an output cap that
++    /// keeps the replay to a single token. The Responses wire has neither: its cache is named by a
++    /// server-owned `prompt_cache_key`, and a replay there would generate a full answer at full
++    /// price.
++    fn prompt_cache_keep_alive_slot(&self, provider: &ApiProvider) -> Option<Arc<OnceLock<Value>>> {
++        (self.prompt_cache_keep_alive_enabled && provider.wire == ApiWireApi::Chat)
++            .then(|| Arc::new(OnceLock::new()))
++    }
++
+     pub(crate) fn with_session_context(
+         mut self,
+         prompt_cache_key_override: Option<String>,
+@@ -1331,6 +1358,7 @@ impl ModelClientSession {
+             },
+             compression,
+             turn_state: Some(Arc::clone(&self.turn_state)),
++            sent_body: None,
+         }
+     }
+ 
+@@ -1645,6 +1673,20 @@ impl ModelClientSession {
+             let inference_trace_attempt = inference_trace.start_attempt();
+             inference_trace_attempt.add_request_headers(&mut options.extra_headers);
+             inference_trace_attempt.record_started(&request);
++            // Copy what an idle replay would need before it all moves into the client. The body
++            // itself is filled in by the endpoint, so this arms only once the request succeeded.
++            let keep_alive_material = self
++                .client
++                .prompt_cache_keep_alive_slot(&client_setup.api_provider)
++                .map(|body| {
++                    options.sent_body = Some(Arc::clone(&body));
++                    (
++                        transport.clone(),
++                        client_setup.api_provider.clone(),
++                        Arc::clone(&client_setup.api_auth),
++                        body,
++                    )
++                });
+             let client = ApiResponsesClient::new(
+                 transport,
+                 client_setup.api_provider,
+@@ -1656,6 +1698,12 @@ impl ModelClientSession {
+ 
+             match stream_result {
+                 Ok(stream) => {
++                    if let Some((transport, provider, auth, body)) = keep_alive_material {
++                        self.client
++                            .state
++                            .prompt_cache_keep_alive
++                            .arm(transport, provider, auth, body);
++                    }
+                     let (stream, _) = map_response_stream(
+                         stream,
+                         request_session_telemetry,
+diff --git a/codex-rs/core/src/lib.rs b/codex-rs/core/src/lib.rs
+index 9f5b1a4ab8..5f20ec98c6 100644
+--- a/codex-rs/core/src/lib.rs
++++ b/codex-rs/core/src/lib.rs
+@@ -137,6 +137,7 @@ pub type CodexConversation = CodexThread;
+ pub(crate) mod agents_md;
+ mod agents_md_manager;
+ mod agents_md_memory;
++mod prompt_cache_keep_alive;
+ pub use agents_md::DEFAULT_AGENTS_MD_FILENAME;
+ pub use agents_md::LOCAL_AGENTS_MD_FILENAME;
+ pub use agents_md::LoadedAgentsMd;
+diff --git a/codex-rs/core/src/prompt_cache_keep_alive.rs b/codex-rs/core/src/prompt_cache_keep_alive.rs
+new file mode 100644
+index 0000000000..8c6081a99f
+--- /dev/null
++++ b/codex-rs/core/src/prompt_cache_keep_alive.rs
+@@ -0,0 +1,340 @@
++//! Keeps the provider's prompt cache warm while the session sits idle.
++//!
++//! Chat-wire providers key their prompt cache off the literal message prefix; there is no
++//! `prompt_cache_key` on that wire to hand the server a name for the entry. The entry therefore
++//! lives on a short server-side TTL, and any pause long enough to outlast it — a user reading a
++//! diff, writing the next message, or answering a prompt — makes the following request re-bill the
++//! entire prefix at the uncached rate. On a normal working session that is by far the largest
++//! single source of cache-miss cost.
++//!
++//! The fix is to replay the last request's exact wire body with the output capped at one token.
++//! Replaying it is the only thing that can refresh the right entry, since the body *is* the cache
++//! identity. Response headers arrive after prefill, which is the moment the entry is refreshed, so
++//! the stream is dropped unread.
++//!
++//! This lives below the session on purpose. It is handed a transport, a provider, an auth provider
++//! and a body, and it holds no reference to conversation history, the rollout, the event channel,
++//! or token accounting. A keep-alive is invisible to the rest of Suffice by construction rather
++//! than by discipline: there is nothing here it could reach even by mistake.
++//!
++//! The budget is deliberately small. One replay costs about as much as a rounding error, but five
++//! of them cost roughly one avoided cache miss, so after ten idle minutes the session parks and
++//! waits for a real request to re-arm it.
++
++use std::sync::Arc;
++use std::sync::Mutex as StdMutex;
++use std::sync::OnceLock;
++use std::sync::PoisonError;
++use std::sync::Weak;
++use std::sync::atomic::AtomicBool;
++use std::sync::atomic::Ordering;
++use std::time::Duration;
++use std::time::Instant;
++
++use codex_api::Compression;
++use codex_api::Provider;
++use codex_api::ReqwestTransport;
++use codex_api::ResponsesClient;
++use codex_api::SharedAuthProvider;
++use http::HeaderMap;
++use serde_json::Value;
++
++/// How long the session may sit idle before the cache entry is refreshed.
++///
++/// Chosen to sit comfortably inside the shortest prompt-cache TTL we have measured rather than to
++/// minimize requests; a keep-alive that lands after the entry expired has paid for nothing.
++const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(120);
++
++/// How many refreshes may fire before a real request has to re-arm the session.
++///
++/// Five refreshes cost about the same as one cache miss, so beyond this the feature stops paying
++/// for itself and the session is very likely abandoned rather than idle.
++const MAX_CONSECUTIVE_KEEP_ALIVES: u32 = 5;
++
++/// Output cap for a replay.
++///
++/// The point of the request is prefill, not generation. If a model rejects a cap this small for
++/// being below its thinking budget the request fails before prefill and warms nothing, in which
++/// case raise this — it is a floor on what the provider accepts, not a tuning knob.
++const KEEP_ALIVE_MAX_TOKENS: u32 = 1;
++
++/// Everything needed to replay the last real request, captured at its call site.
++#[derive(Clone)]
++struct Armed {
++    /// Bumped by every real request. The idle task compares it across its sleep, so a turn that
++    /// starts mid-wait re-anchors the schedule and restores the full budget without any
++    /// cancellation plumbing.
++    generation: u64,
++    armed_at: Instant,
++    transport: ReqwestTransport,
++    provider: Provider,
++    auth: SharedAuthProvider,
++    /// Filled by the endpoint once the body is final, so this is the bytes that actually went on
++    /// the wire rather than a second, possibly divergent, translation of the same request.
++    body: Arc<OnceLock<Value>>,
++}
++
++pub(crate) struct PromptCacheKeepAlive {
++    /// The generation lives inside the mutex so a single lock yields a consistent snapshot and
++    /// there is no ordering between separate atomics to reason about.
++    armed: StdMutex<Option<Armed>>,
++    task_started: AtomicBool,
++}
++
++impl std::fmt::Debug for PromptCacheKeepAlive {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.debug_struct("PromptCacheKeepAlive")
++            .finish_non_exhaustive()
++    }
++}
++
++/// What the idle task should do when it wakes.
++enum Tick {
++    /// A real request landed during the sleep; re-anchor on it and start the budget over.
++    Rearm,
++    /// Nothing to refresh, or the budget is spent. Keep waiting for a real request.
++    Park,
++    Fire(Armed),
++}
++
++impl PromptCacheKeepAlive {
++    pub(crate) fn new() -> Self {
++        Self {
++            armed: StdMutex::new(None),
++            task_started: AtomicBool::new(false),
++        }
++    }
++
++    /// Records a real request as the one to replay while the session is idle.
++    ///
++    /// The idle task is spawned here rather than at construction because clients are built from
++    /// synchronous code with no Tokio runtime available.
++    pub(crate) fn arm(
++        self: &Arc<Self>,
++        transport: ReqwestTransport,
++        provider: Provider,
++        auth: SharedAuthProvider,
++        body: Arc<OnceLock<Value>>,
++    ) {
++        {
++            let mut armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
++            let generation = armed.as_ref().map_or(0, |armed| armed.generation) + 1;
++            *armed = Some(Armed {
++                generation,
++                armed_at: Instant::now(),
++                transport,
++                provider,
++                auth,
++                body,
++            });
++        }
++
++        if !self.task_started.swap(true, Ordering::SeqCst) {
++            // Only a weak handle: dropping the session is what stops the task, so it must not be
++            // what keeps it alive.
++            tokio::spawn(run(Arc::downgrade(self)));
++        }
++    }
++
++    /// Decides what to do now, advancing the caller's view of the schedule.
++    ///
++    /// All of the scheduling lives here so it can be exercised without a clock or a network.
++    fn on_tick(&self, seen: &mut u64, fires: &mut u32) -> Tick {
++        let armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
++        let Some(armed) = armed.as_ref() else {
++            return Tick::Park;
++        };
++        if armed.generation != *seen {
++            *seen = armed.generation;
++            *fires = 0;
++            return Tick::Rearm;
++        }
++        if *fires >= MAX_CONSECUTIVE_KEEP_ALIVES {
++            return Tick::Park;
++        }
++        *fires += 1;
++        Tick::Fire(armed.clone())
++    }
++
++    /// Anchors the schedule on the last real request so refreshes land at fixed offsets from it.
++    ///
++    /// A free-running ticker would put the first refresh anywhere in one to two intervals after
++    /// the request, which can overshoot the cache TTL and defeat the whole feature.
++    fn next_deadline(&self, fires: u32) -> Instant {
++        let armed = self.armed.lock().unwrap_or_else(PoisonError::into_inner);
++        match armed.as_ref() {
++            Some(armed) => armed.armed_at + KEEP_ALIVE_INTERVAL * (fires + 1),
++            None => Instant::now() + KEEP_ALIVE_INTERVAL,
++        }
++    }
++}
++
++async fn run(keep_alive: Weak<PromptCacheKeepAlive>) {
++    let mut seen = 0u64;
++    let mut fires = 0u32;
++    loop {
++        let Some(deadline) = keep_alive
++            .upgrade()
++            .map(|keep_alive| keep_alive.next_deadline(fires))
++        else {
++            return;
++        };
++        tokio::time::sleep_until(deadline.into()).await;
++
++        let Some(keep_alive) = keep_alive.upgrade() else {
++            return;
++        };
++        match keep_alive.on_tick(&mut seen, &mut fires) {
++            Tick::Rearm | Tick::Park => {}
++            Tick::Fire(armed) => {
++                // The lock is released before this point: nothing here may be awaited under it.
++                fire(armed).await;
++            }
++        }
++    }
++}
++
++async fn fire(armed: Armed) {
++    let Some(body) = armed.body.get() else {
++        return;
++    };
++    let body = keep_alive_body(body);
++
++    let mut provider = armed.provider;
++    // A refresh that needs a second attempt has already lost the race with the cache TTL, and the
++    // outer auth-recovery loop is bypassed simply by not being in it.
++    provider.retry.max_attempts = 1;
++
++    // Built without telemetry and without session headers: a keep-alive must not produce
++    // telemetry rows, protocol events, or a request id that correlates with the real session.
++    let client = ResponsesClient::new(armed.transport, provider, armed.auth);
++    match client
++        .stream(
++            body,
++            HeaderMap::new(),
++            Compression::None,
++            /*turn_state*/ None,
++        )
++        .await
++    {
++        // Headers arrive after prefill, so by here the entry is refreshed and the body is waste.
++        Ok(stream) => drop(stream),
++        Err(err) => tracing::debug!("prompt cache keep-alive request failed: {err}"),
++    }
++}
++
++/// Caps the replay's output without touching anything the cache is keyed on.
++///
++/// `messages`, `tools`, and `thinking` must stay byte-identical or the replay warms a different
++/// entry than the one the next real request will look for. `stream` in particular stays on: the
++/// response is parsed as SSE either way.
++fn keep_alive_body(body: &Value) -> Value {
++    let mut body = body.clone();
++    if let Some(body) = body.as_object_mut() {
++        body.insert("max_tokens".to_string(), KEEP_ALIVE_MAX_TOKENS.into());
++    }
++    body
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    struct NoAuth;
++
++    impl codex_api::AuthProvider for NoAuth {
++        fn add_auth_headers(&self, _headers: &mut HeaderMap) {}
++    }
++
++    fn keep_alive() -> Arc<PromptCacheKeepAlive> {
++        Arc::new(PromptCacheKeepAlive::new())
++    }
++
++    /// Arms with material that is never sent; only the schedule is under test here.
++    fn arm(keep_alive: &Arc<PromptCacheKeepAlive>) {
++        keep_alive.arm(
++            ReqwestTransport::from_http_client(codex_login::default_client::create_client()),
++            Provider {
++                name: "test".to_string(),
++                base_url: "https://example.invalid".to_string(),
++                query_params: None,
++                headers: HeaderMap::new(),
++                retry: codex_api::RetryConfig {
++                    max_attempts: 3,
++                    base_delay: Duration::from_millis(1),
++                    retry_429: true,
++                    retry_5xx: true,
++                    retry_transport: true,
++                },
++                stream_idle_timeout: Duration::from_secs(1),
++                wire: codex_api::WireApi::Chat,
++            },
++            Arc::new(NoAuth),
++            Arc::new(OnceLock::new()),
++        );
++    }
++
++    #[test]
++    fn keep_alive_body_caps_output_and_leaves_the_prefix_byte_identical() {
++        let body = serde_json::json!({
++            "model": "glm-5.3-flash",
++            "messages": [{"role": "user", "content": "hi"}],
++            "stream": true,
++            "stream_options": {"include_usage": true},
++            "thinking": {"type": "enabled"},
++        });
++
++        let mut capped = keep_alive_body(&body);
++
++        assert_eq!(capped["max_tokens"], serde_json::json!(1));
++        capped.as_object_mut().expect("object").remove("max_tokens");
++        assert_eq!(capped, body);
++    }
++
++    #[tokio::test]
++    async fn a_real_request_resets_the_keep_alive_budget() {
++        let keep_alive = keep_alive();
++        let (mut seen, mut fires) = (0, 0);
++
++        arm(&keep_alive);
++        assert!(matches!(
++            keep_alive.on_tick(&mut seen, &mut fires),
++            Tick::Rearm
++        ));
++        assert!(matches!(
++            keep_alive.on_tick(&mut seen, &mut fires),
++            Tick::Fire(_)
++        ));
++        assert_eq!(fires, 1);
++
++        arm(&keep_alive);
++        assert!(matches!(
++            keep_alive.on_tick(&mut seen, &mut fires),
++            Tick::Rearm
++        ));
++        assert_eq!(fires, 0);
++    }
++
++    #[tokio::test]
++    async fn the_keep_alive_stops_after_five_consecutive_fires() {
++        let keep_alive = keep_alive();
++        let (mut seen, mut fires) = (0, 0);
++
++        arm(&keep_alive);
++        assert!(matches!(
++            keep_alive.on_tick(&mut seen, &mut fires),
++            Tick::Rearm
++        ));
++        for _ in 0..MAX_CONSECUTIVE_KEEP_ALIVES {
++            assert!(matches!(
++                keep_alive.on_tick(&mut seen, &mut fires),
++                Tick::Fire(_)
++            ));
++        }
++
++        assert!(matches!(
++            keep_alive.on_tick(&mut seen, &mut fires),
++            Tick::Park
++        ));
++    }
++}
+diff --git a/codex-rs/core/src/session/session.rs b/codex-rs/core/src/session/session.rs
+index d4a1d02ba0..5403be60d6 100644
+--- a/codex-rs/core/src/session/session.rs
++++ b/codex-rs/core/src/session/session.rs
+@@ -1449,6 +1449,7 @@ impl Session {
+                     config.http_client_factory(),
+                 )
+                 .with_free_guardian_enabled(config.free_guardian_enabled())
++                .with_prompt_cache_keep_alive(config.features.enabled(Feature::PromptCacheKeepAlive))
+                 .with_session_context(
+                     crate::guardian::prompt_cache_key_override_for_review_session(
+                         &session_configuration.session_source,
+diff --git a/codex-rs/features/src/lib.rs b/codex-rs/features/src/lib.rs
+index 576501b3f5..7ce9ffef39 100644
+--- a/codex-rs/features/src/lib.rs
++++ b/codex-rs/features/src/lib.rs
+@@ -171,6 +171,8 @@ pub enum Feature {
+     MemoryTool,
+     /// Refresh the project's AGENTS.md from the conversation right before compaction.
+     ProjectMemory,
++    /// Replay the last request while idle so the provider's prompt cache stays warm.
++    PromptCacheKeepAlive,
+     /// Enable importing project-scoped memory from external agents.
+     ExternalAgentMemoryImport,
+     /// Compress cold local thread-store rollout files.
+@@ -1074,6 +1076,12 @@ pub const FEATURES: &[FeatureSpec] = &[
+         stage: Stage::Stable,
+         default_enabled: true,
+     },
++    FeatureSpec {
++        id: Feature::PromptCacheKeepAlive,
++        key: "prompt_cache_keep_alive",
++        stage: Stage::Stable,
++        default_enabled: true,
++    },
+     FeatureSpec {
+         id: Feature::ExternalAgentMemoryImport,
+         key: "external_agent_memory_import",

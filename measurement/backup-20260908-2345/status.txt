@@ -1,0 +1,14 @@
+ M codex-rs/Cargo.lock
+ M codex-rs/codex-api/src/requests/chat.rs
+ M codex-rs/config/defaults.toml
+ M codex-rs/core/Cargo.toml
+ M codex-rs/core/src/tools/context.rs
+ M codex-rs/core/src/tools/handlers/mod.rs
+ M codex-rs/core/src/tools/handlers/read.rs
+ M codex-rs/core/src/tools/handlers/read_spec.rs
+ M codex-rs/core/src/tools/spec_plan.rs
+ M codex-rs/core/src/tools/spec_plan_tests.rs
+ M codex-rs/core/tests/suite/read.rs
+ M codex-rs/models-manager/models.json
+?? codex-rs/core/src/tools/handlers/search.rs
+?? codex-rs/core/src/tools/handlers/search_spec.rs

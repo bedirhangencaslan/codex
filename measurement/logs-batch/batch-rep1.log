@@ -1,0 +1,1479 @@
+Suffice v0.0.0
+--------
+workdir: C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+model: glm-5.3-flash
+provider: zai-relay
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+session id: 01a0827b-b449-7993-aba0-665ca784eb93
+--------
+user
+Read every `.rs` file under `codex-api/src/` and write `WIRE.md`.
+
+For each file, write one line: the path, what it translates or handles, and one `file:line`
+citation backing it. Group the lines under the directory each file lives in.
+
+Do not modify any file except `WIRE.md`.
+
+STOP CONDITION. When `WIRE.md` has a line for every `.rs` file under `codex-api/src/`, count the
+files you covered and print `CHECKPOINT REACHED: <n> files`. Then stop. Do not review anything
+else and do not write any other file.
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-ChildItem -Recurse codex-api\\src -Filter *.rs | ForEach-Object { \"{0}"'`t{1}" -f $_.FullName.Substring((Get-Location).Path.Length+1), (Get-Content $_.FullName | Measure-Object -Line).Lines }' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 207ms:
+codex-api\src\api_bridge.rs	256
+codex-api\src\api_bridge_tests.rs	488
+codex-api\src\auth.rs	92
+codex-api\src\common.rs	384
+codex-api\src\error.rs	49
+codex-api\src\files.rs	719
+codex-api\src\images.rs	63
+codex-api\src\lib.rs	121
+codex-api\src\provider.rs	161
+codex-api\src\rate_limits.rs	337
+codex-api\src\safety_buffering.rs	59
+codex-api\src\search.rs	278
+codex-api\src\telemetry.rs	90
+codex-api\src\endpoint\compact.rs	102
+codex-api\src\endpoint\images.rs	298
+codex-api\src\endpoint\memories.rs	203
+codex-api\src\endpoint\mod.rs	35
+codex-api\src\endpoint\models.rs	233
+codex-api\src\endpoint\realtime_call.rs	716
+codex-api\src\endpoint\responses.rs	212
+codex-api\src\endpoint\responses_websocket.rs	1154
+codex-api\src\endpoint\search.rs	299
+codex-api\src\endpoint\session.rs	144
+codex-api\src\endpoint\realtime_websocket\methods.rs	2848
+codex-api\src\endpoint\realtime_websocket\methods_common.rs	169
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs	143
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs	120
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs	97
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs	78
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs	173
+codex-api\src\endpoint\realtime_websocket\mod.rs	21
+codex-api\src\endpoint\realtime_websocket\protocol.rs	242
+codex-api\src\endpoint\realtime_websocket\protocol_common.rs	76
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs	91
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs	60
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs	97
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs	194
+codex-api\src\requests\chat.rs	538
+codex-api\src\requests\headers.rs	37
+codex-api\src\requests\mod.rs	4
+codex-api\src\requests\responses.rs	6
+codex-api\src\sse\chat.rs	487
+codex-api\src\sse\mod.rs	6
+codex-api\src\sse\responses.rs	1866
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rg -n "''^(#!|//|pub |impl |struct |enum |trait |fn |async fn|const |static |macro_rules|mod |use )" codex-api'"\\src --glob \"*.rs\"" in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 21ms:
+codex-api\src\error.rs:1:use crate::rate_limits::RateLimitError;
+codex-api\src\error.rs:2:use codex_client::TransportError;
+codex-api\src\error.rs:3:use codex_protocol::protocol::MisalignmentErrorDetails;
+codex-api\src\error.rs:4:use http::StatusCode;
+codex-api\src\error.rs:5:use std::time::Duration;
+codex-api\src\error.rs:6:use thiserror::Error;
+codex-api\src\error.rs:9:pub enum ApiError {
+codex-api\src\error.rs:47:impl From<RateLimitError> for ApiError {
+codex-api\src\lib.rs:16:pub use crate::requests::headers::build_session_headers;
+codex-api\src\lib.rs:17:pub use codex_client::RequestTelemetry;
+codex-api\src\lib.rs:18:pub use codex_client::ReqwestTransport;
+codex-api\src\lib.rs:19:pub use codex_client::TransportError;
+codex-api\src\lib.rs:21:pub use crate::api_bridge::map_api_error;
+codex-api\src\lib.rs:22:pub use crate::auth::AgentIdentityTelemetry;
+codex-api\src\lib.rs:23:pub use crate::auth::AuthError;
+codex-api\src\lib.rs:24:pub use crate::auth::AuthHeaderTelemetry;
+codex-api\src\lib.rs:25:pub use crate::auth::AuthHeadersFuture;
+codex-api\src\lib.rs:26:pub use crate::auth::AuthProvider;
+codex-api\src\lib.rs:27:pub use crate::auth::AuthProviderFuture;
+codex-api\src\lib.rs:28:pub use crate::auth::SharedAuthProvider;
+codex-api\src\lib.rs:29:pub use crate::auth::auth_header_telemetry;
+codex-api\src\lib.rs:30:pub use crate::common::AccessPrograms;
+codex-api\src\lib.rs:31:pub use crate::common::CompactionInput;
+codex-api\src\lib.rs:32:pub use crate::common::MemorySummarizeInput;
+codex-api\src\lib.rs:33:pub use crate::common::MemorySummarizeOutput;
+codex-api\src\lib.rs:34:pub use crate::common::OpenAiVerbosity;
+codex-api\src\lib.rs:35:pub use crate::common::RawMemory;
+codex-api\src\lib.rs:36:pub use crate::common::RawMemoryMetadata;
+codex-api\src\lib.rs:37:pub use crate::common::Reasoning;
+codex-api\src\lib.rs:38:pub use crate::common::ReasoningContext;
+codex-api\src\lib.rs:39:pub use crate::common::ReasoningSummaryDelivery;
+codex-api\src\lib.rs:40:pub use crate::common::ResponseCreateWsRequest;
+codex-api\src\lib.rs:41:pub use crate::common::ResponseEvent;
+codex-api\src\lib.rs:42:pub use crate::common::ResponseStream;
+codex-api\src\lib.rs:43:pub use crate::common::ResponsesApiRequest;
+codex-api\src\lib.rs:44:pub use crate::common::ResponsesApiTools;
+codex-api\src\lib.rs:45:pub use crate::common::ResponsesWsRequest;
+codex-api\src\lib.rs:46:pub use crate::common::StreamOptions;
+codex-api\src\lib.rs:47:pub use crate::common::TextControls;
+codex-api\src\lib.rs:48:pub use crate::common::WS_REQUEST_HEADER_TRACEPARENT_CLIENT_METADATA_KEY;
+codex-api\src\lib.rs:49:pub use crate::common::WS_REQUEST_HEADER_TRACESTATE_CLIENT_METADATA_KEY;
+codex-api\src\lib.rs:50:pub use crate::common::create_text_param_for_request;
+codex-api\src\lib.rs:51:pub use crate::common::response_create_client_metadata;
+codex-api\src\lib.rs:52:pub use crate::endpoint::CompactClient;
+codex-api\src\lib.rs:53:pub use crate::endpoint::ImagesClient;
+codex-api\src\lib.rs:54:pub use crate::endpoint::MemoriesClient;
+codex-api\src\lib.rs:55:pub use crate::endpoint::ModelsClient;
+codex-api\src\lib.rs:56:pub use crate::endpoint::RealtimeCallClient;
+codex-api\src\lib.rs:57:pub use crate::endpoint::RealtimeCallResponse;
+codex-api\src\lib.rs:58:pub use crate::endpoint::RealtimeContextAppendChannel;
+codex-api\src\lib.rs:59:pub use crate::endpoint::RealtimeEventParser;
+codex-api\src\lib.rs:60:pub use crate::endpoint::RealtimeOutputModality;
+codex-api\src\lib.rs:61:pub use crate::endpoint::RealtimeSessionConfig;
+codex-api\src\lib.rs:62:pub use crate::endpoint::RealtimeSessionMode;
+codex-api\src\lib.rs:63:pub use crate::endpoint::RealtimeTranscriptState;
+codex-api\src\lib.rs:64:pub use crate::endpoint::RealtimeWebsocketClient;
+codex-api\src\lib.rs:65:pub use crate::endpoint::RealtimeWebsocketConnection;
+codex-api\src\lib.rs:66:pub use crate::endpoint::RealtimeWebsocketEvents;
+codex-api\src\lib.rs:67:pub use crate::endpoint::RealtimeWebsocketWriter;
+codex-api\src\lib.rs:68:pub use crate::endpoint::ResponsesClient;
+codex-api\src\lib.rs:69:pub use crate::endpoint::ResponsesEndpoint;
+codex-api\src\lib.rs:70:pub use crate::endpoint::ResponsesOptions;
+codex-api\src\lib.rs:71:pub use crate::endpoint::ResponsesWebsocketClient;
+codex-api\src\lib.rs:72:pub use crate::endpoint::ResponsesWebsocketClose;
+codex-api\src\lib.rs:73:pub use crate::endpoint::ResponsesWebsocketConnection;
+codex-api\src\lib.rs:74:pub use crate::endpoint::ResponsesWebsocketProbe;
+codex-api\src\lib.rs:75:pub use crate::endpoint::SearchClient;
+codex-api\src\lib.rs:76:pub use crate::endpoint::session_update_session_json;
+codex-api\src\lib.rs:77:pub use crate::error::ApiError;
+codex-api\src\lib.rs:78:pub use crate::files::HostedFileUploadContext;
+codex-api\src\lib.rs:79:pub use crate::files::OPENAI_FILE_UPLOAD_LIMIT_BYTES;
+codex-api\src\lib.rs:80:pub use crate::files::upload_openai_file;
+codex-api\src\lib.rs:81:pub use crate::images::ImageBackground;
+codex-api\src\lib.rs:82:pub use crate::images::ImageData;
+codex-api\src\lib.rs:83:pub use crate::images::ImageEditRequest;
+codex-api\src\lib.rs:84:pub use crate::images::ImageGenerationRequest;
+codex-api\src\lib.rs:85:pub use crate::images::ImageQuality;
+codex-api\src\lib.rs:86:pub use crate::images::ImageResponse;
+codex-api\src\lib.rs:87:pub use crate::images::ImageUrl;
+codex-api\src\lib.rs:88:pub use crate::provider::Provider;
+codex-api\src\lib.rs:89:pub use crate::provider::RetryConfig;
+codex-api\src\lib.rs:90:pub use crate::provider::WireApi;
+codex-api\src\lib.rs:91:pub use crate::provider::is_azure_responses_provider;
+codex-api\src\lib.rs:92:pub use crate::requests::Compression;
+codex-api\src\lib.rs:93:pub use crate::search::AllowedCaller;
+codex-api\src\lib.rs:94:pub use crate::search::ApproximateLocation;
+codex-api\src\lib.rs:95:pub use crate::search::ClickOperation;
+codex-api\src\lib.rs:96:pub use crate::search::ExternalWebAccess;
+codex-api\src\lib.rs:97:pub use crate::search::ExternalWebAccessMode;
+codex-api\src\lib.rs:98:pub use crate::search::FinanceAssetType;
+codex-api\src\lib.rs:99:pub use crate::search::FinanceOperation;
+codex-api\src\lib.rs:100:pub use crate::search::FindOperation;
+codex-api\src\lib.rs:101:pub use crate::search::LocationType;
+codex-api\src\lib.rs:102:pub use crate::search::OpenOperation;
+codex-api\src\lib.rs:103:pub use crate::search::ScreenshotOperation;
+codex-api\src\lib.rs:104:pub use crate::search::SearchCommands;
+codex-api\src\lib.rs:105:pub use crate::search::SearchContextSize;
+codex-api\src\lib.rs:106:pub use crate::search::SearchFilters;
+codex-api\src\lib.rs:107:pub use crate::search::SearchImageSettings;
+codex-api\src\lib.rs:108:pub use crate::search::SearchInput;
+codex-api\src\lib.rs:109:pub use crate::search::SearchQuery;
+codex-api\src\lib.rs:110:pub use crate::search::SearchRequest;
+codex-api\src\lib.rs:111:pub use crate::search::SearchResponse;
+codex-api\src\lib.rs:112:pub use crate::search::SearchResponseLength;
+codex-api\src\lib.rs:113:pub use crate::search::SearchSettings;
+codex-api\src\lib.rs:114:pub use crate::search::SportsFunction;
+codex-api\src\lib.rs:115:pub use crate::search::SportsLeague;
+codex-api\src\lib.rs:116:pub use crate::search::SportsOperation;
+codex-api\src\lib.rs:117:pub use crate::search::SportsToolName;
+codex-api\src\lib.rs:118:pub use crate::search::TimeOperation;
+codex-api\src\lib.rs:119:pub use crate::search::WeatherOperation;
+codex-api\src\lib.rs:120:pub use crate::telemetry::SseTelemetry;
+codex-api\src\lib.rs:121:pub use crate::telemetry::WebsocketTelemetry;
+codex-api\src\lib.rs:122:pub use codex_protocol::protocol::RealtimeAudioFrame;
+codex-api\src\lib.rs:123:pub use codex_protocol::protocol::RealtimeEvent;
+codex-api\src\auth.rs:1:use codex_client::Request;
+codex-api\src\auth.rs:2:use codex_client::TransportError;
+codex-api\src\auth.rs:3:use http::HeaderMap;
+codex-api\src\auth.rs:4:use std::future::Future;
+codex-api\src\auth.rs:5:use std::pin::Pin;
+codex-api\src\auth.rs:6:use std::sync::Arc;
+codex-api\src\auth.rs:8:/// Error returned while applying authentication to an outbound request.
+codex-api\src\auth.rs:10:pub enum AuthError {
+codex-api\src\auth.rs:17:impl From<AuthError> for TransportError {
+codex-api\src\auth.rs:26:/// Applies authentication to API requests.
+codex-api\src\auth.rs:27:///
+codex-api\src\auth.rs:28:/// Header-only providers can implement `add_auth_headers`; providers that sign
+codex-api\src\auth.rs:29:/// complete requests can override `apply_auth`.
+codex-api\src\auth.rs:30:pub trait AuthProvider: Send + Sync {
+codex-api\src\auth.rs:73:pub type AuthProviderFuture<'a> =
+codex-api\src\auth.rs:76:pub type AuthHeadersFuture<'a> =
+codex-api\src\auth.rs:79:/// Shared auth handle passed through API clients.
+codex-api\src\auth.rs:80:pub type SharedAuthProvider = Arc<dyn AuthProvider>;
+codex-api\src\auth.rs:83:pub struct AgentIdentityTelemetry {
+codex-api\src\auth.rs:89:pub struct AuthHeaderTelemetry {
+codex-api\src\auth.rs:94:pub fn auth_header_telemetry(auth: &dyn AuthProvider) -> AuthHeaderTelemetry {
+codex-api\src\endpoint\models.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\models.rs:2:use crate::endpoint::session::EndpointSession;
+codex-api\src\endpoint\models.rs:3:use crate::error::ApiError;
+codex-api\src\endpoint\models.rs:4:use crate::provider::Provider;
+codex-api\src\endpoint\models.rs:5:use codex_client::HttpTransport;
+codex-api\src\endpoint\models.rs:6:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\models.rs:7:use codex_protocol::openai_models::ModelInfo;
+codex-api\src\endpoint\models.rs:8:use codex_protocol::openai_models::ModelsResponse;
+codex-api\src\endpoint\models.rs:9:use http::HeaderMap;
+codex-api\src\endpoint\models.rs:10:use http::Method;
+codex-api\src\endpoint\models.rs:11:use http::header::ETAG;
+codex-api\src\endpoint\models.rs:12:use std::sync::Arc;
+codex-api\src\endpoint\models.rs:14:pub struct ModelsClient<T: HttpTransport> {
+codex-api\src\endpoint\models.rs:83:mod tests {
+codex-api\src\endpoint\responses.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\responses.rs:2:use crate::common::ResponseStream;
+codex-api\src\endpoint\responses.rs:3:use crate::common::ResponsesApiRequest;
+codex-api\src\endpoint\responses.rs:4:use crate::endpoint::session::EndpointSession;
+codex-api\src\endpoint\responses.rs:5:use crate::error::ApiError;
+codex-api\src\endpoint\responses.rs:6:use crate::provider::Provider;
+codex-api\src\endpoint\responses.rs:7:use crate::provider::WireApi;
+codex-api\src\endpoint\responses.rs:8:use crate::requests::Compression;
+codex-api\src\endpoint\responses.rs:9:use crate::requests::chat::chat_body_from_responses_request;
+codex-api\src\endpoint\responses.rs:10:use crate::requests::headers::build_session_headers;
+codex-api\src\endpoint\responses.rs:11:use crate::requests::headers::insert_header;
+codex-api\src\endpoint\responses.rs:12:use crate::requests::headers::subagent_header;
+codex-api\src\endpoint\responses.rs:13:use crate::sse::spawn_chat_stream;
+codex-api\src\endpoint\responses.rs:14:use crate::sse::spawn_response_stream;
+codex-api\src\endpoint\responses.rs:15:use crate::telemetry::SseTelemetry;
+codex-api\src\endpoint\responses.rs:16:use codex_client::EncodedJsonBody;
+codex-api\src\endpoint\responses.rs:17:use codex_client::HttpTransport;
+codex-api\src\endpoint\responses.rs:18:use codex_client::RequestCompression;
+codex-api\src\endpoint\responses.rs:19:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\responses.rs:20:use codex_protocol::protocol::SessionSource;
+codex-api\src\endpoint\responses.rs:21:use http::HeaderMap;
+codex-api\src\endpoint\responses.rs:22:use http::HeaderValue;
+codex-api\src\endpoint\responses.rs:23:use http::Method;
+codex-api\src\endpoint\responses.rs:24:use serde_json::Value;
+codex-api\src\endpoint\responses.rs:25:use std::sync::Arc;
+codex-api\src\endpoint\responses.rs:26:use std::sync::OnceLock;
+codex-api\src\endpoint\responses.rs:27:use tracing::instrument;
+codex-api\src\endpoint\responses.rs:29:/// Responses-compatible inference routes supported by Suffice backend.
+codex-api\src\endpoint\responses.rs:31:pub enum ResponsesEndpoint {
+codex-api\src\endpoint\responses.rs:41:impl ResponsesEndpoint {
+codex-api\src\endpoint\responses.rs:52:pub struct ResponsesClient<T: HttpTransport> {
+codex-api\src\endpoint\responses.rs:59:pub struct ResponsesOptions {
+codex-api\src\telemetry.rs:1:use crate::error::ApiError;
+codex-api\src\telemetry.rs:2:use codex_client::Request;
+codex-api\src\telemetry.rs:3:use codex_client::RequestTelemetry;
+codex-api\src\telemetry.rs:4:use codex_client::Response;
+codex-api\src\telemetry.rs:5:use codex_client::RetryPolicy;
+codex-api\src\telemetry.rs:6:use codex_client::StreamResponse;
+codex-api\src\telemetry.rs:7:use codex_client::TransportError;
+codex-api\src\telemetry.rs:8:use codex_client::run_with_retry;
+codex-api\src\telemetry.rs:9:use http::StatusCode;
+codex-api\src\telemetry.rs:10:use std::future::Future;
+codex-api\src\telemetry.rs:11:use std::sync::Arc;
+codex-api\src\telemetry.rs:12:use std::time::Duration;
+codex-api\src\telemetry.rs:13:use tokio::time::Instant;
+codex-api\src\telemetry.rs:14:use tokio_tungstenite::tungstenite::Error;
+codex-api\src\telemetry.rs:15:use tokio_tungstenite::tungstenite::Message;
+codex-api\src\telemetry.rs:17:/// Generic telemetry.
+codex-api\src\telemetry.rs:18:pub trait SseTelemetry: Send + Sync {
+codex-api\src\telemetry.rs:34:/// Telemetry for Responses WebSocket transport.
+codex-api\src\telemetry.rs:35:pub trait WebsocketTelemetry: Send + Sync {
+codex-api\src\telemetry.rs:49:fn http_status(err: &TransportError) -> Option<StatusCode> {
+codex-api\src\telemetry.rs:56:impl WithStatus for Response {
+codex-api\src\telemetry.rs:62:impl WithStatus for StreamResponse {
+codex-api\src\endpoint\mod.rs:10:mod session;
+codex-api\src\endpoint\mod.rs:12:pub use compact::CompactClient;
+codex-api\src\endpoint\mod.rs:13:pub use images::ImagesClient;
+codex-api\src\endpoint\mod.rs:14:pub use memories::MemoriesClient;
+codex-api\src\endpoint\mod.rs:15:pub use models::ModelsClient;
+codex-api\src\endpoint\mod.rs:16:pub use realtime_call::RealtimeCallClient;
+codex-api\src\endpoint\mod.rs:17:pub use realtime_call::RealtimeCallResponse;
+codex-api\src\endpoint\mod.rs:18:pub use realtime_websocket::RealtimeContextAppendChannel;
+codex-api\src\endpoint\mod.rs:19:pub use realtime_websocket::RealtimeEventParser;
+codex-api\src\endpoint\mod.rs:20:pub use realtime_websocket::RealtimeOutputModality;
+codex-api\src\endpoint\mod.rs:21:pub use realtime_websocket::RealtimeSessionConfig;
+codex-api\src\endpoint\mod.rs:22:pub use realtime_websocket::RealtimeSessionMode;
+codex-api\src\endpoint\mod.rs:23:pub use realtime_websocket::RealtimeTranscriptState;
+codex-api\src\endpoint\mod.rs:24:pub use realtime_websocket::RealtimeWebsocketClient;
+codex-api\src\endpoint\mod.rs:25:pub use realtime_websocket::RealtimeWebsocketConnection;
+codex-api\src\endpoint\mod.rs:26:pub use realtime_websocket::RealtimeWebsocketEvents;
+codex-api\src\endpoint\mod.rs:27:pub use realtime_websocket::RealtimeWebsocketWriter;
+codex-api\src\endpoint\mod.rs:28:pub use realtime_websocket::session_update_session_json;
+codex-api\src\endpoint\mod.rs:29:pub use responses::ResponsesClient;
+codex-api\src\endpoint\mod.rs:30:pub use responses::ResponsesEndpoint;
+codex-api\src\endpoint\mod.rs:31:pub use responses::ResponsesOptions;
+codex-api\src\endpoint\mod.rs:32:pub use responses_websocket::ResponsesWebsocketClient;
+codex-api\src\endpoint\mod.rs:33:pub use responses_websocket::ResponsesWebsocketClose;
+codex-api\src\endpoint\mod.rs:34:pub use responses_websocket::ResponsesWebsocketConnection;
+codex-api\src\endpoint\mod.rs:35:pub use responses_websocket::ResponsesWebsocketProbe;
+codex-api\src\endpoint\mod.rs:36:pub use search::SearchClient;
+codex-api\src\endpoint\responses_websocket.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\responses_websocket.rs:2:use crate::common::ResponseEvent;
+codex-api\src\endpoint\responses_websocket.rs:3:use crate::common::ResponseStream;
+codex-api\src\endpoint\responses_websocket.rs:4:use crate::common::ResponsesWsRequest;
+codex-api\src\endpoint\responses_websocket.rs:5:use crate::common::SafetyBufferingTreatment;
+codex-api\src\endpoint\responses_websocket.rs:6:use crate::common::WS_REQUEST_HEADER_TRACEPARENT_CLIENT_METADATA_KEY;
+codex-api\src\endpoint\responses_websocket.rs:7:use crate::endpoint::responses::ResponsesEndpoint;
+codex-api\src\endpoint\responses_websocket.rs:8:use crate::error::ApiError;
+codex-api\src\endpoint\responses_websocket.rs:9:use crate::provider::Provider;
+codex-api\src\endpoint\responses_websocket.rs:10:use crate::rate_limits::parse_rate_limit_event;
+codex-api\src\endpoint\responses_websocket.rs:11:use crate::safety_buffering::treatment_from_headers;
+codex-api\src\endpoint\responses_websocket.rs:12:use crate::sse::ResponsesStreamEvent;
+codex-api\src\endpoint\responses_websocket.rs:13:use crate::sse::process_responses_event;
+codex-api\src\endpoint\responses_websocket.rs:14:use crate::telemetry::WebsocketTelemetry;
+codex-api\src\endpoint\responses_websocket.rs:15:use codex_client::TransportError;
+codex-api\src\endpoint\responses_websocket.rs:16:use codex_http_client::HttpClientFactory;
+codex-api\src\endpoint\responses_websocket.rs:17:use codex_websocket_client::WebSocketConnection;
+codex-api\src\endpoint\responses_websocket.rs:18:use codex_websocket_client::WebSocketConnector;
+codex-api\src\endpoint\responses_websocket.rs:19:use futures::SinkExt;
+codex-api\src\endpoint\responses_websocket.rs:20:use futures::StreamExt;
+codex-api\src\endpoint\responses_websocket.rs:21:use http::HeaderMap;
+codex-api\src\endpoint\responses_websocket.rs:22:use http::HeaderName;
+codex-api\src\endpoint\responses_websocket.rs:23:use http::HeaderValue;
+codex-api\src\endpoint\responses_websocket.rs:24:use http::StatusCode;
+codex-api\src\endpoint\responses_websocket.rs:25:use serde::Deserialize;
+codex-api\src\endpoint\responses_websocket.rs:26:use serde_json::Value;
+codex-api\src\endpoint\responses_websocket.rs:27:use serde_json::map::Map as JsonMap;
+codex-api\src\endpoint\responses_websocket.rs:28:use std::sync::Arc;
+codex-api\src\endpoint\responses_websocket.rs:29:use std::sync::OnceLock;
+codex-api\src\endpoint\responses_websocket.rs:30:use std::time::Duration;
+codex-api\src\endpoint\responses_websocket.rs:31:use tokio::sync::Mutex;
+codex-api\src\endpoint\responses_websocket.rs:32:use tokio::sync::mpsc;
+codex-api\src\endpoint\responses_websocket.rs:33:use tokio::sync::oneshot;
+codex-api\src\endpoint\responses_websocket.rs:34:use tokio::time::Instant;
+codex-api\src\endpoint\responses_websocket.rs:35:use tokio_tungstenite::tungstenite::Error as WsError;
+codex-api\src\endpoint\responses_websocket.rs:36:use tokio_tungstenite::tungstenite::Message;
+codex-api\src\endpoint\responses_websocket.rs:37:use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+codex-api\src\endpoint\responses_websocket.rs:38:use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+codex-api\src\endpoint\responses_websocket.rs:39:use tracing::Instrument;
+codex-api\src\endpoint\responses_websocket.rs:40:use tracing::Span;
+codex-api\src\endpoint\responses_websocket.rs:41:use tracing::debug;
+codex-api\src\endpoint\responses_websocket.rs:42:use tracing::error;
+codex-api\src\endpoint\responses_websocket.rs:43:use tracing::info;
+codex-api\src\endpoint\responses_websocket.rs:44:use tracing::instrument;
+codex-api\src\endpoint\responses_websocket.rs:45:use tungstenite::extensions::ExtensionsConfig;
+codex-api\src\endpoint\responses_websocket.rs:46:use tungstenite::extensions::compression::deflate::DeflateConfig;
+codex-api\src\endpoint\responses_websocket.rs:47:use tungstenite::protocol::WebSocketConfig;
+codex-api\src\endpoint\responses_websocket.rs:48:use url::Url;
+codex-api\src\endpoint\responses_websocket.rs:50:struct WsStream {
+codex-api\src\endpoint\responses_websocket.rs:56:enum WsCommand {
+codex-api\src\endpoint\responses_websocket.rs:63:impl WsStream {
+codex-api\src\endpoint\responses_websocket.rs:149:impl Drop for WsStream {
+codex-api\src\endpoint\responses_websocket.rs:155:const X_CODEX_TURN_STATE_HEADER: &str = "x-codex-turn-state";
+codex-api\src\endpoint\responses_websocket.rs:156:const X_MODELS_ETAG_HEADER: &str = "x-models-etag";
+codex-api\src\endpoint\responses_websocket.rs:157:const X_REASONING_INCLUDED_HEADER: &str = "x-reasoning-included";
+codex-api\src\endpoint\responses_websocket.rs:158:const OPENAI_MODEL_HEADER: &str = "openai-model";
+codex-api\src\endpoint\responses_websocket.rs:159:const WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE: &str = "websocket_connection_limit_reached";
+codex-api\src\endpoint\responses_websocket.rs:160:const WEBSOCKET_CONNECTION_LIMIT_REACHED_MESSAGE: &str = "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue.";
+codex-api\src\endpoint\responses_websocket.rs:161:const PREVIOUS_RESPONSE_NOT_FOUND_CODE: &str = "previous_response_not_found";
+codex-api\src\endpoint\responses_websocket.rs:162:const PREVIOUS_RESPONSE_NOT_FOUND_MESSAGE: &str =
+codex-api\src\endpoint\responses_websocket.rs:164:const RESPONSES_WEBSOCKET_TIMING_KIND: &str = "responsesapi.websocket_timing";
+codex-api\src\endpoint\responses_websocket.rs:165:const RESPONSES_WEBSOCKET_TIMING_EVENT_TARGET: &str = "codex_api::responses_websocket_timing";
+codex-api\src\endpoint\responses_websocket.rs:166:const SESSION_ID_CLIENT_METADATA_KEY: &str = "session_id";
+codex-api\src\endpoint\responses_websocket.rs:167:const THREAD_ID_CLIENT_METADATA_KEY: &str = "thread_id";
+codex-api\src\endpoint\responses_websocket.rs:168:const TURN_ID_CLIENT_METADATA_KEY: &str = "turn_id";
+codex-api\src\endpoint\responses_websocket.rs:169:const WS_STREAM_REQUEST_START_MS_CLIENT_METADATA_KEY: &str = "x-codex-ws-stream-request-start-ms";
+codex-api\src\endpoint\responses_websocket.rs:171:struct ResponsesWebsocketTimingLogContext {
+codex-api\src\endpoint\responses_websocket.rs:183:pub struct ResponsesWebsocketConnection {
+codex-api\src\endpoint\responses_websocket.rs:193:impl std::fmt::Debug for ResponsesWebsocketConnection {
+codex-api\src\endpoint\responses_websocket.rs:206:impl ResponsesWebsocketConnection {
+codex-api\src\endpoint\responses_websocket.rs:344:/// Client for connecting to the Responses WebSocket endpoint for one provider.
+codex-api\src\endpoint\responses_websocket.rs:345:pub struct ResponsesWebsocketClient {
+codex-api\src\endpoint\responses_websocket.rs:351:/// Close frame information captured by a handshake probe.
+codex-api\src\endpoint\responses_websocket.rs:353:pub struct ResponsesWebsocketClose {
+codex-api\src\endpoint\responses_websocket.rs:360:/// Result of a handshake-only Responses WebSocket probe.
+codex-api\src\endpoint\responses_websocket.rs:362:pub struct ResponsesWebsocketProbe {
+codex-api\src\endpoint\responses_websocket.rs:375:impl ResponsesWebsocketClient {
+codex-api\src\endpoint\responses_websocket.rs:476:fn immediate_close_from_message(message: Message) -> Option<ResponsesWebsocketClose> {
+codex-api\src\endpoint\responses_websocket.rs:483:fn close_frame_to_probe(frame: CloseFrame) -> ResponsesWebsocketClose {
+codex-api\src\endpoint\responses_websocket.rs:490:fn merge_request_headers(
+codex-api\src\endpoint\responses_websocket.rs:505:async fn connect_websocket(
+codex-api\src\endpoint\responses_websocket.rs:559:fn websocket_config() -> WebSocketConfig {
+codex-api\src\endpoint\responses_websocket.rs:568:fn map_ws_error(err: WsError, url: &Url) -> ApiError {
+codex-api\src\endpoint\responses_websocket.rs:593:struct WrappedWebsocketError {
+codex-api\src\endpoint\responses_websocket.rs:599:struct WrappedWebsocketErrorEvent {
+codex-api\src\endpoint\responses_websocket.rs:610:fn parse_wrapped_websocket_error_event(payload: &str) -> Option<WrappedWebsocketErrorEvent> {
+codex-api\src\endpoint\responses_websocket.rs:618:fn map_wrapped_websocket_error_event(
+codex-api\src\endpoint\responses_websocket.rs:661:fn json_headers_to_http_headers(headers: &JsonMap<String, Value>) -> HeaderMap {
+codex-api\src\endpoint\responses_websocket.rs:675:fn json_header_value(value: &Value) -> Option<HeaderValue> {
+codex-api\src\endpoint\responses_websocket.rs:685:async fn run_websocket_response_stream(
+codex-api\src\endpoint\responses_websocket.rs:847:fn emit_responses_websocket_timing_event(
+codex-api\src\endpoint\responses_websocket.rs:876:fn safety_buffering_for_event(
+codex-api\src\endpoint\responses_websocket.rs:889:async fn send_websocket_request(
+codex-api\src\endpoint\responses_websocket.rs:920:fn serialize_websocket_request(request: &ResponsesWsRequest<'_>) -> Result<String, ApiError> {
+codex-api\src\endpoint\responses_websocket.rs:926:mod tests {
+codex-api\src\endpoint\memories.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\memories.rs:2:use crate::common::MemorySummarizeInput;
+codex-api\src\endpoint\memories.rs:3:use crate::common::MemorySummarizeOutput;
+codex-api\src\endpoint\memories.rs:4:use crate::endpoint::session::EndpointSession;
+codex-api\src\endpoint\memories.rs:5:use crate::error::ApiError;
+codex-api\src\endpoint\memories.rs:6:use crate::provider::Provider;
+codex-api\src\endpoint\memories.rs:7:use codex_client::HttpTransport;
+codex-api\src\endpoint\memories.rs:8:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\memories.rs:9:use http::HeaderMap;
+codex-api\src\endpoint\memories.rs:10:use http::Method;
+codex-api\src\endpoint\memories.rs:11:use serde::Deserialize;
+codex-api\src\endpoint\memories.rs:12:use serde_json::to_value;
+codex-api\src\endpoint\memories.rs:13:use std::sync::Arc;
+codex-api\src\endpoint\memories.rs:15:pub struct MemoriesClient<T: HttpTransport> {
+codex-api\src\endpoint\memories.rs:63:struct SummarizeResponse {
+codex-api\src\endpoint\memories.rs:68:mod tests {
+codex-api\src\endpoint\search.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\search.rs:2:use crate::endpoint::session::EndpointSession;
+codex-api\src\endpoint\search.rs:3:use crate::error::ApiError;
+codex-api\src\endpoint\search.rs:4:use crate::provider::Provider;
+codex-api\src\endpoint\search.rs:5:use crate::search::SearchRequest;
+codex-api\src\endpoint\search.rs:6:use crate::search::SearchResponse;
+codex-api\src\endpoint\search.rs:7:use codex_client::HttpTransport;
+codex-api\src\endpoint\search.rs:8:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\search.rs:9:use http::HeaderMap;
+codex-api\src\endpoint\search.rs:10:use http::Method;
+codex-api\src\endpoint\search.rs:11:use serde_json::to_value;
+codex-api\src\endpoint\search.rs:12:use std::sync::Arc;
+codex-api\src\endpoint\search.rs:14:pub struct SearchClient<T: HttpTransport> {
+codex-api\src\endpoint\search.rs:52:mod tests {
+codex-api\src\sse\responses.rs:1:use crate::common::ResponseEvent;
+codex-api\src\sse\responses.rs:2:use crate::common::ResponseStream;
+codex-api\src\sse\responses.rs:3:use crate::common::SafetyBuffering;
+codex-api\src\sse\responses.rs:4:use crate::common::SafetyBufferingTreatment;
+codex-api\src\sse\responses.rs:5:use crate::error::ApiError;
+codex-api\src\sse\responses.rs:6:use crate::rate_limits::parse_all_rate_limits;
+codex-api\src\sse\responses.rs:7:use crate::safety_buffering::treatment_from_headers;
+codex-api\src\sse\responses.rs:8:use crate::telemetry::SseTelemetry;
+codex-api\src\sse\responses.rs:9:use codex_client::ByteStream;
+codex-api\src\sse\responses.rs:10:use codex_client::StreamResponse;
+codex-api\src\sse\responses.rs:11:use codex_protocol::ResponseUsageMetadata;
+codex-api\src\sse\responses.rs:12:use codex_protocol::models::ResponseItem;
+codex-api\src\sse\responses.rs:13:use codex_protocol::protocol::MisalignmentErrorDetails;
+codex-api\src\sse\responses.rs:14:use codex_protocol::protocol::ModelVerification;
+codex-api\src\sse\responses.rs:15:use codex_protocol::protocol::TokenUsage;
+codex-api\src\sse\responses.rs:16:use codex_protocol::protocol::TurnModerationMetadataEvent;
+codex-api\src\sse\responses.rs:17:use eventsource_stream::Eventsource;
+codex-api\src\sse\responses.rs:18:use futures::StreamExt;
+codex-api\src\sse\responses.rs:19:use serde::Deserialize;
+codex-api\src\sse\responses.rs:20:use serde_json::Value;
+codex-api\src\sse\responses.rs:21:use std::sync::Arc;
+codex-api\src\sse\responses.rs:22:use std::sync::OnceLock;
+codex-api\src\sse\responses.rs:23:use std::time::Duration;
+codex-api\src\sse\responses.rs:24:use tokio::sync::mpsc;
+codex-api\src\sse\responses.rs:25:use tokio::time::Instant;
+codex-api\src\sse\responses.rs:26:use tokio::time::timeout;
+codex-api\src\sse\responses.rs:27:use tracing::debug;
+codex-api\src\sse\responses.rs:28:use tracing::trace;
+codex-api\src\sse\responses.rs:30:const X_REASONING_INCLUDED_HEADER: &str = "x-reasoning-included";
+codex-api\src\sse\responses.rs:31:const X_CODEX_TURN_STATE_HEADER: &str = "x-codex-turn-state";
+codex-api\src\sse\responses.rs:32:const OPENAI_MODEL_HEADER: &str = "openai-model";
+codex-api\src\sse\responses.rs:33:const REQUEST_ID_HEADER: &str = "x-request-id";
+codex-api\src\sse\responses.rs:34:const TRUSTED_ACCESS_FOR_CYBER_VERIFICATION: &str = "trusted_access_for_cyber";
+codex-api\src\sse\responses.rs:36:pub fn spawn_response_stream(
+codex-api\src\sse\responses.rs:106:struct Error {
+codex-api\src\sse\responses.rs:118:struct ResponseCompleted {
+codex-api\src\sse\responses.rs:128:struct ResponseCompletedUsage {
+codex-api\src\sse\responses.rs:138:impl From<ResponseCompletedUsage> for TokenUsage {
+codex-api\src\sse\responses.rs:157:struct ResponseCompletedInputTokensDetails {
+codex-api\src\sse\responses.rs:164:struct ResponseCompletedOutputTokensDetails {
+codex-api\src\sse\responses.rs:169:pub struct ResponsesStreamEvent {
+codex-api\src\sse\responses.rs:186:fn deserialize_present_value<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+codex-api\src\sse\responses.rs:193:impl ResponsesStreamEvent {
+codex-api\src\sse\responses.rs:277:fn header_openai_model_value_from_json(value: &Value) -> Option<String> {
+codex-api\src\sse\responses.rs:289:fn header_turn_state_value_from_json(value: &Value) -> Option<String> {
+codex-api\src\sse\responses.rs:300:fn model_verifications_from_json_value(value: &Value) -> Option<Vec<ModelVerification>> {
+codex-api\src\sse\responses.rs:325:fn parse_model_verification(value: &str) -> Option<ModelVerification> {
+codex-api\src\sse\responses.rs:332:fn json_value_as_string(value: &Value) -> Option<String> {
+codex-api\src\sse\responses.rs:341:pub enum ResponsesEventError {
+codex-api\src\sse\responses.rs:345:impl ResponsesEventError {
+codex-api\src\sse\responses.rs:353:pub fn process_responses_event(
+codex-api\src\sse\responses.rs:541:pub async fn process_sse(
+codex-api\src\sse\responses.rs:557:async fn process_sse_with_treatment(
+codex-api\src\sse\responses.rs:670:fn try_parse_retry_after(err: &Error) -> Option<Duration> {
+codex-api\src\sse\responses.rs:696:fn is_context_window_error(error: &Error) -> bool {
+codex-api\src\sse\responses.rs:700:fn is_quota_exceeded_error(error: &Error) -> bool {
+codex-api\src\sse\responses.rs:704:fn is_usage_not_included(error: &Error) -> bool {
+codex-api\src\sse\responses.rs:708:fn is_cyber_policy_error(error: &Error) -> bool {
+codex-api\src\sse\responses.rs:712:fn is_server_overloaded_error(error: &Error) -> bool {
+codex-api\src\sse\responses.rs:717:fn cyber_policy_fallback_message() -> String {
+codex-api\src\sse\responses.rs:721:fn cyber_policy_message(message: Option<String>) -> String {
+codex-api\src\sse\responses.rs:727:fn rate_limit_regex() -> &'static regex_lite::Regex {
+codex-api\src\sse\responses.rs:736:mod tests {
+codex-api\src\endpoint\realtime_call.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\realtime_call.rs:2:use crate::endpoint::realtime_websocket::RealtimeEventParser;
+codex-api\src\endpoint\realtime_call.rs:3:use crate::endpoint::realtime_websocket::RealtimeSessionConfig;
+codex-api\src\endpoint\realtime_call.rs:4:use crate::endpoint::realtime_websocket::session_update_session_json;
+codex-api\src\endpoint\realtime_call.rs:5:use crate::endpoint::session::EndpointSession;
+codex-api\src\endpoint\realtime_call.rs:6:use crate::error::ApiError;
+codex-api\src\endpoint\realtime_call.rs:7:use crate::provider::Provider;
+codex-api\src\endpoint\realtime_call.rs:8:use bytes::Bytes;
+codex-api\src\endpoint\realtime_call.rs:9:use codex_client::HttpTransport;
+codex-api\src\endpoint\realtime_call.rs:10:use codex_client::Request;
+codex-api\src\endpoint\realtime_call.rs:11:use codex_client::RequestBody;
+codex-api\src\endpoint\realtime_call.rs:12:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\realtime_call.rs:13:use http::HeaderMap;
+codex-api\src\endpoint\realtime_call.rs:14:use http::HeaderValue;
+codex-api\src\endpoint\realtime_call.rs:15:use http::Method;
+codex-api\src\endpoint\realtime_call.rs:16:use http::header::CONTENT_TYPE;
+codex-api\src\endpoint\realtime_call.rs:17:use http::header::LOCATION;
+codex-api\src\endpoint\realtime_call.rs:18:use serde::Serialize;
+codex-api\src\endpoint\realtime_call.rs:19:use serde_json::Value;
+codex-api\src\endpoint\realtime_call.rs:20:use serde_json::to_string;
+codex-api\src\endpoint\realtime_call.rs:21:use serde_json::to_value;
+codex-api\src\endpoint\realtime_call.rs:22:use std::sync::Arc;
+codex-api\src\endpoint\realtime_call.rs:23:use tracing::instrument;
+codex-api\src\endpoint\realtime_call.rs:24:use tracing::trace;
+codex-api\src\endpoint\realtime_call.rs:26:const MULTIPART_BOUNDARY: &str = "codex-realtime-call-boundary";
+codex-api\src\endpoint\realtime_call.rs:27:const MULTIPART_CONTENT_TYPE: &str = "multipart/form-data; boundary=codex-realtime-call-boundary";
+codex-api\src\endpoint\realtime_call.rs:29:pub struct RealtimeCallClient<T: HttpTransport> {
+codex-api\src\endpoint\realtime_call.rs:33:/// Answer from creating a WebRTC Realtime call.
+codex-api\src\endpoint\realtime_call.rs:34:///
+codex-api\src\endpoint\realtime_call.rs:35:/// `sdp` configures the peer connection. `call_id` is parsed from the response `Location` header
+codex-api\src\endpoint\realtime_call.rs:36:/// and is later used by the server-side sideband WebSocket to join this exact call.
+codex-api\src\endpoint\realtime_call.rs:38:pub struct RealtimeCallResponse {
+codex-api\src\endpoint\realtime_call.rs:44:struct BackendRealtimeCallRequest<'a> {
+codex-api\src\endpoint\realtime_call.rs:213:fn configure_realtime_call_request(
+codex-api\src\endpoint\realtime_call.rs:226:fn validate_avas_session_config(session_config: &RealtimeSessionConfig) -> Result<(), ApiError> {
+codex-api\src\endpoint\realtime_call.rs:235:fn append_query_pair(url: &mut String, key: &str, value: &str) {
+codex-api\src\endpoint\realtime_call.rs:246:fn realtime_session_json(session_config: RealtimeSessionConfig) -> Result<Value, ApiError> {
+codex-api\src\endpoint\realtime_call.rs:251:fn decode_sdp_response(body: &[u8]) -> Result<String, ApiError> {
+codex-api\src\endpoint\realtime_call.rs:259:fn decode_call_id_from_location(headers: &HeaderMap) -> Result<String, ApiError> {
+codex-api\src\endpoint\realtime_call.rs:281:fn is_realtime_call_id_segment(segment: &str) -> bool {
+codex-api\src\endpoint\realtime_call.rs:297:mod tests {
+codex-api\src\images.rs:1:use serde::Deserialize;
+codex-api\src\images.rs:2:use serde::Serialize;
+codex-api\src\images.rs:5:pub struct ImageGenerationRequest {
+codex-api\src\images.rs:19:pub struct ImageEditRequest {
+codex-api\src\images.rs:34:pub struct ImageUrl {
+codex-api\src\images.rs:40:pub enum ImageBackground {
+codex-api\src\images.rs:48:pub enum ImageQuality {
+codex-api\src\images.rs:56:pub struct ImageResponse {
+codex-api\src\images.rs:68:pub struct ImageData {
+codex-api\src\sse\mod.rs:7:pub use responses::spawn_response_stream;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:1:use crate::endpoint::realtime_websocket::methods_frameless_bidi::delegation_context_append_message as frameless_delegation_context_append_message;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:2:use crate::endpoint::realtime_websocket::methods_frameless_bidi::session_context_append_message as frameless_session_context_append_message;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:3:use crate::endpoint::realtime_websocket::methods_frameless_bidi::session_json as frameless_session_json;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:4:use crate::endpoint::realtime_websocket::methods_frameless_bidi::session_update_message as frameless_session_update_message;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:5:use crate::endpoint::realtime_websocket::methods_v1::conversation_handoff_append_message as v1_conversation_handoff_append_message;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:6:use crate::endpoint::realtime_websocket::methods_v1::conversation_item_create_message as v1_conversation_item_create_message;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:7:use crate::endpoint::realtime_websocket::methods_v1::session_update_session as v1_session_update_session;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:8:use crate::endpoint::realtime_websocket::methods_v1::websocket_intent as v1_websocket_intent;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:9:use crate::endpoint::realtime_websocket::methods_v2::conversation_function_call_output_message as v2_conversation_function_call_output_message;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:10:use crate::endpoint::realtime_websocket::methods_v2::conversation_item_create_message as v2_conversation_item_create_message;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:11:use crate::endpoint::realtime_websocket::methods_v2::session_update_session as v2_session_update_session;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:12:use crate::endpoint::realtime_websocket::methods_v2::websocket_intent as v2_websocket_intent;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:13:use crate::endpoint::realtime_websocket::protocol::RealtimeContextAppendChannel;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:14:use crate::endpoint::realtime_websocket::protocol::RealtimeOutboundMessage;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:15:use crate::endpoint::realtime_websocket::protocol::RealtimeOutputModality;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:16:use crate::endpoint::realtime_websocket::protocol::RealtimeSessionConfig;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:17:use crate::endpoint::realtime_websocket::protocol::RealtimeSessionMode;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:18:use crate::endpoint::realtime_websocket::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:19:use crate::endpoint::realtime_websocket::protocol::RealtimeWireAdapter;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:20:use codex_protocol::protocol::ConversationTextParams;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:21:use codex_protocol::protocol::ConversationTextRole;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:22:use serde_json::Result as JsonResult;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:23:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:24:use serde_json::to_value;
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:27:const AGENT_FINAL_MESSAGE_PREFIX: &str = "\"Agent Final Message\":\n\n";
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:140:pub fn session_update_session_json(config: RealtimeSessionConfig) -> JsonResult<Value> {
+codex-api\src\endpoint\realtime_websocket\methods_common.rs:179:mod tests;
+codex-api\src\sse\chat.rs:1://! Translation of OpenAI-compatible `/chat/completions` SSE frames into the
+codex-api\src\sse\chat.rs:2://! Responses-shaped [`ResponseEvent`] stream the rest of Suffice consumes.
+codex-api\src\sse\chat.rs:3://!
+codex-api\src\sse\chat.rs:4://! See `crate::requests::chat` for the outbound half of the bridge.
+codex-api\src\sse\chat.rs:6:use crate::common::ResponseEvent;
+codex-api\src\sse\chat.rs:7:use crate::common::ResponseStream;
+codex-api\src\sse\chat.rs:8:use crate::error::ApiError;
+codex-api\src\sse\chat.rs:9:use crate::telemetry::SseTelemetry;
+codex-api\src\sse\chat.rs:10:use codex_client::StreamResponse;
+codex-api\src\sse\chat.rs:11:use codex_protocol::models::ContentItem;
+codex-api\src\sse\chat.rs:12:use codex_protocol::models::ReasoningItemContent;
+codex-api\src\sse\chat.rs:13:use codex_protocol::models::ResponseItem;
+codex-api\src\sse\chat.rs:14:use codex_protocol::protocol::TokenUsage;
+codex-api\src\sse\chat.rs:15:use eventsource_stream::Eventsource;
+codex-api\src\sse\chat.rs:16:use futures::Stream;
+codex-api\src\sse\chat.rs:17:use futures::StreamExt;
+codex-api\src\sse\chat.rs:18:use serde_json::Value;
+codex-api\src\sse\chat.rs:19:use std::collections::HashMap;
+codex-api\src\sse\chat.rs:20:use std::sync::Arc;
+codex-api\src\sse\chat.rs:21:use std::time::Duration;
+codex-api\src\sse\chat.rs:22:use tokio::sync::mpsc;
+codex-api\src\sse\chat.rs:23:use tokio::time::Instant;
+codex-api\src\sse\chat.rs:24:use tokio::time::timeout;
+codex-api\src\sse\chat.rs:25:use tracing::debug;
+codex-api\src\sse\chat.rs:26:use tracing::trace;
+codex-api\src\sse\chat.rs:28:const REQUEST_ID_HEADER: &str = "x-request-id";
+codex-api\src\sse\chat.rs:53:struct ToolCallState {
+codex-api\src\sse\chat.rs:59:/// Accumulates the in-flight assistant turn while chunks arrive.
+codex-api\src\sse\chat.rs:60:///
+codex-api\src\sse\chat.rs:61:/// Chat Completions streams deltas with no item identity, so we rebuild whole
+codex-api\src\sse\chat.rs:62:/// `ResponseItem`s here and emit them as `OutputItemDone` at the finish boundary.
+codex-api\src\sse\chat.rs:64:struct ChatTurn {
+codex-api\src\sse\chat.rs:206:/// Emits the accumulated reasoning, assistant message, and tool calls in the
+codex-api\src\sse\chat.rs:207:/// order the Responses API would have produced them.
+codex-api\src\sse\chat.rs:208:async fn flush_items(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
+codex-api\src\sse\chat.rs:242:/// Flushes anything still buffered and closes the turn.
+codex-api\src\sse\chat.rs:243:///
+codex-api\src\sse\chat.rs:244:/// Deferred until `[DONE]` (or stream end) because the usage chunk arrives after
+codex-api\src\sse\chat.rs:245:/// `finish_reason`, and dropping it would leave Suffice blind to token cost.
+codex-api\src\sse\chat.rs:246:async fn complete(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
+codex-api\src\sse\chat.rs:258:fn accumulate_tool_call(turn: &mut ChatTurn, tool_call: &Value) {
+codex-api\src\sse\chat.rs:311:/// Reads chain-of-thought text from a delta or message.
+codex-api\src\sse\chat.rs:312:///
+codex-api\src\sse\chat.rs:313:/// `reasoning_content` is the Z.ai/GLM spelling; `reasoning` is what other
+codex-api\src\sse\chat.rs:314:/// OpenAI-compatible servers use, as a string or as `{text}`/`{content}`.
+codex-api\src\sse\chat.rs:315:fn reasoning_text(node: &Value) -> Option<String> {
+codex-api\src\sse\chat.rs:330:fn content_texts(content: &Value) -> Vec<String> {
+codex-api\src\sse\chat.rs:343:async fn append_assistant(
+codex-api\src\sse\chat.rs:370:async fn append_reasoning(
+codex-api\src\sse\chat.rs:405:fn token_usage_from_chat_usage(usage: &Value) -> TokenUsage {
+codex-api\src\sse\chat.rs:434:mod tests {
+codex-api\src\search.rs:1:use crate::common::Reasoning;
+codex-api\src\search.rs:2:use codex_protocol::models::ResponseItem;
+codex-api\src\search.rs:3:use schemars::JsonSchema;
+codex-api\src\search.rs:4:use serde::Deserialize;
+codex-api\src\search.rs:5:use serde::Serialize;
+codex-api\src\search.rs:6:use serde_json::Value as JsonValue;
+codex-api\src\search.rs:9:pub struct SearchRequest {
+codex-api\src\search.rs:26:pub enum SearchInput {
+codex-api\src\search.rs:32:pub struct SearchCommands {
+codex-api\src\search.rs:69:pub struct SearchQuery {
+codex-api\src\search.rs:81:pub struct OpenOperation {
+codex-api\src\search.rs:90:pub struct ClickOperation {
+codex-api\src\search.rs:98:pub struct FindOperation {
+codex-api\src\search.rs:106:pub struct ScreenshotOperation {
+codex-api\src\search.rs:114:pub struct FinanceOperation {
+codex-api\src\search.rs:126:pub enum FinanceAssetType {
+codex-api\src\search.rs:134:pub struct WeatherOperation {
+codex-api\src\search.rs:146:pub struct SportsOperation {
+codex-api\src\search.rs:176:pub enum SportsToolName {
+codex-api\src\search.rs:182:pub enum SportsFunction {
+codex-api\src\search.rs:189:pub enum SportsLeague {
+codex-api\src\search.rs:202:pub struct TimeOperation {
+codex-api\src\search.rs:209:pub enum SearchResponseLength {
+codex-api\src\search.rs:217:pub enum ExternalWebAccessMode {
+codex-api\src\search.rs:225:pub enum ExternalWebAccess {
+codex-api\src\search.rs:231:pub struct SearchSettings {
+codex-api\src\search.rs:247:pub struct ApproximateLocation {
+codex-api\src\search.rs:261:pub enum LocationType {
+codex-api\src\search.rs:267:pub enum SearchContextSize {
+codex-api\src\search.rs:274:pub struct SearchFilters {
+codex-api\src\search.rs:282:pub struct SearchImageSettings {
+codex-api\src\search.rs:291:pub enum AllowedCaller {
+codex-api\src\search.rs:298:pub struct SearchResponse {
+codex-api\src\safety_buffering.rs:1:use crate::common::SafetyBufferingTreatment;
+codex-api\src\safety_buffering.rs:2:use http::HeaderMap;
+codex-api\src\safety_buffering.rs:23:mod tests {
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:1:use super::CONTEXT_APPEND_MAX_BYTES;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:2:use super::context_append_chunks;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:3:use super::session_json;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:4:use crate::endpoint::realtime_websocket::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:5:use codex_protocol::protocol::ConversationTextParams;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:6:use codex_protocol::protocol::ConversationTextRole;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:7:use pretty_assertions::assert_eq;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:8:use serde_json::json;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:11:fn context_append_chunks_preserve_text_within_wire_limit() {
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:24:fn session_json_omits_initial_items_when_empty() {
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:51:fn session_json_encodes_role_bearing_initial_items() {
+codex-api\src\requests\responses.rs:2:pub enum Compression {
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:1:use crate::endpoint::realtime_websocket::protocol::FramelessContentType;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:2:use crate::endpoint::realtime_websocket::protocol::FramelessInputTextContent;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:3:use crate::endpoint::realtime_websocket::protocol::RealtimeContextAppendChannel;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:4:use crate::endpoint::realtime_websocket::protocol::RealtimeOutboundMessage;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:5:use crate::endpoint::realtime_websocket::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:6:use codex_protocol::protocol::ConversationTextParams;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:7:use codex_protocol::protocol::ConversationTextRole;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:8:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:9:use serde_json::json;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:11:const CONTEXT_APPEND_MAX_BYTES: usize = 500;
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:102:fn input_text_content(text: String) -> Vec<FramelessInputTextContent> {
+codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs:129:mod tests;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:1:use super::conversation_function_call_output_message;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:2:use super::conversation_handoff_append_message;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:3:use super::session_update_message;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:4:use super::standalone_handoff_message;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:5:use crate::endpoint::realtime_websocket::protocol::RealtimeContextAppendChannel;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:6:use crate::endpoint::realtime_websocket::protocol::RealtimeOutputModality;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:7:use crate::endpoint::realtime_websocket::protocol::RealtimeSessionMode;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:8:use crate::endpoint::realtime_websocket::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:9:use crate::endpoint::realtime_websocket::protocol::RealtimeWireAdapter;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:10:use pretty_assertions::assert_eq;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:11:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:12:use serde_json::json;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:13:use serde_json::to_value;
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:16:fn frameless_session_update_encodes_explicit_delegation_ack_filler() {
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:50:fn context_append_channel_only_encodes_for_frameless_handoff_output() {
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:84:fn standalone_handoff_uses_session_context_for_frameless() {
+codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs:117:fn completed_handoff_only_prefixes_v1_payload_text() {
+codex-api\src\requests\mod.rs:5:pub use responses::Compression;
+codex-api\src\endpoint\realtime_websocket\methods.rs:1:use crate::endpoint::realtime_websocket::methods_common::conversation_function_call_output_message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:2:use crate::endpoint::realtime_websocket::methods_common::conversation_handoff_append_message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:3:use crate::endpoint::realtime_websocket::methods_common::conversation_item_create_message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:4:use crate::endpoint::realtime_websocket::methods_common::normalized_session_mode;
+codex-api\src\endpoint\realtime_websocket\methods.rs:5:use crate::endpoint::realtime_websocket::methods_common::session_update_message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:6:use crate::endpoint::realtime_websocket::methods_common::standalone_handoff_message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:7:use crate::endpoint::realtime_websocket::methods_common::websocket_intent;
+codex-api\src\endpoint\realtime_websocket\methods.rs:8:use crate::endpoint::realtime_websocket::methods_frameless_bidi::context_append_chunks;
+codex-api\src\endpoint\realtime_websocket\methods.rs:9:use crate::endpoint::realtime_websocket::methods_frameless_bidi::delegation_context_append_message as frameless_delegation_context_append_message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:10:use crate::endpoint::realtime_websocket::methods_frameless_bidi::session_context_append_message as frameless_session_context_append_message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:11:use crate::endpoint::realtime_websocket::protocol::RealtimeAudioFrame;
+codex-api\src\endpoint\realtime_websocket\methods.rs:12:use crate::endpoint::realtime_websocket::protocol::RealtimeContextAppendChannel;
+codex-api\src\endpoint\realtime_websocket\methods.rs:13:use crate::endpoint::realtime_websocket::protocol::RealtimeEvent;
+codex-api\src\endpoint\realtime_websocket\methods.rs:14:use crate::endpoint::realtime_websocket::protocol::RealtimeEventParser;
+codex-api\src\endpoint\realtime_websocket\methods.rs:15:use crate::endpoint::realtime_websocket::protocol::RealtimeOutboundMessage;
+codex-api\src\endpoint\realtime_websocket\methods.rs:16:use crate::endpoint::realtime_websocket::protocol::RealtimeOutputModality;
+codex-api\src\endpoint\realtime_websocket\methods.rs:17:use crate::endpoint::realtime_websocket::protocol::RealtimeSessionConfig;
+codex-api\src\endpoint\realtime_websocket\methods.rs:18:use crate::endpoint::realtime_websocket::protocol::RealtimeSessionMode;
+codex-api\src\endpoint\realtime_websocket\methods.rs:19:use crate::endpoint::realtime_websocket::protocol::RealtimeTranscriptEntry;
+codex-api\src\endpoint\realtime_websocket\methods.rs:20:use crate::endpoint::realtime_websocket::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\methods.rs:21:use crate::endpoint::realtime_websocket::protocol::parse_realtime_event;
+codex-api\src\endpoint\realtime_websocket\methods.rs:22:use crate::error::ApiError;
+codex-api\src\endpoint\realtime_websocket\methods.rs:23:use crate::provider::Provider;
+codex-api\src\endpoint\realtime_websocket\methods.rs:24:use codex_client::backoff;
+codex-api\src\endpoint\realtime_websocket\methods.rs:25:use codex_http_client::maybe_build_rustls_client_config_with_custom_ca;
+codex-api\src\endpoint\realtime_websocket\methods.rs:26:use codex_protocol::protocol::ConversationTextParams;
+codex-api\src\endpoint\realtime_websocket\methods.rs:27:use codex_protocol::protocol::ConversationTextRole;
+codex-api\src\endpoint\realtime_websocket\methods.rs:28:use codex_protocol::protocol::RealtimeTranscriptDelta;
+codex-api\src\endpoint\realtime_websocket\methods.rs:29:use codex_utils_rustls_provider::ensure_rustls_crypto_provider;
+codex-api\src\endpoint\realtime_websocket\methods.rs:30:use futures::SinkExt;
+codex-api\src\endpoint\realtime_websocket\methods.rs:31:use futures::StreamExt;
+codex-api\src\endpoint\realtime_websocket\methods.rs:32:use http::HeaderMap;
+codex-api\src\endpoint\realtime_websocket\methods.rs:33:use http::HeaderValue;
+codex-api\src\endpoint\realtime_websocket\methods.rs:34:use http::StatusCode;
+codex-api\src\endpoint\realtime_websocket\methods.rs:35:use std::collections::HashMap;
+codex-api\src\endpoint\realtime_websocket\methods.rs:36:use std::collections::VecDeque;
+codex-api\src\endpoint\realtime_websocket\methods.rs:37:use std::sync::Arc;
+codex-api\src\endpoint\realtime_websocket\methods.rs:38:use std::sync::atomic::AtomicBool;
+codex-api\src\endpoint\realtime_websocket\methods.rs:39:use std::sync::atomic::Ordering;
+codex-api\src\endpoint\realtime_websocket\methods.rs:40:use tokio::net::TcpStream;
+codex-api\src\endpoint\realtime_websocket\methods.rs:41:use tokio::sync::Mutex;
+codex-api\src\endpoint\realtime_websocket\methods.rs:42:use tokio::sync::mpsc;
+codex-api\src\endpoint\realtime_websocket\methods.rs:43:use tokio::sync::oneshot;
+codex-api\src\endpoint\realtime_websocket\methods.rs:44:use tokio::time::sleep;
+codex-api\src\endpoint\realtime_websocket\methods.rs:45:use tokio_tungstenite::MaybeTlsStream;
+codex-api\src\endpoint\realtime_websocket\methods.rs:46:use tokio_tungstenite::WebSocketStream;
+codex-api\src\endpoint\realtime_websocket\methods.rs:47:use tokio_tungstenite::tungstenite::Error as WsError;
+codex-api\src\endpoint\realtime_websocket\methods.rs:48:use tokio_tungstenite::tungstenite::Message;
+codex-api\src\endpoint\realtime_websocket\methods.rs:49:use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+codex-api\src\endpoint\realtime_websocket\methods.rs:50:use tracing::debug;
+codex-api\src\endpoint\realtime_websocket\methods.rs:51:use tracing::error;
+codex-api\src\endpoint\realtime_websocket\methods.rs:52:use tracing::info;
+codex-api\src\endpoint\realtime_websocket\methods.rs:53:use tracing::trace;
+codex-api\src\endpoint\realtime_websocket\methods.rs:54:use tracing::warn;
+codex-api\src\endpoint\realtime_websocket\methods.rs:55:use tungstenite::protocol::WebSocketConfig;
+codex-api\src\endpoint\realtime_websocket\methods.rs:56:use tungstenite::protocol::frame::coding::CloseCode;
+codex-api\src\endpoint\realtime_websocket\methods.rs:57:use url::Url;
+codex-api\src\endpoint\realtime_websocket\methods.rs:59:const REALTIME_WIRE_LOG_TARGET: &str = "codex_api::realtime_websocket::wire";
+codex-api\src\endpoint\realtime_websocket\methods.rs:60:const OPENAI_REALTIME_API_BASE_URL: &str = "https://api.openai.com/v1";
+codex-api\src\endpoint\realtime_websocket\methods.rs:61:const MAX_ACTIVE_TRANSCRIPT_BYTES: usize = 8 * 1024;
+codex-api\src\endpoint\realtime_websocket\methods.rs:62:const TRUNCATED_TRANSCRIPT_PREFIX: &str = "…";
+codex-api\src\endpoint\realtime_websocket\methods.rs:64:struct WsStream {
+codex-api\src\endpoint\realtime_websocket\methods.rs:69:enum WsCommand {
+codex-api\src\endpoint\realtime_websocket\methods.rs:79:impl WsStream {
+codex-api\src\endpoint\realtime_websocket\methods.rs:205:impl Drop for WsStream {
+codex-api\src\endpoint\realtime_websocket\methods.rs:211:pub struct RealtimeWebsocketConnection {
+codex-api\src\endpoint\realtime_websocket\methods.rs:217:pub struct RealtimeWebsocketWriter {
+codex-api\src\endpoint\realtime_websocket\methods.rs:225:pub struct RealtimeWebsocketEvents {
+codex-api\src\endpoint\realtime_websocket\methods.rs:234:pub struct RealtimeTranscriptState {
+codex-api\src\endpoint\realtime_websocket\methods.rs:239:struct ActiveTranscriptState {
+codex-api\src\endpoint\realtime_websocket\methods.rs:245:impl RealtimeWebsocketConnection {
+codex-api\src\endpoint\realtime_websocket\methods.rs:310:impl RealtimeWebsocketWriter {
+codex-api\src\endpoint\realtime_websocket\methods.rs:497:impl RealtimeWebsocketEvents {
+codex-api\src\endpoint\realtime_websocket\methods.rs:661:impl RealtimeTranscriptState {
+codex-api\src\endpoint\realtime_websocket\methods.rs:667:fn truncate_active_transcript(entries: &mut Vec<RealtimeTranscriptEntry>) {
+codex-api\src\endpoint\realtime_websocket\methods.rs:691:fn transcript_entries_bytes(entries: &[RealtimeTranscriptEntry]) -> usize {
+codex-api\src\endpoint\realtime_websocket\methods.rs:695:fn transcript_entry_bytes(entry: &RealtimeTranscriptEntry) -> usize {
+codex-api\src\endpoint\realtime_websocket\methods.rs:699:fn append_transcript_delta(
+codex-api\src\endpoint\realtime_websocket\methods.rs:723:fn apply_transcript_done(
+codex-api\src\endpoint\realtime_websocket\methods.rs:747:fn append_handoff_input(entries: &mut Vec<RealtimeTranscriptEntry>, input: &str) {
+codex-api\src\endpoint\realtime_websocket\methods.rs:759:fn contains_transcript_entry(entries: &[RealtimeTranscriptEntry], role: &str, text: &str) -> bool {
+codex-api\src\endpoint\realtime_websocket\methods.rs:765:pub struct RealtimeWebsocketClient {
+codex-api\src\endpoint\realtime_websocket\methods.rs:771:enum RealtimeSessionInitialization {
+codex-api\src\endpoint\realtime_websocket\methods.rs:777:impl RealtimeWebsocketClient {
+codex-api\src\endpoint\realtime_websocket\methods.rs:1021:fn webrtc_sideband_session_ended(err: &ApiError) -> bool {
+codex-api\src\endpoint\realtime_websocket\methods.rs:1029:fn map_realtime_websocket_connect_error(err: WsError) -> ApiError {
+codex-api\src\endpoint\realtime_websocket\methods.rs:1039:fn merge_request_headers(
+codex-api\src\endpoint\realtime_websocket\methods.rs:1054:fn with_session_id_header(
+codex-api\src\endpoint\realtime_websocket\methods.rs:1070:fn websocket_config() -> WebSocketConfig {
+codex-api\src\endpoint\realtime_websocket\methods.rs:1074:fn websocket_url_from_api_url(
+codex-api\src\endpoint\realtime_websocket\methods.rs:1126:fn websocket_url_from_api_url_for_call(
+codex-api\src\endpoint\realtime_websocket\methods.rs:1163:fn normalize_realtime_path(url: &mut Url, event_parser: RealtimeEventParser) {
+codex-api\src\endpoint\realtime_websocket\methods.rs:1202:mod tests {
+codex-api\src\endpoint\session.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\session.rs:2:use crate::error::ApiError;
+codex-api\src\endpoint\session.rs:3:use crate::provider::Provider;
+codex-api\src\endpoint\session.rs:4:use crate::telemetry::run_with_request_telemetry;
+codex-api\src\endpoint\session.rs:5:use codex_client::EncodedJsonBody;
+codex-api\src\endpoint\session.rs:6:use codex_client::HttpTransport;
+codex-api\src\endpoint\session.rs:7:use codex_client::Request;
+codex-api\src\endpoint\session.rs:8:use codex_client::RequestBody;
+codex-api\src\endpoint\session.rs:9:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\session.rs:10:use codex_client::Response;
+codex-api\src\endpoint\session.rs:11:use codex_client::StreamResponse;
+codex-api\src\endpoint\session.rs:12:use codex_client::TransportError;
+codex-api\src\endpoint\session.rs:13:use http::HeaderMap;
+codex-api\src\endpoint\session.rs:14:use http::Method;
+codex-api\src\endpoint\session.rs:15:use serde_json::Value;
+codex-api\src\endpoint\session.rs:16:use std::sync::Arc;
+codex-api\src\endpoint\session.rs:17:use tracing::instrument;
+codex-api\src\requests\headers.rs:1:use codex_protocol::protocol::SessionSource;
+codex-api\src\requests\headers.rs:2:use http::HeaderMap;
+codex-api\src\requests\headers.rs:3:use http::HeaderValue;
+codex-api\src\requests\headers.rs:5:pub fn build_session_headers(session_id: Option<String>, thread_id: Option<String>) -> HeaderMap {
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:1:use crate::endpoint::realtime_websocket::methods_common::REALTIME_AUDIO_SAMPLE_RATE;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:2:use crate::endpoint::realtime_websocket::protocol::AudioFormatType;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:3:use crate::endpoint::realtime_websocket::protocol::ConversationContentType;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:4:use crate::endpoint::realtime_websocket::protocol::ConversationItemContent;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:5:use crate::endpoint::realtime_websocket::protocol::ConversationItemPayload;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:6:use crate::endpoint::realtime_websocket::protocol::ConversationItemType;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:7:use crate::endpoint::realtime_websocket::protocol::ConversationMessageItem;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:8:use crate::endpoint::realtime_websocket::protocol::RealtimeOutboundMessage;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:9:use crate::endpoint::realtime_websocket::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:10:use crate::endpoint::realtime_websocket::protocol::SessionAudio;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:11:use crate::endpoint::realtime_websocket::protocol::SessionAudioFormat;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:12:use crate::endpoint::realtime_websocket::protocol::SessionAudioInput;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:13:use crate::endpoint::realtime_websocket::protocol::SessionAudioOutput;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:14:use crate::endpoint::realtime_websocket::protocol::SessionType;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:15:use crate::endpoint::realtime_websocket::protocol::SessionUpdateSession;
+codex-api\src\endpoint\realtime_websocket\methods_v1.rs:16:use codex_protocol::protocol::ConversationTextRole;
+codex-api\src\endpoint\realtime_websocket\protocol_common.rs:1:use codex_protocol::protocol::RealtimeEvent;
+codex-api\src\endpoint\realtime_websocket\protocol_common.rs:2:use codex_protocol::protocol::RealtimeTranscriptDelta;
+codex-api\src\endpoint\realtime_websocket\protocol_common.rs:3:use codex_protocol::protocol::RealtimeTranscriptDone;
+codex-api\src\endpoint\realtime_websocket\protocol_common.rs:4:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\protocol_common.rs:5:use tracing::debug;
+codex-api\src\files.rs:1:use std::time::Duration;
+codex-api\src\files.rs:3:use crate::AuthProvider;
+codex-api\src\files.rs:4:use bytes::Bytes;
+codex-api\src\files.rs:5:use codex_http_client::HttpResponse;
+codex-api\src\files.rs:6:use codex_http_client::RouteAwareClientPool;
+codex-api\src\files.rs:7:use codex_http_client::RouteAwareRequestBuilder;
+codex-api\src\files.rs:8:use codex_http_client::RouteAwareRequestError;
+codex-api\src\files.rs:9:use futures::Stream;
+codex-api\src\files.rs:10:use http::Method;
+codex-api\src\files.rs:11:use http::StatusCode;
+codex-api\src\files.rs:12:use http::header::CONTENT_LENGTH;
+codex-api\src\files.rs:13:use serde::Deserialize;
+codex-api\src\files.rs:14:use tokio::time::Instant;
+codex-api\src\files.rs:15:use uuid::Uuid;
+codex-api\src\files.rs:17:pub const OPENAI_FILE_URI_PREFIX: &str = "sediment://";
+codex-api\src\files.rs:18:pub const OPENAI_FILE_UPLOAD_LIMIT_BYTES: u64 = 512 * 1024 * 1024;
+codex-api\src\files.rs:20:const OPENAI_FILE_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+codex-api\src\files.rs:21:const OPENAI_FILE_FINALIZE_TIMEOUT: Duration = Duration::from_secs(30);
+codex-api\src\files.rs:22:const OPENAI_FILE_FINALIZE_RETRY_DELAY: Duration = Duration::from_millis(250);
+codex-api\src\files.rs:23:const OPENAI_FILE_USE_CASE: &str = "codex";
+codex-api\src\files.rs:26:pub struct HostedFileUploadContext {
+codex-api\src\files.rs:33:pub struct UploadedOpenAiFile {
+codex-api\src\files.rs:43:pub enum OpenAiFileError {
+codex-api\src\files.rs:98:struct CreateFileResponse {
+codex-api\src\files.rs:107:struct DownloadLinkResponse {
+codex-api\src\files.rs:117:pub fn openai_file_uri(file_id: &str) -> String {
+codex-api\src\files.rs:121:pub async fn upload_openai_file(
+codex-api\src\files.rs:329:fn authorized_request(
+codex-api\src\files.rs:344:fn upload_response_header(response: &HttpResponse, header: &str) -> String {
+codex-api\src\files.rs:354:mod tests {
+codex-api\src\requests\chat.rs:1://! Translation from a Responses-shaped request into an OpenAI-compatible
+codex-api\src\requests\chat.rs:2://! `/chat/completions` body.
+codex-api\src\requests\chat.rs:3://!
+codex-api\src\requests\chat.rs:4://! Suffice speaks the Responses API everywhere above this module. Providers that
+codex-api\src\requests\chat.rs:5://! only expose Chat Completions (Z.ai/GLM, most OSS servers) get their request
+codex-api\src\requests\chat.rs:6://! rewritten here, and their SSE frames rewritten back in `crate::sse::chat`.
+codex-api\src\requests\chat.rs:8:use crate::common::ResponsesApiRequest;
+codex-api\src\requests\chat.rs:9:use codex_protocol::models::ContentItem;
+codex-api\src\requests\chat.rs:10:use codex_protocol::models::FunctionCallOutputContentItem;
+codex-api\src\requests\chat.rs:11:use codex_protocol::models::ReasoningItemContent;
+codex-api\src\requests\chat.rs:12:use codex_protocol::models::ResponseItem;
+codex-api\src\requests\chat.rs:13:use codex_protocol::openai_models::ReasoningEffort;
+codex-api\src\requests\chat.rs:14:use serde_json::Value;
+codex-api\src\requests\chat.rs:15:use serde_json::json;
+codex-api\src\requests\chat.rs:16:use std::collections::HashMap;
+codex-api\src\requests\chat.rs:18:/// Builds the `/chat/completions` request body for `request`.
+codex-api\src\requests\chat.rs:201:/// Projects Suffice's effort ladder onto the three rungs GLM-5.3 accepts.
+codex-api\src\requests\chat.rs:202:///
+codex-api\src\requests\chat.rs:203:/// `low`, `high` and `max` are the only legal values; anything else is rejected outright,
+codex-api\src\requests\chat.rs:204:/// and omitting the field entirely silently selects `max`, the most expensive rung. So a
+codex-api\src\requests\chat.rs:205:/// config still carrying an effort written for another provider must be clamped rather than
+codex-api\src\requests\chat.rs:206:/// forwarded or dropped. Clamping at the wire boundary leaves the rest of Suffice free to keep
+codex-api\src\requests\chat.rs:207:/// its own wider ladder.
+codex-api\src\requests\chat.rs:208:fn glm_reasoning_effort(effort: &ReasoningEffort) -> &'static str {
+codex-api\src\requests\chat.rs:219:/// Rewrites Responses tool specs (`{type, name, parameters}`) into the nested
+codex-api\src\requests\chat.rs:220:/// Chat Completions shape (`{type, function: {name, parameters}}`).
+codex-api\src\requests\chat.rs:221:fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) -> Vec<Value> {
+codex-api\src\requests\chat.rs:252:/// Attaches each `Reasoning` item to the assistant message or tool call it belongs
+codex-api\src\requests\chat.rs:253:/// to, so it can ride along as `reasoning_content`.
+codex-api\src\requests\chat.rs:254:///
+codex-api\src\requests\chat.rs:255:/// Every reasoning item still present in `input` is carried. Which reasoning survives
+codex-api\src\requests\chat.rs:256:/// a finished turn is decided in history, where the size of the reasoning can be
+codex-api\src\requests\chat.rs:257:/// weighed against the prompt-cache invalidation that removing it costs. Dropping more
+codex-api\src\requests\chat.rs:258:/// of it here would rewrite the messages history deliberately left alone, and cost
+codex-api\src\requests\chat.rs:259:/// exactly the cache miss that decision was made to avoid.
+codex-api\src\requests\chat.rs:260:fn anchor_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
+codex-api\src\requests\chat.rs:315:/// Chat Completions requires consecutive tool calls to be grouped into one
+codex-api\src\requests\chat.rs:316:/// assistant message carrying `tool_calls: [...]`, followed by the `tool` replies.
+codex-api\src\requests\chat.rs:317:fn push_tool_call(messages: &mut Vec<Value>, tool_call: Value, reasoning: Option<&str>) {
+codex-api\src\requests\chat.rs:352:mod tests {
+codex-api\src\endpoint\realtime_websocket\protocol.rs:1:use crate::endpoint::realtime_websocket::protocol_frameless_bidi::parse_frameless_bidi_event;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:2:use crate::endpoint::realtime_websocket::protocol_v1::parse_realtime_event_v1;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:3:use crate::endpoint::realtime_websocket::protocol_v2::parse_realtime_event_v2;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:4:use codex_protocol::protocol::ConversationTextParams;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:5:use codex_protocol::protocol::ConversationTextRole;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:6:pub use codex_protocol::protocol::RealtimeAudioFrame;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:7:pub use codex_protocol::protocol::RealtimeEvent;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:8:pub use codex_protocol::protocol::RealtimeOutputModality;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:9:pub use codex_protocol::protocol::RealtimeTranscriptEntry;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:10:pub use codex_protocol::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:11:use serde::Serialize;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:12:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:15:pub enum RealtimeEventParser {
+codex-api\src\endpoint\realtime_websocket\protocol.rs:21:pub type RealtimeWireAdapter = RealtimeEventParser;
+codex-api\src\endpoint\realtime_websocket\protocol.rs:24:pub enum RealtimeSessionMode {
+codex-api\src\endpoint\realtime_websocket\protocol.rs:29:/// Selects the semantic stream used for Frameless Bidi context appends.
+codex-api\src\endpoint\realtime_websocket\protocol.rs:32:pub enum RealtimeContextAppendChannel {
+codex-api\src\endpoint\realtime_websocket\protocol.rs:38:pub struct RealtimeSessionConfig {
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:1:use crate::endpoint::realtime_websocket::protocol_common::parse_error_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:2:use crate::endpoint::realtime_websocket::protocol_common::parse_realtime_payload;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:3:use crate::endpoint::realtime_websocket::protocol_common::parse_session_updated_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:4:use crate::endpoint::realtime_websocket::protocol_common::parse_transcript_delta_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:5:use crate::endpoint::realtime_websocket::protocol_common::parse_transcript_done_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:6:use codex_protocol::protocol::RealtimeAudioFrame;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:7:use codex_protocol::protocol::RealtimeEvent;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:8:use codex_protocol::protocol::RealtimeHandoffRequested;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:9:use codex_protocol::protocol::RealtimeInputAudioSpeechStarted;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:10:use codex_protocol::protocol::RealtimeNoopRequested;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:11:use codex_protocol::protocol::RealtimeResponseCancelled;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:12:use codex_protocol::protocol::RealtimeResponseCreated;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:13:use codex_protocol::protocol::RealtimeResponseDone;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:14:use serde_json::Map as JsonMap;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:15:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:16:use tracing::debug;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:18:const BACKGROUND_AGENT_TOOL_NAME: &str = "background_agent";
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:19:const SILENCE_TOOL_NAME: &str = "remain_silent";
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:20:const DEFAULT_AUDIO_SAMPLE_RATE: u32 = 24_000;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:21:const DEFAULT_AUDIO_CHANNELS: u16 = 1;
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:22:const TOOL_ARGUMENT_KEYS: [&str; 5] = ["input_transcript", "input", "text", "prompt", "query"];
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:81:fn parse_response_event_response_id(parsed: &Value) -> Option<String> {
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:96:fn parse_output_audio_delta_event(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:127:fn parse_conversation_item_done_event(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:142:fn parse_handoff_requested_event(item: &JsonMap<String, Value>) -> Option<RealtimeEvent> {
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:168:fn parse_noop_requested_event(item: &JsonMap<String, Value>) -> Option<RealtimeEvent> {
+codex-api\src\endpoint\realtime_websocket\protocol_v2.rs:191:fn extract_input_transcript(arguments: &str) -> String {
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:1:use super::parse_frameless_bidi_event;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:2:use crate::endpoint::realtime_websocket::protocol_v1::parse_realtime_event_v1;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:3:use codex_protocol::protocol::RealtimeEvent;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:4:use codex_protocol::protocol::RealtimeHandoffRequested;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:7:fn legacy_and_frameless_delegations_decode_to_the_same_handoff() {
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:36:fn frameless_transcript_and_audio_events_reuse_existing_internal_events() {
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:1:use crate::endpoint::realtime_websocket::protocol_common::parse_error_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:2:use crate::endpoint::realtime_websocket::protocol_common::parse_realtime_payload;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:3:use crate::endpoint::realtime_websocket::protocol_common::parse_session_updated_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:4:use crate::endpoint::realtime_websocket::protocol_common::parse_transcript_delta_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:5:use crate::endpoint::realtime_websocket::protocol_common::parse_transcript_done_event;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:6:use codex_protocol::protocol::RealtimeAudioFrame;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:7:use codex_protocol::protocol::RealtimeEvent;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:8:use codex_protocol::protocol::RealtimeHandoffRequested;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:9:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:10:use tracing::debug;
+codex-api\src\endpoint\realtime_websocket\protocol_v1.rs:93:fn parse_conversation_item_done_event(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api\src\rate_limits.rs:1:use codex_protocol::account::PlanType;
+codex-api\src\rate_limits.rs:2:use codex_protocol::protocol::CreditsSnapshot;
+codex-api\src\rate_limits.rs:3:use codex_protocol::protocol::RateLimitReachedType;
+codex-api\src\rate_limits.rs:4:use codex_protocol::protocol::RateLimitSnapshot;
+codex-api\src\rate_limits.rs:5:use codex_protocol::protocol::RateLimitWindow;
+codex-api\src\rate_limits.rs:6:use http::HeaderMap;
+codex-api\src\rate_limits.rs:7:use serde::Deserialize;
+codex-api\src\rate_limits.rs:8:use std::collections::BTreeSet;
+codex-api\src\rate_limits.rs:9:use std::fmt::Display;
+codex-api\src\rate_limits.rs:12:pub struct RateLimitError {
+codex-api\src\rate_limits.rs:16:impl Display for RateLimitError {
+codex-api\src\rate_limits.rs:22:/// Parses the default Suffice rate-limit header family into a `RateLimitSnapshot`.
+codex-api\src\rate_limits.rs:23:pub fn parse_default_rate_limit(headers: &HeaderMap) -> Option<RateLimitSnapshot> {
+codex-api\src\rate_limits.rs:27:/// Parses all known rate-limit header families into update records keyed by limit id.
+codex-api\src\rate_limits.rs:28:pub fn parse_all_rate_limits(headers: &HeaderMap) -> Vec<RateLimitSnapshot> {
+codex-api\src\rate_limits.rs:53:/// Parses rate-limit headers for the provided limit id.
+codex-api\src\rate_limits.rs:54:///
+codex-api\src\rate_limits.rs:55:/// `limit_id` should match the server-provided metered limit id (e.g. `suffice`,
+codex-api\src\rate_limits.rs:56:/// `codex_other`). When omitted, this defaults to the legacy `suffice` header family.
+codex-api\src\rate_limits.rs:57:pub fn parse_rate_limit_for_limit(
+codex-api\src\rate_limits.rs:104:struct RateLimitEventWindow {
+codex-api\src\rate_limits.rs:111:struct RateLimitEventDetails {
+codex-api\src\rate_limits.rs:117:struct RateLimitEventCredits {
+codex-api\src\rate_limits.rs:124:struct RateLimitEvent {
+codex-api\src\rate_limits.rs:134:pub fn parse_rate_limit_event(payload: &str) -> Option<RateLimitSnapshot> {
+codex-api\src\rate_limits.rs:169:fn map_event_window(window: Option<&RateLimitEventWindow>) -> Option<RateLimitWindow> {
+codex-api\src\rate_limits.rs:178:/// Parses the bespoke Suffice rate-limit headers into a `RateLimitSnapshot`.
+codex-api\src\rate_limits.rs:179:pub fn parse_promo_message(headers: &HeaderMap) -> Option<String> {
+codex-api\src\rate_limits.rs:193:fn parse_rate_limit_window(
+codex-api\src\rate_limits.rs:217:fn parse_credits_snapshot(headers: &HeaderMap) -> Option<CreditsSnapshot> {
+codex-api\src\rate_limits.rs:231:fn parse_header_f64(headers: &HeaderMap, name: &str) -> Option<f64> {
+codex-api\src\rate_limits.rs:238:fn parse_header_i64(headers: &HeaderMap, name: &str) -> Option<i64> {
+codex-api\src\rate_limits.rs:242:fn parse_header_bool(headers: &HeaderMap, name: &str) -> Option<bool> {
+codex-api\src\rate_limits.rs:253:fn parse_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+codex-api\src\rate_limits.rs:257:fn has_rate_limit_data(snapshot: &RateLimitSnapshot) -> bool {
+codex-api\src\rate_limits.rs:261:fn header_name_to_limit_id(header_name: &str) -> Option<String> {
+codex-api\src\rate_limits.rs:268:fn normalize_limit_id(name: impl Into<String>) -> String {
+codex-api\src\rate_limits.rs:273:mod tests {
+codex-api\src\api_bridge.rs:1:use crate::TransportError;
+codex-api\src\api_bridge.rs:2:use crate::error::ApiError;
+codex-api\src\api_bridge.rs:3:use crate::rate_limits::parse_promo_message;
+codex-api\src\api_bridge.rs:4:use crate::rate_limits::parse_rate_limit_for_limit;
+codex-api\src\api_bridge.rs:5:use crate::rate_limits::parse_rate_limit_reached_type;
+codex-api\src\api_bridge.rs:6:use base64::Engine;
+codex-api\src\api_bridge.rs:7:use chrono::DateTime;
+codex-api\src\api_bridge.rs:8:use chrono::Utc;
+codex-api\src\api_bridge.rs:9:use codex_protocol::auth::PlanType;
+codex-api\src\api_bridge.rs:10:use codex_protocol::error::CodexErr;
+codex-api\src\api_bridge.rs:11:use codex_protocol::error::CodexErrorDetails;
+codex-api\src\api_bridge.rs:12:use codex_protocol::error::ConnectionFailedError;
+codex-api\src\api_bridge.rs:13:use codex_protocol::error::RetryLimitReachedError;
+codex-api\src\api_bridge.rs:14:use codex_protocol::error::UnexpectedResponseError;
+codex-api\src\api_bridge.rs:15:use codex_protocol::error::UsageLimitReachedError;
+codex-api\src\api_bridge.rs:16:use codex_protocol::protocol::MisalignmentErrorDetails;
+codex-api\src\api_bridge.rs:17:use http::HeaderMap;
+codex-api\src\api_bridge.rs:18:use serde::Deserialize;
+codex-api\src\api_bridge.rs:19:use serde_json::Value;
+codex-api\src\api_bridge.rs:21:pub fn map_api_error(err: ApiError) -> CodexErr {
+codex-api\src\api_bridge.rs:199:const ACTIVE_LIMIT_HEADER: &str = "x-codex-active-limit";
+codex-api\src\api_bridge.rs:200:const REQUEST_ID_HEADER: &str = "x-request-id";
+codex-api\src\api_bridge.rs:201:const OAI_REQUEST_ID_HEADER: &str = "x-oai-request-id";
+codex-api\src\api_bridge.rs:202:const CF_RAY_HEADER: &str = "cf-ray";
+codex-api\src\api_bridge.rs:203:const X_OPENAI_AUTHORIZATION_ERROR_HEADER: &str = "x-openai-authorization-error";
+codex-api\src\api_bridge.rs:204:const X_ERROR_JSON_HEADER: &str = "x-error-json";
+codex-api\src\api_bridge.rs:205:const CYBER_POLICY_ERROR_CODE: &str = "cyber_policy";
+codex-api\src\api_bridge.rs:206:const CYBER_POLICY_FALLBACK_MESSAGE: &str =
+codex-api\src\api_bridge.rs:208:const MISALIGNMENT_POLICY_VIOLATION_ERROR_CODE: &str = "misalignment_policy_violation";
+codex-api\src\api_bridge.rs:209:const MISALIGNMENT_POLICY_VIOLATION_FALLBACK_MESSAGE: &str =
+codex-api\src\api_bridge.rs:211:const CLOUDFLARE_BLOCKED_MESSAGE: &str =
+codex-api\src\api_bridge.rs:216:mod tests;
+codex-api\src\api_bridge.rs:218:fn extract_request_tracking_id(headers: Option<&HeaderMap>) -> Option<String> {
+codex-api\src\api_bridge.rs:222:fn api_error_user_message(status: http::StatusCode, body: &str) -> Option<String> {
+codex-api\src\api_bridge.rs:233:fn extract_request_id(headers: Option<&HeaderMap>) -> Option<String> {
+codex-api\src\api_bridge.rs:238:fn extract_header(headers: Option<&HeaderMap>, name: &str) -> Option<String> {
+codex-api\src\api_bridge.rs:246:fn extract_x_error_json_code(headers: Option<&HeaderMap>) -> Option<String> {
+codex-api\src\api_bridge.rs:260:struct UsageErrorResponse {
+codex-api\src\api_bridge.rs:265:struct UsageErrorBody {
+codex-api\src\api_bridge_tests.rs:1:use super::*;
+codex-api\src\api_bridge_tests.rs:2:use base64::Engine;
+codex-api\src\api_bridge_tests.rs:3:use codex_protocol::protocol::CodexErrorInfo;
+codex-api\src\api_bridge_tests.rs:4:use codex_protocol::protocol::RateLimitReachedType;
+codex-api\src\api_bridge_tests.rs:5:use pretty_assertions::assert_eq;
+codex-api\src\api_bridge_tests.rs:8:fn map_api_error_maps_server_overloaded() {
+codex-api\src\api_bridge_tests.rs:14:fn map_api_error_preserves_retry_delay() {
+codex-api\src\api_bridge_tests.rs:55:fn map_api_error_maps_server_overloaded_from_503_body() {
+codex-api\src\api_bridge_tests.rs:73:fn map_api_error_maps_cloudflare_blocked_response_to_user_message() {
+codex-api\src\api_bridge_tests.rs:101:fn map_api_error_maps_cyber_policy_from_400_body() {
+codex-api\src\api_bridge_tests.rs:128:fn map_api_error_maps_wrapped_websocket_cyber_policy_from_400_body() {
+codex-api\src\api_bridge_tests.rs:153:fn map_api_error_uses_cyber_policy_fallback_for_missing_message() {
+codex-api\src\api_bridge_tests.rs:177:fn map_api_error_maps_misalignment_policy_violation_from_400_body() {
+codex-api\src\api_bridge_tests.rs:182:fn map_api_error_maps_misalignment_policy_violation_from_403_body() {
+codex-api\src\api_bridge_tests.rs:186:fn assert_misalignment_policy_violation_from_http_body(status: http::StatusCode) {
+codex-api\src\api_bridge_tests.rs:215:fn map_api_error_preserves_misalignment_details_from_403_body() {
+codex-api\src\api_bridge_tests.rs:257:fn map_api_error_preserves_misalignment_details_from_wrapped_websocket_error() {
+codex-api\src\api_bridge_tests.rs:304:fn map_api_error_keeps_unknown_400_errors_generic() {
+codex-api\src\api_bridge_tests.rs:326:fn map_api_error_maps_usage_limit_limit_name_header() {
+codex-api\src\api_bridge_tests.rs:363:fn map_api_error_does_not_fallback_limit_name_to_limit_id() {
+codex-api\src\api_bridge_tests.rs:396:fn map_api_error_copies_rate_limit_reached_type_to_usage_limit_snapshot() {
+codex-api\src\api_bridge_tests.rs:460:fn map_api_error_ignores_unparseable_rate_limit_reached_type_headers() {
+codex-api\src\api_bridge_tests.rs:491:fn map_api_error_extracts_identity_auth_details_from_headers() {
+codex-api\src\endpoint\images.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\images.rs:2:use crate::endpoint::session::EndpointSession;
+codex-api\src\endpoint\images.rs:3:use crate::error::ApiError;
+codex-api\src\endpoint\images.rs:4:use crate::images::ImageEditRequest;
+codex-api\src\endpoint\images.rs:5:use crate::images::ImageGenerationRequest;
+codex-api\src\endpoint\images.rs:6:use crate::images::ImageResponse;
+codex-api\src\endpoint\images.rs:7:use crate::provider::Provider;
+codex-api\src\endpoint\images.rs:8:use codex_client::HttpTransport;
+codex-api\src\endpoint\images.rs:9:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\images.rs:10:use http::HeaderMap;
+codex-api\src\endpoint\images.rs:11:use http::Method;
+codex-api\src\endpoint\images.rs:12:use serde::Serialize;
+codex-api\src\endpoint\images.rs:13:use serde_json::to_value;
+codex-api\src\endpoint\images.rs:14:use std::sync::Arc;
+codex-api\src\endpoint\images.rs:16:const X_CODEX_IMAGEGEN_REQUEST_ID_HEADER: &str = "x-codex-imagegen-request-id";
+codex-api\src\endpoint\images.rs:18:pub struct ImagesClient<T: HttpTransport> {
+codex-api\src\endpoint\images.rs:84:mod tests {
+codex-api\src\endpoint\compact.rs:1:use crate::auth::SharedAuthProvider;
+codex-api\src\endpoint\compact.rs:2:use crate::common::CompactionInput;
+codex-api\src\endpoint\compact.rs:3:use crate::endpoint::session::EndpointSession;
+codex-api\src\endpoint\compact.rs:4:use crate::error::ApiError;
+codex-api\src\endpoint\compact.rs:5:use crate::provider::Provider;
+codex-api\src\endpoint\compact.rs:6:use codex_client::HttpTransport;
+codex-api\src\endpoint\compact.rs:7:use codex_client::RequestTelemetry;
+codex-api\src\endpoint\compact.rs:8:use codex_protocol::models::ResponseItem;
+codex-api\src\endpoint\compact.rs:9:use http::HeaderMap;
+codex-api\src\endpoint\compact.rs:10:use http::Method;
+codex-api\src\endpoint\compact.rs:11:use serde::Deserialize;
+codex-api\src\endpoint\compact.rs:12:use std::sync::Arc;
+codex-api\src\endpoint\compact.rs:13:use std::sync::OnceLock;
+codex-api\src\endpoint\compact.rs:14:use std::time::Duration;
+codex-api\src\endpoint\compact.rs:16:const X_CODEX_TURN_STATE_HEADER: &str = "x-codex-turn-state";
+codex-api\src\endpoint\compact.rs:18:pub struct CompactClient<T: HttpTransport> {
+codex-api\src\endpoint\compact.rs:86:struct CompactHistoryResponse {
+codex-api\src\endpoint\compact.rs:91:mod tests {
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:1:use crate::endpoint::realtime_websocket::protocol_common::parse_error_event;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:2:use crate::endpoint::realtime_websocket::protocol_common::parse_realtime_payload;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:3:use crate::endpoint::realtime_websocket::protocol_common::parse_session_updated_event;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:4:use codex_protocol::protocol::RealtimeAudioFrame;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:5:use codex_protocol::protocol::RealtimeEvent;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:6:use codex_protocol::protocol::RealtimeHandoffRequested;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:7:use codex_protocol::protocol::RealtimeTranscriptDelta;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:8:use codex_protocol::protocol::RealtimeTranscriptDone;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:9:use serde_json::Value;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:10:use tracing::debug;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:12:const DEFAULT_AUDIO_SAMPLE_RATE: u32 = 24_000;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:13:const DEFAULT_AUDIO_CHANNELS: u16 = 1;
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:38:fn parse_output_audio_delta(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:48:fn parse_transcript_item(parsed: &Value) -> Option<RealtimeTranscriptDelta> {
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:58:fn parse_turn_done(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:73:fn parse_delegation_created(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:99:mod tests;
+codex-api\src\common.rs:1:use crate::error::ApiError;
+codex-api\src\common.rs:2:use codex_protocol::ResponseUsageMetadata;
+codex-api\src\common.rs:3:use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
+codex-api\src\common.rs:4:use codex_protocol::config_types::Verbosity as VerbosityConfig;
+codex-api\src\common.rs:5:use codex_protocol::models::ResponseItem;
+codex-api\src\common.rs:6:use codex_protocol::openai_models::ReasoningEffort as ReasoningEffortConfig;
+codex-api\src\common.rs:7:use codex_protocol::protocol::ModelVerification;
+codex-api\src\common.rs:8:use codex_protocol::protocol::RateLimitSnapshot;
+codex-api\src\common.rs:9:use codex_protocol::protocol::TokenUsage;
+codex-api\src\common.rs:10:use codex_protocol::protocol::TurnModerationMetadataEvent;
+codex-api\src\common.rs:11:use codex_protocol::protocol::W3cTraceContext;
+codex-api\src\common.rs:12:use codex_protocol::turn_input::CyberAccessProgram;
+codex-api\src\common.rs:13:use futures::Stream;
+codex-api\src\common.rs:14:use serde::Deserialize;
+codex-api\src\common.rs:15:use serde::Serialize;
+codex-api\src\common.rs:16:use serde_json::Value;
+codex-api\src\common.rs:17:use serde_json::value::RawValue;
+codex-api\src\common.rs:18:use std::collections::HashMap;
+codex-api\src\common.rs:19:use std::pin::Pin;
+codex-api\src\common.rs:20:use std::sync::Arc;
+codex-api\src\common.rs:21:use std::task::Context;
+codex-api\src\common.rs:22:use std::task::Poll;
+codex-api\src\common.rs:23:use tokio::sync::mpsc;
+codex-api\src\common.rs:25:pub const WS_REQUEST_HEADER_TRACEPARENT_CLIENT_METADATA_KEY: &str = "ws_request_header_traceparent";
+codex-api\src\common.rs:26:pub const WS_REQUEST_HEADER_TRACESTATE_CLIENT_METADATA_KEY: &str = "ws_request_header_tracestate";
+codex-api\src\common.rs:28:/// Explicit per-request access selection using the Responses API wire values.
+codex-api\src\common.rs:30:pub struct AccessPrograms {
+codex-api\src\common.rs:34:impl From<CyberAccessProgram> for AccessPrograms {
+codex-api\src\common.rs:46:/// Canonical input payload for the compaction endpoint.
+codex-api\src\common.rs:48:pub struct CompactionInput<'a> {
+codex-api\src\common.rs:68:/// Canonical input payload for the memory summarize endpoint.
+codex-api\src\common.rs:70:pub struct MemorySummarizeInput {
+codex-api\src\common.rs:79:pub struct RawMemory {
+codex-api\src\common.rs:86:pub struct RawMemoryMetadata {
+codex-api\src\common.rs:91:pub struct MemorySummarizeOutput {
+codex-api\src\common.rs:98:pub enum ResponseEvent {
+codex-api\src\common.rs:149:pub struct SafetyBuffering {
+codex-api\src\common.rs:165:pub enum ReasoningContext {
+codex-api\src\common.rs:172:pub struct Reasoning {
+codex-api\src\common.rs:183:pub enum ReasoningSummaryDelivery {
+codex-api\src\common.rs:188:pub struct StreamOptions {
+codex-api\src\common.rs:194:pub enum TextFormatType {
+codex-api\src\common.rs:200:pub struct TextFormat {
+codex-api\src\common.rs:211:/// Controls the `text` field for the Responses API, combining verbosity and
+codex-api\src\common.rs:212:/// optional JSON schema output formatting.
+codex-api\src\common.rs:214:pub struct TextControls {
+codex-api\src\common.rs:223:pub enum OpenAiVerbosity {
+codex-api\src\common.rs:230:impl From<VerbosityConfig> for OpenAiVerbosity {
+codex-api\src\common.rs:240:/// Serialized tool definitions for Responses API requests.
+codex-api\src\common.rs:241:///
+codex-api\src\common.rs:242:/// Keeping the tool list as raw JSON avoids rebuilding a generic JSON value
+codex-api\src\common.rs:243:/// tree, while the shared allocation keeps request clones cheap.
+codex-api\src\common.rs:245:pub struct ResponsesApiTools(Arc<RawValue>);
+codex-api\src\common.rs:247:impl ResponsesApiTools {
+codex-api\src\common.rs:253:impl From<Arc<RawValue>> for ResponsesApiTools {
+codex-api\src\common.rs:259:impl PartialEq for ResponsesApiTools {
+codex-api\src\common.rs:265:impl Serialize for ResponsesApiTools {
+codex-api\src\common.rs:275:pub struct ResponsesApiRequest {
+codex-api\src\common.rs:328:pub struct ResponseCreateWsRequest<'a> {
+codex-api\src\common.rs:359:pub fn response_create_client_metadata(
+codex-api\src\common.rs:384:pub enum ResponsesWsRequest<'a> {
+codex-api\src\common.rs:389:pub fn create_text_param_for_request(
+codex-api\src\common.rs:409:pub struct ResponseStream {
+codex-api\src\common.rs:415:impl Stream for ResponseStream {
+codex-api\src\endpoint\realtime_websocket\mod.rs:2:mod methods_common;
+codex-api\src\endpoint\realtime_websocket\mod.rs:3:mod methods_frameless_bidi;
+codex-api\src\endpoint\realtime_websocket\mod.rs:4:mod methods_v1;
+codex-api\src\endpoint\realtime_websocket\mod.rs:5:mod methods_v2;
+codex-api\src\endpoint\realtime_websocket\mod.rs:7:mod protocol_common;
+codex-api\src\endpoint\realtime_websocket\mod.rs:8:mod protocol_frameless_bidi;
+codex-api\src\endpoint\realtime_websocket\mod.rs:9:mod protocol_v1;
+codex-api\src\endpoint\realtime_websocket\mod.rs:10:mod protocol_v2;
+codex-api\src\endpoint\realtime_websocket\mod.rs:12:pub use methods::RealtimeTranscriptState;
+codex-api\src\endpoint\realtime_websocket\mod.rs:13:pub use methods::RealtimeWebsocketClient;
+codex-api\src\endpoint\realtime_websocket\mod.rs:14:pub use methods::RealtimeWebsocketConnection;
+codex-api\src\endpoint\realtime_websocket\mod.rs:15:pub use methods::RealtimeWebsocketEvents;
+codex-api\src\endpoint\realtime_websocket\mod.rs:16:pub use methods::RealtimeWebsocketWriter;
+codex-api\src\endpoint\realtime_websocket\mod.rs:17:pub use methods_common::session_update_session_json;
+codex-api\src\endpoint\realtime_websocket\mod.rs:18:pub use protocol::RealtimeContextAppendChannel;
+codex-api\src\endpoint\realtime_websocket\mod.rs:19:pub use protocol::RealtimeEventParser;
+codex-api\src\endpoint\realtime_websocket\mod.rs:20:pub use protocol::RealtimeOutputModality;
+codex-api\src\endpoint\realtime_websocket\mod.rs:21:pub use protocol::RealtimeSessionConfig;
+codex-api\src\endpoint\realtime_websocket\mod.rs:22:pub use protocol::RealtimeSessionMode;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:1:use crate::endpoint::realtime_websocket::methods_common::REALTIME_AUDIO_SAMPLE_RATE;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:2:use crate::endpoint::realtime_websocket::protocol::AudioFormatType;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:3:use crate::endpoint::realtime_websocket::protocol::ConversationContentType;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:4:use crate::endpoint::realtime_websocket::protocol::ConversationFunctionCallOutputItem;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:5:use crate::endpoint::realtime_websocket::protocol::ConversationItemContent;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:6:use crate::endpoint::realtime_websocket::protocol::ConversationItemPayload;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:7:use crate::endpoint::realtime_websocket::protocol::ConversationItemType;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:8:use crate::endpoint::realtime_websocket::protocol::ConversationMessageItem;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:9:use crate::endpoint::realtime_websocket::protocol::NoiseReductionType;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:10:use crate::endpoint::realtime_websocket::protocol::RealtimeOutboundMessage;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:11:use crate::endpoint::realtime_websocket::protocol::RealtimeOutputModality;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:12:use crate::endpoint::realtime_websocket::protocol::RealtimeSessionMode;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:13:use crate::endpoint::realtime_websocket::protocol::RealtimeVoice;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:14:use crate::endpoint::realtime_websocket::protocol::SessionAudio;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:15:use crate::endpoint::realtime_websocket::protocol::SessionAudioFormat;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:16:use crate::endpoint::realtime_websocket::protocol::SessionAudioInput;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:17:use crate::endpoint::realtime_websocket::protocol::SessionAudioOutput;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:18:use crate::endpoint::realtime_websocket::protocol::SessionAudioOutputFormat;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:19:use crate::endpoint::realtime_websocket::protocol::SessionFunctionTool;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:20:use crate::endpoint::realtime_websocket::protocol::SessionInputAudioTranscription;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:21:use crate::endpoint::realtime_websocket::protocol::SessionNoiseReduction;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:22:use crate::endpoint::realtime_websocket::protocol::SessionToolType;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:23:use crate::endpoint::realtime_websocket::protocol::SessionTurnDetection;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:24:use crate::endpoint::realtime_websocket::protocol::SessionType;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:25:use crate::endpoint::realtime_websocket::protocol::SessionUpdateSession;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:26:use crate::endpoint::realtime_websocket::protocol::TurnDetectionType;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:27:use codex_protocol::protocol::ConversationTextRole;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:28:use serde_json::json;
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:30:const REALTIME_V2_OUTPUT_MODALITY_AUDIO: &str = "audio";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:31:const REALTIME_V2_OUTPUT_MODALITY_TEXT: &str = "text";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:32:const REALTIME_V2_TOOL_CHOICE: &str = "auto";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:33:const REALTIME_V2_BACKGROUND_AGENT_TOOL_NAME: &str = "background_agent";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:34:const REALTIME_V2_BACKGROUND_AGENT_TOOL_DESCRIPTION: &str = "Send a user request to the background agent. Use this as the default action. Do not rephrase the user's ask or rewrite it in your own words; pass along the user's own words. If the background agent is idle, this starts a new task and returns the final result to the user. If the background agent is already working on a task, this sends the request as guidance to steer that previous task. If the user asks to do something next, later, after this, or once current work finishes, call this tool so the work is actually queued instead of merely promising to do it later.";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:35:const REALTIME_V2_SILENCE_TOOL_NAME: &str = "remain_silent";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:36:const REALTIME_V2_SILENCE_TOOL_DESCRIPTION: &str = "Call this when the best response is to say nothing. Use it instead of speaking after hidden system/control messages, after background agent updates in silent modes, or whenever acknowledging aloud would be distracting. This tool has no user-visible effect.";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:37:const REALTIME_V2_INPUT_TRANSCRIPTION_MODEL: &str = "gpt-4o-mini-transcribe";
+codex-api\src\endpoint\realtime_websocket\methods_v2.rs:171:fn output_modality_value(output_modality: RealtimeOutputModality) -> &'static str {
+codex-api\src\provider.rs:1:use codex_client::Request;
+codex-api\src\provider.rs:2:use codex_client::RequestCompression;
+codex-api\src\provider.rs:3:use codex_client::RetryOn;
+codex-api\src\provider.rs:4:use codex_client::RetryPolicy;
+codex-api\src\provider.rs:5:use http::Method;
+codex-api\src\provider.rs:6:use http::header::HeaderMap;
+codex-api\src\provider.rs:7:use std::collections::HashMap;
+codex-api\src\provider.rs:8:use std::time::Duration;
+codex-api\src\provider.rs:9:use url::Url;
+codex-api\src\provider.rs:11:/// High-level retry configuration for a provider.
+codex-api\src\provider.rs:12:///
+codex-api\src\provider.rs:13:/// This is converted into a `RetryPolicy` used by `codex-client` to drive
+codex-api\src\provider.rs:14:/// transport-level retries for both unary and streaming calls.
+codex-api\src\provider.rs:16:pub struct RetryConfig {
+codex-api\src\provider.rs:24:impl RetryConfig {
+codex-api\src\provider.rs:38:/// Wire protocol a provider speaks on its inference route.
+codex-api\src\provider.rs:39:///
+codex-api\src\provider.rs:40:/// Suffice is Responses-native. `Chat` exists for providers that only expose an
+codex-api\src\provider.rs:41:/// OpenAI-compatible `/chat/completions` endpoint (Z.ai/GLM, most OSS servers);
+codex-api\src\provider.rs:42:/// requests and SSE frames are translated at the `ResponsesClient` boundary so
+codex-api\src\provider.rs:43:/// the rest of the codebase never sees the difference.
+codex-api\src\provider.rs:45:pub enum WireApi {
+codex-api\src\provider.rs:51:/// HTTP endpoint configuration used to talk to a concrete API deployment.
+codex-api\src\provider.rs:52:///
+codex-api\src\provider.rs:53:/// Encapsulates base URL, default headers, query params, retry policy, and
+codex-api\src\provider.rs:54:/// stream idle timeout, plus helper methods for building requests.
+codex-api\src\provider.rs:56:pub struct Provider {
+codex-api\src\provider.rs:66:impl Provider {
+codex-api\src\provider.rs:116:pub fn is_azure_responses_provider(name: &str, base_url: Option<&str>) -> bool {
+codex-api\src\provider.rs:126:fn matches_azure_responses_base_url(base_url: &str) -> bool {
+codex-api\src\provider.rs:140:mod tests {
+
+apply patch
+patch: completed
+C:\Users\Bedirhan\Desktop\agent\ab\par-suffice\WIRE.md
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..de0b630b73ac3db05abd1b984416c8d78617c4b8
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# codex-api wire map
++
++## `codex-api/src`
++
++- `codex-api/src/api_bridge.rs` — Translates `ApiError` and transport failures into `CodexErr`, preserving retry timing, rate limits, policy messages, and request tracking metadata. Backed by `codex-api/src/api_bridge.rs:21`.
++- `codex-api/src/api_bridge_tests.rs` — Tests the API-to-protocol error bridge, including overload, retry-delay, Cloudflare, cyber/misalignment policy, usage-limit, and identity-auth mappings. Backed by `codex-api/src/api_bridge_tests.rs:7`.
++- `codex-api/src/auth.rs` — Handles outbound API authentication through a provider trait that can add static headers, asynchronously resolve them, or sign a complete request; also exposes shared auth handles and auth telemetry. Backed by `codex-api/src/auth.rs:30`.
++- `codex-api/src/common.rs` — Defines the canonical Responses request, event, stream, reasoning, text, tools, and WebSocket request types shared by inference endpoints. Backed by `codex-api/src/common.rs:275`.
++- `codex-api/src/error.rs` — Defines `ApiError`, normalizing transport, HTTP, stream, context-window, quota, rate-limit, policy, invalid-request, and overload failures. Backed by `codex-api/src/error.rs:9`.
++- `codex-api/src/files.rs` — Handles hosted OpenAI file upload and metadata retrieval: create, streaming blob upload, finalize, download URL, limits, and `sediment://` file URIs. Backed by `codex-api/src/files.rs:121`.
++- `codex-api/src/images.rs` — Defines image generation/edit wire requests and image responses, including URL/background/quality/base64-data fields. Backed by `codex-api/src/images.rs:5`.
++- `codex-api/src/lib.rs` — Organizes the crate modules and exports the public API surface for providers, auth, endpoints, requests, SSE, files, search, and telemetry. Backed by `codex-api/src/lib.rs:1`.
++- `codex-api/src/provider.rs` — Handles concrete provider endpoint configuration: URLs, headers/query parameters, retries, stream timeouts, Responses versus Chat wire selection, and Azure detection. Backed by `codex-api/src/provider.rs:56`.
++- `codex-api/src/rate_limits.rs` — Translates HTTP rate-limit header families, credits snapshots, promo messages, and WebSocket rate-limit events into protocol `RateLimitSnapshot` values. Backed by `codex-api/src/rate_limits.rs:28`.
++- `codex-api/src/safety_buffering.rs` — Translates safety-buffering HTTP headers into a treatment value carrying the faster-model setting. Backed by `codex-api/src/safety_buffering.rs:8`.
++- `codex-api/src/search.rs` — Defines the search endpoint wire schema, including text/item input, browsing/finance/weather/sports/time operations, filters, settings, and response data. Backed by `codex-api/src/search.rs:9`.
++- `codex-api/src/telemetry.rs` — Defines SSE and Responses-WebSocket telemetry callbacks and request telemetry/retry plumbing used around wire calls. Backed by `codex-api/src/telemetry.rs:18`.
++
++## `codex-api/src/endpoint`
++
++- `codex-api/src/endpoint/compact.rs` — Handles the `responses/compact` endpoint: serializes compaction input, executes the POST, decodes compacted history, and captures turn state. Backed by `codex-api/src/endpoint/compact.rs:39`.
++- `codex-api/src/endpoint/images.rs` — Handles image generation and edit endpoint calls, serializes their requests, decodes responses, and returns the image-generation request ID. Backed by `codex-api/src/endpoint/images.rs:35`.
++- `codex-api/src/endpoint/memories.rs` — Handles the memory trace-summarization endpoint and decodes the resulting memory summaries. Backed by `codex-api/src/endpoint/memories.rs:36`.
++- `codex-api/src/endpoint/mod.rs` — Organizes endpoint modules and re-exports their public clients and realtime wire types. Backed by `codex-api/src/endpoint/mod.rs:12`.
++- `codex-api/src/endpoint/models.rs` — Handles model listing, including client-version request URLs, response decoding, and ETag extraction. Backed by `codex-api/src/endpoint/models.rs:46`.
++- `codex-api/src/endpoint/realtime_call.rs` — Handles WebRTC realtime call creation: builds backend or OpenAI-compatible requests, posts SDP, and extracts the SDP answer and call ID. Backed by `codex-api/src/endpoint/realtime_call.rs:90`.
++- `codex-api/src/endpoint/responses.rs` — Handles HTTP Responses inference calls, selecting the Responses/Guardian route and Chat versus Responses wire, applying headers/compression, and starting the matching SSE stream. Backed by `codex-api/src/endpoint/responses.rs:29`.
++- `codex-api/src/endpoint/responses_websocket.rs` — Handles Responses WebSocket connections and handshake probes, request serialization/reuse, event pumping into `ResponseEvent`s, close/error mapping, rate limits, safety buffering, and timing telemetry. Backed by `codex-api/src/endpoint/responses_websocket.rs:344`.
++- `codex-api/src/endpoint/search.rs` — Handles the `alpha/search` endpoint by serializing `SearchRequest` and decoding `SearchResponse`. Backed by `codex-api/src/endpoint/search.rs:35`.
++- `codex-api/src/endpoint/session.rs` — Provides the shared endpoint execution session that combines provider URLs, auth, transport, bodies, headers, telemetry, retries, and streaming. Backed by `codex-api/src/endpoint/session.rs:19`.
++
++## `codex-api/src/endpoint/realtime_websocket`
++
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — Handles realtime WebSocket client lifecycle and transport: URL construction, connection/reconnection, writer and event streams, audio/transcript handling, handoffs, and wire logging. Backed by `codex-api/src/endpoint/realtime_websocket/methods.rs:765`.
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — Translates semantic realtime operations into outbound wire messages by dispatching to the V1, Frameless Bidi, or Realtime V2 adapter. Backed by `codex-api/src/endpoint/realtime_websocket/methods_common.rs:41`.
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — Tests adapter-specific outbound realtime session updates, handoff output, function-call output, audio, and intent messages. Backed by `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — Builds Frameless Bidi outbound session/context messages and chunks text appends to the wire byte limit. Backed by `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs:11`.
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — Tests Frameless Bidi chunking limits and session JSON serialization, including model, instructions, roles, and delegation fields. Backed by `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:10`.
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — Builds realtime V1 outbound conversation, handoff, intent, and session-update messages. Backed by `codex-api/src/endpoint/realtime_websocket/methods_v1.rs:18`.
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — Builds Realtime V2 outbound messages and richer session configuration, including modalities, audio formats, transcription, tools, and background-agent/silence tools. Backed by `codex-api/src/endpoint/realtime_websocket/methods_v2.rs:39`.
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — Organizes realtime method and protocol modules and re-exports realtime client, stream, parser, and session types. Backed by `codex-api/src/endpoint/realtime_websocket/mod.rs:12`.
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — Defines the realtime adapter selector, session/config types, outbound wire message envelope, conversation/session wire shapes, and event dispatch. Backed by `codex-api/src/endpoint/realtime_websocket/protocol.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — Provides shared realtime inbound JSON parsing for typed payloads, session updates, transcript deltas/dones, and errors. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_common.rs:7`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — Translates Frameless Bidi JSON events into internal realtime audio, transcript, delegation/handoff, session, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — Tests Frameless Bidi decoding compatibility with legacy handoffs and reuse of internal transcript/audio events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:6`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — Translates realtime V1 JSON events into internal audio, transcript, conversation-item, handoff, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs:12`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — Translates Realtime V2 JSON events into audio, transcripts, response lifecycle, tool-call/background-agent, speech-start, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs:24`.
++
++## `codex-api/src/requests`
++
++- `codex-api/src/requests/chat.rs` — Translates Responses-shaped requests into OpenAI Chat Completions request bodies, including message roles, images, tools, reasoning anchoring, and tool-call grouping. Backed by `codex-api/src/requests/chat.rs:19`.
++- `codex-api/src/requests/headers.rs` — Builds session/thread headers and translates sub-agent session sources into request headers. Backed by `codex-api/src/requests/headers.rs:5`.
++- `codex-api/src/requests/mod.rs` — Organizes request translation modules and exports the request compression setting. Backed by `codex-api/src/requests/mod.rs:5`.
++- `codex-api/src/requests/responses.rs` — Defines whether Responses request bodies are sent uncompressed or with Zstandard compression. Backed by `codex-api/src/requests/responses.rs:2`.
++
++## `codex-api/src/sse`
++
++- `codex-api/src/sse/chat.rs` — Translates OpenAI-compatible Chat Completions SSE deltas into Responses-shaped `ResponseEvent`s while accumulating assistant text, reasoning, tool calls, usage, and finish state. Backed by `codex-api/src/sse/chat.rs:30`.
++- `codex-api/src/sse/mod.rs` — Organizes SSE modules and exports both Chat and Responses stream processing APIs. Backed by `codex-api/src/sse/mod.rs:1`.
++- `codex-api/src/sse/responses.rs` — Translates Responses API SSE events into `ResponseEvent`s, decoding items, usage, rate limits, model/turn-state headers, safety buffering, completion, retries, and protocol errors. Backed by `codex-api/src/sse/responses.rs:36`.
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..de0b630b73ac3db05abd1b984416c8d78617c4b8
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# codex-api wire map
++
++## `codex-api/src`
++
++- `codex-api/src/api_bridge.rs` — Translates `ApiError` and transport failures into `CodexErr`, preserving retry timing, rate limits, policy messages, and request tracking metadata. Backed by `codex-api/src/api_bridge.rs:21`.
++- `codex-api/src/api_bridge_tests.rs` — Tests the API-to-protocol error bridge, including overload, retry-delay, Cloudflare, cyber/misalignment policy, usage-limit, and identity-auth mappings. Backed by `codex-api/src/api_bridge_tests.rs:7`.
++- `codex-api/src/auth.rs` — Handles outbound API authentication through a provider trait that can add static headers, asynchronously resolve them, or sign a complete request; also exposes shared auth handles and auth telemetry. Backed by `codex-api/src/auth.rs:30`.
++- `codex-api/src/common.rs` — Defines the canonical Responses request, event, stream, reasoning, text, tools, and WebSocket request types shared by inference endpoints. Backed by `codex-api/src/common.rs:275`.
++- `codex-api/src/error.rs` — Defines `ApiError`, normalizing transport, HTTP, stream, context-window, quota, rate-limit, policy, invalid-request, and overload failures. Backed by `codex-api/src/error.rs:9`.
++- `codex-api/src/files.rs` — Handles hosted OpenAI file upload and metadata retrieval: create, streaming blob upload, finalize, download URL, limits, and `sediment://` file URIs. Backed by `codex-api/src/files.rs:121`.
++- `codex-api/src/images.rs` — Defines image generation/edit wire requests and image responses, including URL/background/quality/base64-data fields. Backed by `codex-api/src/images.rs:5`.
++- `codex-api/src/lib.rs` — Organizes the crate modules and exports the public API surface for providers, auth, endpoints, requests, SSE, files, search, and telemetry. Backed by `codex-api/src/lib.rs:1`.
++- `codex-api/src/provider.rs` — Handles concrete provider endpoint configuration: URLs, headers/query parameters, retries, stream timeouts, Responses versus Chat wire selection, and Azure detection. Backed by `codex-api/src/provider.rs:56`.
++- `codex-api/src/rate_limits.rs` — Translates HTTP rate-limit header families, credits snapshots, promo messages, and WebSocket rate-limit events into protocol `RateLimitSnapshot` values. Backed by `codex-api/src/rate_limits.rs:28`.
++- `codex-api/src/safety_buffering.rs` — Translates safety-buffering HTTP headers into a treatment value carrying the faster-model setting. Backed by `codex-api/src/safety_buffering.rs:8`.
++- `codex-api/src/search.rs` — Defines the search endpoint wire schema, including text/item input, browsing/finance/weather/sports/time operations, filters, settings, and response data. Backed by `codex-api/src/search.rs:9`.
++- `codex-api/src/telemetry.rs` — Defines SSE and Responses-WebSocket telemetry callbacks and request telemetry/retry plumbing used around wire calls. Backed by `codex-api/src/telemetry.rs:18`.
++
++## `codex-api/src/endpoint`
++
++- `codex-api/src/endpoint/compact.rs` — Handles the `responses/compact` endpoint: serializes compaction input, executes the POST, decodes compacted history, and captures turn state. Backed by `codex-api/src/endpoint/compact.rs:39`.
++- `codex-api/src/endpoint/images.rs` — Handles image generation and edit endpoint calls, serializes their requests, decodes responses, and returns the image-generation request ID. Backed by `codex-api/src/endpoint/images.rs:35`.
++- `codex-api/src/endpoint/memories.rs` — Handles the memory trace-summarization endpoint and decodes the resulting memory summaries. Backed by `codex-api/src/endpoint/memories.rs:36`.
++- `codex-api/src/endpoint/mod.rs` — Organizes endpoint modules and re-exports their public clients and realtime wire types. Backed by `codex-api/src/endpoint/mod.rs:12`.
++- `codex-api/src/endpoint/models.rs` — Handles model listing, including client-version request URLs, response decoding, and ETag extraction. Backed by `codex-api/src/endpoint/models.rs:46`.
++- `codex-api/src/endpoint/realtime_call.rs` — Handles WebRTC realtime call creation: builds backend or OpenAI-compatible requests, posts SDP, and extracts the SDP answer and call ID. Backed by `codex-api/src/endpoint/realtime_call.rs:90`.
++- `codex-api/src/endpoint/responses.rs` — Handles HTTP Responses inference calls, selecting the Responses/Guardian route and Chat versus Responses wire, applying headers/compression, and starting the matching SSE stream. Backed by `codex-api/src/endpoint/responses.rs:29`.
++- `codex-api/src/endpoint/responses_websocket.rs` — Handles Responses WebSocket connections and handshake probes, request serialization/reuse, event pumping into `ResponseEvent`s, close/error mapping, rate limits, safety buffering, and timing telemetry. Backed by `codex-api/src/endpoint/responses_websocket.rs:344`.
++- `codex-api/src/endpoint/search.rs` — Handles the `alpha/search` endpoint by serializing `SearchRequest` and decoding `SearchResponse`. Backed by `codex-api/src/endpoint/search.rs:35`.
++- `codex-api/src/endpoint/session.rs` — Provides the shared endpoint execution session that combines provider URLs, auth, transport, bodies, headers, telemetry, retries, and streaming. Backed by `codex-api/src/endpoint/session.rs:19`.
++
++## `codex-api/src/endpoint/realtime_websocket`
++
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — Handles realtime WebSocket client lifecycle and transport: URL construction, connection/reconnection, writer and event streams, audio/transcript handling, handoffs, and wire logging. Backed by `codex-api/src/endpoint/realtime_websocket/methods.rs:765`.
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — Translates semantic realtime operations into outbound wire messages by dispatching to the V1, Frameless Bidi, or Realtime V2 adapter. Backed by `codex-api/src/endpoint/realtime_websocket/methods_common.rs:41`.
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — Tests adapter-specific outbound realtime session updates, handoff output, function-call output, audio, and intent messages. Backed by `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — Builds Frameless Bidi outbound session/context messages and chunks text appends to the wire byte limit. Backed by `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs:11`.
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — Tests Frameless Bidi chunking limits and session JSON serialization, including model, instructions, roles, and delegation fields. Backed by `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:10`.
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — Builds realtime V1 outbound conversation, handoff, intent, and session-update messages. Backed by `codex-api/src/endpoint/realtime_websocket/methods_v1.rs:18`.
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — Builds Realtime V2 outbound messages and richer session configuration, including modalities, audio formats, transcription, tools, and background-agent/silence tools. Backed by `codex-api/src/endpoint/realtime_websocket/methods_v2.rs:39`.
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — Organizes realtime method and protocol modules and re-exports realtime client, stream, parser, and session types. Backed by `codex-api/src/endpoint/realtime_websocket/mod.rs:12`.
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — Defines the realtime adapter selector, session/config types, outbound wire message envelope, conversation/session wire shapes, and event dispatch. Backed by `codex-api/src/endpoint/realtime_websocket/protocol.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — Provides shared realtime inbound JSON parsing for typed payloads, session updates, transcript deltas/dones, and errors. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_common.rs:7`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — Translates Frameless Bidi JSON events into internal realtime audio, transcript, delegation/handoff, session, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — Tests Frameless Bidi decoding compatibility with legacy handoffs and reuse of internal transcript/audio events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:6`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — Translates realtime V1 JSON events into internal audio, transcript, conversation-item, handoff, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs:12`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — Translates Realtime V2 JSON events into audio, transcripts, response lifecycle, tool-call/background-agent, speech-start, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs:24`.
++
++## `codex-api/src/requests`
++
++- `codex-api/src/requests/chat.rs` — Translates Responses-shaped requests into OpenAI Chat Completions request bodies, including message roles, images, tools, reasoning anchoring, and tool-call grouping. Backed by `codex-api/src/requests/chat.rs:19`.
++- `codex-api/src/requests/headers.rs` — Builds session/thread headers and translates sub-agent session sources into request headers. Backed by `codex-api/src/requests/headers.rs:5`.
++- `codex-api/src/requests/mod.rs` — Organizes request translation modules and exports the request compression setting. Backed by `codex-api/src/requests/mod.rs:5`.
++- `codex-api/src/requests/responses.rs` — Defines whether Responses request bodies are sent uncompressed or with Zstandard compression. Backed by `codex-api/src/requests/responses.rs:2`.
++
++## `codex-api/src/sse`
++
++- `codex-api/src/sse/chat.rs` — Translates OpenAI-compatible Chat Completions SSE deltas into Responses-shaped `ResponseEvent`s while accumulating assistant text, reasoning, tool calls, usage, and finish state. Backed by `codex-api/src/sse/chat.rs:30`.
++- `codex-api/src/sse/mod.rs` — Organizes SSE modules and exports both Chat and Responses stream processing APIs. Backed by `codex-api/src/sse/mod.rs:1`.
++- `codex-api/src/sse/responses.rs` — Translates Responses API SSE events into `ResponseEvent`s, decoding items, usage, rate limits, model/turn-state headers, safety buffering, completion, retries, and protocol errors. Backed by `codex-api/src/sse/responses.rs:36`.
+
+context compacted
+warning: Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.
+codex
+CHECKPOINT REACHED: 44 files
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..de0b630b73ac3db05abd1b984416c8d78617c4b8
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# codex-api wire map
++
++## `codex-api/src`
++
++- `codex-api/src/api_bridge.rs` — Translates `ApiError` and transport failures into `CodexErr`, preserving retry timing, rate limits, policy messages, and request tracking metadata. Backed by `codex-api/src/api_bridge.rs:21`.
++- `codex-api/src/api_bridge_tests.rs` — Tests the API-to-protocol error bridge, including overload, retry-delay, Cloudflare, cyber/misalignment policy, usage-limit, and identity-auth mappings. Backed by `codex-api/src/api_bridge_tests.rs:7`.
++- `codex-api/src/auth.rs` — Handles outbound API authentication through a provider trait that can add static headers, asynchronously resolve them, or sign a complete request; also exposes shared auth handles and auth telemetry. Backed by `codex-api/src/auth.rs:30`.
++- `codex-api/src/common.rs` — Defines the canonical Responses request, event, stream, reasoning, text, tools, and WebSocket request types shared by inference endpoints. Backed by `codex-api/src/common.rs:275`.
++- `codex-api/src/error.rs` — Defines `ApiError`, normalizing transport, HTTP, stream, context-window, quota, rate-limit, policy, invalid-request, and overload failures. Backed by `codex-api/src/error.rs:9`.
++- `codex-api/src/files.rs` — Handles hosted OpenAI file upload and metadata retrieval: create, streaming blob upload, finalize, download URL, limits, and `sediment://` file URIs. Backed by `codex-api/src/files.rs:121`.
++- `codex-api/src/images.rs` — Defines image generation/edit wire requests and image responses, including URL/background/quality/base64-data fields. Backed by `codex-api/src/images.rs:5`.
++- `codex-api/src/lib.rs` — Organizes the crate modules and exports the public API surface for providers, auth, endpoints, requests, SSE, files, search, and telemetry. Backed by `codex-api/src/lib.rs:1`.
++- `codex-api/src/provider.rs` — Handles concrete provider endpoint configuration: URLs, headers/query parameters, retries, stream timeouts, Responses versus Chat wire selection, and Azure detection. Backed by `codex-api/src/provider.rs:56`.
++- `codex-api/src/rate_limits.rs` — Translates HTTP rate-limit header families, credits snapshots, promo messages, and WebSocket rate-limit events into protocol `RateLimitSnapshot` values. Backed by `codex-api/src/rate_limits.rs:28`.
++- `codex-api/src/safety_buffering.rs` — Translates safety-buffering HTTP headers into a treatment value carrying the faster-model setting. Backed by `codex-api/src/safety_buffering.rs:8`.
++- `codex-api/src/search.rs` — Defines the search endpoint wire schema, including text/item input, browsing/finance/weather/sports/time operations, filters, settings, and response data. Backed by `codex-api/src/search.rs:9`.
++- `codex-api/src/telemetry.rs` — Defines SSE and Responses-WebSocket telemetry callbacks and request telemetry/retry plumbing used around wire calls. Backed by `codex-api/src/telemetry.rs:18`.
++
++## `codex-api/src/endpoint`
++
++- `codex-api/src/endpoint/compact.rs` — Handles the `responses/compact` endpoint: serializes compaction input, executes the POST, decodes compacted history, and captures turn state. Backed by `codex-api/src/endpoint/compact.rs:39`.
++- `codex-api/src/endpoint/images.rs` — Handles image generation and edit endpoint calls, serializes their requests, decodes responses, and returns the image-generation request ID. Backed by `codex-api/src/endpoint/images.rs:35`.
++- `codex-api/src/endpoint/memories.rs` — Handles the memory trace-summarization endpoint and decodes the resulting memory summaries. Backed by `codex-api/src/endpoint/memories.rs:36`.
++- `codex-api/src/endpoint/mod.rs` — Organizes endpoint modules and re-exports their public clients and realtime wire types. Backed by `codex-api/src/endpoint/mod.rs:12`.
++- `codex-api/src/endpoint/models.rs` — Handles model listing, including client-version request URLs, response decoding, and ETag extraction. Backed by `codex-api/src/endpoint/models.rs:46`.
++- `codex-api/src/endpoint/realtime_call.rs` — Handles WebRTC realtime call creation: builds backend or OpenAI-compatible requests, posts SDP, and extracts the SDP answer and call ID. Backed by `codex-api/src/endpoint/realtime_call.rs:90`.
++- `codex-api/src/endpoint/responses.rs` — Handles HTTP Responses inference calls, selecting the Responses/Guardian route and Chat versus Responses wire, applying headers/compression, and starting the matching SSE stream. Backed by `codex-api/src/endpoint/responses.rs:29`.
++- `codex-api/src/endpoint/responses_websocket.rs` — Handles Responses WebSocket connections and handshake probes, request serialization/reuse, event pumping into `ResponseEvent`s, close/error mapping, rate limits, safety buffering, and timing telemetry. Backed by `codex-api/src/endpoint/responses_websocket.rs:344`.
++- `codex-api/src/endpoint/search.rs` — Handles the `alpha/search` endpoint by serializing `SearchRequest` and decoding `SearchResponse`. Backed by `codex-api/src/endpoint/search.rs:35`.
++- `codex-api/src/endpoint/session.rs` — Provides the shared endpoint execution session that combines provider URLs, auth, transport, bodies, headers, telemetry, retries, and streaming. Backed by `codex-api/src/endpoint/session.rs:19`.
++
++## `codex-api/src/endpoint/realtime_websocket`
++
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — Handles realtime WebSocket client lifecycle and transport: URL construction, connection/reconnection, writer and event streams, audio/transcript handling, handoffs, and wire logging. Backed by `codex-api/src/endpoint/realtime_websocket/methods.rs:765`.
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — Translates semantic realtime operations into outbound wire messages by dispatching to the V1, Frameless Bidi, or Realtime V2 adapter. Backed by `codex-api/src/endpoint/realtime_websocket/methods_common.rs:41`.
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — Tests adapter-specific outbound realtime session updates, handoff output, function-call output, audio, and intent messages. Backed by `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — Builds Frameless Bidi outbound session/context messages and chunks text appends to the wire byte limit. Backed by `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs:11`.
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — Tests Frameless Bidi chunking limits and session JSON serialization, including model, instructions, roles, and delegation fields. Backed by `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:10`.
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — Builds realtime V1 outbound conversation, handoff, intent, and session-update messages. Backed by `codex-api/src/endpoint/realtime_websocket/methods_v1.rs:18`.
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — Builds Realtime V2 outbound messages and richer session configuration, including modalities, audio formats, transcription, tools, and background-agent/silence tools. Backed by `codex-api/src/endpoint/realtime_websocket/methods_v2.rs:39`.
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — Organizes realtime method and protocol modules and re-exports realtime client, stream, parser, and session types. Backed by `codex-api/src/endpoint/realtime_websocket/mod.rs:12`.
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — Defines the realtime adapter selector, session/config types, outbound wire message envelope, conversation/session wire shapes, and event dispatch. Backed by `codex-api/src/endpoint/realtime_websocket/protocol.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — Provides shared realtime inbound JSON parsing for typed payloads, session updates, transcript deltas/dones, and errors. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_common.rs:7`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — Translates Frameless Bidi JSON events into internal realtime audio, transcript, delegation/handoff, session, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs:15`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — Tests Frameless Bidi decoding compatibility with legacy handoffs and reuse of internal transcript/audio events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:6`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — Translates realtime V1 JSON events into internal audio, transcript, conversation-item, handoff, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs:12`.
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — Translates Realtime V2 JSON events into audio, transcripts, response lifecycle, tool-call/background-agent, speech-start, and error events. Backed by `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs:24`.
++
++## `codex-api/src/requests`
++
++- `codex-api/src/requests/chat.rs` — Translates Responses-shaped requests into OpenAI Chat Completions request bodies, including message roles, images, tools, reasoning anchoring, and tool-call grouping. Backed by `codex-api/src/requests/chat.rs:19`.
++- `codex-api/src/requests/headers.rs` — Builds session/thread headers and translates sub-agent session sources into request headers. Backed by `codex-api/src/requests/headers.rs:5`.
++- `codex-api/src/requests/mod.rs` — Organizes request translation modules and exports the request compression setting. Backed by `codex-api/src/requests/mod.rs:5`.
++- `codex-api/src/requests/responses.rs` — Defines whether Responses request bodies are sent uncompressed or with Zstandard compression. Backed by `codex-api/src/requests/responses.rs:2`.
++
++## `codex-api/src/sse`
++
++- `codex-api/src/sse/chat.rs` — Translates OpenAI-compatible Chat Completions SSE deltas into Responses-shaped `ResponseEvent`s while accumulating assistant text, reasoning, tool calls, usage, and finish state. Backed by `codex-api/src/sse/chat.rs:30`.
++- `codex-api/src/sse/mod.rs` — Organizes SSE modules and exports both Chat and Responses stream processing APIs. Backed by `codex-api/src/sse/mod.rs:1`.
++- `codex-api/src/sse/responses.rs` — Translates Responses API SSE events into `ResponseEvent`s, decoding items, usage, rate limits, model/turn-state headers, safety buffering, completion, retries, and protocol errors. Backed by `codex-api/src/sse/responses.rs:36`.
+
+tokens used
+90.702
+CHECKPOINT REACHED: 44 files

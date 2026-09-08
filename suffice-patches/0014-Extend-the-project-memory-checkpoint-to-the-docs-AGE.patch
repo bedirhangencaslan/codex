@@ -1,0 +1,34 @@
+From 8fdca65ff58989b219e6e1eb0582ad666e3bf481 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 16:44:27 +0300
+Subject: [PATCH 14/71] Extend the project memory checkpoint to the docs
+ AGENTS.md links to
+
+A memory file that has grown past one page gets split, and the parts that
+move out are exactly the durable ones: architecture notes, debugging
+findings, conventions. If the checkpoint only ever touches the entry file,
+everything behind a link goes stale while the index above it stays fresh.
+
+The agent already has the ordinary toolset here, so this needs no path list
+and no new tool: telling it that linked files are part of the same memory is
+enough for it to read and patch them. The same paragraph grants the reverse
+move, splitting a new linked file out, so recording something long does not
+force the entry file to grow.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/prompts/templates/memory/agents_md.md | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/codex-rs/prompts/templates/memory/agents_md.md b/codex-rs/prompts/templates/memory/agents_md.md
+index 9f48a4f0c5..33c4ca68e7 100644
+--- a/codex-rs/prompts/templates/memory/agents_md.md
++++ b/codex-rs/prompts/templates/memory/agents_md.md
+@@ -1,3 +1,5 @@
+ You are performing a PROJECT MEMORY CHECKPOINT. This conversation is about to be compacted and most of its detail will be discarded.
+ 
+-`{{agents_md_path}}` is reloaded at the start of every future session. Update it with what needs to carry from this conversation into the next one. Rewrite or restructure the file freely when its current shape no longer fits what it now has to hold; a minimal diff is not the goal here. Then stop.
++`{{agents_md_path}}` is reloaded at the start of every future session. Update it with what needs to carry from this conversation into the next one. Rewrite or restructure the file freely when its current shape no longer fits what it now has to hold; a minimal diff is not the goal here.
++
++The files `{{agents_md_path}}` links to are part of the same memory. Read the ones this conversation changed your understanding of and update them the same way, and split a new linked file out when what you have to record does not belong in `{{agents_md_path}}` itself. Then stop.

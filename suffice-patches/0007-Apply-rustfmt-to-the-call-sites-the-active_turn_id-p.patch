@@ -1,0 +1,190 @@
+From e7b2eac2049d769cbb65cd436f57d8fd67b828f3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Tue, 1 Sep 2026 21:46:01 +0300
+Subject: [PATCH 07/71] Apply rustfmt to the call sites the active_turn_id
+ parameter reflowed
+
+Adding active_turn_id to for_prompt pushed several calls past the line
+limit, and one assert! in client_tests.rs was already drifting from the
+current rustfmt style. No behavior changes.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/client_tests.rs             | 20 ++++---
+ .../core/src/context_manager/history_tests.rs | 52 ++++++++++++++-----
+ codex-rs/core/src/prompt_debug.rs             | 11 ++--
+ 3 files changed, 54 insertions(+), 29 deletions(-)
+
+diff --git a/codex-rs/core/src/client_tests.rs b/codex-rs/core/src/client_tests.rs
+index 038ea9028c..739a51f803 100644
+--- a/codex-rs/core/src/client_tests.rs
++++ b/codex-rs/core/src/client_tests.rs
+@@ -496,14 +496,18 @@ fn responses_request_forwards_reasoning_items_from_input() {
+         )
+         .expect("build responses request");
+ 
+-    assert!(request
+-        .input
+-        .iter()
+-        .any(|item| matches!(item, ResponseItem::Reasoning { .. })));
+-    assert!(request
+-        .input
+-        .iter()
+-        .any(|item| matches!(item, ResponseItem::Message { .. })));
++    assert!(
++        request
++            .input
++            .iter()
++            .any(|item| matches!(item, ResponseItem::Reasoning { .. }))
++    );
++    assert!(
++        request
++            .input
++            .iter()
++            .any(|item| matches!(item, ResponseItem::Message { .. }))
++    );
+ }
+ 
+ #[test]
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index 02b18ef2cf..6db27ef2b1 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -469,7 +469,10 @@ fn for_prompt_preserves_inter_agent_assistant_messages() {
+     let history = create_history_with_items(vec![item.clone()]);
+ 
+     assert_eq!(raw_items(&history), std::slice::from_ref(&item));
+-    assert_eq!(history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None), vec![item]);
++    assert_eq!(
++        history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
++        vec![item]
++    );
+ }
+ 
+ #[test]
+@@ -918,11 +921,14 @@ fn for_prompt_strips_media_when_model_does_not_support_it() {
+     ];
+     assert_eq!(stripped, expected);
+     assert_eq!(
+-        create_history_with_items(fully_supported_items.clone()).for_prompt(&[
+-            InputModality::Text,
+-            InputModality::Image,
+-            InputModality::Audio,
+-        ], /*active_turn_id*/ None),
++        create_history_with_items(fully_supported_items.clone()).for_prompt(
++            &[
++                InputModality::Text,
++                InputModality::Image,
++                InputModality::Audio,
++            ],
++            /*active_turn_id*/ None
++        ),
+         fully_supported_items
+     );
+ 
+@@ -963,7 +969,10 @@ fn for_prompt_strips_media_when_model_does_not_support_it() {
+     };
+     let with_audio = create_history_with_items(vec![audio_message.clone()]);
+     assert_eq!(
+-        with_audio.for_prompt(&[InputModality::Text, InputModality::Audio], /*active_turn_id*/ None),
++        with_audio.for_prompt(
++            &[InputModality::Text, InputModality::Audio],
++            /*active_turn_id*/ None
++        ),
+         vec![audio_message]
+     );
+ }
+@@ -1275,7 +1284,10 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
+         assistant_msg("turn 2 assistant"),
+     ]);
+     history.drop_last_n_user_turns(/*num_turns*/ 2);
+-    assert_eq!(history.for_prompt(&modalities, /*active_turn_id*/ None), expected_prefix_only);
++    assert_eq!(
++        history.for_prompt(&modalities, /*active_turn_id*/ None),
++        expected_prefix_only
++    );
+ 
+     let mut history = create_history_with_items(vec![
+         user_input_text_msg("<environment_context>ctx</environment_context>"),
+@@ -1295,7 +1307,10 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
+         assistant_msg("turn 2 assistant"),
+     ]);
+     history.drop_last_n_user_turns(/*num_turns*/ 3);
+-    assert_eq!(history.for_prompt(&modalities, /*active_turn_id*/ None), expected_prefix_only);
++    assert_eq!(
++        history.for_prompt(&modalities, /*active_turn_id*/ None),
++        expected_prefix_only
++    );
+ }
+ 
+ #[test]
+@@ -1333,7 +1348,9 @@ fn drop_last_n_user_turns_trims_context_updates_above_rolled_back_turn() {
+     history.drop_last_n_user_turns(/*num_turns*/ 1);
+ 
+     assert_eq!(
+-        history.clone().for_prompt(&modalities, /*active_turn_id*/ None),
++        history
++            .clone()
++            .for_prompt(&modalities, /*active_turn_id*/ None),
+         vec![
+             assistant_msg("session prefix item"),
+             user_input_text_msg("turn 1 user"),
+@@ -1463,7 +1480,9 @@ fn drop_last_n_user_turns_clears_reference_context_for_mixed_developer_context_b
+     history.drop_last_n_user_turns(/*num_turns*/ 1);
+ 
+     assert_eq!(
+-        history.clone().for_prompt(&modalities, /*active_turn_id*/ None),
++        history
++            .clone()
++            .for_prompt(&modalities, /*active_turn_id*/ None),
+         vec![
+             user_input_text_msg("turn 1 user"),
+             assistant_msg("turn 1 assistant"),
+@@ -2056,7 +2075,10 @@ fn normalize_preserves_named_function_call_output_without_call_id() {
+     };
+     let history = create_history_with_items(vec![item.clone()]);
+ 
+-    assert_eq!(history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None), vec![item]);
++    assert_eq!(
++        history.for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
++        vec![item]
++    );
+ }
+ 
+ #[test]
+@@ -2082,8 +2104,10 @@ fn for_prompt_assigns_stable_id_to_synthetic_output_without_reordering_history()
+         },
+     ];
+ 
+-    let first = create_history_with_items(items.clone()).for_prompt(&default_input_modalities(), /*active_turn_id*/ None);
+-    let second = create_history_with_items(items).for_prompt(&default_input_modalities(), /*active_turn_id*/ None);
++    let first = create_history_with_items(items.clone())
++        .for_prompt(&default_input_modalities(), /*active_turn_id*/ None);
++    let second = create_history_with_items(items)
++        .for_prompt(&default_input_modalities(), /*active_turn_id*/ None);
+ 
+     assert_eq!(
+         first, second,
+diff --git a/codex-rs/core/src/prompt_debug.rs b/codex-rs/core/src/prompt_debug.rs
+index d28d255a7d..ce1ea6f886 100644
+--- a/codex-rs/core/src/prompt_debug.rs
++++ b/codex-rs/core/src/prompt_debug.rs
+@@ -98,13 +98,10 @@ pub(crate) async fn build_prompt_input_from_session(
+             .await;
+     }
+ 
+-    let prompt_input = sess
+-        .clone_history()
+-        .await
+-        .for_prompt(
+-            &step_context.settings.model_info.input_modalities,
+-            Some(turn_context.sub_id.as_str()),
+-        );
++    let prompt_input = sess.clone_history().await.for_prompt(
++        &step_context.settings.model_info.input_modalities,
++        Some(turn_context.sub_id.as_str()),
++    );
+     let base_instructions = sess.get_base_instructions().await;
+     let prompt = build_prompt(prompt_input, step_context.as_ref(), base_instructions);
+ 

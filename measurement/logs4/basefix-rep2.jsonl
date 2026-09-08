@@ -1,0 +1,4 @@
+{"model": "glm-5.3-flash", "status": 200, "prompt_tokens": 7809, "cached_tokens": 7808, "completion_tokens": 164, "sent_reasoning_effort": "high", "sent_include_usage": true, "ms": 7401, "label": "basefix-rep2", "ts": "2026-09-07T21:14:36"}
+{"model": "glm-5.3-flash", "status": 200, "prompt_tokens": 8700, "cached_tokens": 7808, "completion_tokens": 421, "sent_reasoning_effort": "high", "sent_include_usage": true, "ms": 13155, "label": "basefix-rep2", "ts": "2026-09-07T21:14:50"}
+{"model": "glm-5.3-flash", "status": 200, "prompt_tokens": 9169, "cached_tokens": 8640, "completion_tokens": 54, "sent_reasoning_effort": "high", "sent_include_usage": true, "ms": 4763, "label": "basefix-rep2", "ts": "2026-09-07T21:14:56"}
+{"model": "glm-5.3-flash", "status": 200, "prompt_tokens": 9306, "cached_tokens": 9152, "completion_tokens": 79, "sent_reasoning_effort": "high", "sent_include_usage": true, "ms": 6821, "label": "basefix-rep2", "ts": "2026-09-07T21:15:03"}

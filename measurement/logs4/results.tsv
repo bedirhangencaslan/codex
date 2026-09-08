@@ -1,0 +1,11 @@
+agent	rep	task	exit	completed	seconds
+suffice	1	patch	0	yes	33
+base	1	patch	0	yes	160
+cline	1	patch	0	yes	74
+opencode	1	patch	0	yes	32
+suffice	2	patch	0	yes	38
+base	2	patch	0	yes	248
+cline	2	patch	0	yes	78
+opencode	2	patch	0	yes	24
+basefix	1	patch	0	yes	59
+basefix	2	patch	0	yes	34

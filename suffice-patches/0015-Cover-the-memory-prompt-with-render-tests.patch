@@ -1,0 +1,53 @@
+From 9210ef7761ce3b0f485c2c1f81401241f8e679ac Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 16:44:31 +0300
+Subject: [PATCH 15/71] Cover the memory prompt with render tests
+
+Every other rendering module in the prompts crate has a sibling
+`*_tests.rs`; `memory.rs` was the one that shipped without. The tests pin
+the two things the template promises its caller: the path placeholder is
+substituted rather than passed through, and the prompt still opens as the
+system procedure the compaction prompt is framed as.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/prompts/src/memory.rs       |  4 ++++
+ codex-rs/prompts/src/memory_tests.rs | 16 ++++++++++++++++
+ 2 files changed, 20 insertions(+)
+ create mode 100644 codex-rs/prompts/src/memory_tests.rs
+
+diff --git a/codex-rs/prompts/src/memory.rs b/codex-rs/prompts/src/memory.rs
+index e61e531d64..cc804d7706 100644
+--- a/codex-rs/prompts/src/memory.rs
++++ b/codex-rs/prompts/src/memory.rs
+@@ -16,3 +16,7 @@ pub fn agents_md_memory_prompt(agents_md_path: &str) -> String {
+         .render([("agents_md_path", agents_md_path)])
+         .unwrap_or_else(|err| panic!("agents md memory prompt must render: {err}"))
+ }
++
++#[cfg(test)]
++#[path = "memory_tests.rs"]
++mod memory_tests;
+diff --git a/codex-rs/prompts/src/memory_tests.rs b/codex-rs/prompts/src/memory_tests.rs
+new file mode 100644
+index 0000000000..119e7a8b73
+--- /dev/null
++++ b/codex-rs/prompts/src/memory_tests.rs
+@@ -0,0 +1,16 @@
++use super::*;
++
++#[test]
++fn agents_md_memory_prompt_substitutes_the_path() {
++    let rendered = agents_md_memory_prompt("docs/CONTEXT.md");
++    assert!(rendered.contains("`docs/CONTEXT.md`"));
++    assert!(!rendered.contains("{{agents_md_path}}"));
++}
++
++#[test]
++fn agents_md_memory_prompt_opens_as_a_system_procedure() {
++    assert!(
++        agents_md_memory_prompt("AGENTS.md")
++            .starts_with("You are performing a PROJECT MEMORY CHECKPOINT.")
++    );
++}

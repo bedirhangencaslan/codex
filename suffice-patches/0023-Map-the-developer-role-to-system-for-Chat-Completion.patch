@@ -1,0 +1,67 @@
+From a6711a5c1aaf9f24e5109b2a7fbdf72350172234 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 21:10:46 +0300
+Subject: [PATCH 23/71] Map the developer role to system for Chat Completions
+
+Codex carries instructions on the `developer` role, which only exists in the
+Responses API. GLM rejects the whole request with error 1214 rather than
+ignoring the unknown role, so every session failed on its first turn. The role
+was introduced as a rename of `system`, so translate it back.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/codex-api/src/requests/chat.rs | 33 ++++++++++++++++++++++++-
+ 1 file changed, 32 insertions(+), 1 deletion(-)
+
+diff --git a/codex-rs/codex-api/src/requests/chat.rs b/codex-rs/codex-api/src/requests/chat.rs
+index 8c27795952..11a933ec6c 100644
+--- a/codex-rs/codex-api/src/requests/chat.rs
++++ b/codex-rs/codex-api/src/requests/chat.rs
+@@ -63,7 +63,15 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
+                     json!(text)
+                 };
+ 
+-                let mut msg = json!({"role": role, "content": content_value});
++                // Chat Completions has no `developer` role, and GLM rejects the
++                // whole request with error 1214 rather than ignoring it. The
++                // role was introduced as a rename of `system`, so map it back.
++                let chat_role = if role == "developer" {
++                    "system"
++                } else {
++                    role.as_str()
++                };
++                let mut msg = json!({"role": chat_role, "content": content_value});
+                 if role == "assistant"
+                     && let Some(reasoning) = reasoning_by_anchor_index.get(&idx)
+                     && let Some(obj) = msg.as_object_mut()
+@@ -403,6 +411,29 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn rewrites_developer_messages_as_system_messages() {
++        let body = chat_body_from_responses_request(&request(
++            vec![
++                ResponseItem::Message {
++                    id: None,
++                    role: "developer".to_string(),
++                    content: vec![ContentItem::InputText {
++                        text: "environment context".to_string(),
++                    }],
++                    phase: None,
++                    internal_chat_message_metadata_passthrough: None,
++                },
++                user("hello"),
++            ],
++            None,
++        ));
++
++        let messages = body["messages"].as_array().expect("messages");
++        assert_eq!(messages[1]["role"], "system");
++        assert_eq!(messages[1]["content"], "environment context");
++    }
++
+     #[test]
+     fn groups_consecutive_tool_calls_and_keeps_outputs_in_order() {
+         let body = chat_body_from_responses_request(&request(

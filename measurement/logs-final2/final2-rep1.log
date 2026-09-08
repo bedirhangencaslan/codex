@@ -1,0 +1,341 @@
+Suffice v0.0.0
+--------
+workdir: C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+model: glm-5.3-flash
+provider: zai-relay
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+session id: 01a080fd-ef2f-7d61-9649-03e6c9633fd1
+--------
+user
+Read every `.rs` file under `codex-api/src/` and write `WIRE.md`.
+
+For each file, write one line: the path, what it translates or handles, and one `file:line`
+citation backing it. Group the lines under the directory each file lives in.
+
+Do not modify any file except `WIRE.md`.
+
+STOP CONDITION. When `WIRE.md` has a line for every `.rs` file under `codex-api/src/`, count the
+files you covered and print `CHECKPOINT REACHED: <n> files`. Then stop. Do not review anything
+else and do not write any other file.
+
+codex
+I’ll inventory the Rust files under `codex-api/src/`, read them, then create only `WIRE.md` with grouped per-file summaries and citations.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rg --files codex-api/src -g '*.rs' | sort" in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 165ms:
+codex-api/src\api_bridge.rs
+codex-api/src\api_bridge_tests.rs
+codex-api/src\auth.rs
+codex-api/src\common.rs
+codex-api/src\endpoint\compact.rs
+codex-api/src\endpoint\images.rs
+codex-api/src\endpoint\memories.rs
+codex-api/src\endpoint\mod.rs
+codex-api/src\endpoint\models.rs
+codex-api/src\endpoint\realtime_call.rs
+codex-api/src\endpoint\realtime_websocket\methods.rs
+codex-api/src\endpoint\realtime_websocket\methods_common.rs
+codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs
+codex-api/src\endpoint\realtime_websocket\methods_v1.rs
+codex-api/src\endpoint\realtime_websocket\methods_v2.rs
+codex-api/src\endpoint\realtime_websocket\mod.rs
+codex-api/src\endpoint\realtime_websocket\protocol.rs
+codex-api/src\endpoint\realtime_websocket\protocol_common.rs
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs
+codex-api/src\endpoint\realtime_websocket\protocol_v1.rs
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs
+codex-api/src\endpoint\responses.rs
+codex-api/src\endpoint\responses_websocket.rs
+codex-api/src\endpoint\search.rs
+codex-api/src\endpoint\session.rs
+codex-api/src\error.rs
+codex-api/src\files.rs
+codex-api/src\images.rs
+codex-api/src\lib.rs
+codex-api/src\provider.rs
+codex-api/src\rate_limits.rs
+codex-api/src\requests\chat.rs
+codex-api/src\requests\headers.rs
+codex-api/src\requests\mod.rs
+codex-api/src\requests\responses.rs
+codex-api/src\safety_buffering.rs
+codex-api/src\search.rs
+codex-api/src\sse\chat.rs
+codex-api/src\sse\mod.rs
+codex-api/src\sse\responses.rs
+codex-api/src\telemetry.rs
+
+codex
+I have root-level files and the inventory: 44 total `.rs` files. Next I’m reading the endpoint modules, then requests/sse, before writing the one-line-per-file catalog.
+context compacted
+warning: Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.
+codex
+I’m verifying the 44-file inventory and whether `WIRE.md` already exists, then I’ll create the catalog with one grouped entry per file.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "rg --files codex-api/src -g '*.rs' | sort; if (Test-Path WIRE.md) { Get-Content WIRE.md } else { 'WIRE.md: absent' }" in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 51ms:
+codex-api/src\api_bridge.rs
+codex-api/src\api_bridge_tests.rs
+codex-api/src\auth.rs
+codex-api/src\common.rs
+codex-api/src\endpoint\compact.rs
+codex-api/src\endpoint\images.rs
+codex-api/src\endpoint\memories.rs
+codex-api/src\endpoint\mod.rs
+codex-api/src\endpoint\models.rs
+codex-api/src\endpoint\realtime_call.rs
+codex-api/src\endpoint\realtime_websocket\methods.rs
+codex-api/src\endpoint\realtime_websocket\methods_common.rs
+codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs
+codex-api/src\endpoint\realtime_websocket\methods_v1.rs
+codex-api/src\endpoint\realtime_websocket\methods_v2.rs
+codex-api/src\endpoint\realtime_websocket\mod.rs
+codex-api/src\endpoint\realtime_websocket\protocol.rs
+codex-api/src\endpoint\realtime_websocket\protocol_common.rs
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs
+codex-api/src\endpoint\realtime_websocket\protocol_v1.rs
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs
+codex-api/src\endpoint\responses.rs
+codex-api/src\endpoint\responses_websocket.rs
+codex-api/src\endpoint\search.rs
+codex-api/src\endpoint\session.rs
+codex-api/src\error.rs
+codex-api/src\files.rs
+codex-api/src\images.rs
+codex-api/src\lib.rs
+codex-api/src\provider.rs
+codex-api/src\rate_limits.rs
+codex-api/src\requests\chat.rs
+codex-api/src\requests\headers.rs
+codex-api/src\requests\mod.rs
+codex-api/src\requests\responses.rs
+codex-api/src\safety_buffering.rs
+codex-api/src\search.rs
+codex-api/src\sse\chat.rs
+codex-api/src\sse\mod.rs
+codex-api/src\sse\responses.rs
+codex-api/src\telemetry.rs
+WIRE.md: absent
+
+codex
+The inventory matches 44 files and `WIRE.md` is absent. I’m creating it now with the requested grouped entries and citations.
+apply patch
+patch: completed
+C:\Users\Bedirhan\Desktop\agent\ab\par-suffice\WIRE.md
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..44e603e48edf0ed65856a7b20b9347ac66abbf93
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# codex-api wire catalog
++
++## `codex-api/src`
++
++- `codex-api/src/api_bridge.rs` — translates API and transport failures into protocol errors across overloaded, usage-limit, cyber-policy, timeout, and connection cases — `api_bridge.rs:25`
++- `codex-api/src/api_bridge_tests.rs` — tests API and transport error mapping for overload, Cloudflare, cyber-policy, misalignment, retry delay, and limit cases — `api_bridge_tests.rs:7`
++- `codex-api/src/auth.rs` — defines authentication providers, request-auth application, telemetry metadata, and the shared auth handle — `auth.rs:36`
++- `codex-api/src/common.rs` — models shared Responses wire payloads and the canonical response event and stream types — `common.rs:84`
++- `codex-api/src/error.rs` — defines the API error taxonomy used across HTTP and streaming operations — `error.rs:8`
++- `codex-api/src/files.rs` — handles OpenAI hosted file creation, blob upload, finalize-and-retry behavior, and metadata parsing — `files.rs:114`
++- `codex-api/src/images.rs` — defines image-generation and image-edit request and response payloads — `images.rs:3`
++- `codex-api/src/lib.rs` — organizes the crate modules and declares the public `codex-api` exports — `lib.rs:1`
++- `codex-api/src/provider.rs` — configures provider endpoints, URLs, queries, headers, retries, and Responses-versus-Chat wire selection — `provider.rs:79`
++- `codex-api/src/rate_limits.rs` — parses rate-limit headers and websocket events into rate-limit snapshots — `rate_limits.rs:50`
++- `codex-api/src/safety_buffering.rs` — extracts safety-buffering treatment information from response headers — `safety_buffering.rs:6`
++- `codex-api/src/search.rs` — defines search requests, commands, filters, settings, and response wire types — `search.rs:5`
++- `codex-api/src/telemetry.rs` — wraps requests, SSE streams, and websocket streams with telemetry and retry instrumentation — `telemetry.rs:60`
++
++## `codex-api/src/endpoint`
++
++- `codex-api/src/endpoint/mod.rs` — declares endpoint modules and re-exports their clients and types — `endpoint/mod.rs:1`
++- `codex-api/src/endpoint/compact.rs` — posts `responses/compact`, stores turn-state headers, and parses compacted output — `endpoint/compact.rs:32`
++- `codex-api/src/endpoint/images.rs` — posts image-generation and image-edit requests and parses images and request IDs — `endpoint/images.rs:40`
++- `codex-api/src/endpoint/memories.rs` — posts memory trace summarization requests and parses memory summaries — `endpoint/memories.rs:23`
++- `codex-api/src/endpoint/models.rs` — gets versioned model listings and parses models and ETag metadata — `endpoint/models.rs:23`
++- `codex-api/src/endpoint/realtime_call.rs` — creates WebRTC realtime calls and handles SDP, session, backend JSON/multipart, and call-ID payloads — `endpoint/realtime_call.rs:81`
++- `codex-api/src/endpoint/responses.rs` — streams Responses-compatible inference and translates Chat-only providers at request and SSE boundaries — `endpoint/responses.rs:88`
++- `codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses websockets, pumps streams, and translates websocket requests into response events — `endpoint/responses_websocket.rs:235`
++- `codex-api/src/endpoint/search.rs` — posts alpha search requests and parses their responses — `endpoint/search.rs:21`
++- `codex-api/src/endpoint/session.rs` — executes endpoint operations with provider URLs, auth, retries, telemetry, unary transport, and streaming transport — `endpoint/session.rs:40`
++
++## `codex-api/src/endpoint/realtime_websocket`
++
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime method and protocol modules and re-exports public types — `endpoint/realtime_websocket/mod.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser/session enums, outbound messages, session-update payloads, and event dispatch — `endpoint/realtime_websocket/protocol.rs:206`
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — provides shared realtime JSON parsing for sessions, transcripts, and errors — `endpoint/realtime_websocket/protocol_common.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses Realtime v1 websocket events into realtime events — `endpoint/realtime_websocket/protocol_v1.rs:8`
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses Realtime v2 audio, transcript, lifecycle, handoff, and tool-call events — `endpoint/realtime_websocket/protocol_v2.rs:20`
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional events into realtime events — `endpoint/realtime_websocket/protocol_frameless_bidi.rs:13`
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing — `endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — manages realtime websocket connections, writers, event pumps, transcript state, sends, and closes — `endpoint/realtime_websocket/methods.rs:190`
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches outbound builders by realtime wire adapter and builds session JSON — `endpoint/realtime_websocket/methods_common.rs:15`
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests wire-adapter outbound builders and session JSON construction — `endpoint/realtime_websocket/methods_common_tests.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds Realtime v1 outbound items, handoffs, session updates, and intents — `endpoint/realtime_websocket/methods_v1.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds Realtime v2 outbound items, function outputs, session updates, and tool configuration — `endpoint/realtime_websocket/methods_v2.rs:16`
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless context/session updates and chunks context appends — `endpoint/realtime_websocket/methods_frameless_bidi.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless outbound messages and context chunking — `endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:1`
++
++## `codex-api/src/requests`
++
++- `codex-api/src/requests/mod.rs` — declares request modules and exports the compression option — `requests/mod.rs:1`
++- `codex-api/src/requests/chat.rs` — translates Responses-shaped requests into OpenAI-compatible Chat Completions bodies — `requests/chat.rs:9`
++- `codex-api/src/requests/headers.rs` — builds session/thread and subagent request headers — `requests/headers.rs:3`
++- `codex-api/src/requests/responses.rs` — defines request compression choices for Responses transport — `requests/responses.rs:1`
++
++## `codex-api/src/sse`
++
++- `codex-api/src/sse/mod.rs` — declares SSE modules and re-exports stream functions and types — `sse/mod.rs:1`
++- `codex-api/src/sse/chat.rs` — translates Chat Completions SSE deltas into Responses events while buffering reasoning, text, tools, and usage — `sse/chat.rs:26`
++- `codex-api/src/sse/responses.rs` — parses native Responses SSE metadata, headers, limits, safety buffering, errors, and response events — `sse/responses.rs:25`
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..44e603e48edf0ed65856a7b20b9347ac66abbf93
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# codex-api wire catalog
++
++## `codex-api/src`
++
++- `codex-api/src/api_bridge.rs` — translates API and transport failures into protocol errors across overloaded, usage-limit, cyber-policy, timeout, and connection cases — `api_bridge.rs:25`
++- `codex-api/src/api_bridge_tests.rs` — tests API and transport error mapping for overload, Cloudflare, cyber-policy, misalignment, retry delay, and limit cases — `api_bridge_tests.rs:7`
++- `codex-api/src/auth.rs` — defines authentication providers, request-auth application, telemetry metadata, and the shared auth handle — `auth.rs:36`
++- `codex-api/src/common.rs` — models shared Responses wire payloads and the canonical response event and stream types — `common.rs:84`
++- `codex-api/src/error.rs` — defines the API error taxonomy used across HTTP and streaming operations — `error.rs:8`
++- `codex-api/src/files.rs` — handles OpenAI hosted file creation, blob upload, finalize-and-retry behavior, and metadata parsing — `files.rs:114`
++- `codex-api/src/images.rs` — defines image-generation and image-edit request and response payloads — `images.rs:3`
++- `codex-api/src/lib.rs` — organizes the crate modules and declares the public `codex-api` exports — `lib.rs:1`
++- `codex-api/src/provider.rs` — configures provider endpoints, URLs, queries, headers, retries, and Responses-versus-Chat wire selection — `provider.rs:79`
++- `codex-api/src/rate_limits.rs` — parses rate-limit headers and websocket events into rate-limit snapshots — `rate_limits.rs:50`
++- `codex-api/src/safety_buffering.rs` — extracts safety-buffering treatment information from response headers — `safety_buffering.rs:6`
++- `codex-api/src/search.rs` — defines search requests, commands, filters, settings, and response wire types — `search.rs:5`
++- `codex-api/src/telemetry.rs` — wraps requests, SSE streams, and websocket streams with telemetry and retry instrumentation — `telemetry.rs:60`
++
++## `codex-api/src/endpoint`
++
++- `codex-api/src/endpoint/mod.rs` — declares endpoint modules and re-exports their clients and types — `endpoint/mod.rs:1`
++- `codex-api/src/endpoint/compact.rs` — posts `responses/compact`, stores turn-state headers, and parses compacted output — `endpoint/compact.rs:32`
++- `codex-api/src/endpoint/images.rs` — posts image-generation and image-edit requests and parses images and request IDs — `endpoint/images.rs:40`
++- `codex-api/src/endpoint/memories.rs` — posts memory trace summarization requests and parses memory summaries — `endpoint/memories.rs:23`
++- `codex-api/src/endpoint/models.rs` — gets versioned model listings and parses models and ETag metadata — `endpoint/models.rs:23`
++- `codex-api/src/endpoint/realtime_call.rs` — creates WebRTC realtime calls and handles SDP, session, backend JSON/multipart, and call-ID payloads — `endpoint/realtime_call.rs:81`
++- `codex-api/src/endpoint/responses.rs` — streams Responses-compatible inference and translates Chat-only providers at request and SSE boundaries — `endpoint/responses.rs:88`
++- `codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses websockets, pumps streams, and translates websocket requests into response events — `endpoint/responses_websocket.rs:235`
++- `codex-api/src/endpoint/search.rs` — posts alpha search requests and parses their responses — `endpoint/search.rs:21`
++- `codex-api/src/endpoint/session.rs` — executes endpoint operations with provider URLs, auth, retries, telemetry, unary transport, and streaming transport — `endpoint/session.rs:40`
++
++## `codex-api/src/endpoint/realtime_websocket`
++
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime method and protocol modules and re-exports public types — `endpoint/realtime_websocket/mod.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser/session enums, outbound messages, session-update payloads, and event dispatch — `endpoint/realtime_websocket/protocol.rs:206`
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — provides shared realtime JSON parsing for sessions, transcripts, and errors — `endpoint/realtime_websocket/protocol_common.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses Realtime v1 websocket events into realtime events — `endpoint/realtime_websocket/protocol_v1.rs:8`
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses Realtime v2 audio, transcript, lifecycle, handoff, and tool-call events — `endpoint/realtime_websocket/protocol_v2.rs:20`
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional events into realtime events — `endpoint/realtime_websocket/protocol_frameless_bidi.rs:13`
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing — `endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — manages realtime websocket connections, writers, event pumps, transcript state, sends, and closes — `endpoint/realtime_websocket/methods.rs:190`
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches outbound builders by realtime wire adapter and builds session JSON — `endpoint/realtime_websocket/methods_common.rs:15`
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests wire-adapter outbound builders and session JSON construction — `endpoint/realtime_websocket/methods_common_tests.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds Realtime v1 outbound items, handoffs, session updates, and intents — `endpoint/realtime_websocket/methods_v1.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds Realtime v2 outbound items, function outputs, session updates, and tool configuration — `endpoint/realtime_websocket/methods_v2.rs:16`
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless context/session updates and chunks context appends — `endpoint/realtime_websocket/methods_frameless_bidi.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless outbound messages and context chunking — `endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:1`
++
++## `codex-api/src/requests`
++
++- `codex-api/src/requests/mod.rs` — declares request modules and exports the compression option — `requests/mod.rs:1`
++- `codex-api/src/requests/chat.rs` — translates Responses-shaped requests into OpenAI-compatible Chat Completions bodies — `requests/chat.rs:9`
++- `codex-api/src/requests/headers.rs` — builds session/thread and subagent request headers — `requests/headers.rs:3`
++- `codex-api/src/requests/responses.rs` — defines request compression choices for Responses transport — `requests/responses.rs:1`
++
++## `codex-api/src/sse`
++
++- `codex-api/src/sse/mod.rs` — declares SSE modules and re-exports stream functions and types — `sse/mod.rs:1`
++- `codex-api/src/sse/chat.rs` — translates Chat Completions SSE deltas into Responses events while buffering reasoning, text, tools, and usage — `sse/chat.rs:26`
++- `codex-api/src/sse/responses.rs` — parses native Responses SSE metadata, headers, limits, safety buffering, errors, and response events — `sse/responses.rs:25`
+
+codex
+`WIRE.md` now has one entry for each Rust file under `codex-api/src/`, grouped by directory, with a citation on every line. I did not modify any other file.
+
+CHECKPOINT REACHED: 44 files
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..44e603e48edf0ed65856a7b20b9347ac66abbf93
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# codex-api wire catalog
++
++## `codex-api/src`
++
++- `codex-api/src/api_bridge.rs` — translates API and transport failures into protocol errors across overloaded, usage-limit, cyber-policy, timeout, and connection cases — `api_bridge.rs:25`
++- `codex-api/src/api_bridge_tests.rs` — tests API and transport error mapping for overload, Cloudflare, cyber-policy, misalignment, retry delay, and limit cases — `api_bridge_tests.rs:7`
++- `codex-api/src/auth.rs` — defines authentication providers, request-auth application, telemetry metadata, and the shared auth handle — `auth.rs:36`
++- `codex-api/src/common.rs` — models shared Responses wire payloads and the canonical response event and stream types — `common.rs:84`
++- `codex-api/src/error.rs` — defines the API error taxonomy used across HTTP and streaming operations — `error.rs:8`
++- `codex-api/src/files.rs` — handles OpenAI hosted file creation, blob upload, finalize-and-retry behavior, and metadata parsing — `files.rs:114`
++- `codex-api/src/images.rs` — defines image-generation and image-edit request and response payloads — `images.rs:3`
++- `codex-api/src/lib.rs` — organizes the crate modules and declares the public `codex-api` exports — `lib.rs:1`
++- `codex-api/src/provider.rs` — configures provider endpoints, URLs, queries, headers, retries, and Responses-versus-Chat wire selection — `provider.rs:79`
++- `codex-api/src/rate_limits.rs` — parses rate-limit headers and websocket events into rate-limit snapshots — `rate_limits.rs:50`
++- `codex-api/src/safety_buffering.rs` — extracts safety-buffering treatment information from response headers — `safety_buffering.rs:6`
++- `codex-api/src/search.rs` — defines search requests, commands, filters, settings, and response wire types — `search.rs:5`
++- `codex-api/src/telemetry.rs` — wraps requests, SSE streams, and websocket streams with telemetry and retry instrumentation — `telemetry.rs:60`
++
++## `codex-api/src/endpoint`
++
++- `codex-api/src/endpoint/mod.rs` — declares endpoint modules and re-exports their clients and types — `endpoint/mod.rs:1`
++- `codex-api/src/endpoint/compact.rs` — posts `responses/compact`, stores turn-state headers, and parses compacted output — `endpoint/compact.rs:32`
++- `codex-api/src/endpoint/images.rs` — posts image-generation and image-edit requests and parses images and request IDs — `endpoint/images.rs:40`
++- `codex-api/src/endpoint/memories.rs` — posts memory trace summarization requests and parses memory summaries — `endpoint/memories.rs:23`
++- `codex-api/src/endpoint/models.rs` — gets versioned model listings and parses models and ETag metadata — `endpoint/models.rs:23`
++- `codex-api/src/endpoint/realtime_call.rs` — creates WebRTC realtime calls and handles SDP, session, backend JSON/multipart, and call-ID payloads — `endpoint/realtime_call.rs:81`
++- `codex-api/src/endpoint/responses.rs` — streams Responses-compatible inference and translates Chat-only providers at request and SSE boundaries — `endpoint/responses.rs:88`
++- `codex-api/src/endpoint/responses_websocket.rs` — connects and probes Responses websockets, pumps streams, and translates websocket requests into response events — `endpoint/responses_websocket.rs:235`
++- `codex-api/src/endpoint/search.rs` — posts alpha search requests and parses their responses — `endpoint/search.rs:21`
++- `codex-api/src/endpoint/session.rs` — executes endpoint operations with provider URLs, auth, retries, telemetry, unary transport, and streaming transport — `endpoint/session.rs:40`
++
++## `codex-api/src/endpoint/realtime_websocket`
++
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime method and protocol modules and re-exports public types — `endpoint/realtime_websocket/mod.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — defines realtime parser/session enums, outbound messages, session-update payloads, and event dispatch — `endpoint/realtime_websocket/protocol.rs:206`
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — provides shared realtime JSON parsing for sessions, transcripts, and errors — `endpoint/realtime_websocket/protocol_common.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — parses Realtime v1 websocket events into realtime events — `endpoint/realtime_websocket/protocol_v1.rs:8`
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — parses Realtime v2 audio, transcript, lifecycle, handoff, and tool-call events — `endpoint/realtime_websocket/protocol_v2.rs:20`
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — parses frameless bidirectional events into realtime events — `endpoint/realtime_websocket/protocol_frameless_bidi.rs:13`
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — tests frameless bidirectional event parsing — `endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — manages realtime websocket connections, writers, event pumps, transcript state, sends, and closes — `endpoint/realtime_websocket/methods.rs:190`
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches outbound builders by realtime wire adapter and builds session JSON — `endpoint/realtime_websocket/methods_common.rs:15`
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests wire-adapter outbound builders and session JSON construction — `endpoint/realtime_websocket/methods_common_tests.rs:1`
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds Realtime v1 outbound items, handoffs, session updates, and intents — `endpoint/realtime_websocket/methods_v1.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds Realtime v2 outbound items, function outputs, session updates, and tool configuration — `endpoint/realtime_websocket/methods_v2.rs:16`
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds frameless context/session updates and chunks context appends — `endpoint/realtime_websocket/methods_frameless_bidi.rs:6`
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests frameless outbound messages and context chunking — `endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:1`
++
++## `codex-api/src/requests`
++
++- `codex-api/src/requests/mod.rs` — declares request modules and exports the compression option — `requests/mod.rs:1`
++- `codex-api/src/requests/chat.rs` — translates Responses-shaped requests into OpenAI-compatible Chat Completions bodies — `requests/chat.rs:9`
++- `codex-api/src/requests/headers.rs` — builds session/thread and subagent request headers — `requests/headers.rs:3`
++- `codex-api/src/requests/responses.rs` — defines request compression choices for Responses transport — `requests/responses.rs:1`
++
++## `codex-api/src/sse`
++
++- `codex-api/src/sse/mod.rs` — declares SSE modules and re-exports stream functions and types — `sse/mod.rs:1`
++- `codex-api/src/sse/chat.rs` — translates Chat Completions SSE deltas into Responses events while buffering reasoning, text, tools, and usage — `sse/chat.rs:26`
++- `codex-api/src/sse/responses.rs` — parses native Responses SSE metadata, headers, limits, safety buffering, errors, and response events — `sse/responses.rs:25`
+
+tokens used
+93.501
+`WIRE.md` now has one entry for each Rust file under `codex-api/src/`, grouped by directory, with a citation on every line. I did not modify any other file.
+
+CHECKPOINT REACHED: 44 files

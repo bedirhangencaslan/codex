@@ -1,0 +1,182 @@
+From e00b04c0bec7de0cac5131cc179506e6bcc756d2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Fri, 4 Sep 2026 08:45:11 +0300
+Subject: [PATCH 42/71] Stop compaction from filtering context the cost model
+ decided to keep
+
+The summarization request was billed at full price for the entire history it
+was about to discard, because it built a prompt no other request in the session
+shares a prefix with. Two things made it different, and neither was a decision
+anyone took on purpose.
+
+It sent no tools. An empty tool list is not neutral: the request then omits the
+field altogether, so the prompt ahead of the conversation changes and the whole
+history re-prefills. Compaction has no step of its own, so it now borrows the
+tool specs of the step the turn last executed - the same list the surrounding
+requests sent.
+
+It also dropped every reasoning item, including the ones the retention cost
+model had already priced as cheaper to carry than to invalidate. Naming no
+active turn means "nothing here is still being written", not "re-decide what was
+frozen"; honouring the verdict is also what keeps the prefix the verdict paid
+for. The verdict is a property of the reasoning, so the caller no longer
+overrides it.
+
+Measured on the session both fixes were validated against, the compaction
+request costs ~73K effective input tokens with a cold prefix and ~7K with a warm
+one, about 13% of that session's bill.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/compact.rs                  |  5 ++++
+ codex-rs/core/src/context_manager/history.rs  | 13 +++------
+ .../core/src/context_manager/history_tests.rs | 27 ++++++++++---------
+ codex-rs/core/src/session/mod.rs              | 24 +++++++++++++++++
+ 4 files changed, 48 insertions(+), 21 deletions(-)
+
+diff --git a/codex-rs/core/src/compact.rs b/codex-rs/core/src/compact.rs
+index e098e24bd8..7fd8f84a89 100644
+--- a/codex-rs/core/src/compact.rs
++++ b/codex-rs/core/src/compact.rs
+@@ -303,6 +303,10 @@ async fn run_compact_task_inner_impl(
+         )
+         .await;
+ 
++    // Sending the same tool list as the requests this follows is what keeps the summarization
++    // request on their cached prefix; omitting it prices the whole history at full rate.
++    let tools = sess.last_known_tool_specs().await;
++
+     loop {
+         // Clone is required because of the loop
+         // Invisible turns never contribute to a summary, so none of them is "active" here.
+@@ -313,6 +317,7 @@ async fn run_compact_task_inner_impl(
+         let prompt = Prompt {
+             input: turn_input,
+             base_instructions: sess.get_base_instructions().await,
++            tools: Arc::clone(&tools),
+             ..Default::default()
+         };
+         let attempt_result = drain_to_completed(
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index 04ec8fc850..f26466870a 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -729,16 +729,11 @@ fn dropped_reason(
+     ) {
+         return None;
+     }
+-    // Every caller that names no active turn is a compaction path, and a compaction prompt sends
+-    // its own instructions with no tools, so it shares no cached prefix with the requests around
+-    // it. There is no prefix for a keep verdict to protect here, and the summary about to replace
+-    // this history carries no reasoning forward either, so it is dropped whatever the verdict.
+-    if active_turn_id.is_none() {
+-        return Some(DropReason::Reasoning);
+-    }
+     // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the cached
+-    // prefix than the re-prefill dropping it would cost. Reasoning that predates that verdict,
+-    // or that was never stamped, is dropped as it always was.
++    // prefix than the re-prefill dropping it would cost. The verdict is a property of the
++    // reasoning, not of the caller, so a prompt that names no active turn honours it too: naming
++    // no turn means "nothing here is still being written", not "drop what was kept".
++    // Reasoning that predates that verdict, or that was never stamped, is dropped as it always was.
+     (metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true))
+         .then_some(DropReason::Reasoning)
+ }
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index 7d3fea2624..d8f0d4186f 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -735,35 +735,38 @@ fn the_report_names_what_the_prompt_no_longer_carries() {
+ }
+ 
+ #[test]
+-fn a_prompt_with_no_active_turn_carries_no_reasoning_even_when_it_was_kept() {
++fn a_prompt_with_no_active_turn_still_honours_the_keep_verdict() {
+     let asked = user_msg("do the thing");
++    let kept = reasoning_msg("worth keeping while the prefix is cached");
+     let mut history = ContextManager::new();
+     history.replace_annotated(vec![
+         ResponseItemEnvelope::new(asked.clone()),
+         ResponseItemEnvelope {
+-            item: reasoning_msg("worth keeping while the prefix is cached"),
++            item: kept.clone(),
+             metadata: Some(CodexHarnessMetadata {
+                 reasoning_turn: Some("turn-1".to_string()),
+                 reasoning_retained: Some(true),
+                 ..Default::default()
+             }),
+         },
++        ResponseItemEnvelope {
++            item: reasoning_msg("priced as cheaper to drop"),
++            metadata: Some(CodexHarnessMetadata {
++                reasoning_turn: Some("turn-1".to_string()),
++                reasoning_retained: Some(false),
++                ..Default::default()
++            }),
++        },
+     ]);
+ 
+-    // A keep verdict is a statement about a cached prefix. The compaction paths are the only
+-    // callers that name no turn, and they send a prompt of their own shape that shares no prefix
+-    // with the conversation, so there is nothing for the verdict to protect.
++    // Naming no active turn — the compaction paths — says nothing is still being written; it does
++    // not re-decide what the cost model already froze. Dropping kept reasoning here would break
++    // the very prefix the verdict was paid for.
+     assert_eq!(
+         history
+             .clone()
+             .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
+-        vec![asked]
+-    );
+-    assert_eq!(
+-        history
+-            .for_prompt(&default_input_modalities(), Some("turn-2"))
+-            .len(),
+-        2
++        vec![asked, kept]
+     );
+ }
+ 
+diff --git a/codex-rs/core/src/session/mod.rs b/codex-rs/core/src/session/mod.rs
+index c3e6f3bcb8..8e84b86ad6 100644
+--- a/codex-rs/core/src/session/mod.rs
++++ b/codex-rs/core/src/session/mod.rs
+@@ -369,6 +369,7 @@ use codex_protocol::turn_input::TurnStartOptions;
+ use codex_protocol::user_input::UserInput;
+ use codex_skills_extension::HostSkillsService;
+ use codex_tools::ToolName;
++use codex_tools::ToolSpec;
+ use codex_tools::UnifiedExecShellMode;
+ use codex_utils_absolute_path::AbsolutePathBuf;
+ #[cfg(test)]
+@@ -3344,6 +3345,29 @@ impl Session {
+         }
+     }
+ 
++    /// Tool specs of the step this turn last executed.
++    ///
++    /// Compaction builds its prompt outside any step, so it has no tool router of its own. An
++    /// empty tool list is not neutral: the request then omits the `tools` field entirely, which
++    /// changes the prompt ahead of the conversation and costs a full re-prefill of a history that
++    /// is about to be summarized. Reusing the surrounding requests' specs keeps that prefix.
++    /// Empty when no step ran under this turn, which is what compaction sent before.
++    pub(crate) async fn last_known_tool_specs(&self) -> Arc<[ToolSpec]> {
++        let turn_state = {
++            let active_turn = self.active_turn.lock().await;
++            active_turn
++                .as_ref()
++                .map(|active_turn| Arc::clone(&active_turn.turn_state))
++        };
++        let Some(turn_state) = turn_state else {
++            return Arc::default();
++        };
++        let step_context = turn_state.lock().await.last_known_step_context.clone();
++        step_context
++            .map(|step_context| step_context.tool_router.model_visible_specs())
++            .unwrap_or_default()
++    }
++
+     /// Captures one request-scoped view of dynamic state and retains it for the active turn.
+     ///
+     /// This may refresh filesystem-derived state. Normal turns should call it only from

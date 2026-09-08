@@ -1,0 +1,191 @@
+From dc92ff63f0582ee985cd74a5927e779f0d69304b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 17:25:16 +0300
+Subject: [PATCH 18/71] Show the cached share of session input on the status
+ card
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The card reported input as `non_cached_input()`, the figure the bill is
+computed from, but named it plainly `input`. That is the right number to
+charge against and the wrong number to reason about: the tokens served from
+a warm prompt cache were subtracted and then never mentioned anywhere in the
+UI, so a user watching costs had no way to tell whether caching was working
+at all.
+
+The counts keep their billing semantics — only the share that was already
+invisible becomes visible, as a percentage appended inside the existing dim
+parentheses. It is measured over the session total rather than the last
+turn, since that is the window the invoice follows, and it is omitted
+entirely when nothing was cached, matching how `TokenUsage`'s own `Display`
+guards its `(+ N cached)` suffix.
+
+`status_card_token_usage_excludes_cached_tokens` asserted that the word
+"cached" appeared nowhere on the card, which was a proxy for its real
+subject: that cached tokens are excluded from the reported counts. It now
+asserts that directly.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/tui/src/status/card.rs                  | 16 +++++++++++++---
+ ..._cached_limits_hide_credits_without_flag.snap |  2 +-
+ ...tus_snapshot_includes_credits_and_limits.snap |  2 +-
+ ...atus_snapshot_includes_reasoning_details.snap |  2 +-
+ ...atus_snapshot_shows_stale_limits_message.snap |  2 +-
+ ...us_snapshot_truncates_in_narrow_terminal.snap |  2 +-
+ codex-rs/tui/src/status/tests.rs                 |  9 +++++++--
+ codex-rs/tui/src/token_usage.rs                  |  4 ++--
+ 8 files changed, 27 insertions(+), 12 deletions(-)
+
+diff --git a/codex-rs/tui/src/status/card.rs b/codex-rs/tui/src/status/card.rs
+index 93f959c8db..76f1d448c4 100644
+--- a/codex-rs/tui/src/status/card.rs
++++ b/codex-rs/tui/src/status/card.rs
+@@ -68,6 +68,8 @@ pub(crate) struct StatusTokenUsageData {
+     total: i64,
+     input: i64,
+     output: i64,
++    /// Share of session input served from cache, omitted when nothing was cached.
++    cached_percent: Option<i64>,
+     context_window: Option<StatusContextWindowData>,
+ }
+ 
+@@ -352,6 +354,10 @@ impl StatusHistoryCell {
+             total: total_usage.blended_total(),
+             input: total_usage.non_cached_input(),
+             output: total_usage.output_tokens,
++            cached_percent: total_usage
++                .context_readiness()
++                .map(|ratio| (ratio * 100.0).round() as i64)
++                .filter(|percent| *percent > 0),
+             context_window,
+         };
+         let rate_limits = if rate_limits.len() <= 1 {
+@@ -397,7 +403,7 @@ impl StatusHistoryCell {
+         let input_fmt = format_tokens_compact(self.token_usage.input);
+         let output_fmt = format_tokens_compact(self.token_usage.output);
+ 
+-        vec![
++        let mut spans = vec![
+             Span::from(total_fmt),
+             Span::from(" total "),
+             Span::from(" (").dim(),
+@@ -406,8 +412,12 @@ impl StatusHistoryCell {
+             Span::from(" + ").dim(),
+             Span::from(output_fmt).dim(),
+             Span::from(" output").dim(),
+-            Span::from(")").dim(),
+-        ]
++        ];
++        if let Some(percent) = self.token_usage.cached_percent {
++            spans.push(Span::from(format!(", {percent}% cached")).dim());
++        }
++        spans.push(Span::from(")").dim());
++        spans
+     }
+ 
+     fn context_window_spans(&self) -> Option<Vec<Span<'static>>> {
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap
+index c7d89b17aa..1841619761 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_cached_limits_hide_credits_without_flag.snap
+@@ -15,7 +15,7 @@ expression: sanitized
+ │  Permissions:      Custom (workspace with network access, Ask for approval) │
+ │  Agents.md:        <none>                                                   │
+ │                                                                             │
+-│  Token usage:      1.05K total  (700 input + 350 output)                    │
++│  Token usage:      1.05K total  (700 input + 350 output, 22% cached)        │
+ │  Context window:   100% left (1.45K used / 272K)                            │
+ │  5h limit:         [████████░░░░░░░░░░░░] 40% left (resets 11:32)           │
+ │  Weekly limit:     [█████████████░░░░░░░] 65% left (resets 11:52)           │
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_credits_and_limits.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_credits_and_limits.snap
+index c1636b6c15..d2d6393c93 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_credits_and_limits.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_credits_and_limits.snap
+@@ -15,7 +15,7 @@ expression: sanitized
+ │  Permissions:      Custom (workspace with network access, Ask for approval) │
+ │  Agents.md:        <none>                                                   │
+ │                                                                             │
+-│  Token usage:      2K total  (1.4K input + 600 output)                      │
++│  Token usage:      2K total  (1.4K input + 600 output, 7% cached)           │
+ │  Context window:   100% left (2.2K used / 272K)                             │
+ │  5h limit:         [███████████░░░░░░░░░] 55% left (resets 09:25)           │
+ │  Weekly limit:     [██████████████░░░░░░] 70% left (resets 09:55)           │
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_reasoning_details.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_reasoning_details.snap
+index 96b2ed1648..97e8d2d555 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_reasoning_details.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_includes_reasoning_details.snap
+@@ -15,7 +15,7 @@ expression: sanitized
+ │  Permissions:      Workspace (Ask for approval)                           │
+ │  Agents.md:        <none>                                                 │
+ │                                                                           │
+-│  Token usage:      1.9K total  (1K input + 900 output)                    │
++│  Token usage:      1.9K total  (1K input + 900 output, 17% cached)        │
+ │  Context window:   100% left (2.25K used / 272K)                          │
+ │  5h limit:         [██████░░░░░░░░░░░░░░] 28% left (resets 03:14)         │
+ │  Weekly limit:     [███████████░░░░░░░░░] 55% left (resets 03:24)         │
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_shows_stale_limits_message.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_shows_stale_limits_message.snap
+index 8facd56275..d9df5e66c5 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_shows_stale_limits_message.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_shows_stale_limits_message.snap
+@@ -15,7 +15,7 @@ expression: sanitized
+ │  Permissions:      Custom (workspace with network access, Ask for approval) │
+ │  Agents.md:        <none>                                                   │
+ │                                                                             │
+-│  Token usage:      1.9K total  (1K input + 900 output)                      │
++│  Token usage:      1.9K total  (1K input + 900 output, 17% cached)          │
+ │  Context window:   100% left (2.25K used / 272K)                            │
+ │  5h limit:         [██████░░░░░░░░░░░░░░] 28% left (resets 03:14)           │
+ │  Weekly limit:     [████████████░░░░░░░░] 60% left (resets 03:34)           │
+diff --git a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_truncates_in_narrow_terminal.snap b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_truncates_in_narrow_terminal.snap
+index 6b28b53b62..344ed233c4 100644
+--- a/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_truncates_in_narrow_terminal.snap
++++ b/codex-rs/tui/src/status/snapshots/codex_tui__status__tests__status_snapshot_truncates_in_narrow_terminal.snap
+@@ -15,7 +15,7 @@ expression: sanitized
+ │  Permissions:      Custom (workspace with network access, Ask for  │
+ │  Agents.md:        <none>                                          │
+ │                                                                    │
+-│  Token usage:      1.9K total  (1K input + 900 output)             │
++│  Token usage:      1.9K total  (1K input + 900 output, 17% cached) │
+ │  Context window:   100% left (2.25K used / 272K)                   │
+ │  5h limit:         [██████░░░░░░░░░░░░░░] 28% left (resets 03:14)  │
+ ╰────────────────────────────────────────────────────────────────────╯
+diff --git a/codex-rs/tui/src/status/tests.rs b/codex-rs/tui/src/status/tests.rs
+index 161bbf4c74..9aa0f0184f 100644
+--- a/codex-rs/tui/src/status/tests.rs
++++ b/codex-rs/tui/src/status/tests.rs
+@@ -1452,9 +1452,14 @@ async fn status_card_token_usage_excludes_cached_tokens() {
+     );
+     let rendered = render_lines(&composite.display_lines(/*width*/ 120));
+ 
++    let token_line = rendered
++        .iter()
++        .find(|line| line.contains("Token usage:"))
++        .expect("token usage line");
++
+     assert!(
+-        rendered.iter().all(|line| !line.contains("cached")),
+-        "cached tokens should not be displayed, got: {rendered:?}"
++        token_line.contains("1.9K total") && token_line.contains("1K input"),
++        "cached tokens should be excluded from the reported counts, got: {token_line}"
+     );
+ }
+ 
+diff --git a/codex-rs/tui/src/token_usage.rs b/codex-rs/tui/src/token_usage.rs
+index 97227cd70a..0464a76c10 100644
+--- a/codex-rs/tui/src/token_usage.rs
++++ b/codex-rs/tui/src/token_usage.rs
+@@ -40,9 +40,9 @@ impl TokenUsage {
+         self.total_tokens
+     }
+ 
+-    /// Fraction (0.0-1.0) of the latest request's input that was served from
++    /// Fraction (0.0-1.0) of this usage window's input that was served from
+     /// already-warm server-side context. Higher values correspond to visibly
+-    /// faster responses; returns `None` before the first request.
++    /// faster responses and a lower bill; returns `None` before the first request.
+     pub(crate) fn context_readiness(&self) -> Option<f64> {
+         let input = self.input_tokens.max(0);
+         (input > 0).then(|| self.cached_input().min(input) as f64 / input as f64)

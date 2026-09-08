@@ -1,0 +1,8 @@
+`python check.py` reports six failing checks across four modules: shapes.py, strings.py,
+numbers_util.py and dates.py.
+
+Fix every failing check by correcting the module it lives in. check.py states the intended
+behaviour and is the specification; do not edit check.py, and do not special-case the values it
+happens to test.
+
+Stop as soon as `python check.py` prints ALL OK. Report the six fixes in one short paragraph.

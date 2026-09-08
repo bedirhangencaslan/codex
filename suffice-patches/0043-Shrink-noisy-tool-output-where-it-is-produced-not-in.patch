@@ -1,0 +1,202 @@
+From 4c9022a72e59d1ae1866a19526e8b03e9b58eaf0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Fri, 4 Sep 2026 15:14:37 +0300
+Subject: [PATCH 43/71] Shrink noisy tool output where it is produced, not in
+ history
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The shrinker never ran. Two independent reasons, and the first hid the second.
+
+It shrank history, which rewrites a prompt the cache has already seen, so it
+was gated behind `prefix_break`: it could only shrink from an index the cache
+was already invalidated from, never buy its own break. That gate is correct
+arithmetic and almost never open — in 345 measured requests `prefix_break` was
+set 69 times, essentially all straight after a compaction, where there is
+nothing left to shrink.
+
+And `command_is_shrinkable` read `arguments["command"]` while `exec_command`
+sends `arguments["cmd"]`, so the allowlist matched nothing on any session
+whatever the gate did. The `shrinkable_before_break` counter therefore reported
+zero for the wrong reason.
+
+Shrinking now happens as the tool returns, in
+`ExecCommandToolOutput::to_response_item`. The short text is the only version
+the prefix ever holds, so there is no cache to invalidate and the trade
+disappears: the saving is free rather than something that has to clear a
+re-prefill. The conditions are unchanged — allowlisted command, clean exit,
+long enough to be worth it — and a failure still keeps its output whole. The
+marker now names the size it removed so a rollout can be priced without the
+sidecar.
+
+Measured on a scripted nine-commit git import of a 6302-file tree, same prompt,
+25 requests either way: 16,745 tokens never entered a prompt and 162,418 tokens
+of carry disappeared, taking input from 629,816 to 419,820.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RVZHG9H5htyFpi1B6xbmp8
+---
+ codex-rs/core/src/context_manager/mod.rs      |  2 +-
+ .../core/src/context_manager/tool_output.rs   | 34 ++++++++++++++++--
+ .../src/context_manager/tool_output_tests.rs  | 35 ++++++++++++++++++-
+ codex-rs/core/src/tools/context.rs            | 14 ++++++--
+ 4 files changed, 77 insertions(+), 8 deletions(-)
+
+diff --git a/codex-rs/core/src/context_manager/mod.rs b/codex-rs/core/src/context_manager/mod.rs
+index 6c1e416683..69413b0029 100644
+--- a/codex-rs/core/src/context_manager/mod.rs
++++ b/codex-rs/core/src/context_manager/mod.rs
+@@ -1,6 +1,6 @@
+ mod history;
+ mod normalize;
+-mod tool_output;
++pub(crate) mod tool_output;
+ pub(crate) mod updates;
+ 
+ pub(crate) use history::ContextFilterReport;
+diff --git a/codex-rs/core/src/context_manager/tool_output.rs b/codex-rs/core/src/context_manager/tool_output.rs
+index 3d9d5adf74..cb3c473fa2 100644
+--- a/codex-rs/core/src/context_manager/tool_output.rs
++++ b/codex-rs/core/src/context_manager/tool_output.rs
+@@ -179,6 +179,27 @@ pub(crate) fn shrink_completed_outputs(
+     report
+ }
+ 
++/// Shrinks one exec result before it is ever sent to the model.
++///
++/// This is the cheap place to do it. Shrinking history after the fact rewrites a prompt the
++/// cache has already seen, so it can only pay for itself from a prefix break someone else
++/// already paid for; shrinking the output as the tool returns it costs no cache at all, because
++/// the smaller text is the only version the prefix has ever held.
++///
++/// `arguments` is the tool call's JSON, which carries the command matched against the allowlist.
++/// Only a clean exit is shrunk: a failure's output is the most valuable thing in the context and
++/// is always kept whole.
++pub(crate) fn shrink_exec_output(
++    arguments: &str,
++    exit_code: Option<i32>,
++    text: &str,
++) -> Option<String> {
++    if exit_code != Some(0) || !command_is_shrinkable(arguments) {
++        return None;
++    }
++    shrink_text(text).map(|(shrunk, _)| shrunk)
++}
++
+ /// Collects the call ids whose command is on the allowlist.
+ fn shrinkable_call_ids(items: &[ResponseItemEnvelope]) -> HashSet<String> {
+     let mut by_call_id: HashMap<&str, &str> = HashMap::new();
+@@ -198,11 +219,14 @@ fn shrinkable_call_ids(items: &[ResponseItemEnvelope]) -> HashSet<String> {
+ }
+ 
+ /// Reads the command out of a tool call's JSON arguments and matches it against the allowlist.
++///
++/// The two shell tools name the field differently: `shell` sends `command`, `exec_command` sends
++/// `cmd`. Reading only one of them silently matches nothing on a session that used the other.
+ fn command_is_shrinkable(arguments: &str) -> bool {
+     let Ok(parsed) = serde_json::from_str::<serde_json::Value>(arguments) else {
+         return false;
+     };
+-    let Some(command) = parsed.get("command") else {
++    let Some(command) = parsed.get("command").or_else(|| parsed.get("cmd")) else {
+         return false;
+     };
+     let words = match command {
+@@ -291,13 +315,17 @@ fn shrink_text(text: &str) -> Option<(String, usize)> {
+     let removed = lines.len() - KEEP_HEAD_LINES - KEEP_TAIL_LINES;
+     let head = lines[..KEEP_HEAD_LINES].join("\n");
+     let tail = lines[lines.len() - KEEP_TAIL_LINES..].join("\n");
++    // Named in the marker so the saving can be totalled from a rollout on its own, without
++    // instrumentation the baseline does not have.
++    let removed_tokens =
++        approx_token_count(&lines[KEEP_HEAD_LINES..lines.len() - KEEP_TAIL_LINES].join("\n"));
+     // The marker names the exit status and the actor. A model that cannot tell whether the
+     // command succeeded, or whether the command itself printed nothing, will run it again.
+     Some((
+         format!(
+             "{head}\n\n[system] exit 0 - the harness trimmed this output, the command did not. \
+-             {removed} middle lines removed; re-running the command produces the same trimmed \
+-             result.\n\n{tail}"
++             {removed} middle lines (~{removed_tokens} tokens) removed; re-running the command \
++             produces the same trimmed result.\n\n{tail}"
+         ),
+         removed,
+     ))
+diff --git a/codex-rs/core/src/context_manager/tool_output_tests.rs b/codex-rs/core/src/context_manager/tool_output_tests.rs
+index 665b3f4b63..59d641963e 100644
+--- a/codex-rs/core/src/context_manager/tool_output_tests.rs
++++ b/codex-rs/core/src/context_manager/tool_output_tests.rs
+@@ -192,5 +192,38 @@ fn marker_reports_the_exit_status_and_the_actor() {
+         "{shrunk}"
+     );
+     assert!(shrunk.contains("re-running the command"), "{shrunk}");
+-    assert!(shrunk.contains("167 middle lines removed"), "{shrunk}");
++    assert!(shrunk.contains("167 middle lines"), "{shrunk}");
++    // The size is named so a rollout can be priced without the sidecar.
++    assert!(shrunk.contains("tokens) removed"), "{shrunk}");
++}
++
++#[test]
++fn exec_output_is_shrunk_on_the_way_to_the_model() {
++    let arguments = r#"{"command":"cargo build"}"#;
++    let noisy = noisy_output();
++
++    let shrunk = shrink_exec_output(arguments, Some(0), &noisy).expect("clean build is shrinkable");
++    assert!(shrunk.len() < noisy.len(), "{shrunk}");
++    assert!(shrunk.starts_with("first"), "{shrunk}");
++    assert!(shrunk.ends_with("last"), "{shrunk}");
++
++    // A failure's output is the most valuable thing in the context.
++    assert_eq!(shrink_exec_output(arguments, Some(1), &noisy), None);
++    // So is the output of a command the allowlist does not recognize.
++    assert_eq!(
++        shrink_exec_output(r#"{"command":"Get-Content big.log"}"#, Some(0), &noisy),
++        None
++    );
++    // An interactive session reports no exit code, so nothing is known to have finished.
++    assert_eq!(shrink_exec_output(arguments, None, &noisy), None);
++}
++
++#[test]
++fn reads_the_command_from_either_shell_tool() {
++    // `shell` sends `command`; `exec_command` sends `cmd`. Both have to match.
++    assert!(command_is_shrinkable(r#"{"command":"cargo build"}"#));
++    assert!(command_is_shrinkable(
++        r#"{"cmd":"git commit -m x","workdir":"/tmp"}"#
++    ));
++    assert!(!command_is_shrinkable(r#"{"cmd":"Get-Content big.log"}"#));
+ }
+diff --git a/codex-rs/core/src/tools/context.rs b/codex-rs/core/src/tools/context.rs
+index cb98a2734d..7f7b86b3f0 100644
+--- a/codex-rs/core/src/tools/context.rs
++++ b/codex-rs/core/src/tools/context.rs
+@@ -1,3 +1,4 @@
++use crate::context_manager::tool_output::shrink_exec_output;
+ use crate::original_image_detail::sanitize_original_image_detail;
+ use crate::session::session::Session;
+ use crate::session::step_context::StepContext;
+@@ -377,12 +378,19 @@ impl ToolOutput for ExecCommandToolOutput {
+     }
+ 
+     fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem {
++        let mut text = self.response_text();
++        // Noisy build and test output is trimmed here, on its way to the model, rather than in
++        // history afterwards. Rewriting a prompt the cache has already seen costs a re-prefill of
++        // everything after it; the text that never entered the prefix costs nothing.
++        if let ToolPayload::Function { arguments } = payload
++            && let Some(shrunk) = shrink_exec_output(arguments, self.exit_code, &text)
++        {
++            text = shrunk;
++        }
+         function_tool_response(
+             call_id,
+             payload,
+-            vec![FunctionCallOutputContentItem::InputText {
+-                text: self.response_text(),
+-            }],
++            vec![FunctionCallOutputContentItem::InputText { text }],
+             Some(true),
+         )
+     }

@@ -1,0 +1,1519 @@
+From 5c0c31bf70e05b9b1f7537a8fb7c51e218c24c0c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 15:23:59 +0300
+Subject: [PATCH 13/71] Reach GLM through Z.ai by restoring a chat-completions
+ wire api
+
+Upstream deleted `wire_api = "chat"`, which left no way to talk to an
+OpenAI-compatible `/chat/completions` endpoint, and Z.ai serves the GLM
+models over exactly that. The variant comes back, but not as a second code
+path through the agent: the branch is confined to `codex-api`, where
+`requests/chat.rs` rewrites the outgoing request and `sse/chat.rs` rewrites
+the streamed frames back into the Responses shape. Everything above the
+endpoint keeps seeing one wire protocol.
+
+The `zai` provider is registered with its base url and `ZAI_API_KEY`, and
+the client routes Chat providers through the SSE transport, since a
+chat-completions endpoint has no WebSocket to negotiate.
+
+Not yet exercised against the live endpoint.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/codex-api/src/endpoint/images.rs     |   1 +
+ codex-rs/codex-api/src/endpoint/memories.rs   |   1 +
+ codex-rs/codex-api/src/endpoint/models.rs     |   1 +
+ .../codex-api/src/endpoint/realtime_call.rs   |   1 +
+ .../endpoint/realtime_websocket/methods.rs    |   6 +
+ codex-rs/codex-api/src/endpoint/responses.rs  |  39 +-
+ codex-rs/codex-api/src/endpoint/search.rs     |   1 +
+ codex-rs/codex-api/src/lib.rs                 |   1 +
+ codex-rs/codex-api/src/provider.rs            |  14 +
+ codex-rs/codex-api/src/requests/chat.rs       | 467 +++++++++++++++
+ codex-rs/codex-api/src/requests/mod.rs        |   1 +
+ codex-rs/codex-api/src/sse/chat.rs            | 536 ++++++++++++++++++
+ codex-rs/codex-api/src/sse/mod.rs             |   2 +
+ codex-rs/codex-api/tests/clients.rs           |   1 +
+ .../codex-api/tests/models_integration.rs     |   1 +
+ .../codex-api/tests/realtime_websocket_e2e.rs |   1 +
+ codex-rs/codex-api/tests/sse_end_to_end.rs    |   1 +
+ codex-rs/core/config.schema.json              |   7 +
+ codex-rs/core/src/client.rs                   |  15 +
+ codex-rs/model-provider-info/src/lib.rs       |  51 +-
+ 20 files changed, 1136 insertions(+), 12 deletions(-)
+ create mode 100644 codex-rs/codex-api/src/requests/chat.rs
+ create mode 100644 codex-rs/codex-api/src/sse/chat.rs
+
+diff --git a/codex-rs/codex-api/src/endpoint/images.rs b/codex-rs/codex-api/src/endpoint/images.rs
+index 716e4dec97..cc5c3b44c4 100644
+--- a/codex-rs/codex-api/src/endpoint/images.rs
++++ b/codex-rs/codex-api/src/endpoint/images.rs
+@@ -157,6 +157,7 @@ mod tests {
+                 retry_transport: true,
+             },
+             stream_idle_timeout: Duration::from_secs(1),
++            wire: crate::provider::WireApi::Responses,
+         }
+     }
+ 
+diff --git a/codex-rs/codex-api/src/endpoint/memories.rs b/codex-rs/codex-api/src/endpoint/memories.rs
+index 122ca565f7..e4f196eddf 100644
+--- a/codex-rs/codex-api/src/endpoint/memories.rs
++++ b/codex-rs/codex-api/src/endpoint/memories.rs
+@@ -149,6 +149,7 @@ mod tests {
+                 retry_transport: true,
+             },
+             stream_idle_timeout: Duration::from_secs(1),
++            wire: crate::provider::WireApi::Responses,
+         }
+     }
+ 
+diff --git a/codex-rs/codex-api/src/endpoint/models.rs b/codex-rs/codex-api/src/endpoint/models.rs
+index ecd50a0f1d..2eaabe6387 100644
+--- a/codex-rs/codex-api/src/endpoint/models.rs
++++ b/codex-rs/codex-api/src/endpoint/models.rs
+@@ -154,6 +154,7 @@ mod tests {
+                 retry_transport: true,
+             },
+             stream_idle_timeout: Duration::from_secs(1),
++            wire: crate::provider::WireApi::Responses,
+         }
+     }
+ 
+diff --git a/codex-rs/codex-api/src/endpoint/realtime_call.rs b/codex-rs/codex-api/src/endpoint/realtime_call.rs
+index b43e02d9b0..00a5476d7c 100644
+--- a/codex-rs/codex-api/src/endpoint/realtime_call.rs
++++ b/codex-rs/codex-api/src/endpoint/realtime_call.rs
+@@ -382,6 +382,7 @@ mod tests {
+                 retry_transport: true,
+             },
+             stream_idle_timeout: Duration::from_secs(1),
++            wire: crate::provider::WireApi::Responses,
+         }
+     }
+ 
+diff --git a/codex-rs/codex-api/src/endpoint/realtime_websocket/methods.rs b/codex-rs/codex-api/src/endpoint/realtime_websocket/methods.rs
+index 7dd84e5366..22d01acf93 100644
+--- a/codex-rs/codex-api/src/endpoint/realtime_websocket/methods.rs
++++ b/codex-rs/codex-api/src/endpoint/realtime_websocket/methods.rs
+@@ -2174,6 +2174,7 @@ mod tests {
+                 retry_transport: false,
+             },
+             stream_idle_timeout: Duration::from_secs(5),
++            wire: crate::provider::WireApi::Responses,
+         });
+ 
+         let url = client
+@@ -2370,6 +2371,7 @@ mod tests {
+                 retry_transport: false,
+             },
+             stream_idle_timeout: Duration::from_secs(5),
++            wire: crate::provider::WireApi::Responses,
+         };
+         let client = RealtimeWebsocketClient::new(provider);
+         let connection = client
+@@ -2696,6 +2698,7 @@ mod tests {
+                 retry_transport: false,
+             },
+             stream_idle_timeout: Duration::from_secs(5),
++            wire: crate::provider::WireApi::Responses,
+         };
+         let client = RealtimeWebsocketClient::new(provider);
+         let connection = client
+@@ -2823,6 +2826,7 @@ mod tests {
+                 retry_transport: false,
+             },
+             stream_idle_timeout: Duration::from_secs(5),
++            wire: crate::provider::WireApi::Responses,
+         };
+         let client = RealtimeWebsocketClient::new(provider);
+         let connection = client
+@@ -2929,6 +2933,7 @@ mod tests {
+                 retry_transport: false,
+             },
+             stream_idle_timeout: Duration::from_secs(5),
++            wire: crate::provider::WireApi::Responses,
+         };
+         let client = RealtimeWebsocketClient::new(provider);
+         let connection = client
+@@ -3021,6 +3026,7 @@ mod tests {
+                 retry_transport: false,
+             },
+             stream_idle_timeout: Duration::from_secs(5),
++            wire: crate::provider::WireApi::Responses,
+         };
+         let client = RealtimeWebsocketClient::new(provider);
+         let connection = client
+diff --git a/codex-rs/codex-api/src/endpoint/responses.rs b/codex-rs/codex-api/src/endpoint/responses.rs
+index 69a8c686d1..69add6f2e8 100644
+--- a/codex-rs/codex-api/src/endpoint/responses.rs
++++ b/codex-rs/codex-api/src/endpoint/responses.rs
+@@ -4,10 +4,13 @@ use crate::common::ResponsesApiRequest;
+ use crate::endpoint::session::EndpointSession;
+ use crate::error::ApiError;
+ use crate::provider::Provider;
++use crate::provider::WireApi;
+ use crate::requests::Compression;
++use crate::requests::chat::chat_body_from_responses_request;
+ use crate::requests::headers::build_session_headers;
+ use crate::requests::headers::insert_header;
+ use crate::requests::headers::subagent_header;
++use crate::sse::spawn_chat_stream;
+ use crate::sse::spawn_response_stream;
+ use crate::telemetry::SseTelemetry;
+ use codex_client::EncodedJsonBody;
+@@ -113,8 +116,14 @@ impl<T: HttpTransport> ResponsesClient<T> {
+             turn_state,
+         } = options;
+ 
+-        let body = EncodedJsonBody::encode(&request)
+-            .map_err(|e| ApiError::Stream(format!("failed to encode responses request: {e}")))?;
++        // Chat-only providers get the request rewritten here and their SSE
++        // frames rewritten back, so nothing above this call site is aware of
++        // the wire difference.
++        let body = match self.session.provider().wire {
++            WireApi::Responses => EncodedJsonBody::encode(&request),
++            WireApi::Chat => EncodedJsonBody::encode(&chat_body_from_responses_request(&request)),
++        }
++        .map_err(|e| ApiError::Stream(format!("failed to encode responses request: {e}")))?;
+ 
+         let mut headers = extra_headers;
+         if let Some(ref thread_id) = thread_id {
+@@ -165,11 +174,17 @@ impl<T: HttpTransport> ResponsesClient<T> {
+             Compression::Zstd => RequestCompression::Zstd,
+         };
+ 
++        let wire = self.session.provider().wire;
++        let path = match wire {
++            WireApi::Responses => self.endpoint.path(),
++            WireApi::Chat => "/chat/completions",
++        };
++
+         let stream_response = self
+             .session
+             .stream_encoded_json_with(
+                 Method::POST,
+-                self.endpoint.path(),
++                path,
+                 extra_headers,
+                 Some(body),
+                 |req| {
+@@ -182,11 +197,17 @@ impl<T: HttpTransport> ResponsesClient<T> {
+             )
+             .await?;
+ 
+-        Ok(spawn_response_stream(
+-            stream_response,
+-            self.session.provider().stream_idle_timeout,
+-            self.sse_telemetry.clone(),
+-            turn_state,
+-        ))
++        let idle_timeout = self.session.provider().stream_idle_timeout;
++        Ok(match wire {
++            WireApi::Responses => spawn_response_stream(
++                stream_response,
++                idle_timeout,
++                self.sse_telemetry.clone(),
++                turn_state,
++            ),
++            WireApi::Chat => {
++                spawn_chat_stream(stream_response, idle_timeout, self.sse_telemetry.clone())
++            }
++        })
+     }
+ }
+diff --git a/codex-rs/codex-api/src/endpoint/search.rs b/codex-rs/codex-api/src/endpoint/search.rs
+index 131a335e26..bc4d85a810 100644
+--- a/codex-rs/codex-api/src/endpoint/search.rs
++++ b/codex-rs/codex-api/src/endpoint/search.rs
+@@ -130,6 +130,7 @@ mod tests {
+                 retry_transport: true,
+             },
+             stream_idle_timeout: Duration::from_secs(1),
++            wire: crate::provider::WireApi::Responses,
+         }
+     }
+ 
+diff --git a/codex-rs/codex-api/src/lib.rs b/codex-rs/codex-api/src/lib.rs
+index 17e3ceb69b..26f4b0319e 100644
+--- a/codex-rs/codex-api/src/lib.rs
++++ b/codex-rs/codex-api/src/lib.rs
+@@ -87,6 +87,7 @@ pub use crate::images::ImageResponse;
+ pub use crate::images::ImageUrl;
+ pub use crate::provider::Provider;
+ pub use crate::provider::RetryConfig;
++pub use crate::provider::WireApi;
+ pub use crate::provider::is_azure_responses_provider;
+ pub use crate::requests::Compression;
+ pub use crate::search::AllowedCaller;
+diff --git a/codex-rs/codex-api/src/provider.rs b/codex-rs/codex-api/src/provider.rs
+index 849513af55..253a2dacd7 100644
+--- a/codex-rs/codex-api/src/provider.rs
++++ b/codex-rs/codex-api/src/provider.rs
+@@ -35,6 +35,19 @@ impl RetryConfig {
+     }
+ }
+ 
++/// Wire protocol a provider speaks on its inference route.
++///
++/// Codex is Responses-native. `Chat` exists for providers that only expose an
++/// OpenAI-compatible `/chat/completions` endpoint (Z.ai/GLM, most OSS servers);
++/// requests and SSE frames are translated at the `ResponsesClient` boundary so
++/// the rest of the codebase never sees the difference.
++#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
++pub enum WireApi {
++    #[default]
++    Responses,
++    Chat,
++}
++
+ /// HTTP endpoint configuration used to talk to a concrete API deployment.
+ ///
+ /// Encapsulates base URL, default headers, query params, retry policy, and
+@@ -47,6 +60,7 @@ pub struct Provider {
+     pub headers: HeaderMap,
+     pub retry: RetryConfig,
+     pub stream_idle_timeout: Duration,
++    pub wire: WireApi,
+ }
+ 
+ impl Provider {
+diff --git a/codex-rs/codex-api/src/requests/chat.rs b/codex-rs/codex-api/src/requests/chat.rs
+new file mode 100644
+index 0000000000..4f43fc4088
+--- /dev/null
++++ b/codex-rs/codex-api/src/requests/chat.rs
+@@ -0,0 +1,467 @@
++//! Translation from a Responses-shaped request into an OpenAI-compatible
++//! `/chat/completions` body.
++//!
++//! Codex speaks the Responses API everywhere above this module. Providers that
++//! only expose Chat Completions (Z.ai/GLM, most OSS servers) get their request
++//! rewritten here, and their SSE frames rewritten back in `crate::sse::chat`.
++
++use crate::common::ResponsesApiRequest;
++use codex_protocol::models::ContentItem;
++use codex_protocol::models::FunctionCallOutputContentItem;
++use codex_protocol::models::ReasoningItemContent;
++use codex_protocol::models::ResponseItem;
++use serde_json::Value;
++use serde_json::json;
++use std::collections::HashMap;
++
++/// Builds the `/chat/completions` request body for `request`.
++pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) -> Value {
++    let mut messages = Vec::<Value>::new();
++    if !request.instructions.is_empty() {
++        messages.push(json!({"role": "system", "content": request.instructions}));
++    }
++
++    let input = request.input.as_slice();
++    let reasoning_by_anchor_index = anchor_trailing_reasoning(input);
++    let mut last_assistant_text: Option<String> = None;
++
++    for (idx, item) in input.iter().enumerate() {
++        match item {
++            ResponseItem::Message { role, content, .. } => {
++                let mut text = String::new();
++                let mut parts: Vec<Value> = Vec::new();
++                let mut saw_image = false;
++
++                for c in content {
++                    match c {
++                        ContentItem::InputText { text: t } | ContentItem::OutputText { text: t } => {
++                            text.push_str(t);
++                            parts.push(json!({"type": "text", "text": t}));
++                        }
++                        ContentItem::InputImage { image_url, .. } => {
++                            saw_image = true;
++                            parts.push(json!({"type": "image_url", "image_url": {"url": image_url}}));
++                        }
++                        // Audio has no Chat Completions equivalent.
++                        _ => {}
++                    }
++                }
++
++                // Chat Completions has no notion of duplicate assistant turns;
++                // collapsing them keeps the transcript well-formed.
++                if role == "assistant" {
++                    if last_assistant_text.as_ref() == Some(&text) {
++                        continue;
++                    }
++                    last_assistant_text = Some(text.clone());
++                }
++
++                let content_value = if role != "assistant" && saw_image {
++                    json!(parts)
++                } else {
++                    json!(text)
++                };
++
++                let mut msg = json!({"role": role, "content": content_value});
++                if role == "assistant"
++                    && let Some(reasoning) = reasoning_by_anchor_index.get(&idx)
++                    && let Some(obj) = msg.as_object_mut()
++                {
++                    obj.insert("reasoning_content".to_string(), json!(reasoning));
++                }
++                messages.push(msg);
++            }
++            ResponseItem::FunctionCall {
++                name,
++                arguments,
++                call_id,
++                ..
++            } => {
++                push_tool_call(
++                    &mut messages,
++                    json!({
++                        "id": call_id,
++                        "type": "function",
++                        "function": {"name": name, "arguments": arguments},
++                    }),
++                    reasoning_by_anchor_index.get(&idx).map(String::as_str),
++                );
++            }
++            ResponseItem::FunctionCallOutput { call_id, output, .. } => {
++                let content_value = match output.content_items() {
++                    Some(items) => json!(
++                        items
++                            .iter()
++                            .filter_map(|it| match it {
++                                FunctionCallOutputContentItem::InputText { text } => {
++                                    Some(json!({"type": "text", "text": text}))
++                                }
++                                FunctionCallOutputContentItem::InputImage { image_url, .. } => {
++                                    Some(json!({"type": "image_url", "image_url": {"url": image_url}}))
++                                }
++                                _ => None,
++                            })
++                            .collect::<Vec<_>>()
++                    ),
++                    None => json!(output.text_content().unwrap_or_default()),
++                };
++                messages.push(json!({
++                    "role": "tool",
++                    "tool_call_id": call_id,
++                    "content": content_value,
++                }));
++            }
++            ResponseItem::CustomToolCall {
++                call_id,
++                name,
++                input,
++                ..
++            } => {
++                push_tool_call(
++                    &mut messages,
++                    json!({
++                        "id": call_id,
++                        "type": "function",
++                        "function": {"name": name, "arguments": input},
++                    }),
++                    reasoning_by_anchor_index.get(&idx).map(String::as_str),
++                );
++            }
++            ResponseItem::CustomToolCallOutput {
++                call_id, output, ..
++            } => {
++                messages.push(json!({
++                    "role": "tool",
++                    "tool_call_id": call_id,
++                    "content": output,
++                }));
++            }
++            // Reasoning is folded into its anchor message above; everything else
++            // has no Chat Completions representation.
++            _ => continue,
++        }
++    }
++
++    let mut body = json!({
++        "model": request.model,
++        "messages": messages,
++        "stream": true,
++        // Without this the provider omits `usage`, and Codex cannot track cost
++        // or drive the auto-compaction trigger.
++        "stream_options": {"include_usage": true},
++    });
++
++    let Some(obj) = body.as_object_mut() else {
++        return body;
++    };
++
++    if let Some(tools) = request.tools.as_ref().map(chat_tools_from_responses_tools)
++        && !tools.is_empty()
++    {
++        obj.insert("tools".to_string(), json!(tools));
++        obj.insert("tool_choice".to_string(), json!(request.tool_choice));
++        obj.insert(
++            "parallel_tool_calls".to_string(),
++            json!(request.parallel_tool_calls),
++        );
++    }
++
++    // Z.ai/GLM gate chain-of-thought behind `thinking` rather than `reasoning`.
++    if request.reasoning.is_some() {
++        obj.insert("thinking".to_string(), json!({"type": "enabled"}));
++    }
++
++    if let Some(text) = request.text.as_ref()
++        && let Ok(Value::Object(text)) = serde_json::to_value(text)
++        && let Some(format) = text.get("format")
++    {
++        obj.insert("response_format".to_string(), format.clone());
++    }
++
++    body
++}
++
++/// Rewrites Responses tool specs (`{type, name, parameters}`) into the nested
++/// Chat Completions shape (`{type, function: {name, parameters}}`).
++fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) -> Vec<Value> {
++    let Ok(Value::Array(tools)) = serde_json::from_str::<Value>(tools.as_raw_value().get()) else {
++        return Vec::new();
++    };
++
++    tools
++        .into_iter()
++        .filter_map(|tool| {
++            let obj = tool.as_object()?;
++            // Provider-native tools (web_search, local_shell, ...) have no
++            // Chat Completions equivalent; dropping them is better than sending
++            // a body the provider will reject outright.
++            if obj.get("type").and_then(Value::as_str) != Some("function") {
++                return None;
++            }
++            // Already nested (some callers hand us Chat-shaped specs).
++            if obj.contains_key("function") {
++                return Some(tool);
++            }
++
++            let mut function = serde_json::Map::new();
++            for key in ["name", "description", "parameters", "strict"] {
++                if let Some(value) = obj.get(key) {
++                    function.insert(key.to_string(), value.clone());
++                }
++            }
++            Some(json!({"type": "function", "function": function}))
++        })
++        .collect()
++}
++
++/// Attaches each trailing `Reasoning` item to the assistant message or tool call
++/// it belongs to, so it can ride along as `reasoning_content`.
++///
++/// Only reasoning produced after the last user message is carried; earlier
++/// reasoning is history the provider does not need and we do not want to pay for.
++fn anchor_trailing_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
++    let mut anchored: HashMap<usize, String> = HashMap::new();
++
++    let last_user_index = input.iter().rposition(
++        |item| matches!(item, ResponseItem::Message { role, .. } if role == "user"),
++    );
++
++    for (idx, item) in input.iter().enumerate() {
++        if let Some(user_idx) = last_user_index
++            && idx <= user_idx
++        {
++            continue;
++        }
++
++        let ResponseItem::Reasoning {
++            content: Some(items),
++            ..
++        } = item
++        else {
++            continue;
++        };
++
++        let mut text = String::new();
++        for entry in items {
++            match entry {
++                ReasoningItemContent::ReasoningText { text: segment }
++                | ReasoningItemContent::Text { text: segment } => text.push_str(segment),
++            }
++        }
++        if text.trim().is_empty() {
++            continue;
++        }
++
++        // Reasoning precedes the item it explains, but a provider may also emit
++        // it right after an assistant message. Prefer the following item.
++        let anchor = input
++            .get(idx + 1)
++            .and_then(|next| match next {
++                ResponseItem::FunctionCall { .. } | ResponseItem::CustomToolCall { .. } => {
++                    Some(idx + 1)
++                }
++                ResponseItem::Message { role, .. } if role == "assistant" => Some(idx + 1),
++                _ => None,
++            })
++            .or_else(|| match idx.checked_sub(1).map(|prev| (prev, &input[prev])) {
++                Some((prev, ResponseItem::Message { role, .. })) if role == "assistant" => {
++                    Some(prev)
++                }
++                _ => None,
++            });
++
++        if let Some(anchor) = anchor {
++            anchored
++                .entry(anchor)
++                .and_modify(|existing| {
++                    existing.push('\n');
++                    existing.push_str(&text);
++                })
++                .or_insert(text);
++        }
++    }
++
++    anchored
++}
++
++/// Chat Completions requires consecutive tool calls to be grouped into one
++/// assistant message carrying `tool_calls: [...]`, followed by the `tool` replies.
++fn push_tool_call(messages: &mut Vec<Value>, tool_call: Value, reasoning: Option<&str>) {
++    if let Some(Value::Object(obj)) = messages.last_mut()
++        && obj.get("role").and_then(Value::as_str) == Some("assistant")
++        && obj.get("content").is_some_and(Value::is_null)
++        && let Some(tool_calls) = obj.get_mut("tool_calls").and_then(Value::as_array_mut)
++    {
++        tool_calls.push(tool_call);
++        if let Some(reasoning) = reasoning {
++            match obj.get_mut("reasoning_content") {
++                Some(Value::String(existing)) => {
++                    existing.push('\n');
++                    existing.push_str(reasoning);
++                }
++                _ => {
++                    obj.insert("reasoning_content".to_string(), json!(reasoning));
++                }
++            }
++        }
++        return;
++    }
++
++    let mut msg = json!({
++        "role": "assistant",
++        "content": null,
++        "tool_calls": [tool_call],
++    });
++    if let Some(reasoning) = reasoning
++        && let Some(obj) = msg.as_object_mut()
++    {
++        obj.insert("reasoning_content".to_string(), json!(reasoning));
++    }
++    messages.push(msg);
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use codex_protocol::models::FunctionCallOutputPayload;
++    use pretty_assertions::assert_eq;
++
++    fn user(text: &str) -> ResponseItem {
++        ResponseItem::Message {
++            id: None,
++            role: "user".to_string(),
++            content: vec![ContentItem::InputText {
++                text: text.to_string(),
++            }],
++            phase: None,
++            internal_chat_message_metadata_passthrough: None,
++        }
++    }
++
++    fn call(call_id: &str, name: &str, arguments: &str) -> ResponseItem {
++        ResponseItem::FunctionCall {
++            id: None,
++            name: name.to_string(),
++            namespace: None,
++            arguments: arguments.to_string(),
++            encrypted_function_args: None,
++            call_id: call_id.to_string(),
++            internal_chat_message_metadata_passthrough: None,
++        }
++    }
++
++    fn request(input: Vec<ResponseItem>, tools: Option<&str>) -> ResponsesApiRequest {
++        ResponsesApiRequest {
++            model: "glm-5.3-flash".to_string(),
++            instructions: "be terse".to_string(),
++            input,
++            tools: tools.map(|tools| {
++                std::sync::Arc::<serde_json::value::RawValue>::from(
++                    serde_json::value::RawValue::from_string(tools.to_string()).expect("raw value"),
++                )
++                .into()
++            }),
++            tool_choice: "auto".to_string(),
++            parallel_tool_calls: true,
++            reasoning: None,
++            store: false,
++            stream: true,
++            stream_options: None,
++            include: Vec::new(),
++            service_tier: None,
++            prompt_cache_key: None,
++            text: None,
++            client_metadata: None,
++            access_programs: None,
++        }
++    }
++
++    #[test]
++    fn groups_consecutive_tool_calls_and_keeps_outputs_in_order() {
++        let body = chat_body_from_responses_request(&request(
++            vec![
++                user("read these"),
++                call("call-a", "read_file", r#"{"path":"a"}"#),
++                call("call-b", "read_file", r#"{"path":"b"}"#),
++                ResponseItem::FunctionCallOutput {
++                    id: None,
++                    name: None,
++                    namespace: None,
++                    call_id: Some("call-a".to_string()),
++                    output: FunctionCallOutputPayload::from_text("A".to_string()),
++                    internal_chat_message_metadata_passthrough: None,
++                },
++                ResponseItem::FunctionCallOutput {
++                    id: None,
++                    name: None,
++                    namespace: None,
++                    call_id: Some("call-b".to_string()),
++                    output: FunctionCallOutputPayload::from_text("B".to_string()),
++                    internal_chat_message_metadata_passthrough: None,
++                },
++            ],
++            None,
++        ));
++
++        let messages = body["messages"].as_array().expect("messages");
++        assert_eq!(messages.len(), 5, "system + user + 1 assistant + 2 tool");
++        assert_eq!(messages[0]["role"], "system");
++        assert_eq!(messages[1]["role"], "user");
++        assert_eq!(messages[2]["role"], "assistant");
++        assert_eq!(
++            messages[2]["tool_calls"].as_array().map(Vec::len),
++            Some(2),
++            "consecutive calls must collapse into one assistant message"
++        );
++        assert_eq!(messages[3]["tool_call_id"], "call-a");
++        assert_eq!(messages[4]["tool_call_id"], "call-b");
++        assert_eq!(body["stream_options"]["include_usage"], true);
++    }
++
++    #[test]
++    fn nests_responses_tool_specs_and_drops_provider_native_tools() {
++        let body = chat_body_from_responses_request(&request(
++            vec![user("hi")],
++            Some(
++                r#"[{"type":"function","name":"shell","description":"run","parameters":{"type":"object"}},
++                    {"type":"web_search"}]"#,
++            ),
++        ));
++
++        let tools = body["tools"].as_array().expect("tools");
++        assert_eq!(tools.len(), 1, "web_search has no chat equivalent");
++        assert_eq!(tools[0]["type"], "function");
++        assert_eq!(tools[0]["function"]["name"], "shell");
++        assert_eq!(tools[0]["function"]["parameters"]["type"], "object");
++        assert!(
++            tools[0].get("name").is_none(),
++            "flat responses shape must not leak through"
++        );
++        assert_eq!(body["tool_choice"], "auto");
++    }
++
++    #[test]
++    fn carries_trailing_reasoning_on_the_tool_call_it_explains() {
++        let body = chat_body_from_responses_request(&request(
++            vec![
++                user("go"),
++                ResponseItem::Reasoning {
++                    id: None,
++                    summary: Vec::new(),
++                    content: Some(vec![ReasoningItemContent::ReasoningText {
++                        text: "check the file".to_string(),
++                    }]),
++                    encrypted_content: None,
++                    internal_chat_message_metadata_passthrough: None,
++                },
++                call("call-a", "read_file", "{}"),
++            ],
++            None,
++        ));
++
++        let messages = body["messages"].as_array().expect("messages");
++        let assistant = messages.last().expect("assistant message");
++        assert_eq!(assistant["role"], "assistant");
++        assert_eq!(assistant["reasoning_content"], "check the file");
++    }
++}
+diff --git a/codex-rs/codex-api/src/requests/mod.rs b/codex-rs/codex-api/src/requests/mod.rs
+index abe57a886d..1184a43262 100644
+--- a/codex-rs/codex-api/src/requests/mod.rs
++++ b/codex-rs/codex-api/src/requests/mod.rs
+@@ -1,3 +1,4 @@
++pub(crate) mod chat;
+ pub(crate) mod headers;
+ pub(crate) mod responses;
+ 
+diff --git a/codex-rs/codex-api/src/sse/chat.rs b/codex-rs/codex-api/src/sse/chat.rs
+new file mode 100644
+index 0000000000..8e3aba4a80
+--- /dev/null
++++ b/codex-rs/codex-api/src/sse/chat.rs
+@@ -0,0 +1,536 @@
++//! Translation of OpenAI-compatible `/chat/completions` SSE frames into the
++//! Responses-shaped [`ResponseEvent`] stream the rest of Codex consumes.
++//!
++//! See `crate::requests::chat` for the outbound half of the bridge.
++
++use crate::common::ResponseEvent;
++use crate::common::ResponseStream;
++use crate::error::ApiError;
++use crate::telemetry::SseTelemetry;
++use codex_client::StreamResponse;
++use codex_protocol::models::ContentItem;
++use codex_protocol::models::ReasoningItemContent;
++use codex_protocol::models::ResponseItem;
++use codex_protocol::protocol::TokenUsage;
++use eventsource_stream::Eventsource;
++use futures::Stream;
++use futures::StreamExt;
++use serde_json::Value;
++use std::collections::HashMap;
++use std::sync::Arc;
++use std::time::Duration;
++use tokio::sync::mpsc;
++use tokio::time::Instant;
++use tokio::time::timeout;
++use tracing::debug;
++use tracing::trace;
++
++const REQUEST_ID_HEADER: &str = "x-request-id";
++
++pub(crate) fn spawn_chat_stream(
++    stream_response: StreamResponse,
++    idle_timeout: Duration,
++    telemetry: Option<Arc<dyn SseTelemetry>>,
++) -> ResponseStream {
++    let upstream_request_id = stream_response
++        .headers
++        .get(REQUEST_ID_HEADER)
++        .and_then(|value| value.to_str().ok())
++        .map(str::to_string);
++
++    let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent, ApiError>>(1600);
++    tokio::spawn(async move {
++        process_chat_sse(stream_response.bytes, tx_event, idle_timeout, telemetry).await;
++    });
++
++    ResponseStream {
++        rx_event,
++        upstream_request_id,
++    }
++}
++
++#[derive(Default, Debug)]
++struct ToolCallState {
++    id: Option<String>,
++    name: Option<String>,
++    arguments: String,
++}
++
++/// Accumulates the in-flight assistant turn while chunks arrive.
++///
++/// Chat Completions streams deltas with no item identity, so we rebuild whole
++/// `ResponseItem`s here and emit them as `OutputItemDone` at the finish boundary.
++#[derive(Default)]
++struct ChatTurn {
++    assistant: Option<ResponseItem>,
++    reasoning: Option<ResponseItem>,
++    tool_calls: HashMap<usize, ToolCallState>,
++    tool_call_order: Vec<usize>,
++    tool_call_index_by_id: HashMap<String, usize>,
++    next_tool_call_index: usize,
++    last_tool_call_index: Option<usize>,
++    response_id: String,
++    token_usage: Option<TokenUsage>,
++    end_turn: Option<bool>,
++}
++
++pub(crate) async fn process_chat_sse<S>(
++    stream: S,
++    tx_event: mpsc::Sender<Result<ResponseEvent, ApiError>>,
++    idle_timeout: Duration,
++    telemetry: Option<Arc<dyn SseTelemetry>>,
++) where
++    S: Stream<Item = Result<bytes::Bytes, codex_client::TransportError>> + Unpin,
++{
++    let mut stream = stream.eventsource();
++    let mut turn = ChatTurn::default();
++    let _ = tx_event.send(Ok(ResponseEvent::Created)).await;
++
++    loop {
++        let start = Instant::now();
++        let response = timeout(idle_timeout, stream.next()).await;
++        if let Some(t) = telemetry.as_ref() {
++            t.on_sse_poll(&response, start.elapsed());
++        }
++
++        let sse = match response {
++            Ok(Some(Ok(sse))) => sse,
++            Ok(Some(Err(e))) => {
++                let _ = tx_event.send(Err(ApiError::Stream(e.to_string()))).await;
++                return;
++            }
++            Ok(None) => {
++                complete(&tx_event, &mut turn).await;
++                return;
++            }
++            Err(_) => {
++                let _ = tx_event
++                    .send(Err(ApiError::Stream("idle timeout waiting for SSE".into())))
++                    .await;
++                return;
++            }
++        };
++
++        trace!("chat SSE event: {}", sse.data);
++        let data = sse.data.trim();
++        if data.is_empty() {
++            continue;
++        }
++        if data == "[DONE]" || data == "DONE" {
++            complete(&tx_event, &mut turn).await;
++            return;
++        }
++
++        let value: Value = match serde_json::from_str(data) {
++            Ok(value) => value,
++            Err(err) => {
++                debug!("failed to parse chat completions SSE event: {err}, data: {data}");
++                continue;
++            }
++        };
++
++        if let Some(error) = value.get("error") {
++            let message = error
++                .get("message")
++                .and_then(Value::as_str)
++                .unwrap_or("chat completions stream returned an error");
++            let _ = tx_event
++                .send(Err(ApiError::Stream(message.to_string())))
++                .await;
++            return;
++        }
++
++        if let Some(id) = value.get("id").and_then(Value::as_str)
++            && turn.response_id.is_empty()
++        {
++            turn.response_id = id.to_string();
++        }
++
++        // The final `include_usage` chunk carries usage with an empty `choices`.
++        if let Some(usage) = value.get("usage").filter(|usage| !usage.is_null()) {
++            turn.token_usage = Some(token_usage_from_chat_usage(usage));
++        }
++
++        let Some(choices) = value.get("choices").and_then(Value::as_array) else {
++            continue;
++        };
++
++        for choice in choices {
++            if let Some(delta) = choice.get("delta") {
++                if let Some(text) = reasoning_text(delta) {
++                    append_reasoning(&tx_event, &mut turn.reasoning, text).await;
++                }
++                if let Some(content) = delta.get("content") {
++                    for text in content_texts(content) {
++                        append_assistant(&tx_event, &mut turn.assistant, text).await;
++                    }
++                }
++                if let Some(tool_calls) = delta.get("tool_calls").and_then(Value::as_array) {
++                    for tool_call in tool_calls {
++                        accumulate_tool_call(&mut turn, tool_call);
++                    }
++                }
++            }
++
++            // Non-streaming-shaped replies still land here for some providers.
++            if let Some(message) = choice.get("message") {
++                if let Some(text) = reasoning_text(message) {
++                    append_reasoning(&tx_event, &mut turn.reasoning, text).await;
++                }
++                if let Some(content) = message.get("content") {
++                    for text in content_texts(content) {
++                        append_assistant(&tx_event, &mut turn.assistant, text).await;
++                    }
++                }
++            }
++
++            match choice.get("finish_reason").and_then(Value::as_str) {
++                Some("length") => {
++                    let _ = tx_event.send(Err(ApiError::ContextWindowExceeded)).await;
++                    return;
++                }
++                Some("tool_calls") => {
++                    turn.end_turn = Some(false);
++                    flush_items(&tx_event, &mut turn).await;
++                }
++                Some(_) => {
++                    turn.end_turn = Some(true);
++                    flush_items(&tx_event, &mut turn).await;
++                }
++                None => {}
++            }
++        }
++    }
++}
++
++/// Emits the accumulated reasoning, assistant message, and tool calls in the
++/// order the Responses API would have produced them.
++async fn flush_items(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
++    if let Some(reasoning) = turn.reasoning.take() {
++        let _ = tx_event
++            .send(Ok(ResponseEvent::OutputItemDone(reasoning)))
++            .await;
++    }
++    if let Some(assistant) = turn.assistant.take() {
++        let _ = tx_event
++            .send(Ok(ResponseEvent::OutputItemDone(assistant)))
++            .await;
++    }
++
++    for index in std::mem::take(&mut turn.tool_call_order) {
++        let Some(state) = turn.tool_calls.remove(&index) else {
++            continue;
++        };
++        let Some(name) = state.name else {
++            debug!("skipping tool call at index {index}: no function name in stream");
++            continue;
++        };
++        let _ = tx_event
++            .send(Ok(ResponseEvent::OutputItemDone(ResponseItem::FunctionCall {
++                id: None,
++                name,
++                namespace: None,
++                arguments: state.arguments,
++                encrypted_function_args: None,
++                call_id: state.id.unwrap_or_else(|| format!("tool-call-{index}")),
++                internal_chat_message_metadata_passthrough: None,
++            })))
++            .await;
++    }
++}
++
++/// Flushes anything still buffered and closes the turn.
++///
++/// Deferred until `[DONE]` (or stream end) because the usage chunk arrives after
++/// `finish_reason`, and dropping it would leave Codex blind to token cost.
++async fn complete(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
++    flush_items(tx_event, turn).await;
++    let _ = tx_event
++        .send(Ok(ResponseEvent::Completed {
++            response_id: std::mem::take(&mut turn.response_id),
++            token_usage: turn.token_usage.take(),
++            usage_metadata: None,
++            end_turn: turn.end_turn,
++        }))
++        .await;
++}
++
++fn accumulate_tool_call(turn: &mut ChatTurn, tool_call: &Value) {
++    let call_id = tool_call.get("id").and_then(Value::as_str);
++
++    // Prefer an index we already associated with this id; providers are
++    // inconsistent about repeating `index` on continuation frames.
++    let index = call_id
++        .and_then(|id| turn.tool_call_index_by_id.get(id).copied())
++        .or_else(|| {
++            tool_call
++                .get("index")
++                .and_then(Value::as_u64)
++                .map(|i| i as usize)
++        })
++        .or(if call_id.is_none() {
++            turn.last_tool_call_index
++        } else {
++            None
++        })
++        .unwrap_or_else(|| {
++            while turn.tool_calls.contains_key(&turn.next_tool_call_index) {
++                turn.next_tool_call_index += 1;
++            }
++            let index = turn.next_tool_call_index;
++            turn.next_tool_call_index += 1;
++            index
++        });
++
++    if !turn.tool_calls.contains_key(&index) {
++        turn.tool_call_order.push(index);
++    }
++    let state = turn.tool_calls.entry(index).or_default();
++
++    if let Some(id) = call_id {
++        state.id.get_or_insert_with(|| id.to_string());
++        turn.tool_call_index_by_id
++            .entry(id.to_string())
++            .or_insert(index);
++    }
++
++    if let Some(function) = tool_call.get("function") {
++        if let Some(name) = function.get("name").and_then(Value::as_str)
++            && !name.is_empty()
++        {
++            state.name.get_or_insert_with(|| name.to_string());
++        }
++        if let Some(arguments) = function.get("arguments").and_then(Value::as_str) {
++            state.arguments.push_str(arguments);
++        }
++    }
++
++    turn.last_tool_call_index = Some(index);
++}
++
++/// Reads chain-of-thought text from a delta or message.
++///
++/// `reasoning_content` is the Z.ai/GLM spelling; `reasoning` is what other
++/// OpenAI-compatible servers use, as a string or as `{text}`/`{content}`.
++fn reasoning_text(node: &Value) -> Option<String> {
++    if let Some(text) = node.get("reasoning_content").and_then(Value::as_str)
++        && !text.is_empty()
++    {
++        return Some(text.to_string());
++    }
++
++    let reasoning = node.get("reasoning")?;
++    let text = reasoning
++        .as_str()
++        .or_else(|| reasoning.get("text").and_then(Value::as_str))
++        .or_else(|| reasoning.get("content").and_then(Value::as_str))?;
++    (!text.is_empty()).then(|| text.to_string())
++}
++
++fn content_texts(content: &Value) -> Vec<String> {
++    match content {
++        Value::String(text) if !text.is_empty() => vec![text.clone()],
++        Value::Array(items) => items
++            .iter()
++            .filter_map(|item| item.get("text").and_then(Value::as_str))
++            .filter(|text| !text.is_empty())
++            .map(str::to_string)
++            .collect(),
++        _ => Vec::new(),
++    }
++}
++
++async fn append_assistant(
++    tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>,
++    assistant: &mut Option<ResponseItem>,
++    text: String,
++) {
++    if assistant.is_none() {
++        let item = ResponseItem::Message {
++            id: None,
++            role: "assistant".to_string(),
++            content: Vec::new(),
++            phase: None,
++            internal_chat_message_metadata_passthrough: None,
++        };
++        *assistant = Some(item.clone());
++        let _ = tx_event
++            .send(Ok(ResponseEvent::OutputItemAdded(item)))
++            .await;
++    }
++
++    if let Some(ResponseItem::Message { content, .. }) = assistant {
++        content.push(ContentItem::OutputText { text: text.clone() });
++        let _ = tx_event
++            .send(Ok(ResponseEvent::OutputTextDelta(text)))
++            .await;
++    }
++}
++
++async fn append_reasoning(
++    tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>,
++    reasoning: &mut Option<ResponseItem>,
++    text: String,
++) {
++    if reasoning.is_none() {
++        let item = ResponseItem::Reasoning {
++            id: None,
++            summary: Vec::new(),
++            content: Some(Vec::new()),
++            encrypted_content: None,
++            internal_chat_message_metadata_passthrough: None,
++        };
++        *reasoning = Some(item.clone());
++        let _ = tx_event
++            .send(Ok(ResponseEvent::OutputItemAdded(item)))
++            .await;
++    }
++
++    if let Some(ResponseItem::Reasoning {
++        content: Some(content),
++        ..
++    }) = reasoning
++    {
++        let content_index = content.len() as i64;
++        content.push(ReasoningItemContent::ReasoningText { text: text.clone() });
++        let _ = tx_event
++            .send(Ok(ResponseEvent::ReasoningContentDelta {
++                delta: text,
++                content_index,
++            }))
++            .await;
++    }
++}
++
++fn token_usage_from_chat_usage(usage: &Value) -> TokenUsage {
++    let field = |name: &str| usage.get(name).and_then(Value::as_i64).unwrap_or(0);
++    let nested = |parent: &str, name: &str| {
++        usage
++            .get(parent)
++            .and_then(|details| details.get(name))
++            .and_then(Value::as_i64)
++            .unwrap_or(0)
++    };
++
++    let input_tokens = field("prompt_tokens");
++    let output_tokens = field("completion_tokens");
++    let total_tokens = match field("total_tokens") {
++        0 => input_tokens + output_tokens,
++        total => total,
++    };
++
++    TokenUsage {
++        input_tokens,
++        cached_input_tokens: nested("prompt_tokens_details", "cached_tokens"),
++        cache_write_input_tokens: 0,
++        output_tokens,
++        reasoning_output_tokens: nested("completion_tokens_details", "reasoning_tokens"),
++        total_tokens,
++        codex_rollout_budget_units: None,
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use codex_client::TransportError;
++    use pretty_assertions::assert_eq;
++
++    fn stream_of(frames: &[&str]) -> impl Stream<Item = Result<bytes::Bytes, TransportError>> + Unpin
++    {
++        let body: String = frames
++            .iter()
++            .map(|frame| format!("data: {frame}\n\n"))
++            .collect();
++        futures::stream::iter(vec![Ok(bytes::Bytes::from(body))])
++    }
++
++    async fn collect(frames: &[&str]) -> Vec<ResponseEvent> {
++        let (tx, mut rx) = mpsc::channel(64);
++        process_chat_sse(stream_of(frames), tx, Duration::from_secs(5), None).await;
++
++        let mut events = Vec::new();
++        while let Some(event) = rx.recv().await {
++            events.push(event.expect("stream error"));
++        }
++        events
++    }
++
++    #[tokio::test]
++    async fn assembles_glm_reasoning_text_and_usage_into_one_turn() {
++        let events = collect(&[
++            r#"{"id":"chatcmpl-1","choices":[{"delta":{"reasoning_content":"thinking"}}]}"#,
++            r#"{"id":"chatcmpl-1","choices":[{"delta":{"content":"Hel"}}]}"#,
++            r#"{"id":"chatcmpl-1","choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}]}"#,
++            r#"{"id":"chatcmpl-1","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14,"prompt_tokens_details":{"cached_tokens":6}}}"#,
++            "[DONE]",
++        ])
++        .await;
++
++        let text: String = events
++            .iter()
++            .filter_map(|event| match event {
++                ResponseEvent::OutputTextDelta(delta) => Some(delta.as_str()),
++                _ => None,
++            })
++            .collect();
++        assert_eq!(text, "Hello");
++
++        assert!(
++            events.iter().any(|event| matches!(
++                event,
++                ResponseEvent::ReasoningContentDelta { delta, .. } if delta == "thinking"
++            )),
++            "reasoning_content must surface as a reasoning delta"
++        );
++
++        let Some(ResponseEvent::Completed {
++            response_id,
++            token_usage,
++            end_turn,
++            ..
++        }) = events.last()
++        else {
++            panic!("expected Completed last, got {:?}", events.last());
++        };
++        assert_eq!(response_id, "chatcmpl-1");
++        assert_eq!(end_turn, &Some(true));
++        let usage = token_usage.as_ref().expect("usage must survive finish_reason");
++        assert_eq!(usage.input_tokens, 10);
++        assert_eq!(usage.cached_input_tokens, 6);
++        assert_eq!(usage.output_tokens, 4);
++    }
++
++    #[tokio::test]
++    async fn reassembles_tool_calls_split_across_frames() {
++        let events = collect(&[
++            r#"{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-a","function":{"name":"shell","arguments":"{\"cmd\""}}]}}]}"#,
++            r#"{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\"ls\"}"}}]}}]}"#,
++            r#"{"id":"c","choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
++            "[DONE]",
++        ])
++        .await;
++
++        let calls: Vec<_> = events
++            .iter()
++            .filter_map(|event| match event {
++                ResponseEvent::OutputItemDone(ResponseItem::FunctionCall {
++                    name,
++                    arguments,
++                    call_id,
++                    ..
++                }) => Some((name.as_str(), arguments.as_str(), call_id.as_str())),
++                _ => None,
++            })
++            .collect();
++
++        assert_eq!(calls, vec![("shell", r#"{"cmd":"ls"}"#, "call-a")]);
++        assert!(
++            matches!(
++                events.last(),
++                Some(ResponseEvent::Completed { end_turn: Some(false), .. })
++            ),
++            "a tool_calls finish must not end the turn"
++        );
++    }
++}
+diff --git a/codex-rs/codex-api/src/sse/mod.rs b/codex-rs/codex-api/src/sse/mod.rs
+index 441078bdcb..8a655f04d5 100644
+--- a/codex-rs/codex-api/src/sse/mod.rs
++++ b/codex-rs/codex-api/src/sse/mod.rs
+@@ -1,5 +1,7 @@
++pub(crate) mod chat;
+ pub(crate) mod responses;
+ 
++pub(crate) use chat::spawn_chat_stream;
+ pub(crate) use responses::ResponsesStreamEvent;
+ pub(crate) use responses::process_responses_event;
+ pub use responses::spawn_response_stream;
+diff --git a/codex-rs/codex-api/tests/clients.rs b/codex-rs/codex-api/tests/clients.rs
+index af43022417..25b7f430b4 100644
+--- a/codex-rs/codex-api/tests/clients.rs
++++ b/codex-rs/codex-api/tests/clients.rs
+@@ -150,6 +150,7 @@ fn provider(name: &str) -> Provider {
+             retry_transport: true,
+         },
+         stream_idle_timeout: Duration::from_millis(10),
++        wire: WireApi::Responses,
+     }
+ }
+ 
+diff --git a/codex-rs/codex-api/tests/models_integration.rs b/codex-rs/codex-api/tests/models_integration.rs
+index b3092a1aaf..1cf65ee48a 100644
+--- a/codex-rs/codex-api/tests/models_integration.rs
++++ b/codex-rs/codex-api/tests/models_integration.rs
+@@ -43,6 +43,7 @@ fn provider(base_url: &str) -> Provider {
+             retry_transport: true,
+         },
+         stream_idle_timeout: std::time::Duration::from_secs(1),
++        wire: WireApi::Responses,
+     }
+ }
+ 
+diff --git a/codex-rs/codex-api/tests/realtime_websocket_e2e.rs b/codex-rs/codex-api/tests/realtime_websocket_e2e.rs
+index 696d0f5052..2e9a39e8c1 100644
+--- a/codex-rs/codex-api/tests/realtime_websocket_e2e.rs
++++ b/codex-rs/codex-api/tests/realtime_websocket_e2e.rs
+@@ -72,6 +72,7 @@ fn test_provider(base_url: String) -> Provider {
+             retry_transport: false,
+         },
+         stream_idle_timeout: Duration::from_secs(5),
++        wire: WireApi::Responses,
+     }
+ }
+ 
+diff --git a/codex-rs/codex-api/tests/sse_end_to_end.rs b/codex-rs/codex-api/tests/sse_end_to_end.rs
+index 308ae54be3..11f9afc6da 100644
+--- a/codex-rs/codex-api/tests/sse_end_to_end.rs
++++ b/codex-rs/codex-api/tests/sse_end_to_end.rs
+@@ -70,6 +70,7 @@ fn provider(name: &str) -> Provider {
+             retry_transport: true,
+         },
+         stream_idle_timeout: Duration::from_millis(50),
++        wire: WireApi::Responses,
+     }
+ }
+ 
+diff --git a/codex-rs/core/config.schema.json b/codex-rs/core/config.schema.json
+index 8d2e42b172..ed5692d9b2 100644
+--- a/codex-rs/core/config.schema.json
++++ b/codex-rs/core/config.schema.json
+@@ -5666,6 +5666,13 @@
+             "responses"
+           ],
+           "type": "string"
++        },
++        {
++          "description": "OpenAI-compatible `/chat/completions`. Requests and SSE frames are translated to and from the Responses shape inside `codex-api`.",
++          "enum": [
++            "chat"
++          ],
++          "type": "string"
+         }
+       ]
+     },
+diff --git a/codex-rs/core/src/client.rs b/codex-rs/core/src/client.rs
+index 4db5af9fbb..1931e13681 100644
+--- a/codex-rs/core/src/client.rs
++++ b/codex-rs/core/src/client.rs
+@@ -2031,6 +2031,21 @@ impl ModelClientSession {
+     ) -> Result<ResponseStream> {
+         let wire_api = self.client.state.provider.info().wire_api;
+         match wire_api {
++            // Chat-only providers have no WebSocket transport; the request and
++            // its SSE frames are translated inside `codex-api`.
++            WireApi::Chat => {
++                self.stream_responses_api(
++                    prompt,
++                    model_info,
++                    session_telemetry,
++                    effort,
++                    summary,
++                    service_tier,
++                    responses_metadata,
++                    inference_trace,
++                )
++                .await
++            }
+             WireApi::Responses => {
+                 if self.client.responses_websocket_enabled() {
+                     let request_trace = current_span_w3c_trace_context();
+diff --git a/codex-rs/model-provider-info/src/lib.rs b/codex-rs/model-provider-info/src/lib.rs
+index 65e2e4cbf7..a5c36c1b8c 100644
+--- a/codex-rs/model-provider-info/src/lib.rs
++++ b/codex-rs/model-provider-info/src/lib.rs
+@@ -38,6 +38,10 @@ const OPENAI_PROVIDER_NAME: &str = "OpenAI";
+ const OPENAI_ACTOR_AUTHORIZATION_HEADER: &str = "x-openai-actor-authorization";
+ pub const OPENAI_PROVIDER_ID: &str = "openai";
+ pub const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
++const ZAI_PROVIDER_NAME: &str = "Z.ai";
++pub const ZAI_PROVIDER_ID: &str = "zai";
++pub const ZAI_DEFAULT_BASE_URL: &str = "https://api.z.ai/api/paas/v4";
++pub const ZAI_API_KEY_ENV_VAR: &str = "ZAI_API_KEY";
+ const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
+ pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
+ const AMAZON_BEDROCK_RUNTIME_PROVIDER_NAME: &str = "Amazon Bedrock Runtime";
+@@ -54,7 +58,6 @@ pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
+     "https://bedrock-mantle.us-east-1.api.aws/openai/v1";
+ const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_HEADER: &str = "x-amzn-mantle-client-agent";
+ const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE: &str = "codex";
+-const CHAT_WIRE_API_REMOVED_ERROR: &str = "`wire_api = \"chat\"` is no longer supported.\nHow to fix: set `wire_api = \"responses\"` in your provider config.\nMore info: https://github.com/openai/codex/discussions/7782";
+ pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
+ pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
+ 
+@@ -65,12 +68,16 @@ pub enum WireApi {
+     /// The Responses API exposed by OpenAI at `/v1/responses`.
+     #[default]
+     Responses,
++    /// OpenAI-compatible `/chat/completions`. Requests and SSE frames are
++    /// translated to and from the Responses shape inside `codex-api`.
++    Chat,
+ }
+ 
+ impl fmt::Display for WireApi {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         let value = match self {
+             Self::Responses => "responses",
++            Self::Chat => "chat",
+         };
+         f.write_str(value)
+     }
+@@ -84,8 +91,11 @@ impl<'de> Deserialize<'de> for WireApi {
+         let value = String::deserialize(deserializer)?;
+         match value.as_str() {
+             "responses" => Ok(Self::Responses),
+-            "chat" => Err(serde::de::Error::custom(CHAT_WIRE_API_REMOVED_ERROR)),
+-            _ => Err(serde::de::Error::unknown_variant(&value, &["responses"])),
++            "chat" => Ok(Self::Chat),
++            _ => Err(serde::de::Error::unknown_variant(
++                &value,
++                &["responses", "chat"],
++            )),
+         }
+     }
+ }
+@@ -330,6 +340,10 @@ impl ModelProviderInfo {
+             headers,
+             retry,
+             stream_idle_timeout: self.stream_idle_timeout(),
++            wire: match self.wire_api {
++                WireApi::Responses => codex_api::WireApi::Responses,
++                WireApi::Chat => codex_api::WireApi::Chat,
++            },
+         })
+     }
+ 
+@@ -455,6 +469,36 @@ impl ModelProviderInfo {
+         }
+     }
+ 
++    /// Z.ai's OpenAI-compatible endpoint, which serves the GLM models.
++    ///
++    /// Z.ai exposes no Responses API, so this provider speaks
++    /// `wire_api = "chat"` and relies on the translation layer in `codex-api`.
++    pub fn create_zai_provider() -> ModelProviderInfo {
++        ModelProviderInfo {
++            name: ZAI_PROVIDER_NAME.into(),
++            base_url: Some(ZAI_DEFAULT_BASE_URL.to_string()),
++            env_key: Some(ZAI_API_KEY_ENV_VAR.to_string()),
++            env_key_instructions: Some(
++                "Create an API key at https://z.ai/manage-apikey/apikey-list and export it as ZAI_API_KEY."
++                    .to_string(),
++            ),
++            experimental_bearer_token: None,
++            auth: None,
++            aws: None,
++            wire_api: WireApi::Chat,
++            query_params: None,
++            http_headers: None,
++            env_http_headers: None,
++            request_max_retries: None,
++            stream_max_retries: None,
++            stream_idle_timeout_ms: None,
++            websocket_connect_timeout_ms: None,
++            requires_openai_auth: false,
++            supports_websockets: false,
++            supports_standalone_web_search: false,
++        }
++    }
++
+     pub fn create_amazon_bedrock_runtime_provider(
+         aws: Option<ModelProviderAwsAuthInfo>,
+     ) -> ModelProviderInfo {
+@@ -523,6 +567,7 @@ pub fn built_in_model_providers(
+     // `model_providers` in config.toml to add their own providers.
+     [
+         (OPENAI_PROVIDER_ID, openai_provider),
++        (ZAI_PROVIDER_ID, P::create_zai_provider()),
+         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
+         (
+             AMAZON_BEDROCK_RUNTIME_PROVIDER_ID,

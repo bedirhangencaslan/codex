@@ -1,0 +1,98 @@
+From ca7ba1d6e4cef17e2f9ca688906b819a038c5271 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 15:21:30 +0300
+Subject: [PATCH 34/71] Default the packaged config to the Z.ai provider
+
+An unset `model_provider` resolves to OpenAI, so the TUI patched the resolved
+provider after building its startup `Config`. That fixed one object rather than
+the rule: every thread transition that reloads config from disk lost it. Taking
+"clear context and implement" from the plan prompt runs
+`refresh_in_memory_config_from_disk_best_effort`, which replaced the patched
+config and started the new thread on OpenAI, producing a 401 against
+api.openai.com mid-session.
+
+Move the default into the packaged defaults layer instead. It is compiled into
+the binary at the lowest precedence, so every load path sees it -- TUI startup,
+the app-server's own reloads, exec, doctor -- and a user's `config.toml` still
+overrides it. In-process harnesses that build a `Config` without the loader keep
+resolving to OpenAI, which is why the default was kept out of the loader itself.
+---
+ codex-rs/config/defaults.toml |  1 +
+ codex-rs/tui/src/lib.rs       | 32 +-------------------------------
+ 2 files changed, 2 insertions(+), 31 deletions(-)
+
+diff --git a/codex-rs/config/defaults.toml b/codex-rs/config/defaults.toml
+index 42e3db5ba0..e91fdc52a4 100644
+--- a/codex-rs/config/defaults.toml
++++ b/codex-rs/config/defaults.toml
+@@ -1,4 +1,5 @@
+ # Fixed defaults for packaged Suffice clients.
++model_provider = "zai"
+ include_permissions_instructions = true
+ include_apps_instructions = true
+ include_collaboration_mode_instructions = true
+diff --git a/codex-rs/tui/src/lib.rs b/codex-rs/tui/src/lib.rs
+index 6bf2900f7f..d1043145ed 100644
+--- a/codex-rs/tui/src/lib.rs
++++ b/codex-rs/tui/src/lib.rs
+@@ -55,7 +55,6 @@ use codex_login::default_client::originator;
+ use codex_login::default_client::set_default_client_residency_requirement;
+ use codex_login::enforce_login_restrictions;
+ use codex_login::is_workload_identity_selected;
+-use codex_model_provider_info::ZAI_PROVIDER_ID;
+ use codex_protocol::ThreadId;
+ use codex_protocol::auth::AuthMode;
+ use codex_protocol::config_types::AltScreenMode;
+@@ -1854,7 +1853,6 @@ async fn load_config_or_exit_with_fallback_cwd(
+     strict_config: bool,
+     fallback_cwd: Option<PathBuf>,
+ ) -> Config {
+-    let provider_overridden = overrides.model_provider.is_some();
+     #[allow(clippy::print_stderr)]
+     match ConfigBuilder::default()
+         .cli_overrides(cli_kv_overrides)
+@@ -1866,12 +1864,7 @@ async fn load_config_or_exit_with_fallback_cwd(
+         .build()
+         .await
+     {
+-        Ok(mut config) => {
+-            if !provider_overridden {
+-                apply_default_model_provider(&mut config);
+-            }
+-            config
+-        }
++        Ok(config) => config,
+         Err(err) => {
+             restore_terminal_before_fatal_exit();
+             eprintln!("Error loading configuration: {err}");
+@@ -1921,29 +1914,6 @@ async fn load_bootstrap_config_or_exit(
+     }
+ }
+ 
+-/// Point an unconfigured install at Z.ai rather than OpenAI.
+-///
+-/// The default model is served by Z.ai, but an unset `model_provider` resolves
+-/// to OpenAI, so a fresh install opens on OpenAI's login screen and then talks
+-/// to the wrong endpoint. Correcting the resolved provider here instead of in
+-/// the config loader keeps the default out of the many in-process harnesses
+-/// that build a `Config` and expect OpenAI's wire format.
+-fn apply_default_model_provider(config: &mut Config) {
+-    if config
+-        .config_layer_stack
+-        .effective_config()
+-        .get("model_provider")
+-        .is_some()
+-    {
+-        return;
+-    }
+-    let Some(provider) = config.model_providers.get(ZAI_PROVIDER_ID) else {
+-        return;
+-    };
+-    config.model_provider = provider.clone();
+-    config.model_provider_id = ZAI_PROVIDER_ID.to_string();
+-}
+-
+ /// Determine if the user has decided whether to trust the current directory.
+ fn should_show_trust_screen(config: &Config) -> bool {
+     config.active_project.trust_level.is_none()

@@ -1,0 +1,189 @@
+From df5667c5293e3fc144d942c236dba5f5a61ff120 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Fri, 4 Sep 2026 15:45:58 +0300
+Subject: [PATCH 44/71] Stop the compaction prompt from dropping reasoning
+ nobody priced
+
+The summarization prompt names no active turn, and undecided reasoning from
+the turn that just ended was dropped there as it always had been. But that
+prompt is the last one on the prefix the turn left behind, and the request
+before it carried the reasoning: leaving it out rewrote the prompt from the
+start of the turn and re-prefilled the whole window at full price. With the
+memory refresh on, its own pricing pass happened to stamp the reasoning
+first and hide this; with it off, every compaction in the measured sessions
+was billed at 0% cached (76,991 / 79,944 / 80,466 / 80,054 input tokens).
+
+A prompt naming no turn now keeps reasoning that has an owning turn and no
+verdict. When reasoning is not priced at all, the drop is written onto the
+item the moment its turn ends, so that prompt leaves out exactly what the
+request before it left out instead of putting it back.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RVZHG9H5htyFpi1B6xbmp8
+---
+ codex-rs/core/src/context_manager/history.rs  | 37 +++++++++++++++----
+ .../core/src/context_manager/history_tests.rs | 19 +++++++++-
+ codex-rs/core/src/reasoning_retention.rs      | 23 ++++++++++++
+ codex-rs/core/src/session/mod.rs              | 12 ++++++
+ 4 files changed, 82 insertions(+), 9 deletions(-)
+
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index f26466870a..7eaea689f8 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -290,6 +290,15 @@ impl ContextManager {
+         growth
+     }
+ 
++    /// The verdict when reasoning is not priced: dropped the moment its turn ends, as it always
++    /// was, but written onto the item so the compaction prompt agrees with the request before it.
++    pub(crate) fn drop_completed_reasoning(&mut self, active_turn_id: Option<&str>) {
++        crate::reasoning_retention::drop_completed_reasoning(
++            Arc::make_mut(&mut self.items).as_mut_slice(),
++            active_turn_id,
++        );
++    }
++
+     /// Context added since the previous pricing point. Compaction and rollback shrink the
+     /// context; only forward growth says anything about what the next request will add.
+     fn observe_context_growth(&mut self, context_tokens: i64) -> i64 {
+@@ -729,13 +738,27 @@ fn dropped_reason(
+     ) {
+         return None;
+     }
+-    // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the cached
+-    // prefix than the re-prefill dropping it would cost. The verdict is a property of the
+-    // reasoning, not of the caller, so a prompt that names no active turn honours it too: naming
+-    // no turn means "nothing here is still being written", not "drop what was kept".
+-    // Reasoning that predates that verdict, or that was never stamped, is dropped as it always was.
+-    (metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true))
+-        .then_some(DropReason::Reasoning)
++    // The frozen verdict is a property of the reasoning, not of the caller, so a prompt that
++    // names no active turn honours it too: naming no turn means "nothing here is still being
++    // written", not "drop what was kept". Dropping kept reasoning there would break the very
++    // prefix the verdict was paid for.
++    match metadata.and_then(|metadata| metadata.reasoning_retained) {
++        Some(true) => None,
++        Some(false) => Some(DropReason::Reasoning),
++        None => {
++            // Undecided reasoning from a turn this build recorded. While a turn runs, the pricing
++            // pass stamps everything older before each prompt, so nothing undecided reaches one;
++            // a prompt naming no turn is compaction, which runs no pass and follows the last
++            // request the model answered. That request carried this reasoning, and the summary
++            // is the final prompt on the prefix it left behind, so leaving it out now would only
++            // re-prefill the turn for nothing. Reasoning with no owning turn predates the verdict
++            // and is dropped as it always was.
++            let owned = metadata
++                .and_then(|metadata| metadata.reasoning_turn.as_deref())
++                .is_some();
++            (active_turn_id.is_some() || !owned).then_some(DropReason::Reasoning)
++        }
++    }
+ }
+ 
+ /// Size of one item as the prompt carries it.
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index d8f0d4186f..7fcb062640 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -582,14 +582,29 @@ fn reasoning_stays_in_the_prompt_only_while_its_own_turn_runs() {
+         ]
+     );
+ 
+-    // Once the turn ends, its thinking stops being replayed.
++    // Once another turn runs, the finished turn's thinking stops being replayed.
+     assert_eq!(
+         history
+             .clone()
+-            .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
++            .for_prompt(&default_input_modalities(), Some("turn-3")),
+         vec![asked.clone(), called.clone()]
+     );
+ 
++    // A prompt naming no turn is compaction, which follows the last request the model answered
++    // rather than deciding anything: thinking nobody has priced yet stays in, whichever turn
++    // produced it.
++    assert_eq!(
++        history
++            .clone()
++            .for_prompt(&default_input_modalities(), /*active_turn_id*/ None),
++        vec![
++            asked.clone(),
++            reasoning_msg("earlier turn thinking"),
++            called.clone(),
++            reasoning_msg("current turn thinking"),
++        ]
++    );
++
+     // Reasoning left unstamped by an older rollout has no owning turn and is dropped.
+     let mut legacy = ContextManager::new();
+     legacy.replace_annotated(vec![
+diff --git a/codex-rs/core/src/reasoning_retention.rs b/codex-rs/core/src/reasoning_retention.rs
+index 9d58afe2ca..88f610185d 100644
+--- a/codex-rs/core/src/reasoning_retention.rs
++++ b/codex-rs/core/src/reasoning_retention.rs
+@@ -149,6 +149,20 @@ pub(crate) fn freeze_reasoning_retention(
+     }
+ }
+ 
++/// The verdict when reasoning is not priced at all: dropped the moment its turn ends, as it
++/// always was. It is written onto the item all the same, so that the compaction prompt, which
++/// names no active turn, leaves out exactly what the request before it left out.
++pub(crate) fn drop_completed_reasoning(
++    items: &mut [ResponseItemEnvelope],
++    active_turn_id: Option<&str>,
++) {
++    for envelope in items.iter_mut() {
++        if is_undecided_completed_reasoning(envelope, active_turn_id) {
++            stamp(envelope, false);
++        }
++    }
++}
++
+ fn stamp(envelope: &mut ResponseItemEnvelope, retained: bool) {
+     envelope.metadata.get_or_insert_default().reasoning_retained = Some(retained);
+ }
+@@ -337,4 +351,13 @@ mod tests {
+ 
+         assert_eq!(retained(&items), vec![None]);
+     }
++
++    #[test]
++    fn unpriced_reasoning_is_dropped_the_moment_its_turn_ends() {
++        let mut items = vec![thinking(32, TURN), filler(15_000), thinking(32, "turn-2")];
++
++        drop_completed_reasoning(&mut items, Some("turn-2"));
++
++        assert_eq!(retained(&items), vec![Some(false), None]);
++    }
+ }
+diff --git a/codex-rs/core/src/session/mod.rs b/codex-rs/core/src/session/mod.rs
+index 8e84b86ad6..f7d94094c2 100644
+--- a/codex-rs/core/src/session/mod.rs
++++ b/codex-rs/core/src/session/mod.rs
+@@ -4071,12 +4071,24 @@ impl Session {
+     /// nothing has been sent that would have to stay byte-identical to a different verdict.
+     pub(crate) async fn freeze_reasoning_retention(&self, step_context: &StepContext) {
+         if !self.features.enabled(Feature::ReasoningCostModel) {
++            // Not pricing reasoning means dropping it the moment its turn ends. Say so on the
++            // item, so the compaction prompt, which names no turn, leaves out exactly what the
++            // request before it left out instead of putting it back and breaking the prefix
++            // a second time.
++            let mut state = self.state.lock().await;
++            state
++                .history
++                .drop_completed_reasoning(Some(step_context.turn.sub_id.as_str()));
+             return;
+         }
+         let status = context_window::context_window_token_status(self, &step_context.turn).await;
+         // With no budget to amortise over there is nothing to trade against a re-prefill.
+         let Some(budget_remaining) = status.base_window_tokens_remaining else {
+             self.request_stats.record_retention_horizon(None);
++            let mut state = self.state.lock().await;
++            state
++                .history
++                .drop_completed_reasoning(Some(step_context.turn.sub_id.as_str()));
+             return;
+         };
+         self.request_stats

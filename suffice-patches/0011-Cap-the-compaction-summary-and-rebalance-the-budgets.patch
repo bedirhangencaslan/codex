@@ -1,0 +1,72 @@
+From 04e774d797c4291743bbcc2c3d73d9ca60755f7b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 10:01:33 +0300
+Subject: [PATCH 11/71] Cap the compaction summary and rebalance the budgets
+ toward assistant answers
+
+The model's summary was the only unbounded part of the replacement
+history, so a verbose checkpoint could eat the runway the budgets were
+meant to protect. It now gets an explicit 3k share: the prompt asks for
+it and a middle-out truncation enforces it, which keeps the numbered
+request list and the concrete next step even when the model overruns.
+
+The freed room goes where it is worth more. User prompts are short, so
+their budget drops to 4k, and the verbatim assistant tail rises to 10k
+so more whole request groups survive compaction intact.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/compact.rs                 | 18 ++++++++++++------
+ codex-rs/prompts/templates/compact/prompt.md |  2 ++
+ 2 files changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/codex-rs/core/src/compact.rs b/codex-rs/core/src/compact.rs
+index b3fda1ddb0..ec5b4a404f 100644
+--- a/codex-rs/core/src/compact.rs
++++ b/codex-rs/core/src/compact.rs
+@@ -62,13 +62,17 @@ pub use codex_prompts::SUMMARIZATION_PROMPT;
+ pub use codex_prompts::SUMMARY_PREFIX;
+ /// Budget for the user's own messages, which are always preserved verbatim. User prompts are
+ /// short next to what the agent produces, so this rarely binds.
+-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 5_000;
++const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 4_000;
+ /// Budget for assistant answers that survive compaction verbatim. Spent newest-first over whole
+ /// request groups; a group that does not fit entirely is summarized instead of partially kept.
++const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 10_000;
++/// Budget for the model's summary of the assistant answers that did not survive verbatim. The
++/// prompt asks for this much; the cap is the backstop when the model overruns. Truncation is
++/// middle-out, so the numbered request list and the concrete next step both survive.
+ ///
+-/// Together with the user budget and the summary this puts the post-compaction floor around 14k,
+-/// leaving roughly 66k of runway before the next compaction at the 80k auto-compact limit.
+-const COMPACT_ASSISTANT_TAIL_MAX_TOKENS: usize = 8_000;
++/// 4k + 10k + 3k puts the post-compaction floor around 17k, leaving roughly 63k of runway before
++/// the next compaction at the 80k auto-compact limit.
++const COMPACT_SUMMARY_MAX_TOKENS: usize = 3_000;
+ 
+ /// Controls whether compaction replacement history must include initial context.
+ ///
+@@ -373,8 +377,10 @@ async fn run_compact_task_inner_impl(
+ 
+     let history_snapshot = sess.clone_history().await;
+     let history_items = history_snapshot.annotated_items();
+-    let summary_suffix =
+-        get_last_assistant_message_from_turn(history_snapshot.raw_items()).unwrap_or_default();
++    let summary_suffix = truncate_text(
++        &get_last_assistant_message_from_turn(history_snapshot.raw_items()).unwrap_or_default(),
++        TruncationPolicy::Tokens(COMPACT_SUMMARY_MAX_TOKENS),
++    );
+     let summary_text = format!("{SUMMARY_PREFIX}\n{summary_suffix}");
+     let user_messages = collect_annotated_user_messages(history_items);
+ 
+diff --git a/codex-rs/prompts/templates/compact/prompt.md b/codex-rs/prompts/templates/compact/prompt.md
+index 21e454461e..60edaf685b 100644
+--- a/codex-rs/prompts/templates/compact/prompt.md
++++ b/codex-rs/prompts/templates/compact/prompt.md
+@@ -12,3 +12,5 @@ After the list, add only what the next LLM cannot recover from the user messages
+ - The concrete next step
+ 
+ Keep each entry to one or two lines. Do not restate the user's requests verbatim; they are preserved. Do not narrate tool calls, only what they established.
++
++Stay under 3000 tokens. Anything past that is cut.

@@ -1,0 +1,42 @@
+From 130033ff50b44e5359e31cbf2211a51102a85821 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Tue, 8 Sep 2026 08:49:01 +0300
+Subject: [PATCH 70/71] Put the auto-compaction limit back to 80k
+
+`c1b028d1d4` lowered it to 70k on the reasoning that the restored assistant tail raises the
+post-compaction floor, so the peak prompt should come down to match. Measured on the `wire` task,
+that trade lost:
+
+  Suffice at 70k    27 requests   2 compactions
+  upstream at 80k   25 requests   1 compaction
+
+The turn-by-turn dump says where the two extra requests went. Both sides read at the same
+granularity - 10 read turns for 23 files here against 11 for 33 there - but the search counts are
+15 against 7. Every one of those eight extra searches is the second compaction being paid for:
+compaction destroys the tool outputs, so the model re-derives with `rg` what it had already read,
+and at 70k it had to do that twice. Suffice reached the limit having read *fewer* files than the
+80k side.
+
+A compaction costs a full ~74k summariser request plus the climb back. That is more than the lower
+peak is worth on any task that reads its way through a corpus.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01SgzwYXYmobvrD3mzYwQNVg
+---
+ codex-rs/models-manager/models.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/codex-rs/models-manager/models.json b/codex-rs/models-manager/models.json
+index 8e20b97a13..a57c35f4c1 100644
+--- a/codex-rs/models-manager/models.json
++++ b/codex-rs/models-manager/models.json
+@@ -29,7 +29,7 @@
+       "model_specialty": null,
+       "context_window": 200000,
+       "max_context_window": 200000,
+-      "auto_compact_token_limit": 70000,
++      "auto_compact_token_limit": 80000,
+       "comp_hash": "2911",
+       "default_reasoning_summary": "none",
+       "display_name": "GLM 5.3",

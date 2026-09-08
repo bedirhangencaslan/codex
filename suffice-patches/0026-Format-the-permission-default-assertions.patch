@@ -1,0 +1,41 @@
+From 5561720cfeda6e3b68e7aa1442faf7d608bb9e05 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 01:21:15 +0300
+Subject: [PATCH 26/71] Format the permission default assertions
+
+Follow-up to the full-access default: rustfmt wraps these two assertions.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/config/config_tests.rs | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/codex-rs/core/src/config/config_tests.rs b/codex-rs/core/src/config/config_tests.rs
+index 6284e2a8fb..140fb6cdf2 100644
+--- a/codex-rs/core/src/config/config_tests.rs
++++ b/codex-rs/core/src/config/config_tests.rs
+@@ -3430,7 +3430,10 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
+         policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+         "expected trusted project fallback to use :danger-full-access, policy: {policy:?}"
+     );
+-    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
++    assert_eq!(
++        config.permissions.approval_policy.value(),
++        AskForApproval::Never
++    );
+     Ok(())
+ }
+ 
+@@ -3635,7 +3638,10 @@ async fn empty_config_defaults_to_builtin_full_access_without_trust_decision() -
+         policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+         "expected :danger-full-access to allow writes, policy: {policy:?}"
+     );
+-    assert_eq!(config.permissions.approval_policy.value(), AskForApproval::Never);
++    assert_eq!(
++        config.permissions.approval_policy.value(),
++        AskForApproval::Never
++    );
+     Ok(())
+ }
+ 

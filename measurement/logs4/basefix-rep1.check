@@ -1,0 +1,10 @@
+pass shapes.rect_area
+pass shapes.circle_area
+pass strings.slugify
+pass strings.truncate
+pass numbers_util.median
+pass numbers_util.clamp
+pass dates.is_leap
+pass dates.quarter
+
+ALL OK

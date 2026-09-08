@@ -1,0 +1,409 @@
+From 66c356eebd1e9bbeb415ed58de44a712a488d6e6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 13:40:13 +0300
+Subject: [PATCH 31/71] Show live context and cache meters under the composer
+
+The footer reported only how much of the context window was left, which
+says nothing about what the next request will actually cost. Append the
+context size, the cached share, and the new-versus-cached split of the
+next request to the existing context line.
+
+The numbers come from the per-request token usage snapshot rather than the
+session totals, which would overstate both the context size and the cached
+share.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/tui/src/bottom_pane/chat_composer.rs | 18 +++-
+ .../bottom_pane/chat_composer/footer_state.rs |  2 +
+ codex-rs/tui/src/bottom_pane/footer.rs        | 95 ++++++++++++++++---
+ codex-rs/tui/src/bottom_pane/mod.rs           | 22 ++++-
+ codex-rs/tui/src/chatwidget.rs                | 32 ++++++-
+ 5 files changed, 143 insertions(+), 26 deletions(-)
+
+diff --git a/codex-rs/tui/src/bottom_pane/chat_composer.rs b/codex-rs/tui/src/bottom_pane/chat_composer.rs
+index fd3bec7c68..0b7ab70f2f 100644
+--- a/codex-rs/tui/src/bottom_pane/chat_composer.rs
++++ b/codex-rs/tui/src/bottom_pane/chat_composer.rs
+@@ -232,6 +232,7 @@ use super::effort_status_line::EFFORT_STATUS_LINE_FRAME_TICK;
+ use super::effort_status_line::EffortStatusLineTransition;
+ use super::file_search_popup::FileSearchPopup;
+ use super::footer::CollaborationModeIndicator;
++use super::footer::ContextTokenBreakdown;
+ use super::footer::FooterKeyHints;
+ use super::footer::FooterMode;
+ use super::footer::FooterProps;
+@@ -640,6 +641,7 @@ impl ChatComposer {
+                 flash: None,
+                 context_window_percent: None,
+                 context_window_used_tokens: None,
++                context_token_breakdown: None,
+                 context_window_pending: false,
+                 collaboration_mode_indicator: None,
+                 goal_status_indicator: None,
+@@ -1451,6 +1453,7 @@ impl ChatComposer {
+             context_window_line(
+                 self.footer.context_window_percent,
+                 self.footer.context_window_used_tokens,
++                self.footer.context_token_breakdown,
+             )
+         };
+         if let Some(vim_mode) = self.vim_mode_indicator_span() {
+@@ -4369,14 +4372,21 @@ impl ChatComposer {
+         self.queue_submissions = queue_submissions;
+     }
+ 
+-    pub(crate) fn set_context_window(&mut self, percent: Option<i64>, used_tokens: Option<i64>) {
++    pub(crate) fn set_context_window(
++        &mut self,
++        percent: Option<i64>,
++        used_tokens: Option<i64>,
++        breakdown: Option<ContextTokenBreakdown>,
++    ) {
+         if self.footer.context_window_percent == percent
+             && self.footer.context_window_used_tokens == used_tokens
++            && self.footer.context_token_breakdown == breakdown
+         {
+             return;
+         }
+         self.footer.context_window_percent = percent;
+         self.footer.context_window_used_tokens = used_tokens;
++        self.footer.context_token_breakdown = breakdown;
+     }
+ 
+     pub(crate) fn set_context_window_pending(&mut self, pending: bool) {
+@@ -5773,7 +5783,11 @@ mod tests {
+         ) {
+             composer.set_collaboration_modes_enabled(/*enabled*/ true);
+             composer.set_collaboration_mode_indicator(indicator);
+-            composer.set_context_window(Some(context_percent), /*used_tokens*/ None);
++            composer.set_context_window(
++                Some(context_percent),
++                /*used_tokens*/ None,
++                /*breakdown*/ None,
++            );
+         }
+ 
+         // Empty textarea, agent idle: shortcuts hint can show, and cycle hint is hidden.
+diff --git a/codex-rs/tui/src/bottom_pane/chat_composer/footer_state.rs b/codex-rs/tui/src/bottom_pane/chat_composer/footer_state.rs
+index 60c1dcb861..5f3307ad86 100644
+--- a/codex-rs/tui/src/bottom_pane/chat_composer/footer_state.rs
++++ b/codex-rs/tui/src/bottom_pane/chat_composer/footer_state.rs
+@@ -5,6 +5,7 @@ use std::time::Instant;
+ use ratatui::text::Line;
+ 
+ use crate::bottom_pane::footer::CollaborationModeIndicator;
++use crate::bottom_pane::footer::ContextTokenBreakdown;
+ use crate::bottom_pane::footer::FooterMode;
+ use crate::bottom_pane::footer::GoalStatusIndicator;
+ use crate::bottom_pane::footer::ResponseSpeed;
+@@ -23,6 +24,7 @@ pub(super) struct FooterState {
+     pub(super) flash: Option<FooterFlash>,
+     pub(super) context_window_percent: Option<i64>,
+     pub(super) context_window_used_tokens: Option<i64>,
++    pub(super) context_token_breakdown: Option<ContextTokenBreakdown>,
+     pub(super) context_window_pending: bool,
+     pub(super) collaboration_mode_indicator: Option<CollaborationModeIndicator>,
+     pub(super) goal_status_indicator: Option<GoalStatusIndicator>,
+diff --git a/codex-rs/tui/src/bottom_pane/footer.rs b/codex-rs/tui/src/bottom_pane/footer.rs
+index e01ebb741c..6ecf6444cd 100644
+--- a/codex-rs/tui/src/bottom_pane/footer.rs
++++ b/codex-rs/tui/src/bottom_pane/footer.rs
+@@ -1034,18 +1034,56 @@ fn build_columns(entries: Vec<Line<'static>>) -> Vec<Line<'static>> {
+         .collect()
+ }
+ 
+-pub(crate) fn context_window_line(percent: Option<i64>, used_tokens: Option<i64>) -> Line<'static> {
+-    if let Some(percent) = percent {
+-        let percent = percent.clamp(0, 100);
+-        return Line::from(vec![Span::from(format!("{percent}% context left")).dim()]);
++/// Live context accounting rendered beside the remaining-context percentage.
++///
++/// Every figure describes the most recent request: how large the context it
++/// carried was, and how that request's input split between freshly billed and
++/// cache-served tokens. The next request replays the same prefix, so the split
++/// also predicts what the next one will send and what it will cost.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) struct ContextTokenBreakdown {
++    pub(crate) context_tokens: i64,
++    pub(crate) new_input_tokens: i64,
++    pub(crate) cached_input_tokens: i64,
++}
++
++impl ContextTokenBreakdown {
++    fn cached_percent(&self) -> i64 {
++        let input = self
++            .new_input_tokens
++            .saturating_add(self.cached_input_tokens);
++        if input <= 0 {
++            return 0;
++        }
++        ((self.cached_input_tokens as f64 / input as f64) * 100.0).round() as i64
+     }
++}
+ 
+-    if let Some(tokens) = used_tokens {
++pub(crate) fn context_window_line(
++    percent: Option<i64>,
++    used_tokens: Option<i64>,
++    breakdown: Option<ContextTokenBreakdown>,
++) -> Line<'static> {
++    let mut spans = if let Some(percent) = percent {
++        let percent = percent.clamp(0, 100);
++        vec![Span::from(format!("{percent}% context left")).dim()]
++    } else if let Some(tokens) = used_tokens {
+         let used_fmt = format_tokens_compact(tokens);
+-        return Line::from(vec![Span::from(format!("{used_fmt} used")).dim()]);
++        vec![Span::from(format!("{used_fmt} used")).dim()]
++    } else {
++        vec![Span::from("100% context left").dim()]
++    };
++
++    if let Some(breakdown) = breakdown {
++        let context_fmt = format_tokens_compact(breakdown.context_tokens);
++        let new_fmt = format_tokens_compact(breakdown.new_input_tokens);
++        let cached_fmt = format_tokens_compact(breakdown.cached_input_tokens);
++        spans.push(Span::from(format!(" · {context_fmt} ctx")).dim());
++        spans.push(Span::from(format!(" · {}% cached", breakdown.cached_percent())).dim());
++        spans.push(Span::from(format!(" · next {new_fmt} new + {cached_fmt} cached")).dim());
+     }
+ 
+-    Line::from(vec![Span::from("100% context left").dim()])
++    Line::from(spans)
+ }
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+@@ -1334,7 +1372,7 @@ mod tests {
+             /*width*/ 80,
+             &props,
+             /*collaboration_mode_indicator*/ None,
+-            context_window_line(percent, used_tokens),
++            context_window_line(percent, used_tokens, /*breakdown*/ None),
+         );
+     }
+ 
+@@ -1522,7 +1560,7 @@ mod tests {
+             width,
+             props,
+             collaboration_mode_indicator,
+-            context_window_line(/*percent*/ None, /*used_tokens*/ None),
++            context_window_line(/*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None),
+         );
+     }
+ 
+@@ -1580,7 +1618,7 @@ mod tests {
+             props,
+             collaboration_mode_indicator,
+             ide_context_active,
+-            context_window_line(/*percent*/ None, /*used_tokens*/ None),
++            context_window_line(/*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None),
+         );
+         assert_snapshot!(name, terminal.backend());
+     }
+@@ -1914,7 +1952,7 @@ mod tests {
+             /*width*/ 120,
+             &props,
+             Some(CollaborationModeIndicator::Plan),
+-            context_window_line(Some(50), /*used_tokens*/ None),
++            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
+         );
+ 
+         snapshot_footer_with_indicators(
+@@ -1945,7 +1983,7 @@ mod tests {
+             /*width*/ 120,
+             &props,
+             Some(CollaborationModeIndicator::Plan),
+-            context_window_line(Some(50), /*used_tokens*/ None),
++            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
+         );
+ 
+         let props = FooterProps {
+@@ -1969,7 +2007,7 @@ mod tests {
+             /*width*/ 120,
+             &props,
+             /*collaboration_mode_indicator*/ None,
+-            context_window_line(Some(50), /*used_tokens*/ None),
++            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
+         );
+ 
+         let props = FooterProps {
+@@ -1994,7 +2032,7 @@ mod tests {
+             /*width*/ 40,
+             &props,
+             Some(CollaborationModeIndicator::Plan),
+-            context_window_line(Some(50), /*used_tokens*/ None),
++            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
+         );
+ 
+         let props = FooterProps {
+@@ -2056,7 +2094,7 @@ mod tests {
+             /*width*/ 80,
+             &props,
+             Some(CollaborationModeIndicator::Plan),
+-            context_window_line(Some(50), /*used_tokens*/ None),
++            context_window_line(Some(50), /*used_tokens*/ None, /*breakdown*/ None),
+         );
+         let collapsed = screen.split_whitespace().collect::<Vec<_>>().join(" ");
+         assert!(
+@@ -2112,4 +2150,31 @@ mod tests {
+ 
+         assert_eq!(actual_key, expected_key);
+     }
++
++    #[test]
++    fn context_window_line_reports_context_size_and_cache_split() {
++        let line = context_window_line(
++            Some(60),
++            /*used_tokens*/ None,
++            Some(ContextTokenBreakdown {
++                context_tokens: 75_958,
++                new_input_tokens: 215,
++                cached_input_tokens: 75_520,
++            }),
++        );
++
++        let text: String = line.spans.iter().map(|span| span.content.as_ref()).collect();
++        assert_eq!(
++            text,
++            "60% context left · 76K ctx · 100% cached · next 215 new + 75.5K cached"
++        );
++    }
++
++    #[test]
++    fn context_window_line_without_breakdown_is_unchanged() {
++        let line = context_window_line(Some(60), /*used_tokens*/ None, /*breakdown*/ None);
++
++        let text: String = line.spans.iter().map(|span| span.content.as_ref()).collect();
++        assert_eq!(text, "60% context left");
++    }
+ }
+diff --git a/codex-rs/tui/src/bottom_pane/mod.rs b/codex-rs/tui/src/bottom_pane/mod.rs
+index 542363aae5..85ff9af7d4 100644
+--- a/codex-rs/tui/src/bottom_pane/mod.rs
++++ b/codex-rs/tui/src/bottom_pane/mod.rs
+@@ -116,6 +116,7 @@ mod skill_popup;
+ mod skills_toggle_view;
+ pub(crate) mod slash_commands;
+ pub(crate) use footer::CollaborationModeIndicator;
++pub(crate) use footer::ContextTokenBreakdown;
+ pub(crate) use footer::GoalStatusIndicator;
+ pub(crate) use footer::ResponseSpeed;
+ #[cfg(test)]
+@@ -255,6 +256,7 @@ pub(crate) struct BottomPane {
+     pending_thread_approvals: PendingThreadApprovals,
+     context_window_percent: Option<i64>,
+     context_window_used_tokens: Option<i64>,
++    context_token_breakdown: Option<ContextTokenBreakdown>,
+     keymap: RuntimeKeymap,
+ }
+ 
+@@ -321,6 +323,7 @@ impl BottomPane {
+             animations_enabled,
+             context_window_percent: None,
+             context_window_used_tokens: None,
++            context_token_breakdown: None,
+             keymap,
+         }
+     }
+@@ -1130,16 +1133,27 @@ impl BottomPane {
+         }
+     }
+ 
+-    pub(crate) fn set_context_window(&mut self, percent: Option<i64>, used_tokens: Option<i64>) {
+-        if self.context_window_percent == percent && self.context_window_used_tokens == used_tokens
++    pub(crate) fn set_context_window(
++        &mut self,
++        percent: Option<i64>,
++        used_tokens: Option<i64>,
++        breakdown: Option<ContextTokenBreakdown>,
++    ) {
++        if self.context_window_percent == percent
++            && self.context_window_used_tokens == used_tokens
++            && self.context_token_breakdown == breakdown
+         {
+             return;
+         }
+ 
+         self.context_window_percent = percent;
+         self.context_window_used_tokens = used_tokens;
+-        self.composer
+-            .set_context_window(percent, self.context_window_used_tokens);
++        self.context_token_breakdown = breakdown;
++        self.composer.set_context_window(
++            percent,
++            self.context_window_used_tokens,
++            self.context_token_breakdown,
++        );
+         self.request_redraw();
+     }
+ 
+diff --git a/codex-rs/tui/src/chatwidget.rs b/codex-rs/tui/src/chatwidget.rs
+index 2134999292..14754b9116 100644
+--- a/codex-rs/tui/src/chatwidget.rs
++++ b/codex-rs/tui/src/chatwidget.rs
+@@ -277,6 +277,7 @@ use crate::bottom_pane::BottomPaneParams;
+ use crate::bottom_pane::CancellationEvent;
+ use crate::bottom_pane::CollaborationModeIndicator;
+ use crate::bottom_pane::ColumnWidthMode;
++use crate::bottom_pane::ContextTokenBreakdown;
+ use crate::bottom_pane::DOUBLE_PRESS_QUIT_SHORTCUT_ENABLED;
+ use crate::bottom_pane::ExecApprovalRequest;
+ use crate::bottom_pane::ExperimentalFeatureItem;
+@@ -1151,8 +1152,9 @@ impl ChatWidget {
+                 self.token_usage_pending = true;
+                 self.bottom_pane
+                     .set_context_window_pending(/*pending*/ true);
+-                self.bottom_pane
+-                    .set_context_window(/*percent*/ None, /*used_tokens*/ None);
++                self.bottom_pane.set_context_window(
++                    /*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None,
++                );
+                 self.bottom_pane.set_response_speed(/*speed*/ None);
+                 self.token_info = None;
+             }
+@@ -1165,12 +1167,31 @@ impl ChatWidget {
+             .set_context_window_pending(/*pending*/ false);
+         let percent = self.context_remaining_percent(&info);
+         let used_tokens = self.context_used_tokens(&info, percent.is_some());
+-        self.bottom_pane.set_context_window(percent, used_tokens);
++        let breakdown = Self::context_token_breakdown(&info);
++        self.bottom_pane
++            .set_context_window(percent, used_tokens, breakdown);
+         let speed = ResponseSpeed::from_readiness(info.last_token_usage.context_readiness());
+         self.bottom_pane.set_response_speed(speed);
+         self.token_info = Some(info);
+     }
+ 
++    /// Describes the last request so the composer can show what the next one will send.
++    ///
++    /// `last_token_usage` is the only per-request snapshot available here; the
++    /// session totals answer a different question and would overstate both the
++    /// context size and the cached share.
++    fn context_token_breakdown(info: &TokenUsageInfo) -> Option<ContextTokenBreakdown> {
++        let last = &info.last_token_usage;
++        if last.is_zero() {
++            return None;
++        }
++        Some(ContextTokenBreakdown {
++            context_tokens: last.tokens_in_context_window(),
++            new_input_tokens: last.non_cached_input(),
++            cached_input_tokens: last.cached_input(),
++        })
++    }
++
+     fn context_remaining_percent(&self, info: &TokenUsageInfo) -> Option<i64> {
+         info.model_context_window.map(|window| {
+             info.last_token_usage
+@@ -1191,8 +1212,9 @@ impl ChatWidget {
+             match saved {
+                 Some(info) => self.apply_token_info(info),
+                 None => {
+-                    self.bottom_pane
+-                        .set_context_window(/*percent*/ None, /*used_tokens*/ None);
++                    self.bottom_pane.set_context_window(
++                        /*percent*/ None, /*used_tokens*/ None, /*breakdown*/ None,
++                    );
+                     self.token_info = None;
+                 }
+             }

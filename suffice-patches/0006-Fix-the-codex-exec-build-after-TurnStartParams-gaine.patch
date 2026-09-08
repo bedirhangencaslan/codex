@@ -1,0 +1,28 @@
+From b477a9eaf7d57b914c96af46ca185670f3e641cc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Tue, 1 Sep 2026 21:14:00 +0300
+Subject: [PATCH 06/71] Fix the codex-exec build after TurnStartParams gained
+ invisible
+
+The non-interactive exec entry point constructs TurnStartParams directly, so
+adding the field broke that crate. Nothing about exec should be hidden from
+the user, so it starts turns visibly.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/exec/src/lib.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/codex-rs/exec/src/lib.rs b/codex-rs/exec/src/lib.rs
+index 9552613cc7..8d11797974 100644
+--- a/codex-rs/exec/src/lib.rs
++++ b/codex-rs/exec/src/lib.rs
+@@ -975,6 +975,7 @@ async fn run_exec_session(args: ExecRunArgs) -> anyhow::Result<()> {
+                         thread_id: primary_thread_id_for_span.clone(),
+                         turn_trigger: None,
+                         client_user_message_id: None,
++                        invisible: false,
+                         input: items.into_iter().map(Into::into).collect(),
+                         tool_output: None,
+                         responsesapi_client_metadata: None,

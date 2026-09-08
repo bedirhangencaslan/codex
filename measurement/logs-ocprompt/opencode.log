@@ -1,0 +1,55 @@
+[0m
+> build · glm-5.3-flash
+[0m
+[0m✱ [0mGlob "codex-api/src/**/*.rs"[90m 44 matches[0m
+44 files found. Reading them now in batches.
+[0m→ [0mRead codex-api/src/telemetry.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/lib.rs
+[0m→ [0mRead codex-api/src/search.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/safety_buffering.rs[90m [limit=100][0m
+[0m→ [0mRead codex-api/src/rate_limits.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/provider.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/images.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/files.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/common.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/auth.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/api_bridge.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/error.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/api_bridge_tests.rs[90m [limit=60][0m
+[0m→ [0mRead codex-api/src/requests/headers.rs[90m [limit=100][0m
+[0m→ [0mRead codex-api/src/requests/mod.rs
+[0m→ [0mRead codex-api/src/requests/chat.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/requests/responses.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/sse/mod.rs
+[0m→ [0mRead codex-api/src/sse/chat.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/sse/responses.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/endpoint/mod.rs
+[0m→ [0mRead codex-api/src/endpoint/search.rs[90m [limit=100][0m
+[0m→ [0mRead codex-api/src/endpoint/session.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/responses.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/endpoint/memories.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/models.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/compact.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/images.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/responses_websocket.rs[90m [limit=150][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_call.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/mod.rs
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/protocol_v2.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/protocol.rs[90m [limit=100][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/protocol_v1.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/protocol_common.rs[90m [limit=100][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/methods_common.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs[90m [limit=50][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/methods.rs[90m [limit=120][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/methods_v1.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs[90m [limit=50][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/methods_v2.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs[90m [limit=80][0m
+[0m→ [0mRead codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs[90m [limit=60][0m
+All 44 files read. Writing `WIRE.md`.
+[0m
+[0m← [0mWrite WIRE.md
+Wrote file successfully.
+[0m
+CHECKPOINT REACHED: 44 files

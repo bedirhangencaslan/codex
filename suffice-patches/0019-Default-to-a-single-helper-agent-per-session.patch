@@ -1,0 +1,112 @@
+From 43a439936c346cb1eef27096ade1bd30dfec3c8f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Wed, 2 Sep 2026 17:51:16 +0300
+Subject: [PATCH 19/71] Default to a single helper agent per session
+
+A session could previously keep four to six agent threads alive at once, so one
+turn could fan out into several concurrent model conversations. That multiplies
+the API bill without a matching gain for the kind of work this CLI targets.
+
+The V2 session cap counts the root session, so 2 leaves room for exactly one
+spawned helper; 1 would disable spawning altogether.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ codex-rs/core/src/agent/control_tests.rs          | 15 +++++++++++++++
+ codex-rs/core/src/config/config_tests.rs          |  2 +-
+ codex-rs/core/src/config/mod.rs                   |  5 +++--
+ .../core/src/tools/handlers/multi_agents_tests.rs |  4 ++++
+ 4 files changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/codex-rs/core/src/agent/control_tests.rs b/codex-rs/core/src/agent/control_tests.rs
+index 99200ac47a..1df2a3af52 100644
+--- a/codex-rs/core/src/agent/control_tests.rs
++++ b/codex-rs/core/src/agent/control_tests.rs
+@@ -79,6 +79,21 @@ async fn test_config_with_cli_overrides(
+     mut cli_overrides: Vec<(String, TomlValue)>,
+ ) -> (TempDir, Config) {
+     let home = TempDir::new().expect("create temp dir");
++    // Most tests here build agent trees rather than exercise the spawn limit, so give them
++    // room for several agents unless the test pins the limit itself.
++    const SPAWN_LIMIT_KEYS: [&str; 2] = [
++        "agents.max_concurrent_threads_per_session",
++        "agents.max_threads",
++    ];
++    if !cli_overrides
++        .iter()
++        .any(|(key, _)| SPAWN_LIMIT_KEYS.contains(&key.as_str()))
++    {
++        cli_overrides.push((
++            "agents.max_concurrent_threads_per_session".to_string(),
++            TomlValue::Integer(6),
++        ));
++    }
+     cli_overrides.push((
+         "model".to_string(),
+         TomlValue::String("gpt-5.5".to_string()),
+diff --git a/codex-rs/core/src/config/config_tests.rs b/codex-rs/core/src/config/config_tests.rs
+index da5c622ffe..5740ee521d 100644
+--- a/codex-rs/core/src/config/config_tests.rs
++++ b/codex-rs/core/src/config/config_tests.rs
+@@ -11582,7 +11582,7 @@ enabled = true
+             config.agent_max_threads,
+             config.effective_agent_max_threads(MultiAgentVersion::V2)
+         ),
+-        (None, Some(3))
++        (None, Some(1))
+     );
+ 
+     Ok(())
+diff --git a/codex-rs/core/src/config/mod.rs b/codex-rs/core/src/config/mod.rs
+index 9fb4f141ed..04a907fdff 100644
+--- a/codex-rs/core/src/config/mod.rs
++++ b/codex-rs/core/src/config/mod.rs
+@@ -228,8 +228,9 @@ impl Default for GhostSnapshotConfig {
+ /// files are *silently truncated* to this size so we do not take up too much of
+ /// the context window.
+ pub(crate) const AGENTS_MD_MAX_BYTES: usize = DEFAULT_PROJECT_DOC_MAX_BYTES; // 32 KiB
+-pub(crate) const DEFAULT_AGENT_MAX_THREADS: Option<usize> = Some(6);
+-pub(crate) const DEFAULT_MULTI_AGENT_V2_MAX_CONCURRENT_THREADS_PER_SESSION: usize = 4;
++pub(crate) const DEFAULT_AGENT_MAX_THREADS: Option<usize> = Some(1);
++/// Counts the root session, so this leaves room for a single spawned agent.
++pub(crate) const DEFAULT_MULTI_AGENT_V2_MAX_CONCURRENT_THREADS_PER_SESSION: usize = 2;
+ pub(crate) const DEFAULT_MULTI_AGENT_V2_MIN_WAIT_TIMEOUT_MS: i64 = 10_000;
+ pub(crate) const DEFAULT_MULTI_AGENT_V2_MAX_WAIT_TIMEOUT_MS: i64 = 3600 * 1000;
+ pub(crate) const DEFAULT_MULTI_AGENT_V2_DEFAULT_WAIT_TIMEOUT_MS: i64 = 30_000;
+diff --git a/codex-rs/core/src/tools/handlers/multi_agents_tests.rs b/codex-rs/core/src/tools/handlers/multi_agents_tests.rs
+index 0979e8b1e7..952d3e7174 100644
+--- a/codex-rs/core/src/tools/handlers/multi_agents_tests.rs
++++ b/codex-rs/core/src/tools/handlers/multi_agents_tests.rs
+@@ -1412,6 +1412,7 @@ async fn multi_agent_v2_list_agents_filters_by_relative_path_prefix() {
+     let (mut session, mut turn) = make_session_and_context().await;
+     let manager = thread_manager();
+     let mut config = (*turn.config).clone();
++    config.multi_agent_v2.max_concurrent_threads_per_session = 4;
+     let _ = config.features.enable(Feature::MultiAgentV2);
+     set_turn_config(&mut turn, config.clone());
+     let root = manager
+@@ -3513,6 +3514,7 @@ async fn multi_agent_v2_wait_agent_wakes_on_any_mailbox_notification() {
+     session.services.agent_control = manager.agent_control();
+     session.thread_id = root.thread_id;
+     let mut config = (*turn.config).clone();
++    config.multi_agent_v2.max_concurrent_threads_per_session = 4;
+     config
+         .features
+         .enable(Feature::MultiAgentV2)
+@@ -3699,6 +3701,7 @@ async fn multi_agent_v2_interrupt_agent_accepts_task_name_target() {
+     session.services.agent_control = manager.agent_control();
+     session.thread_id = root.thread_id;
+     let mut config = (*turn.config).clone();
++    config.multi_agent_v2.max_concurrent_threads_per_session = 4;
+     config
+         .features
+         .enable(Feature::MultiAgentV2)
+@@ -4133,6 +4136,7 @@ async fn tool_handlers_cascade_close_and_resume_and_keep_explicitly_closed_subtr
+     let (_session, turn) = make_session_and_context().await;
+     let mut config = turn.config.as_ref().clone();
+     config.agent_max_depth = 3;
++    config.agent_max_threads = Some(8);
+     config
+         .permissions
+         .set_permission_profile(PermissionProfile::workspace_write())

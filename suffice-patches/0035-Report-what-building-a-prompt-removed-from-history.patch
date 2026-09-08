@@ -1,0 +1,618 @@
+From 48d248a38c87612d3aeb2db5213f09baa9588018 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Thu, 3 Sep 2026 22:13:04 +0300
+Subject: [PATCH 35/71] Report what building a prompt removed from history
+
+The turn-scoped filters are silent. Reasoning retention writes a verdict nobody
+reads back, the shrinker leaves a marker inside text, and the drop pass returns
+one index. None of it can be priced against a real session, so the claim that
+`shrink_completed_outputs` is dormant rests on reading the code rather than on
+data.
+
+`for_prompt_annotated` already computes everything a counterfactual needs and
+then throws it away. Return it as a `ContextFilterReport` instead: where the
+prefix broke and what re-prefilling from there costs, what was dropped and on
+which of the two grounds, what survived, and a `ShrinkReport` of what shrinking
+removed. `shrinkable_before_break` is the opposite column -- output the
+allowlist recognised but the cache gate refused to touch -- which is the number
+that settles whether widening the allowlist could pay.
+
+Adding those sizes back onto the prompt that was sent reconstructs the prompt an
+unfiltered harness would have sent, so no second model call is needed. Nothing
+about the request changes: `for_prompt` keeps its signature and discards the
+report, and the drop pass now evaluates its predicate once per item instead of
+twice.
+
+Reasoning is measured with `reasoning_retention::reasoning_tokens`, not the
+shared estimator, which reports reasoning as zero bytes and would silently price
+the most expensive thing dropped here at nothing.
+---
+ .../core/src/compact_remote_v2_attempt.rs     |   1 +
+ codex-rs/core/src/context_manager/history.rs  | 177 +++++++++++++++---
+ .../core/src/context_manager/history_tests.rs |  80 +++++++-
+ .../core/src/context_manager/tool_output.rs   |  67 +++++--
+ .../src/context_manager/tool_output_tests.rs  |  37 ++--
+ codex-rs/core/src/reasoning_retention.rs      |   4 +-
+ 6 files changed, 300 insertions(+), 66 deletions(-)
+
+diff --git a/codex-rs/core/src/compact_remote_v2_attempt.rs b/codex-rs/core/src/compact_remote_v2_attempt.rs
+index c6090fddcb..c2d8a0c97d 100644
+--- a/codex-rs/core/src/compact_remote_v2_attempt.rs
++++ b/codex-rs/core/src/compact_remote_v2_attempt.rs
+@@ -71,6 +71,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
+     let (mut input, prompt_input_metadata): (Vec<_>, Vec<_>) = history
+         // Invisible turns never contribute to a summary, so none of them is "active" here.
+         .for_prompt_annotated(&turn_context.model_info().input_modalities, None)
++        .0
+         .into_iter()
+         .map(|envelope| (envelope.item, envelope.metadata))
+         .unzip();
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index 110692ed2b..62ee34d891 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -4,6 +4,7 @@ use crate::context::world_state::PersistentModeState;
+ use crate::context::world_state::WorldState;
+ use crate::context::world_state::WorldStateSnapshot;
+ use crate::context_manager::normalize;
++use crate::context_manager::tool_output::ShrinkReport;
+ use crate::context_manager::tool_output::shrink_completed_outputs;
+ use crate::event_mapping::has_non_contextual_dev_message_content;
+ use crate::event_mapping::is_contextual_dev_message_content;
+@@ -248,10 +249,21 @@ impl ContextManager {
+         input_modalities: &[InputModality],
+         active_turn_id: Option<&str>,
+     ) -> Vec<ResponseItem> {
+-        self.for_prompt_annotated(input_modalities, active_turn_id)
++        self.for_prompt_measured(input_modalities, active_turn_id).0
++    }
++
++    /// Same prompt as [`Self::for_prompt`], plus an account of what building it removed.
++    pub(crate) fn for_prompt_measured(
++        self,
++        input_modalities: &[InputModality],
++        active_turn_id: Option<&str>,
++    ) -> (Vec<ResponseItem>, ContextFilterReport) {
++        let (items, report) = self.for_prompt_annotated(input_modalities, active_turn_id);
++        let items = items
+             .into_iter()
+             .map(ResponseItemEnvelope::into_item)
+-            .collect()
++            .collect();
++        (items, report)
+     }
+ 
+     /// Freezes the keep/drop verdict on reasoning whose turn has ended, and reports how much
+@@ -304,49 +316,75 @@ impl ContextManager {
+         mut self,
+         input_modalities: &[InputModality],
+         active_turn_id: Option<&str>,
+-    ) -> Vec<ResponseItemEnvelope> {
+-        let prefix_break = self.drop_completed_turn_scoped_items(active_turn_id);
++    ) -> (Vec<ResponseItemEnvelope>, ContextFilterReport) {
++        let mut report = ContextFilterReport::default();
++        self.drop_completed_turn_scoped_items(active_turn_id, &mut report);
+         self.normalize_history(input_modalities);
+         let mut items = Arc::unwrap_or_clone(self.items);
+-        shrink_completed_outputs(&mut items, prefix_break, |envelope| {
++        report.shrink = shrink_completed_outputs(&mut items, report.prefix_break, |envelope| {
+             let owner = envelope
+                 .metadata
+                 .as_ref()
+                 .and_then(|metadata| metadata.tool_output_turn.as_deref());
+             !belongs_to_active_turn(active_turn_id, owner)
+         });
+-        items
++        // The re-prefill the break costs is the part of the prompt that follows it, measured on
++        // the prompt as finally sent rather than on the history it was built from.
++        if let Some(prefix_break) = report.prefix_break {
++            report.prefix_break_tokens = items
++                .iter()
++                .skip(prefix_break)
++                .map(|envelope| measured_item_token_count(&envelope.item))
++                .fold(0i64, i64::saturating_add);
++        }
++        (items, report)
+     }
+ 
+-    /// Drops turn-scoped items and returns the index the prompt cache is invalidated from.
++    /// Drops turn-scoped items and records what that removed, including the index the prompt
++    /// cache is invalidated from.
+     ///
+     /// Removing an item rewrites the prompt from its position to the end, so the index of the
+     /// first removal is exactly where the surviving prefix stops being byte-identical.
+-    fn drop_completed_turn_scoped_items(&mut self, active_turn_id: Option<&str>) -> Option<usize> {
+-        let is_completed = |envelope: &ResponseItemEnvelope| {
+-            let metadata = envelope.metadata.as_ref();
+-            let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
+-            if invisible_owner.is_some() && !belongs_to_active_turn(active_turn_id, invisible_owner)
+-            {
+-                return true;
+-            }
+-            if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
+-                return false;
+-            }
+-            if belongs_to_active_turn(
+-                active_turn_id,
+-                metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
+-            ) {
+-                return false;
++    fn drop_completed_turn_scoped_items(
++        &mut self,
++        active_turn_id: Option<&str>,
++        report: &mut ContextFilterReport,
++    ) {
++        let mut position = 0;
++        Arc::make_mut(&mut self.items).retain(|envelope| {
++            let index = position;
++            position += 1;
++            let tokens = measured_item_token_count(&envelope.item);
++            match dropped_reason(envelope, active_turn_id) {
++                Some(reason) => {
++                    report.prefix_break.get_or_insert(index);
++                    match reason {
++                        DropReason::Invisible => {
++                            report.dropped_invisible_items += 1;
++                            report.dropped_invisible_tokens =
++                                report.dropped_invisible_tokens.saturating_add(tokens);
++                            if let Some(call_id) = call_id_of(&envelope.item) {
++                                report.dropped_call_ids.push(call_id.to_string());
++                            }
++                        }
++                        DropReason::Reasoning => {
++                            report.dropped_reasoning_items += 1;
++                            report.dropped_reasoning_tokens =
++                                report.dropped_reasoning_tokens.saturating_add(tokens);
++                        }
++                    }
++                    false
++                }
++                None => {
++                    if matches!(envelope.item, ResponseItem::Reasoning { .. }) {
++                        report.retained_reasoning_items += 1;
++                        report.retained_reasoning_tokens =
++                            report.retained_reasoning_tokens.saturating_add(tokens);
++                    }
++                    true
++                }
+             }
+-            // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the
+-            // cached prefix than the re-prefill dropping it would cost. Reasoning that predates
+-            // that verdict, or that was never stamped, is dropped as it always was.
+-            metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true)
+-        };
+-        let first_dropped = self.items.iter().position(is_completed)?;
+-        Arc::make_mut(&mut self.items).retain(|envelope| !is_completed(envelope));
+-        Some(first_dropped)
++        });
+     }
+ 
+     /// Iterates over raw response items without exposing their history envelopes.
+@@ -642,6 +680,83 @@ impl ContextManager {
+     }
+ }
+ 
++/// What building one request's prompt removed from history, and what that cost.
++///
++/// Adding the dropped and shrunk sizes back onto the prompt that was sent reconstructs the
++/// prompt an unfiltered harness would have sent, which is what makes the turn-scoped filters
++/// priceable without issuing a second request. Producing this changes nothing about the prompt.
++#[derive(Debug, Default, PartialEq, Eq)]
++pub(crate) struct ContextFilterReport {
++    /// Index the surviving prefix stops being byte-identical from, or `None` when nothing was
++    /// removed and the prompt cache keeps the whole prefix.
++    pub(crate) prefix_break: Option<usize>,
++    /// Prompt tokens after the break, which this request re-prefills at the uncached rate.
++    pub(crate) prefix_break_tokens: i64,
++    pub(crate) dropped_invisible_items: usize,
++    pub(crate) dropped_invisible_tokens: i64,
++    pub(crate) dropped_reasoning_items: usize,
++    pub(crate) dropped_reasoning_tokens: i64,
++    pub(crate) retained_reasoning_items: usize,
++    pub(crate) retained_reasoning_tokens: i64,
++    pub(crate) dropped_call_ids: Vec<String>,
++    pub(crate) shrink: ShrinkReport,
++}
++
++/// Why an item recorded in history does not reach the model.
++enum DropReason {
++    /// Recorded by an invisible turn that has since finished.
++    Invisible,
++    /// Reasoning from a finished turn that was priced as cheaper to drop than to carry.
++    Reasoning,
++}
++
++/// Whether a turn-scoped item is dropped from this request, and on which of the two grounds.
++fn dropped_reason(
++    envelope: &ResponseItemEnvelope,
++    active_turn_id: Option<&str>,
++) -> Option<DropReason> {
++    let metadata = envelope.metadata.as_ref();
++    let invisible_owner = metadata.and_then(|metadata| metadata.invisible_turn.as_deref());
++    if invisible_owner.is_some() && !belongs_to_active_turn(active_turn_id, invisible_owner) {
++        return Some(DropReason::Invisible);
++    }
++    if !matches!(envelope.item, ResponseItem::Reasoning { .. }) {
++        return None;
++    }
++    if belongs_to_active_turn(
++        active_turn_id,
++        metadata.and_then(|metadata| metadata.reasoning_turn.as_deref()),
++    ) {
++        return None;
++    }
++    // `Some(true)` is the frozen verdict that this reasoning is cheaper to carry in the cached
++    // prefix than the re-prefill dropping it would cost. Reasoning that predates that verdict,
++    // or that was never stamped, is dropped as it always was.
++    (metadata.and_then(|metadata| metadata.reasoning_retained) != Some(true))
++        .then_some(DropReason::Reasoning)
++}
++
++/// Size of one item as the prompt carries it.
++///
++/// [`estimate_item_token_count`] reports reasoning as zero, because everywhere else in this
++/// codebase reasoning is something the server bills rather than something the prompt carries.
++/// Here the prompt is exactly what is being measured, so reasoning is measured directly.
++fn measured_item_token_count(item: &ResponseItem) -> i64 {
++    match item {
++        ResponseItem::Reasoning { .. } => crate::reasoning_retention::reasoning_tokens(item),
++        item => estimate_item_token_count(item),
++    }
++}
++
++/// The tool call an item belongs to, so a dropped item can be paired with its output.
++fn call_id_of(item: &ResponseItem) -> Option<&str> {
++    match item {
++        ResponseItem::FunctionCall { call_id, .. } => Some(call_id.as_str()),
++        ResponseItem::FunctionCallOutput { call_id, .. } => call_id.as_deref(),
++        _ => None,
++    }
++}
++
+ /// Whether a turn-scoped item was produced by the turn that is currently running.
+ ///
+ /// An item with no owner belongs to no running turn, so it counts as finished.
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index 5f0215dbac..d450a8b271 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -656,6 +656,84 @@ fn retained_reasoning_keeps_the_prompt_byte_identical() {
+     );
+ }
+ 
++#[test]
++fn the_report_names_what_the_prompt_no_longer_carries() {
++    let noisy = format!("cargo build\n{}", "Compiling something\n".repeat(100));
++    let call = ResponseItem::FunctionCall {
++        id: None,
++        name: "shell".to_string(),
++        namespace: None,
++        arguments: serde_json::json!({ "command": "cargo build" }).to_string(),
++        encrypted_function_args: None,
++        call_id: "call-1".to_string(),
++        internal_chat_message_metadata_passthrough: None,
++    };
++    let output = ResponseItem::FunctionCallOutput {
++        id: None,
++        call_id: Some("call-1".to_string()),
++        name: None,
++        namespace: None,
++        output: FunctionCallOutputPayload {
++            body: FunctionCallOutputBody::Text(noisy),
++            success: Some(true),
++        },
++        internal_chat_message_metadata_passthrough: None,
++    };
++    let asked = user_msg("do the thing");
++    let mut history = ContextManager::new();
++    history.replace_annotated(vec![
++        ResponseItemEnvelope::new(asked),
++        ResponseItemEnvelope {
++            item: reasoning_msg("worth keeping"),
++            metadata: Some(CodexHarnessMetadata {
++                reasoning_turn: Some("turn-1".to_string()),
++                reasoning_retained: Some(true),
++                ..Default::default()
++            }),
++        },
++        ResponseItemEnvelope {
++            item: reasoning_msg("cheaper to drop than to carry"),
++            metadata: Some(CodexHarnessMetadata {
++                reasoning_turn: Some("turn-1".to_string()),
++                reasoning_retained: Some(false),
++                ..Default::default()
++            }),
++        },
++        ResponseItemEnvelope::new(call),
++        ResponseItemEnvelope {
++            item: output,
++            metadata: Some(CodexHarnessMetadata {
++                tool_output_turn: Some("turn-1".to_string()),
++                ..Default::default()
++            }),
++        },
++    ]);
++
++    let (items, report) = history
++        .clone()
++        .for_prompt_measured(&default_input_modalities(), Some("turn-2"));
++
++    // The dropped reasoning is the second item, so that is where the prefix stops matching.
++    assert_eq!(report.prefix_break, Some(2));
++    assert_eq!(report.dropped_reasoning_items, 1);
++    // Reasoning reads as zero tokens through the history-wide estimator. A zero here would
++    // silently price the most expensive thing this harness drops at nothing.
++    assert!(report.dropped_reasoning_tokens > 0, "{report:?}");
++    assert_eq!(report.retained_reasoning_items, 1);
++    assert!(report.retained_reasoning_tokens > 0, "{report:?}");
++    assert!(report.prefix_break_tokens > 0, "{report:?}");
++    // The output sits past the break, so shrinking it rides on a re-prefill already paid for.
++    assert_eq!(report.shrink.outputs, 1);
++    assert_eq!(report.shrink.shrinkable_before_break, 0);
++    assert!(report.shrink.tokens_removed > 0, "{report:?}");
++
++    // Measuring must not move a single byte of what is sent.
++    assert_eq!(
++        history.for_prompt(&default_input_modalities(), Some("turn-2")),
++        items
++    );
++}
++
+ #[test_case(None, 100, 5, true; "model policy")]
+ #[test_case(Some(200), 100, 200, false; "configured override")]
+ #[test_case(Some(100), 85, 100, true; "saved limit has no additional allowance")]
+@@ -728,7 +806,7 @@ fn for_prompt_annotated_preserves_metadata_while_normalizing_item() {
+     let mut history = ContextManager::new();
+     history.replace_annotated(vec![envelope.clone()]);
+ 
+-    let normalized =
++    let (normalized, _) =
+         history.for_prompt_annotated(&[InputModality::Text], /*active_turn_id*/ None);
+ 
+     assert_eq!(normalized.len(), 1);
+diff --git a/codex-rs/core/src/context_manager/tool_output.rs b/codex-rs/core/src/context_manager/tool_output.rs
+index b8b2362a05..3d9d5adf74 100644
+--- a/codex-rs/core/src/context_manager/tool_output.rs
++++ b/codex-rs/core/src/context_manager/tool_output.rs
+@@ -16,6 +16,7 @@ use std::collections::HashSet;
+ use codex_history::ResponseItemEnvelope;
+ use codex_protocol::models::FunctionCallOutputBody;
+ use codex_protocol::models::ResponseItem;
++use codex_utils_output_truncation::approx_token_count;
+ 
+ /// Lines kept from the start, so the model can still tell what ran.
+ const KEEP_HEAD_LINES: usize = 5;
+@@ -102,6 +103,21 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
+     ),
+ ];
+ 
++/// What shrinking took out of one request's prompt, and what it was not allowed to take out.
++///
++/// The removed sizes are what an unshrunk prompt would have carried on top of the one that was
++/// sent. `shrinkable_before_break` is the opposite number: output the allowlist recognized but
++/// the cache gate refused to touch, which is the size of the saving this design declines to
++/// take. Both are needed to price the mechanism; neither changes what is sent.
++#[derive(Debug, Default, PartialEq, Eq)]
++pub(crate) struct ShrinkReport {
++    pub(crate) outputs: usize,
++    pub(crate) tokens_removed: i64,
++    pub(crate) lines_removed: usize,
++    pub(crate) shrinkable_before_break: usize,
++    pub(crate) call_ids: Vec<String>,
++}
++
+ /// Replaces the middle of successful, noisy tool output with an explicit marker.
+ ///
+ /// `prefix_break` is the index the prompt cache is already invalidated from, or `None` when the
+@@ -115,17 +131,15 @@ pub(crate) fn shrink_completed_outputs(
+     items: &mut [ResponseItemEnvelope],
+     prefix_break: Option<usize>,
+     is_completed: impl Fn(&ResponseItemEnvelope) -> bool,
+-) {
+-    let Some(prefix_break) = prefix_break else {
+-        return;
+-    };
++) -> ShrinkReport {
++    let mut report = ShrinkReport::default();
+     // The call ids are collected from the whole history: a call may sit in the untouched prefix
+     // while its output sits after the break.
+     let shrinkable = shrinkable_call_ids(items);
+     if shrinkable.is_empty() {
+-        return;
++        return report;
+     }
+-    for envelope in items.iter_mut().skip(prefix_break) {
++    for (index, envelope) in items.iter_mut().enumerate() {
+         if !is_completed(envelope) {
+             continue;
+         }
+@@ -140,19 +154,29 @@ pub(crate) fn shrink_completed_outputs(
+         if output.success != Some(true) {
+             continue;
+         }
+-        if !call_id
+-            .as_deref()
+-            .is_some_and(|call_id| shrinkable.contains(call_id))
+-        {
++        let Some(call_id) = call_id.as_deref().filter(|id| shrinkable.contains(*id)) else {
+             continue;
+-        }
++        };
+         let FunctionCallOutputBody::Text(text) = &mut output.body else {
+             continue;
+         };
+-        if let Some(shrunk) = shrink_text(text) {
+-            *text = shrunk;
++        let Some((shrunk, lines_removed)) = shrink_text(text) else {
++            continue;
++        };
++        if !prefix_break.is_some_and(|prefix_break| index >= prefix_break) {
++            report.shrinkable_before_break += 1;
++            continue;
+         }
++        report.outputs += 1;
++        report.lines_removed += lines_removed;
++        report.tokens_removed = report.tokens_removed.saturating_add(
++            i64::try_from(approx_token_count(text).saturating_sub(approx_token_count(&shrunk)))
++                .unwrap_or(i64::MAX),
++        );
++        report.call_ids.push(call_id.to_string());
++        *text = shrunk;
+     }
++    report
+ }
+ 
+ /// Collects the call ids whose command is on the allowlist.
+@@ -257,9 +281,9 @@ fn program_name(program: &str) -> &str {
+ 
+ /// Keeps the head and tail of `text`, replacing the middle with an explicit marker.
+ ///
+-/// Returns `None` when the text is small enough that shrinking would not be worth the lost
+-/// detail.
+-fn shrink_text(text: &str) -> Option<String> {
++/// Returns the shrunk text and the number of lines it dropped, or `None` when the text is small
++/// enough that shrinking would not be worth the lost detail.
++fn shrink_text(text: &str) -> Option<(String, usize)> {
+     let lines: Vec<&str> = text.lines().collect();
+     if lines.len() < MIN_LINES_TO_SHRINK {
+         return None;
+@@ -269,10 +293,13 @@ fn shrink_text(text: &str) -> Option<String> {
+     let tail = lines[lines.len() - KEEP_TAIL_LINES..].join("\n");
+     // The marker names the exit status and the actor. A model that cannot tell whether the
+     // command succeeded, or whether the command itself printed nothing, will run it again.
+-    Some(format!(
+-        "{head}\n\n[system] exit 0 - the harness trimmed this output, the command did not. \
+-         {removed} middle lines removed; re-running the command produces the same trimmed \
+-         result.\n\n{tail}"
++    Some((
++        format!(
++            "{head}\n\n[system] exit 0 - the harness trimmed this output, the command did not. \
++             {removed} middle lines removed; re-running the command produces the same trimmed \
++             result.\n\n{tail}"
++        ),
++        removed,
+     ))
+ }
+ 
+diff --git a/codex-rs/core/src/context_manager/tool_output_tests.rs b/codex-rs/core/src/context_manager/tool_output_tests.rs
+index 4b3392ad34..665b3f4b63 100644
+--- a/codex-rs/core/src/context_manager/tool_output_tests.rs
++++ b/codex-rs/core/src/context_manager/tool_output_tests.rs
+@@ -40,21 +40,21 @@ fn output(text: &str, success: Option<bool>) -> ResponseItemEnvelope {
+ }
+ 
+ /// Runs the shrinker over one call/output pair and returns the resulting output text.
+-fn shrink_pair(arguments: &str, text: &str, success: Option<bool>) -> String {
++fn shrink_pair(arguments: &str, text: &str, success: Option<bool>) -> (String, ShrinkReport) {
+     let mut items = vec![call(arguments), output(text, success)];
+-    shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| true);
++    let report = shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| true);
+     let ResponseItem::FunctionCallOutput { output, .. } = &items[1].item else {
+         panic!("expected a function call output");
+     };
+     let FunctionCallOutputBody::Text(text) = &output.body else {
+         panic!("expected a text body");
+     };
+-    text.clone()
++    (text.clone(), report)
+ }
+ 
+ fn shrink_command(command: &str) -> String {
+     let arguments = serde_json::json!({ "command": command }).to_string();
+-    shrink_pair(&arguments, &noisy_output(), Some(true))
++    shrink_pair(&arguments, &noisy_output(), Some(true)).0
+ }
+ 
+ fn was_shrunk(text: &str) -> bool {
+@@ -62,28 +62,41 @@ fn was_shrunk(text: &str) -> bool {
+ }
+ 
+ #[test]
+-fn shrinks_a_successful_allowlisted_command() {
+-    let shrunk = shrink_command("cargo build --release");
++fn shrinks_a_successful_allowlisted_command_and_reports_what_it_removed() {
++    let arguments = serde_json::json!({ "command": "cargo build --release" }).to_string();
++    let (shrunk, report) = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+     // The head and tail survive, so the model can still tell what ran and how it ended.
+     assert!(shrunk.starts_with("first\n"), "{shrunk}");
+     assert!(shrunk.ends_with("\nlast"), "{shrunk}");
+     assert!(shrunk.len() < noisy_output().len());
++    assert_eq!(report.outputs, 1);
++    assert_eq!(report.lines_removed, 167);
++    assert_eq!(report.call_ids, vec![CALL_ID.to_string()]);
++    assert!(report.tokens_removed > 0, "{report:?}");
++    assert_eq!(report.shrinkable_before_break, 0);
++
++    // With nothing dropped there is no break to ride on, so the very same output is left whole
++    // and only counted. That count is the size of the saving the cache gate declines to take.
++    let mut items = vec![call(&arguments), output(&noisy_output(), Some(true))];
++    let refused = shrink_completed_outputs(&mut items, /*prefix_break*/ None, |_| true);
++    assert_eq!(refused.outputs, 0);
++    assert_eq!(refused.shrinkable_before_break, 1);
+ }
+ 
+ #[test]
+ fn keeps_failed_output_whole() {
+     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+     let text = noisy_output();
+-    assert_eq!(shrink_pair(&arguments, &text, Some(false)), text);
+-    assert_eq!(shrink_pair(&arguments, &text, None), text);
++    assert_eq!(shrink_pair(&arguments, &text, Some(false)).0, text);
++    assert_eq!(shrink_pair(&arguments, &text, None).0, text);
+ }
+ 
+ #[test]
+ fn keeps_short_output_whole() {
+     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+     let text = "one\ntwo\nthree";
+-    assert_eq!(shrink_pair(&arguments, text, Some(true)), text);
++    assert_eq!(shrink_pair(&arguments, text, Some(true)).0, text);
+ }
+ 
+ #[test]
+@@ -142,18 +155,18 @@ fn refuses_chained_or_redirected_command_lines() {
+ fn unwraps_a_shell_wrapper_argv() {
+     let arguments =
+         serde_json::json!({ "command": ["bash", "-lc", "cargo build --release"] }).to_string();
+-    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let (shrunk, _) = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+ 
+     let arguments = serde_json::json!({ "command": ["bash", "-lc", "git status"] }).to_string();
+-    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let (shrunk, _) = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(!was_shrunk(&shrunk), "{shrunk}");
+ }
+ 
+ #[test]
+ fn accepts_a_plain_argv_command() {
+     let arguments = serde_json::json!({ "command": ["cargo", "test", "--all"] }).to_string();
+-    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let (shrunk, _) = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+ }
+ 
+diff --git a/codex-rs/core/src/reasoning_retention.rs b/codex-rs/core/src/reasoning_retention.rs
+index e6e24cef44..1e603bd8e1 100644
+--- a/codex-rs/core/src/reasoning_retention.rs
++++ b/codex-rs/core/src/reasoning_retention.rs
+@@ -50,7 +50,7 @@ pub(crate) struct RetentionInputs {
+ /// re-billed and must not be counted as if it were. What is left of the budget is a fraction of
+ /// a window; the user's measured density turns that fraction into the count of requests that a
+ /// retained token would actually be re-billed on.
+-fn horizon(inputs: &RetentionInputs) -> i64 {
++pub(crate) fn horizon(inputs: &RetentionInputs) -> i64 {
+     let windows_remaining = inputs.budget_remaining.max(0) as f64 / WINDOW_TOKENS as f64;
+     ((windows_remaining * inputs.requests_per_window).round() as i64)
+         .clamp(MIN_HORIZON, MAX_HORIZON)
+@@ -196,7 +196,7 @@ fn belongs_to_active_turn(active_turn_id: Option<&str>, owner: Option<&str>) ->
+ /// The history-wide estimator reports reasoning as zero tokens, because for most of this
+ /// codebase reasoning is something the server bills rather than something the prompt carries.
+ /// Here it is precisely the thing being priced, so it is measured directly.
+-fn reasoning_tokens(item: &ResponseItem) -> i64 {
++pub(crate) fn reasoning_tokens(item: &ResponseItem) -> i64 {
+     let ResponseItem::Reasoning {
+         summary, content, ..
+     } = item

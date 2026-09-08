@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "zairelay": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Z.ai via relay",
+      "options": {
+        "baseURL": "http://127.0.0.1:8788/v1",
+        "apiKey": "{env:ZAI_API_KEY}"
+      },
+      "models": {
+        "glm-5.3-flash": {
+          "name": "GLM 5.3 Flash",
+          "limit": {
+            "context": 200000,
+            "output": 65536
+          }
+        }
+      }
+    }
+  },
+  "model": "zairelay/glm-5.3-flash",
+  "permission": {
+    "edit": "allow",
+    "bash": "allow",
+    "webfetch": "allow"
+  }
+}

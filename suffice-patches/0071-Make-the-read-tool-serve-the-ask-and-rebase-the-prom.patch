@@ -1,0 +1,1847 @@
+From 0f714b205445a10875bc3ea1bcf9c3fb40473442 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Tue, 8 Sep 2026 17:28:52 +0300
+Subject: [PATCH 71/71] Make the read tool serve the ask, and rebase the prompt
+ on gpt-5.6
+
+The read tool applied `offset`/`limit` only when exactly one path was passed and
+dropped them silently otherwise, so a model that wanted a window inside a batch
+had no way to ask for one. Every single-path call in the recorded runs carried an
+`offset`: the model was not forgetting to batch, it was chasing windows through
+the only door that was open. An entry is now a path or `{path, offset, limit}`,
+and a hand-written normalizer accepts the shapes a model actually emits, at zero
+cost on the fixed prefix.
+
+The call budget is now derived from the model rather than hardcoded at 96_000.
+The harness cuts a `function_call_output` middle-out at `truncation_policy * 1.2`,
+but the binding limit is the compaction window: one call returned 93,538 bytes,
+29% of an 80k window, and the runs that did that compacted twice and cost 2.4x the
+run that did not. The budget is a sixth of the window, 53,333 bytes for
+glm-5.3-flash, and the bound is enforced while assembling rather than while
+emitting, so it holds for a batch that is entirely errors. Spending it max-min
+fair rather than first-come-first-served is what makes a twenty-file batch usable.
+
+Measured on the 44-file `wire` task, three runs: 12, 13 and 14 requests at
+$0.0143-$0.0184, one compaction each, zero window-chasing calls, 44/44 citations
+resolving every time. The three runs before this change spanned 12 to 33 requests
+and $0.0160 to $0.0427.
+
+Two things were tried, measured and reverted, and the reasons are in the source so
+they are not tried again: dividing a top-level `limit` between the files in a
+batch, which starved every file to a 40-line floor and drew 83 invitations to
+continue; and leaving line numbers off unless a window was asked for, which sent
+the model to `rg -n` for citations and cost 19-23 requests against 12-14.
+
+The prompt moves from the gpt-5.5 template to gpt-5.6: 4,931 to 3,447 tokens, a
+measured 1,776 off the fixed prefix of every request. All 31 lines this fork had
+added to the old template carry over verbatim, including the apply_patch grammar
+taken from gpt-5.2. What goes is a 1,174-token design block on colour palettes
+that no other agent measured against carries, a duplicate of the skills usage
+instructions that `ext/skills` already injects when skills exist, and two rules
+that contradicted our own: a 60-second wait ceiling against the `yield_time_ms`
+guidance, and "read the codebase first" against reading a window rather than a
+whole file.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01SgzwYXYmobvrD3mzYwQNVg
+---
+ codex-rs/core/src/tools/handlers/read.rs      | 1299 +++++++++++++++--
+ codex-rs/core/src/tools/handlers/read_spec.rs |   74 +-
+ codex-rs/core/src/tools/spec_plan_tests.rs    |    7 +
+ codex-rs/core/tests/suite/mod.rs              |    1 +
+ codex-rs/core/tests/suite/read.rs             |  168 +++
+ codex-rs/models-manager/models.json           |    8 +-
+ 6 files changed, 1402 insertions(+), 155 deletions(-)
+ create mode 100644 codex-rs/core/tests/suite/read.rs
+
+diff --git a/codex-rs/core/src/tools/handlers/read.rs b/codex-rs/core/src/tools/handlers/read.rs
+index f9d39a2688..715940271c 100644
+--- a/codex-rs/core/src/tools/handlers/read.rs
++++ b/codex-rs/core/src/tools/handlers/read.rs
+@@ -7,14 +7,28 @@
+ //! Every extra turn resends the whole window, and enough of them reach the auto-compaction limit,
+ //! which destroys the tool output that was just paid for.
+ //!
+-//! So this tool takes a list of paths and enforces its own limits per file, rather than letting one
+-//! large file consume the budget for the batch. When the budget runs out it stops on a file
+-//! boundary and names what it did not reach, because a model told "read 6 of 22, remaining: ..."
+-//! asks again, while a model handed a middle-truncated blob does not know it should.
++//! An entry is a path or `{path, offset, limit}`, so one call can mix whole files with windows.
++//! That matters more than the list does: the first version of this tool applied a window only when
++//! exactly one path was passed and dropped it silently otherwise, so a model that wanted a window
++//! had no way to ask for one inside a batch and fell back to reading one file per call. Every
++//! single-path call in the recorded runs carried an `offset` - the model was not forgetting to
++//! batch, it was chasing windows through the only door that was open.
++//!
++//! The call budget is spent max-min fair across the batch rather than first-come-first-served, so
++//! twenty files each come back with a usable slice instead of three files eating everything and
++//! seventeen being named as unread. The budget is enforced while assembling, not while emitting, so
++//! the bound holds even for a batch that is entirely errors.
+ 
++use codex_exec_server::FileMetadata;
+ use codex_exec_server::GetMetadataOptions;
++use codex_exec_server::ReadDirectoryEntry;
+ use codex_exec_server::ReadFileOptions;
+-use serde::Deserialize;
++use codex_protocol::protocol::TruncationPolicy;
++use codex_utils_path_uri::PathUri;
++use futures::StreamExt;
++use serde_json::Map;
++use serde_json::Value;
++use std::io;
+ 
+ use crate::function_tool::FunctionCallError;
+ use crate::tools::context::FunctionToolOutput;
+@@ -22,7 +36,6 @@ use crate::tools::context::ToolInvocation;
+ use crate::tools::context::ToolOutput;
+ use crate::tools::context::ToolPayload;
+ use crate::tools::context::boxed_tool_output;
+-use crate::tools::handlers::parse_arguments;
+ use crate::tools::handlers::read_spec::DEFAULT_LINE_LIMIT;
+ use crate::tools::handlers::read_spec::READ_TOOL_NAME;
+ use crate::tools::handlers::read_spec::ReadToolOptions;
+@@ -33,14 +46,76 @@ use crate::tools::registry::ToolExecutor;
+ use codex_tools::ToolName;
+ use codex_tools::ToolSpec;
+ 
+-/// Budget for one call, in bytes. The harness truncates a `function_call_output` at
+-/// `truncation_policy * 1.2` middle-out, which would cut through the middle of a file; staying under
+-/// it means this tool decides where to stop instead.
+-const TOTAL_BUDGET_BYTES: usize = 96_000;
++/// Ceiling and floor for one call's output, in bytes.
++///
++/// The real budget is derived per model by `call_budget`, because the harness cuts a
++/// `function_call_output` middle-out at `truncation_policy * 1.2` and that limit is a property of
++/// the model, not a constant. A fixed 96_000 is right for a 25k-token policy and roughly double
++/// what a 10k-token model allows, where it would produce exactly the middle-out cut through the
++/// middle of a file that this tool exists to avoid.
++const MAX_CALL_BUDGET_BYTES: usize = 96_000;
++const MIN_CALL_BUDGET_BYTES: usize = 8_000;
++/// Share of the harness's own cut this tool will fill, leaving room for the header the harness adds
++/// and for the estimate in `byte_budget` being approximate.
++const BUDGET_HEADROOM_NUMERATOR: usize = 4;
++const BUDGET_HEADROOM_DENOMINATOR: usize = 5;
++/// Share of the auto-compaction window one tool output may fill.
++///
++/// The harness's own two knobs disagree: `truncation_policy` lets a single `function_call_output`
++/// be 25k tokens while `auto_compact_token_limit` makes the whole window 80k, so four reads can
++/// fill it. Measured on a 44-file task: one call returned 93,538 bytes, 29% of the window, and the
++/// runs that did that compacted twice and cost 2.4x the run that did not. Compaction destroys the
++/// tool output that was just paid for, so the window, not the harness cut, is the binding limit.
++const WINDOW_SHARE_DENOMINATOR: usize = 6;
+ /// Ceiling for a single file, so one large file cannot turn a twenty-file batch into a one-file one.
+ const PER_FILE_BUDGET_BYTES: usize = 32_000;
+-/// A single line longer than this is almost always minified or generated.
+-const MAX_LINE_CHARS: usize = 2_000;
++/// Below this a slice is too small to answer anything, so the file is named as unread instead.
++const MIN_FILE_BUDGET_BYTES: usize = 1_024;
++/// A single line longer than this is almost always minified or generated. Bytes, not chars: the
++/// budget is in bytes, and 2_000 chars of CJK is 6_000 of them.
++const MAX_LINE_BYTES: usize = 2_000;
++/// What a file's line numbers add to its output, as a share of the file's own size plus a floor.
++///
++/// The share is not constant: at ~35 bytes a line a `123: ` prefix is under a tenth, but a file of
++/// six-byte lines pays half again its own size, and a two-line file pays more than half. The
++/// estimate only decides how much budget to reserve - the body is bounded by the cap either way -
++/// so it is biased generous: reserving a little too much wastes budget, reserving too little
++/// truncates every file by exactly the numbering.
++const NUMBERING_OVERHEAD_DIVISOR: usize = 2;
++const NUMBERING_OVERHEAD_FLOOR_BYTES: usize = 64;
++/// Entries past this are named in the trailer rather than read.
++const MAX_ENTRIES: usize = 64;
++/// A file larger than this is refused from its metadata, without reading a byte.
++const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
++/// Head sample used to decide whether a file is binary.
++const BINARY_SAMPLE_BYTES: usize = 4_096;
++/// Share of control bytes in the sample above which the file is treated as binary.
++const BINARY_CONTROL_PERCENT: usize = 30;
++/// Room reserved in each header for the note describing how the file was cut.
++const NOTE_RESERVE_BYTES: usize = 96;
++/// Room reserved for the closing trailer, so naming unread files can never break the bound.
++const TRAILER_RESERVE_BYTES: usize = 1_600;
++const TRAILER_MAX_NAMES: usize = 10;
++const TRAILER_NAME_MAX_BYTES: usize = 120;
++/// Bounds on concurrent filesystem work inside one call. Several `read` calls can be in flight at
++/// once, so these multiply; keeping the read bound at 8 matches what other agents allow per turn.
++const MAX_CONCURRENT_METADATA: usize = 32;
++const MAX_CONCURRENT_READS: usize = 8;
++const MAX_DIRECTORY_ENTRIES: usize = 40;
++const DIRECTORY_BUDGET_BYTES: usize = 1_500;
++
++const LIST_KEYS: &[&str] = &["paths", "files", "file_paths", "filePaths"];
++const PATH_KEYS: &[&str] = &["path", "file_path", "filePath", "file"];
++const OFFSET_KEYS: &[&str] = &["offset", "start_line", "startLine"];
++const END_KEYS: &[&str] = &["end_line", "endLine"];
++
++/// Extensions whose contents are never worth decoding as text.
++const BINARY_EXTENSIONS: &[&str] = &[
++    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "tiff", "pdf", "zip", "gz", "tgz", "tar",
++    "bz2", "xz", "7z", "rar", "exe", "dll", "so", "dylib", "a", "o", "obj", "class", "jar", "wasm",
++    "mp3", "mp4", "wav", "avi", "mov", "mkv", "flac", "ogg", "woff", "woff2", "ttf", "otf", "eot",
++    "db", "sqlite", "sqlite3", "pyc", "pack", "idx", "bin", "dat",
++];
+ 
+ #[derive(Default)]
+ pub struct ReadHandler {
+@@ -53,66 +128,516 @@ impl ReadHandler {
+     }
+ }
+ 
+-#[derive(Deserialize)]
+-struct ReadArgs {
+-    paths: Vec<String>,
+-    #[serde(default)]
++// ---------------------------------------------------------------------------
++// Arguments
++// ---------------------------------------------------------------------------
++
++/// One file plus the window the caller asked for. Windows are 1-indexed and inclusive of `offset`.
++#[derive(Debug, Clone, PartialEq, Eq)]
++struct ReadTarget {
++    /// The path exactly as the model spelled it, so errors and the trailer name it back the way it
++    /// was sent and a retry can copy the string verbatim.
++    raw: String,
+     offset: Option<usize>,
+-    #[serde(default)]
+     limit: Option<usize>,
+-    #[serde(default)]
++}
++
++#[derive(Debug, Default, PartialEq, Eq)]
++struct NormalizedArgs {
++    targets: Vec<ReadTarget>,
+     environment_id: Option<String>,
++    /// Entries past `MAX_ENTRIES`, named in the trailer rather than dropped in silence.
++    overflow: Vec<String>,
++}
++
++/// The largest char boundary at or below `max`, so clipping never splits a code point.
++fn clip_to_bytes(text: &str, max: usize) -> &str {
++    if text.len() <= max {
++        return text;
++    }
++    let mut end = max;
++    while end > 0 && !text.is_char_boundary(end) {
++        end -= 1;
++    }
++    &text[..end]
++}
++
++fn as_usize(value: &Value) -> Option<usize> {
++    match value {
++        Value::Number(number) => number
++            .as_u64()
++            .and_then(|number| usize::try_from(number).ok()),
++        // A model that quotes its numbers means the same thing it would have meant unquoted.
++        Value::String(text) => text.trim().parse::<usize>().ok(),
++        _ => None,
++    }
++}
++
++fn pick<'a>(object: &'a Map<String, Value>, keys: &[&str]) -> Option<&'a Value> {
++    keys.iter().find_map(|key| object.get(*key))
++}
++
++/// `end_line` is inclusive, so lines 40 through 80 is 41 lines.
++fn span(offset: Option<usize>, end: Option<usize>) -> Option<usize> {
++    match (offset, end) {
++        (Some(start), Some(end)) if end >= start => Some(end - start + 1),
++        (None, Some(end)) => Some(end),
++        _ => None,
++    }
++}
++
++/// Teach the shape rather than quoting serde: "data did not match any variant of untagged enum"
++/// tells a model nothing it can act on.
++fn shape_error(arguments: &str) -> FunctionCallError {
++    FunctionCallError::RespondToModel(format!(
++        "read expects {{\"paths\": [\"file.rs\", {{\"path\": \"other.rs\", \"offset\": 40, \
++         \"limit\": 80}}]}}; got: {}",
++        clip_to_bytes(arguments, 200)
++    ))
+ }
+ 
+-/// One file's text plus whatever the caller needs to know about how it was cut.
+-struct FileSection {
++/// Accept every shape a model plausibly emits and reduce it to one list of targets.
++///
++/// None of this appears in the schema, so it costs nothing on the fixed prefix that every request
++/// carries. The alternative - a `serde(untagged)` enum - costs the same prefix and answers a
++/// malformed call with a parser message instead of an example.
++fn normalize_args(arguments: &str) -> Result<NormalizedArgs, FunctionCallError> {
++    let mut value: Value = serde_json::from_str(arguments).map_err(|_| shape_error(arguments))?;
++    // Arguments that arrive double-encoded are a JSON string holding the real object.
++    if let Value::String(inner) = &value
++        && let Ok(parsed) = serde_json::from_str::<Value>(inner)
++    {
++        value = parsed;
++    }
++    let object = value.as_object().ok_or_else(|| shape_error(arguments))?;
++
++    let environment_id = pick(object, &["environment_id", "environmentId"])
++        .and_then(Value::as_str)
++        .map(str::to_string);
++
++    let top_offset = pick(object, OFFSET_KEYS).and_then(as_usize);
++    let top_limit = pick(object, &["limit"])
++        .and_then(as_usize)
++        .or_else(|| span(top_offset, pick(object, END_KEYS).and_then(as_usize)));
++
++    let mut entries: Vec<Value> = Vec::new();
++    match pick(object, LIST_KEYS) {
++        Some(Value::Array(items)) => entries.extend(items.iter().cloned()),
++        // A list key holding a single value means the same as a one-element list.
++        Some(other @ (Value::String(_) | Value::Object(_))) => entries.push(other.clone()),
++        _ => {}
++    }
++    if entries.is_empty()
++        && let Some(single) = pick(object, PATH_KEYS)
++    {
++        entries.push(single.clone());
++    }
++
++    let mut targets: Vec<ReadTarget> = Vec::new();
++    for entry in entries {
++        match entry {
++            Value::String(path) => {
++                let path = path.trim().to_string();
++                if !path.is_empty() {
++                    targets.push(ReadTarget {
++                        raw: path,
++                        offset: None,
++                        limit: None,
++                    });
++                }
++            }
++            Value::Object(map) => {
++                let offset = pick(&map, OFFSET_KEYS).and_then(as_usize);
++                let limit = pick(&map, &["limit"])
++                    .and_then(as_usize)
++                    .or_else(|| span(offset, pick(&map, END_KEYS).and_then(as_usize)));
++                match pick(&map, PATH_KEYS)
++                    .and_then(Value::as_str)
++                    .map(str::trim)
++                    .filter(|path| !path.is_empty())
++                {
++                    Some(path) => targets.push(ReadTarget {
++                        raw: path.to_string(),
++                        offset,
++                        limit,
++                    }),
++                    // A range with no path of its own belongs to the entry before it: models split
++                    // `{path, offset, limit}` into two array elements often enough that folding it
++                    // back beats failing the whole call.
++                    None => {
++                        if let Some(previous) = targets.last_mut() {
++                            if offset.is_some() {
++                                previous.offset = offset;
++                            }
++                            if limit.is_some() {
++                                previous.limit = limit;
++                            }
++                        }
++                    }
++                }
++            }
++            _ => {}
++        }
++    }
++
++    // A top-level window is a default, not an override: an entry that asked for its own keeps it.
++    //
++    // It is replicated, not divided. Dividing it was measured and reverted: `limit: 400` across
++    // eleven paths became 36 lines each, clamped up to a 40-line floor, so the model received a
++    // tenth of what it asked for and each section closed with `continue with offset 41`. Over one
++    // run that produced 83 invitations to come back, 37 read calls and 122 entries for a 44-file
++    // corpus. Fulfilment tracks cost directly: 84% fulfilled cost $0.0241, 43% cost $0.0428. Giving
++    // the model less than it asked for does not save the tokens; it defers them and adds a round
++    // trip. The call budget already bounds the output - that bound is where the saving belongs.
++    for target in &mut targets {
++        if target.offset.is_none() && target.limit.is_none() {
++            target.offset = top_offset;
++            target.limit = top_limit;
++        }
++    }
++
++    if targets.is_empty() {
++        return Err(shape_error(arguments));
++    }
++
++    let overflow = if targets.len() > MAX_ENTRIES {
++        targets
++            .split_off(MAX_ENTRIES)
++            .into_iter()
++            .map(|target| target.raw)
++            .collect()
++    } else {
++        Vec::new()
++    };
++
++    Ok(NormalizedArgs {
++        targets,
++        environment_id,
++        overflow,
++    })
++}
++
++// ---------------------------------------------------------------------------
++// Rendering
++// ---------------------------------------------------------------------------
++
++/// One file's contribution to the output: a header, an optional note about how it was cut, a body.
++#[derive(Debug, PartialEq, Eq)]
++struct Section {
++    display: String,
++    note: Option<String>,
++    body: String,
++}
++
++impl Section {
++    fn note_only(display: String, reason: &str) -> Self {
++        Self {
++            display,
++            note: None,
++            body: format!("{reason}\n"),
++        }
++    }
++
++    /// Bytes this section adds to the payload, header and trailing separator included.
++    fn len(&self) -> usize {
++        // "===== " + display + optional " (note)" + "\n" + body + "\n"
++        "===== ".len()
++            + self.display.len()
++            + self.note.as_ref().map_or(0, |note| note.len() + 3)
++            + 1
++            + self.body.len()
++            + 1
++    }
++}
++
++/// Bytes a section can occupy before its body is known: everything but the body.
++fn overhead_for(display: &str) -> usize {
++    "===== ".len() + display.len() + NOTE_RESERVE_BYTES + 2
++}
++
++#[derive(Debug, PartialEq, Eq)]
++struct RenderedBody {
+     body: String,
+     note: Option<String>,
+ }
+ 
+-fn take_window(contents: &str, offset: Option<usize>, limit: Option<usize>) -> FileSection {
++/// Render one window of a file into at most `cap` bytes.
++///
++/// Every line carries its number. It costs about 2.3 tokens a line, +30% over a corpus of source
++/// files, which is why it was conditional at first - on only for a window the caller asked for.
++/// Measured against that: the model noticed ("the read display omitted line numbers!") and bought
++/// them back with a corpus-wide `rg -n` sweep in two runs of three, at 9,675-12,598 tokens plus a
++/// round trip, against ~14,300 to number every line outright. Roughly a wash on tokens, and the
++/// numbers also let a citation be written from the read itself. Both agents this tool was
++/// measured against number unconditionally.
++fn render_body(
++    contents: &str,
++    offset: Option<usize>,
++    limit: Option<usize>,
++    numbered: bool,
++    cap: usize,
++) -> RenderedBody {
+     let start = offset.unwrap_or(1).max(1) - 1;
+     let limit = limit.unwrap_or(DEFAULT_LINE_LIMIT);
+     let total_lines = contents.lines().count();
+ 
+-    let mut out = String::new();
++    let mut body = String::new();
+     let mut kept = 0usize;
+-    let mut clipped_lines = 0usize;
++    let mut clipped = 0usize;
++    let mut hit_cap = false;
++
+     for line in contents.lines().skip(start).take(limit) {
+-        if line.chars().count() > MAX_LINE_CHARS {
+-            let cut: String = line.chars().take(MAX_LINE_CHARS).collect();
+-            out.push_str(&cut);
+-            out.push_str(" ... (line truncated)");
+-            clipped_lines += 1;
++        let mut rendered = String::new();
++        if numbered {
++            rendered.push_str(&format!("{}: ", start + kept + 1));
++        }
++        if line.len() > MAX_LINE_BYTES {
++            rendered.push_str(clip_to_bytes(line, MAX_LINE_BYTES));
++            rendered.push_str(" ... (line truncated)");
++            clipped += 1;
+         } else {
+-            out.push_str(line);
++            rendered.push_str(line);
+         }
+-        out.push('\n');
+-        kept += 1;
+-        if out.len() > PER_FILE_BUDGET_BYTES {
++        rendered.push('\n');
++
++        if body.len() + rendered.len() > cap {
++            // The first line alone can exceed a small cap. Emit what fits rather than an empty
++            // section, so the model still learns the shape of the file.
++            if body.is_empty() {
++                const MARKER: &str = " ... (line truncated)\n";
++                if cap > MARKER.len() {
++                    body.push_str(clip_to_bytes(&rendered, cap - MARKER.len()));
++                    body.push_str(MARKER);
++                    kept += 1;
++                    clipped += 1;
++                }
++            }
++            hit_cap = true;
+             break;
+         }
++        body.push_str(&rendered);
++        kept += 1;
+     }
+ 
+     let shown_to = start + kept;
+     let mut notes = Vec::new();
+-    if start > 0 {
+-        notes.push(format!("from line {}", start + 1));
+-    }
+-    if shown_to < total_lines {
++    if start >= total_lines && total_lines > 0 {
+         notes.push(format!(
+-            "showing {kept} of {total_lines} lines; continue with offset {}",
+-            shown_to + 1
++            "offset {} is past the end; {total_lines} lines",
++            start + 1
+         ));
++    } else {
++        if start > 0 {
++            notes.push(format!("from line {}", start + 1));
++        }
++        if shown_to < total_lines {
++            notes.push(format!(
++                "showing {kept} of {total_lines} lines; continue with offset {}",
++                shown_to + 1
++            ));
++        }
+     }
+-    if clipped_lines > 0 {
+-        notes.push(format!("{clipped_lines} long line(s) clipped"));
++    if clipped > 0 {
++        notes.push(format!("{clipped} long line(s) clipped"));
++    }
++    if hit_cap && shown_to >= total_lines {
++        notes.push("output budget reached".to_string());
++    }
++
++    let note = (!notes.is_empty()).then(|| {
++        let joined = notes.join(", ");
++        clip_to_bytes(&joined, NOTE_RESERVE_BYTES).to_string()
++    });
++    RenderedBody { body, note }
++}
++
++fn trailer(unread: &[String]) -> String {
++    if unread.is_empty() {
++        return String::new();
++    }
++    let shown: Vec<&str> = unread
++        .iter()
++        .take(TRAILER_MAX_NAMES)
++        .map(|name| clip_to_bytes(name, TRAILER_NAME_MAX_BYTES))
++        .collect();
++    let hidden = unread.len().saturating_sub(shown.len());
++    let names = if hidden > 0 {
++        format!("{}, and {hidden} more", shown.join(", "))
++    } else {
++        shown.join(", ")
++    };
++    format!(
++        "\n[read stopped after the output budget was reached. {} file(s) not read: {names}. \
++         Ask for them in another call.]\n",
++        unread.len()
++    )
++}
++
++/// Concatenate the sections, carrying a running total so the bound holds whatever the allocator
++/// decided. A section that would break it is named in the trailer instead of being emitted, which
++/// is what makes the bound structural rather than a property of the arithmetic above.
++fn assemble(
++    sections: Vec<Section>,
++    mut unread: Vec<String>,
++    budget: usize,
++    squeezed: Option<usize>,
++) -> String {
++    let ceiling = budget.saturating_sub(TRAILER_RESERVE_BYTES);
++    let mut out = String::new();
++    let mut stopped = false;
++    for section in sections {
++        if stopped || out.len() + section.len() > ceiling {
++            stopped = true;
++            unread.push(section.display);
++            continue;
++        }
++        match &section.note {
++            Some(note) => out.push_str(&format!("===== {} ({note})\n", section.display)),
++            None => out.push_str(&format!("===== {}\n", section.display)),
++        }
++        out.push_str(&section.body);
++        out.push('\n');
++    }
++    out.push_str(&trailer(&unread));
++    // Per-file notes say a file was cut, but not that the *call* was too big, so a model that
++    // asked for 2600 lines across 13 files has nothing to correct on its next try. One recorded
++    // run followed such a call with `limit: 20` and `limit: 10` probes, each a whole round trip.
++    if let Some(files) = squeezed {
++        out.push_str(&format!(
++            "
++[the budget, not the files, decided what fit: {files} file(s) shared {budget}              bytes. Ask for fewer files per call, or a smaller `limit` per file.]
++"
++        ));
++    }
++    debug_assert!(
++        out.len() <= budget,
++        "read output must stay under its own budget, got {}",
++        out.len()
++    );
++    out
++}
++
++// ---------------------------------------------------------------------------
++// Budget
++// ---------------------------------------------------------------------------
++
++/// How many bytes this call may emit, given the model whose history will carry the result.
++///
++/// `record_items_with_metadata` truncates a `function_call_output` middle-out at
++/// `truncation_policy * 1.2`, which is exactly the cut this tool exists to make unnecessary - a
++/// middle-out cut lands inside a file and the model is not told which one. Filling four fifths of
++/// that leaves room for the harness's own framing and for `byte_budget` being an estimate.
++fn call_budget(policy: TruncationPolicy, auto_compact_tokens: Option<i64>) -> usize {
++    let harness_cut =
++        (policy * 1.2).byte_budget() * BUDGET_HEADROOM_NUMERATOR / BUDGET_HEADROOM_DENOMINATOR;
++    // A model with no known context window has no compaction bound either, so the harness cut is
++    // all there is to go on.
++    let window_share = auto_compact_tokens
++        .and_then(|tokens| usize::try_from(tokens).ok())
++        .map_or(usize::MAX, |tokens| {
++            TruncationPolicy::Tokens(tokens).byte_budget() / WINDOW_SHARE_DENOMINATOR
++        });
++    harness_cut
++        .min(window_share)
++        .clamp(MIN_CALL_BUDGET_BYTES, MAX_CALL_BUDGET_BYTES)
++}
++
++/// Split `content` bytes max-min fair over `demands`.
++///
++/// First-come-first-served is what made a twenty-file batch useless: three large files ate the
++/// whole budget and seventeen came back named but unread. Water-filling gives every file an equal
++/// share, and a file that wants less than its share hands the remainder back to the ones that want
++/// more. Terminates in at most one round per entry and uses no floating point, so it is stable
++/// across platforms and easy to pin in a test.
++fn allocate(demands: &[usize], content: usize) -> Vec<usize> {
++    let mut caps = vec![0usize; demands.len()];
++    let mut unsatisfied: Vec<usize> = (0..demands.len()).collect();
++    let mut remaining = content;
++
++    while !unsatisfied.is_empty() {
++        let share = remaining / unsatisfied.len();
++        let (satisfied, rest): (Vec<usize>, Vec<usize>) = unsatisfied
++            .iter()
++            .copied()
++            .partition(|index| demands[*index] <= share);
++        if satisfied.is_empty() {
++            for index in unsatisfied {
++                caps[index] = share.min(PER_FILE_BUDGET_BYTES);
++            }
++            break;
++        }
++        for index in satisfied {
++            caps[index] = demands[index];
++            remaining -= demands[index];
++        }
++        unsatisfied = rest;
++    }
++    caps
++}
++
++// ---------------------------------------------------------------------------
++// Binary and size guards
++// ---------------------------------------------------------------------------
++
++fn is_control_byte(byte: u8) -> bool {
++    byte < 0x09 || byte == 0x0B || byte == 0x0C || (0x0E..=0x1F).contains(&byte) || byte == 0x7F
++}
++
++fn has_binary_extension(display: &str) -> bool {
++    let name = display
++        .rsplit(['/', '\\'])
++        .next()
++        .unwrap_or(display)
++        .to_ascii_lowercase();
++    match name.rsplit_once('.') {
++        Some((stem, extension)) => !stem.is_empty() && BINARY_EXTENSIONS.contains(&extension),
++        None => false,
+     }
++}
+ 
+-    FileSection {
+-        body: out,
+-        note: (!notes.is_empty()).then(|| notes.join(", ")),
++/// Decide from the head of the file, the way OpenCode does: an extension that is never text, a NUL
++/// byte, or a control-byte share above 30%.
++fn sniff_binary(display: &str, bytes: &[u8]) -> bool {
++    if has_binary_extension(display) {
++        return true;
++    }
++    let sample = &bytes[..bytes.len().min(BINARY_SAMPLE_BYTES)];
++    if sample.contains(&0) {
++        return true;
+     }
++    if sample.is_empty() {
++        return false;
++    }
++    let control = sample.iter().filter(|byte| is_control_byte(**byte)).count();
++    control * 100 > sample.len() * BINARY_CONTROL_PERCENT
++}
++
++// ---------------------------------------------------------------------------
++// Handler
++// ---------------------------------------------------------------------------
++
++/// What is left to do for one entry once the phase before it has run.
++enum Plan {
++    /// Already decided; the string is the whole body.
++    Note(String),
++    File {
++        uri: PathUri,
++        offset: Option<usize>,
++        limit: Option<usize>,
++        numbered: bool,
++        demand: usize,
++        cap: usize,
++    },
++    Directory {
++        uri: PathUri,
++    },
++    /// Named in the trailer rather than read.
++    Dropped,
++}
++
++struct Item {
++    display: String,
++    plan: Plan,
+ }
+ 
+ impl ReadHandler {
+@@ -122,9 +647,17 @@ impl ReadHandler {
+     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
+         let ToolInvocation {
+             step_context,
++            turn,
+             payload,
+             ..
+         } = invocation;
++        // `auto_compact_token_limit()` is the method, not the field: it folds in the config
++        // override and clamps to 90% of the context window, and it is what the compaction check
++        // itself reads (`session/context_window.rs`), so both are bound to one number.
++        let budget = call_budget(
++            turn.model_info().truncation_policy.into(),
++            turn.model_info().auto_compact_token_limit(),
++        );
+ 
+         let arguments = match payload {
+             ToolPayload::Function { arguments } => arguments,
+@@ -135,25 +668,11 @@ impl ReadHandler {
+             }
+         };
+ 
+-        let ReadArgs {
+-            paths,
+-            offset,
+-            limit,
++        let NormalizedArgs {
++            targets,
+             environment_id,
+-        } = parse_arguments(&arguments)?;
+-
+-        if paths.is_empty() {
+-            return Err(FunctionCallError::RespondToModel(
+-                "read requires at least one path".to_string(),
+-            ));
+-        }
+-        // A window only means something for a single file; silently applying it to twenty would
+-        // return the same line range of each, which is never what was meant.
+-        let (offset, limit) = if paths.len() == 1 {
+-            (offset, limit)
+-        } else {
+-            (None, None)
+-        };
++            mut overflow,
++        } = normalize_args(&arguments)?;
+ 
+         let Some(turn_environment) =
+             resolve_tool_environment(&step_context.environments, environment_id.as_deref())?
+@@ -163,81 +682,292 @@ impl ReadHandler {
+             ));
+         };
+         let sandbox = turn_environment.sandbox_context(/*additional_permissions*/ None);
+-        let fs = turn_environment.environment.get_filesystem();
+-
+-        let mut out = String::new();
+-        let mut used = 0usize;
+-        let mut unread: Vec<String> = Vec::new();
+-
+-        for (index, path) in paths.iter().enumerate() {
+-            if used >= TOTAL_BUDGET_BYTES {
+-                unread.extend(paths[index..].iter().cloned());
+-                break;
+-            }
++        let sandbox = Some(&sandbox);
++        let filesystem = turn_environment.environment.get_filesystem();
++        let filesystem = filesystem.as_ref();
+ 
+-            let path_uri = match turn_environment.cwd().join(path) {
++        // Phase 1: resolve and dedup. Containment stays the sandbox's job, so `join` is used rather
++        // than `join_descendant`: the model routinely feeds back absolute paths it got from `rg`.
++        let mut items: Vec<Item> = Vec::with_capacity(targets.len());
++        let mut seen: Vec<(String, Option<usize>, Option<usize>)> = Vec::new();
++        for target in targets {
++            let uri = match turn_environment.cwd().join(&target.raw) {
+                 Ok(uri) => uri,
+-                Err(err) => {
+-                    out.push_str(&format!("===== {path}\nunable to resolve path: {err}\n\n"));
++                Err(error) => {
++                    items.push(Item {
++                        display: target.raw,
++                        plan: Plan::Note(format!("unable to resolve path: {error}")),
++                    });
+                     continue;
+                 }
+             };
+-            let shown = path_uri.inferred_native_path_string();
++            let display = uri.inferred_native_path_string();
++            let key = (display.clone(), target.offset, target.limit);
++            if seen.contains(&key) {
++                items.push(Item {
++                    display,
++                    plan: Plan::Note("already shown above".to_string()),
++                });
++                continue;
++            }
++            seen.push(key);
++            items.push(Item {
++                display,
++                plan: Plan::File {
++                    uri,
++                    offset: target.offset,
++                    limit: target.limit,
++                    numbered: true,
++                    demand: 0,
++                    cap: 0,
++                },
++            });
++        }
++
++        // Phase 2: metadata, concurrently, order preserved by `buffered`. The stream is driven over
++        // owned values rather than borrowed items so the closure is not higher-ranked over a
++        // lifetime it cannot name; `agents_md.rs` drives its probes the same way.
++        let probes: Vec<Option<PathUri>> = items
++            .iter()
++            .map(|item| match &item.plan {
++                Plan::File { uri, .. } => Some(uri.clone()),
++                _ => None,
++            })
++            .collect();
++        let metadata: Vec<Option<io::Result<FileMetadata>>> = futures::stream::iter(probes)
++            .map(|uri| async move {
++                match uri {
++                    Some(uri) => Some(
++                        filesystem
++                            .get_metadata(&uri, GetMetadataOptions::default(), sandbox)
++                            .await,
++                    ),
++                    None => None,
++                }
++            })
++            .buffered(MAX_CONCURRENT_METADATA)
++            .collect()
++            .await;
+ 
+-            match fs
+-                .get_metadata(&path_uri, GetMetadataOptions::default(), Some(&sandbox))
+-                .await
+-            {
++        for (item, metadata) in items.iter_mut().zip(metadata) {
++            let Some(metadata) = metadata else { continue };
++            let Plan::File {
++                uri, limit, demand, ..
++            } = &mut item.plan
++            else {
++                continue;
++            };
++            match metadata {
++                Err(error) => item.plan = Plan::Note(format!("unable to read: {error}")),
++                Ok(metadata) if metadata.is_directory => {
++                    item.plan = Plan::Directory { uri: uri.clone() }
++                }
+                 Ok(metadata) if !metadata.is_file => {
+-                    out.push_str(&format!("===== {shown}\nnot a file\n\n"));
+-                    continue;
++                    item.plan = Plan::Note("not a file".to_string())
+                 }
+-                Err(error) => {
+-                    out.push_str(&format!("===== {shown}\nunable to read: {error}\n\n"));
+-                    continue;
++                // Refuse from the metadata: reading a 500 MB file into memory to discover it is too
++                // large is the expensive way to learn it.
++                Ok(metadata) if metadata.size > MAX_FILE_BYTES => {
++                    item.plan = Plan::Note(format!(
++                        "file is {} bytes; too large to read. Use `rg` to find the lines you \
++                         need, then read a window.",
++                        metadata.size
++                    ))
++                }
++                Ok(metadata) if metadata.size == 0 => {
++                    item.plan = Plan::Note("empty file".to_string())
++                }
++                Ok(metadata) => {
++                    let size = usize::try_from(metadata.size).unwrap_or(usize::MAX);
++                    // The budget bounds the *output*, and every line leaves with its number in
++                    // front of it, so a demand taken from the file's own size under-provisions by
++                    // exactly the numbering and truncates every file a little. A two-line file of
++                    // 11 bytes leaves as 17.
++                    let numbered = size
++                        .saturating_add(size / NUMBERING_OVERHEAD_DIVISOR)
++                        .saturating_add(NUMBERING_OVERHEAD_FLOOR_BYTES);
++                    let mut want = numbered.min(PER_FILE_BUDGET_BYTES);
++                    if let Some(lines) = limit {
++                        // Rough planning estimate: asking for fewer lines should not reserve the
++                        // whole file. Reserving too little only clips early, and the note says so.
++                        want = want.min(lines.saturating_mul(100));
++                    }
++                    *demand = want;
+                 }
+-                Ok(_) => {}
+             }
++        }
+ 
+-            let bytes = match fs
+-                .read_file(&path_uri, ReadFileOptions::default(), Some(&sandbox))
+-                .await
+-            {
+-                Ok(bytes) => bytes,
+-                Err(error) => {
+-                    out.push_str(&format!("===== {shown}\nunable to read: {error}\n\n"));
+-                    continue;
+-                }
+-            };
+-            let contents = String::from_utf8_lossy(&bytes);
+-            let section = take_window(&contents, offset, limit);
++        // Phase 3: allocate. Overhead is charged for every section, the short ones included, so a
++        // batch that is entirely errors is bounded by the same arithmetic as a batch of files.
++        let fixed: usize = items
++            .iter()
++            .map(|item| overhead_for(&item.display))
++            .sum::<usize>()
++            + TRAILER_RESERVE_BYTES;
++        let mut readable: Vec<usize> = items
++            .iter()
++            .enumerate()
++            .filter(|(_, item)| matches!(item.plan, Plan::File { .. }))
++            .map(|(index, _)| index)
++            .collect();
++        let mut unread: Vec<String> = Vec::new();
+ 
+-            let header = match section.note {
+-                Some(note) => format!("===== {shown} ({note})\n"),
+-                None => format!("===== {shown}\n"),
+-            };
+-            used += header.len() + section.body.len();
+-            out.push_str(&header);
+-            out.push_str(&section.body);
+-            out.push('\n');
++        // Drop from the tail until what is left can be given a usable slice each.
++        while !readable.is_empty() && fixed + readable.len() * MIN_FILE_BUDGET_BYTES > budget {
++            let Some(index) = readable.pop() else { break };
++            unread.push(items[index].display.clone());
++            items[index].plan = Plan::Dropped;
++        }
++        let content = budget.saturating_sub(fixed);
++        let demands: Vec<usize> = readable
++            .iter()
++            .map(|index| match items[*index].plan {
++                Plan::File { demand, .. } => demand,
++                _ => 0,
++            })
++            .collect();
++        let caps = allocate(&demands, content);
++        // The call was oversubscribed when the share, not the file's own size, is what cut it.
++        let squeezed = caps
++            .iter()
++            .zip(&demands)
++            .any(|(cap, demand)| cap < demand)
++            .then_some(readable.len());
++        for (index, allocated) in readable.iter().zip(caps) {
++            if let Plan::File { cap, .. } = &mut items[*index].plan {
++                *cap = allocated;
++            }
+         }
+ 
+-        if !unread.is_empty() {
+-            out.push_str(&format!(
+-                "\n[read stopped after the output budget was reached. {} file(s) not read: {}. \
+-                 Ask for them in another call.]\n",
+-                unread.len(),
+-                unread.join(", ")
+-            ));
++        // Phase 4: read, concurrently, order preserved.
++        let to_read: Vec<Option<PathUri>> = items
++            .iter()
++            .map(|item| match &item.plan {
++                Plan::File { uri, .. } => Some(uri.clone()),
++                _ => None,
++            })
++            .collect();
++        let contents: Vec<Option<io::Result<Vec<u8>>>> = futures::stream::iter(to_read)
++            .map(|uri| async move {
++                match uri {
++                    Some(uri) => Some(
++                        filesystem
++                            .read_file(&uri, ReadFileOptions::default(), sandbox)
++                            .await,
++                    ),
++                    None => None,
++                }
++            })
++            .buffered(MAX_CONCURRENT_READS)
++            .collect()
++            .await;
++
++        // Phase 5: directory listings, concurrently.
++        let to_list: Vec<Option<PathUri>> = items
++            .iter()
++            .map(|item| match &item.plan {
++                Plan::Directory { uri } => Some(uri.clone()),
++                _ => None,
++            })
++            .collect();
++        let listings: Vec<Option<io::Result<Vec<ReadDirectoryEntry>>>> =
++            futures::stream::iter(to_list)
++                .map(|uri| async move {
++                    match uri {
++                        Some(uri) => Some(filesystem.read_directory(&uri, sandbox).await),
++                        None => None,
++                    }
++                })
++                .buffered(MAX_CONCURRENT_METADATA)
++                .collect()
++                .await;
++
++        // The three vectors are indexed by entry, and `zip` would silently drop the tail if one of
++        // them were short, losing a file the model asked for without saying so.
++        debug_assert_eq!(items.len(), contents.len(), "one read result per entry");
++        debug_assert_eq!(items.len(), listings.len(), "one listing slot per entry");
++
++        let mut sections: Vec<Section> = Vec::with_capacity(items.len());
++        for ((item, bytes), listing) in items.into_iter().zip(contents).zip(listings) {
++            let Item { display, plan } = item;
++            match plan {
++                Plan::Note(reason) => sections.push(Section::note_only(display, &reason)),
++                Plan::Dropped => {}
++                Plan::Directory { .. } => sections.push(match listing {
++                    Some(Ok(entries)) => render_directory(display, entries),
++                    Some(Err(error)) => {
++                        Section::note_only(display, &format!("unable to read: {error}"))
++                    }
++                    None => Section::note_only(display, "unable to read"),
++                }),
++                Plan::File {
++                    offset,
++                    limit,
++                    numbered,
++                    cap,
++                    ..
++                } => sections.push(match bytes {
++                    Some(Ok(bytes)) => {
++                        if sniff_binary(&display, &bytes) {
++                            Section::note_only(display, "cannot read binary file")
++                        } else {
++                            // Lossy rather than strict: one latin-1 comment in an otherwise fine
++                            // source file should not cost the model the whole file. The sniff
++                            // above, not the decoder, is the binary gate.
++                            let text = String::from_utf8_lossy(&bytes);
++                            let rendered = render_body(&text, offset, limit, numbered, cap);
++                            Section {
++                                display,
++                                note: rendered.note,
++                                body: rendered.body,
++                            }
++                        }
++                    }
++                    Some(Err(error)) => {
++                        Section::note_only(display, &format!("unable to read: {error}"))
++                    }
++                    None => Section::note_only(display, "unable to read"),
++                }),
++            }
+         }
+ 
++        unread.append(&mut overflow);
+         Ok(boxed_tool_output(FunctionToolOutput::from_text(
+-            out,
++            assemble(sections, unread, budget, squeezed),
+             Some(true),
+         )))
+     }
+ }
+ 
++/// A directory answered with `not a file` cost a round trip on `ls` before the model could read
++/// anything; listing it here costs one extra filesystem call instead.
++fn render_directory(display: String, mut entries: Vec<ReadDirectoryEntry>) -> Section {
++    entries.sort_by(|left, right| left.file_name.cmp(&right.file_name));
++    let total = entries.len();
++    let mut body = String::new();
++    let mut shown = 0usize;
++    for entry in entries.iter().take(MAX_DIRECTORY_ENTRIES) {
++        let line = if entry.is_directory {
++            format!("{}/\n", entry.file_name)
++        } else {
++            format!("{}\n", entry.file_name)
++        };
++        if body.len() + line.len() > DIRECTORY_BUDGET_BYTES {
++            break;
++        }
++        body.push_str(&line);
++        shown += 1;
++    }
++    if shown < total {
++        body.push_str(&format!("(+{} more)\n", total - shown));
++    }
++    Section {
++        display,
++        note: Some(format!("directory; {total} entries")),
++        body,
++    }
++}
++
+ impl ToolExecutor<ToolInvocation> for ReadHandler {
+     fn tool_name(&self) -> ToolName {
+         ToolName::plain(READ_TOOL_NAME)
+@@ -265,45 +995,344 @@ impl CoreToolRuntime for ReadHandler {}
+ mod tests {
+     use super::*;
+ 
++    fn targets(arguments: &str) -> Vec<ReadTarget> {
++        normalize_args(arguments)
++            .expect("arguments must normalize")
++            .targets
++    }
++
++    fn target(raw: &str, offset: Option<usize>, limit: Option<usize>) -> ReadTarget {
++        ReadTarget {
++            raw: raw.to_string(),
++            offset,
++            limit,
++        }
++    }
++
+     #[test]
+-    fn window_defaults_to_the_whole_file() {
+-        let section = take_window("a\nb\nc\n", None, None);
+-        assert_eq!(section.body, "a\nb\nc\n");
+-        assert!(section.note.is_none());
++    fn a_bare_string_entry_is_a_whole_file() {
++        assert_eq!(
++            targets(r#"{"paths":["a.rs","b.rs"]}"#),
++            vec![target("a.rs", None, None), target("b.rs", None, None)]
++        );
++    }
++
++    #[test]
++    fn an_object_entry_carries_its_own_window() {
++        assert_eq!(
++            targets(r#"{"paths":["a.rs",{"path":"b.rs","offset":40,"limit":80}]}"#),
++            vec![
++                target("a.rs", None, None),
++                target("b.rs", Some(40), Some(80))
++            ]
++        );
++    }
++
++    #[test]
++    fn a_top_level_limit_reaches_every_entry_that_set_none() {
++        // The call that this tool was rewritten for: the model believed it was asking for 500 lines
++        // of each file and silently received all of every file. It now means what the model reads
++        // it to mean. Dividing it instead was measured and reverted - see `normalize_args`.
++        assert_eq!(
++            targets(r#"{"limit":500,"paths":["a.rs","b.rs","c.rs"]}"#),
++            vec![
++                target("a.rs", None, Some(500)),
++                target("b.rs", None, Some(500)),
++                target("c.rs", None, Some(500)),
++            ]
++        );
+     }
+ 
+     #[test]
+-    fn window_honours_offset_and_limit_and_says_where_to_continue() {
++    fn a_top_level_offset_still_reaches_every_entry() {
++        // A position applies to each file, exactly like the limit beside it.
++        let shared = targets(r#"{"offset":40,"paths":["a.rs","b.rs"]}"#);
++        assert!(
++            shared.iter().all(|target| target.offset == Some(40)),
++            "{shared:?}"
++        );
++    }
++
++    #[test]
++    fn an_entry_window_wins_over_the_top_level_one() {
++        assert_eq!(
++            targets(r#"{"limit":500,"paths":[{"path":"a.rs","limit":20},"b.rs"]}"#),
++            vec![
++                target("a.rs", None, Some(20)),
++                target("b.rs", None, Some(500))
++            ]
++        );
++    }
++
++    #[test]
++    fn alternate_spellings_of_the_list_and_path_keys_are_accepted() {
++        for arguments in [
++            r#"{"files":["a.rs"]}"#,
++            r#"{"file_paths":["a.rs"]}"#,
++            r#"{"filePaths":["a.rs"]}"#,
++            r#"{"paths":"a.rs"}"#,
++            r#"{"path":"a.rs"}"#,
++            r#"{"file_path":"a.rs"}"#,
++            r#"{"filePath":"a.rs"}"#,
++            r#"{"paths":[{"file":"a.rs"}]}"#,
++        ] {
++            assert_eq!(
++                targets(arguments),
++                vec![target("a.rs", None, None)],
++                "{arguments}"
++            );
++        }
++    }
++
++    #[test]
++    fn inclusive_end_line_becomes_a_limit() {
++        assert_eq!(
++            targets(r#"{"paths":[{"path":"a.rs","start_line":40,"end_line":80}]}"#),
++            vec![target("a.rs", Some(40), Some(41))]
++        );
++    }
++
++    #[test]
++    fn an_orphan_range_folds_into_the_entry_before_it() {
++        assert_eq!(
++            targets(r#"{"paths":["a.rs",{"start_line":10,"end_line":19}]}"#),
++            vec![target("a.rs", Some(10), Some(10))]
++        );
++    }
++
++    #[test]
++    fn quoted_numbers_and_unknown_keys_are_tolerated() {
++        assert_eq!(
++            targets(r#"{"paths":[{"path":"a.rs","offset":"120","limit":"5","why":"because"}]}"#),
++            vec![target("a.rs", Some(120), Some(5))]
++        );
++    }
++
++    #[test]
++    fn double_encoded_arguments_are_parsed_once_more() {
++        assert_eq!(
++            targets(r#""{\"paths\":[\"a.rs\"]}""#),
++            vec![target("a.rs", None, None)]
++        );
++    }
++
++    #[test]
++    fn entries_past_the_cap_are_named_rather_than_dropped() {
++        let paths: Vec<String> = (0..MAX_ENTRIES + 3)
++            .map(|index| format!("\"f{index}.rs\""))
++            .collect();
++        let normalized = normalize_args(&format!("{{\"paths\":[{}]}}", paths.join(",")))
++            .expect("arguments must normalize");
++        assert_eq!(normalized.targets.len(), MAX_ENTRIES);
++        assert_eq!(normalized.overflow.len(), 3);
++        assert_eq!(normalized.overflow[0], format!("f{MAX_ENTRIES}.rs"));
++    }
++
++    #[test]
++    fn an_unusable_call_is_answered_with_an_example() {
++        for arguments in [r#"{"paths":[]}"#, r#"{}"#, "not json"] {
++            let error = normalize_args(arguments).expect_err("must be rejected");
++            let FunctionCallError::RespondToModel(message) = error else {
++                panic!("read must answer the model, not fail the turn");
++            };
++            assert!(message.contains("\"offset\": 40"), "{message}");
++        }
++    }
++
++    #[test]
++    fn a_whole_file_read_is_numbered_from_one() {
++        let rendered = render_body(
++            "a
++b
++c
++",
++            None,
++            None,
++            true,
++            MAX_CALL_BUDGET_BYTES,
++        );
++        assert_eq!(
++            rendered.body,
++            "1: a
++2: b
++3: c
++"
++        );
++        assert!(rendered.note.is_none());
++    }
++
++    #[test]
++    fn a_window_is_numbered_from_its_own_offset() {
+         let contents = (1..=10)
+-            .map(|n| n.to_string())
++            .map(|line| line.to_string())
+             .collect::<Vec<_>>()
+             .join("\n");
+-        let section = take_window(&contents, Some(3), Some(2));
+-        assert_eq!(section.body, "3\n4\n");
+-        let note = section.note.expect("a partial read must say so");
++        let rendered = render_body(&contents, Some(3), Some(2), true, MAX_CALL_BUDGET_BYTES);
++        assert_eq!(rendered.body, "3: 3\n4: 4\n");
++        let note = rendered.note.expect("a partial read must say so");
+         assert!(note.contains("from line 3"), "{note}");
+         assert!(note.contains("continue with offset 5"), "{note}");
+     }
+ 
++    #[test]
++    fn an_offset_past_the_end_says_so_instead_of_returning_nothing() {
++        let rendered = render_body("a\nb\n", Some(40), None, true, MAX_CALL_BUDGET_BYTES);
++        assert!(rendered.body.is_empty());
++        let note = rendered.note.expect("a read past the end must say so");
++        assert!(note.contains("past the end"), "{note}");
++        assert!(note.contains("2 lines"), "{note}");
++    }
++
+     #[test]
+     fn long_lines_are_clipped_rather_than_dropped() {
+-        let contents = format!("{}\nshort\n", "x".repeat(MAX_LINE_CHARS + 50));
+-        let section = take_window(&contents, None, None);
+-        assert!(section.body.contains("... (line truncated)"));
+-        assert!(section.body.contains("short"));
+-        let note = section.note.expect("clipping must be reported");
++        let contents = format!("{}\nshort\n", "x".repeat(MAX_LINE_BYTES + 50));
++        let rendered = render_body(&contents, None, None, false, MAX_CALL_BUDGET_BYTES);
++        assert!(rendered.body.contains("... (line truncated)"));
++        assert!(rendered.body.contains("short"));
++        let note = rendered.note.expect("clipping must be reported");
+         assert!(note.contains("1 long line(s) clipped"), "{note}");
+     }
+ 
+     #[test]
+-    fn a_single_file_cannot_exceed_its_own_budget() {
+-        let contents = "y".repeat(PER_FILE_BUDGET_BYTES * 2) + "\n";
+-        let contents = contents.replace("yyyyyyyyyy", "yyyyyyyyy\n");
+-        let section = take_window(&contents, None, None);
++    fn a_multibyte_line_is_clipped_on_a_char_boundary() {
++        let contents = format!("{}\n", "ü".repeat(MAX_LINE_BYTES));
++        let rendered = render_body(&contents, None, None, false, MAX_CALL_BUDGET_BYTES);
++        assert!(rendered.body.contains("... (line truncated)"));
++        assert!(rendered.body.is_char_boundary(rendered.body.len()));
++    }
++
++    #[test]
++    fn a_body_never_exceeds_its_cap() {
++        let contents = (1..=4_000)
++            .map(|line| format!("line {line} of a long file"))
++            .collect::<Vec<_>>()
++            .join("\n");
++        for cap in [0usize, 8, 64, 1_000, 20_000] {
++            let rendered = render_body(&contents, None, None, false, cap);
++            assert!(
++                rendered.body.len() <= cap,
++                "cap {cap} exceeded by {}",
++                rendered.body.len()
++            );
++        }
++    }
++
++    #[test]
++    fn carriage_returns_do_not_reach_the_model() {
++        let rendered = render_body("a\r\nb\r\n", None, None, false, MAX_CALL_BUDGET_BYTES);
++        assert_eq!(rendered.body, "a\nb\n");
++    }
++
++    #[test]
++    fn the_budget_follows_the_model_that_will_carry_the_output() {
++        // glm-5.3-flash. The harness cut allows 96_000, but the 80k window allows only a sixth of
++        // its 320_000 bytes, and the window is the binding limit: a call that fills 96_000 is 29%
++        // of the window, and the measured runs that did that compacted twice.
++        assert_eq!(
++            call_budget(TruncationPolicy::Tokens(25_000), Some(80_000)),
++            53_333
++        );
++        // A model with the common 10k policy is cut at 48_000 by the harness, which binds first.
++        assert_eq!(
++            call_budget(TruncationPolicy::Tokens(10_000), Some(80_000)),
++            38_400
++        );
++        // No known context window means no compaction bound to respect.
++        assert_eq!(call_budget(TruncationPolicy::Tokens(25_000), None), 96_000);
++        assert_eq!(
++            call_budget(TruncationPolicy::Tokens(100_000), Some(4_000_000)),
++            MAX_CALL_BUDGET_BYTES
++        );
++        assert_eq!(
++            call_budget(TruncationPolicy::Bytes(1_000), Some(80_000)),
++            MIN_CALL_BUDGET_BYTES
++        );
++        // A tiny window binds even when the policy is generous.
++        assert_eq!(
++            call_budget(TruncationPolicy::Tokens(25_000), Some(15_000)),
++            10_000
++        );
++    }
++
++    #[test]
++    fn a_squeezed_call_is_told_that_the_budget_was_the_limit() {
++        let section = Section::note_only("a.rs".to_string(), "x");
++        let squeezed = assemble(vec![section], Vec::new(), MAX_CALL_BUDGET_BYTES, Some(13));
++        assert!(squeezed.contains("the budget, not the files"), "{squeezed}");
++        assert!(squeezed.contains("13 file(s)"), "{squeezed}");
++
++        let section = Section::note_only("a.rs".to_string(), "x");
++        let roomy = assemble(vec![section], Vec::new(), MAX_CALL_BUDGET_BYTES, None);
+         assert!(
+-            section.body.len() <= PER_FILE_BUDGET_BYTES + MAX_LINE_CHARS + 64,
+-            "one file must not spend the whole call budget, got {}",
+-            section.body.len()
++            !roomy.contains("the budget, not the files"),
++            "a call that fit must not be told it did not: {roomy}"
+         );
+     }
++
++    #[test]
++    fn a_small_file_hands_its_surplus_to_a_large_one() {
++        assert_eq!(
++            allocate(&[1_000, 1_000, 500_000], 30_000),
++            vec![1_000, 1_000, 28_000]
++        );
++    }
++
++    #[test]
++    fn equal_demands_are_split_equally() {
++        let demands = vec![PER_FILE_BUDGET_BYTES; 40];
++        let caps = allocate(&demands, 80_000);
++        assert!(caps.iter().all(|cap| *cap == 2_000), "{caps:?}");
++    }
++
++    #[test]
++    fn an_allocation_never_exceeds_the_per_file_ceiling_or_the_content_budget() {
++        let demands = vec![10, 500_000, 3_000, 900_000, 40];
++        let caps = allocate(&demands, 90_000);
++        assert!(
++            caps.iter().all(|cap| *cap <= PER_FILE_BUDGET_BYTES),
++            "{caps:?}"
++        );
++        assert!(caps.iter().sum::<usize>() <= 90_000, "{caps:?}");
++    }
++
++    #[test]
++    fn assembling_stays_under_the_call_budget_on_adversarial_input() {
++        let sections: Vec<Section> = (0..MAX_ENTRIES)
++            .map(|index| Section {
++                display: format!("{}/{index}.rs", "d".repeat(1_000)),
++                note: Some("x".repeat(NOTE_RESERVE_BYTES)),
++                body: "y".repeat(PER_FILE_BUDGET_BYTES),
++            })
++            .collect();
++        let out = assemble(sections, Vec::new(), MAX_CALL_BUDGET_BYTES, None);
++        assert!(out.len() <= MAX_CALL_BUDGET_BYTES, "got {}", out.len());
++        assert!(
++            out.contains("[read stopped"),
++            "sections that did not fit must be named"
++        );
++    }
++
++    #[test]
++    fn the_trailer_names_at_most_ten_files_and_counts_the_rest() {
++        let unread: Vec<String> = (0..25).map(|index| format!("f{index}.rs")).collect();
++        let text = trailer(&unread);
++        assert!(text.contains("25 file(s) not read"), "{text}");
++        assert!(text.contains("and 15 more"), "{text}");
++        assert!(text.len() <= TRAILER_RESERVE_BYTES, "got {}", text.len());
++    }
++
++    #[test]
++    fn binary_is_detected_from_the_extension_a_nul_byte_or_control_bytes() {
++        assert!(sniff_binary("C:\\p\\logo.png", b"not really a png"));
++        assert!(sniff_binary("a.rs", b"fn main() {}\0"));
++        assert!(sniff_binary("a.rs", &[0x01u8; 64]));
++        assert!(!sniff_binary(
++            "a.rs",
++            "fn main() { println!(\"hi\"); }".as_bytes()
++        ));
++        assert!(!sniff_binary("notes.md", "büyük harfli metin".as_bytes()));
++        assert!(!sniff_binary("a.rs", b""));
++        // A dotfile has no extension, whatever comes after the dot.
++        assert!(!sniff_binary(".gitignore", b"target/"));
++    }
+ }
+diff --git a/codex-rs/core/src/tools/handlers/read_spec.rs b/codex-rs/core/src/tools/handlers/read_spec.rs
+index 873d72cf6d..870db30a8e 100644
+--- a/codex-rs/core/src/tools/handlers/read_spec.rs
++++ b/codex-rs/core/src/tools/handlers/read_spec.rs
+@@ -14,24 +14,50 @@ pub struct ReadToolOptions {
+ }
+ 
+ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
++    // An entry is a path or a path with its own window. The union is a superset of the shape the
++    // model already emits, so a plain list of strings keeps working, and it is what lets one call
++    // mix whole files with windows: without it a window can only be asked for one file at a time,
++    // which is how a batching tool ends up being called once per file.
++    let entry = JsonSchema::any_of(
++        vec![
++            JsonSchema::string(/*description*/ None),
++            JsonSchema::object(
++                BTreeMap::from([
++                    ("path".to_string(), JsonSchema::string(/*description*/ None)),
++                    (
++                        "offset".to_string(),
++                        JsonSchema::integer(/*description*/ None),
++                    ),
++                    (
++                        "limit".to_string(),
++                        JsonSchema::integer(/*description*/ None),
++                    ),
++                ]),
++                Some(vec!["path".to_string()]),
++                Some(false.into()),
++            ),
++        ],
++        // The variants carry no descriptions of their own: each one would be paid for on the fixed
++        // prefix of every request, and the tool description below already says what they mean.
++        None,
++    );
++
+     let mut properties = BTreeMap::from([
+         (
+             "paths".to_string(),
+             JsonSchema::array(
+-                JsonSchema::string(Some("Path to a file, relative to the working directory or absolute.".to_string())),
+-                Some("Files to read. Pass every file you already know you need in one call.".to_string()),
++                entry,
++                Some("Files to read: a path, or an object with a window.".to_string()),
+             ),
+         ),
+         (
+             "offset".to_string(),
+-            JsonSchema::integer(Some(
+-                "1-indexed line to start at. Only used when `paths` has exactly one entry.".to_string(),
+-            )),
++            JsonSchema::integer(Some("1-indexed first line.".to_string())),
+         ),
+         (
+             "limit".to_string(),
+             JsonSchema::integer(Some(format!(
+-                "Maximum lines to return. Only used when `paths` has exactly one entry. Defaults to {DEFAULT_LINE_LIMIT}."
++                "Max lines per file. Defaults to {DEFAULT_LINE_LIMIT}."
+             ))),
+         ),
+     ]);
+@@ -47,15 +73,15 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
+ 
+     ToolSpec::Function(ResponsesApiTool {
+         name: READ_TOOL_NAME.to_string(),
+-        description: "Read whole files from the filesystem.
++        description: "Read files. Batch every file you already know you need into one call.
+ 
+-- Pass every file you already know you need in a single call. Reading twenty files in one call \
+-costs one round trip; reading them one at a time costs twenty, and every round trip resends the \
+-whole conversation.
+-- Use `offset` and `limit` to read a window of one file when you already know the line you want.
+-- Output is one section per file, each headed by its path.
+-- If the call runs out of budget it says so and names the files it did not reach, so ask for those \
+-in a follow-up call."
++- An entry is a path, or {\"path\": \"...\", \"offset\": 1, \"limit\": 200} for one window of that \
++file. Mix both in one call.
++- Top-level `offset`/`limit` apply to every entry that sets neither, so put the window on the entry when the files differ in what they need.
++- Each section is headed by its path and printed as `N: line`, so a citation can be \
++written from the read itself; the numbers are display only, never copy them into `apply_patch`.
++- A section that was cut says which lines it showed and the offset to continue from. Files that \
++did not fit are named at the end; ask for those next."
+             .to_string(),
+         strict: false,
+         defer_loading: None,
+@@ -67,3 +93,23 @@ in a follow-up call."
+         output_schema: None,
+     })
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// The spec rides the fixed prefix of every request, which is the single biggest line of the
++    /// bill, so it is not allowed to grow quietly. The `anyOf` entry shape costs about 1_212 bytes
++    /// against the 1_157 of the string-only one it replaced, plus the sentence saying `limit` is
++    /// per file - the misreading that made one measured call ask for 33,800 lines.
++    #[test]
++    fn the_spec_stays_small_because_every_request_pays_for_it() {
++        let spec = create_read_tool(ReadToolOptions::default());
++        let json = serde_json::to_string(&spec).expect("spec must serialize");
++        assert!(
++            json.len() <= 1_400,
++            "read spec grew to {} bytes; every request carries it",
++            json.len()
++        );
++    }
++}
+diff --git a/codex-rs/core/src/tools/spec_plan_tests.rs b/codex-rs/core/src/tools/spec_plan_tests.rs
+index 44466999f9..eaae3a66cf 100644
+--- a/codex-rs/core/src/tools/spec_plan_tests.rs
++++ b/codex-rs/core/src/tools/spec_plan_tests.rs
+@@ -1231,6 +1231,7 @@ async fn environment_count_controls_environment_backed_tools() {
+         "write_stdin",
+         "apply_patch",
+         "view_image",
++        "read",
+         "request_permissions",
+     ]);
+     no_environment.assert_registered_lacks(&[
+@@ -1238,6 +1239,7 @@ async fn environment_count_controls_environment_backed_tools() {
+         "write_stdin",
+         "apply_patch",
+         "view_image",
++        "read",
+         "request_permissions",
+     ]);
+     assert!(!no_environment.has_terminal_controls);
+@@ -1256,6 +1258,7 @@ async fn environment_count_controls_environment_backed_tools() {
+         "exec_command",
+         "apply_patch",
+         "view_image",
++        "read",
+         "request_permissions",
+     ]);
+     assert!(multiple_environments.has_terminal_controls);
+@@ -1270,6 +1273,10 @@ async fn environment_count_controls_environment_backed_tools() {
+         multiple_environments.visible_spec("view_image"),
+         "environment_id"
+     ));
++    assert!(has_parameter(
++        multiple_environments.visible_spec("read"),
++        "environment_id"
++    ));
+ }
+ 
+ #[tokio::test]
+diff --git a/codex-rs/core/tests/suite/mod.rs b/codex-rs/core/tests/suite/mod.rs
+index 4b4a0ba1df..b94f9430ef 100644
+--- a/codex-rs/core/tests/suite/mod.rs
++++ b/codex-rs/core/tests/suite/mod.rs
+@@ -123,6 +123,7 @@ mod prompt_cache_key;
+ mod prompt_caching;
+ mod prompt_debug_tests;
+ mod quota_exceeded;
++mod read;
+ mod realtime_conversation;
+ mod realtime_initial_items;
+ mod remote_env;
+diff --git a/codex-rs/core/tests/suite/read.rs b/codex-rs/core/tests/suite/read.rs
+new file mode 100644
+index 0000000000..6095db6d4f
+--- /dev/null
++++ b/codex-rs/core/tests/suite/read.rs
+@@ -0,0 +1,168 @@
++#![allow(clippy::unwrap_used)]
++
++use anyhow::Result;
++use core_test_support::responses::ev_assistant_message;
++use core_test_support::responses::ev_completed;
++use core_test_support::responses::ev_function_call;
++use core_test_support::responses::ev_response_created;
++use core_test_support::responses::mount_sse_sequence;
++use core_test_support::responses::sse;
++use core_test_support::responses::start_mock_server;
++use core_test_support::skip_if_no_network;
++use core_test_support::test_codex::test_codex;
++use serde_json::Value;
++
++/// Seed the workspace, let the model issue one `read` call, and hand back what the tool put in the
++/// `function_call_output`. That text is the whole contract with the model, so every assertion below
++/// is made against it rather than against an internal.
++async fn read_output(files: &[(&str, String)], arguments: Value) -> Result<String> {
++    let server = start_mock_server().await;
++    let mocks = mount_sse_sequence(
++        &server,
++        vec![
++            sse(vec![
++                ev_response_created("resp-1"),
++                ev_function_call("call-1", "read", &arguments.to_string()),
++                ev_completed("resp-1"),
++            ]),
++            sse(vec![
++                ev_response_created("resp-2"),
++                ev_assistant_message("msg-1", "done"),
++                ev_completed("resp-2"),
++            ]),
++        ],
++    )
++    .await;
++
++    let mut builder = test_codex();
++    let test = builder.build_with_auto_env(&server).await?;
++    for (relative, contents) in files {
++        let path = test.workspace_path(relative);
++        if let Some(parent) = path.parent() {
++            std::fs::create_dir_all(parent)?;
++        }
++        std::fs::write(path, contents)?;
++    }
++
++    test.submit_turn("read the files").await?;
++    Ok(mocks
++        .function_call_output_text("call-1")
++        .expect("read must produce a function_call_output"))
++}
++
++fn numbered_lines(count: usize) -> String {
++    (1..=count)
++        .map(|line| format!("line {line}"))
++        .collect::<Vec<_>>()
++        .join("\n")
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn a_batch_mixes_whole_files_with_windows_and_numbers_every_line() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++
++    let output = read_output(
++        &[
++            ("plain.txt", "alpha\nbeta\n".to_string()),
++            ("windowed.txt", numbered_lines(200)),
++        ],
++        serde_json::json!({
++            "paths": [
++                "plain.txt",
++                { "path": "windowed.txt", "offset": 5, "limit": 2 },
++            ]
++        }),
++    )
++    .await?;
++
++    let plain_at = output.find("plain.txt").expect("plain.txt must appear");
++    let windowed_at = output
++        .find("windowed.txt")
++        .expect("windowed.txt must appear");
++    assert!(
++        plain_at < windowed_at,
++        "sections must keep the order they were asked for: {output}"
++    );
++
++    // Every read is numbered, so a `file:line` citation can be written from the read itself
++    // rather than from a second pass with `rg -n`.
++    assert!(output.contains("1: alpha\n2: beta\n"), "{output}");
++
++    // A window is numbered from its own offset, so it can be cited and resumed.
++    assert!(output.contains("5: line 5\n6: line 6\n"), "{output}");
++    assert!(output.contains("from line 5"), "{output}");
++    assert!(output.contains("continue with offset 7"), "{output}");
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn a_binary_file_is_refused_without_leaking_its_bytes() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++
++    let mut contents = String::from("SECRETMARKER");
++    contents.push('\0');
++    contents.push_str("more bytes");
++
++    let output = read_output(
++        &[("blob.bin", contents)],
++        serde_json::json!({ "paths": ["blob.bin"] }),
++    )
++    .await?;
++
++    assert!(output.contains("cannot read binary file"), "{output}");
++    assert!(
++        !output.contains("SECRETMARKER"),
++        "a refused file must not have its bytes emitted anyway: {output}"
++    );
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn a_top_level_limit_windows_every_file_and_the_call_stays_inside_its_budget() -> Result<()> {
++    skip_if_no_network!(Ok(()));
++
++    // The call that motivated this rewrite: a top-level `limit` alongside a dozen paths. It used to
++    // be dropped in silence and return twelve whole files.
++    let files: Vec<(String, String)> = (0..12)
++        .map(|index| (format!("big{index}.txt"), numbered_lines(3_000)))
++        .collect();
++    let borrowed: Vec<(&str, String)> = files
++        .iter()
++        .map(|(name, contents)| (name.as_str(), contents.clone()))
++        .collect();
++    let paths: Vec<String> = files.iter().map(|(name, _)| name.clone()).collect();
++
++    let output = read_output(
++        &borrowed,
++        serde_json::json!({ "limit": 500, "paths": paths }),
++    )
++    .await?;
++
++    let missing: Vec<&str> = files
++        .iter()
++        .map(|(name, _)| name.as_str())
++        .filter(|name| !output.contains(*name))
++        .collect();
++    assert!(
++        missing.is_empty(),
++        "every file asked for must have a section; missing {missing:?} of {} bytes",
++        output.len()
++    );
++    assert_eq!(
++        output.matches("showing").count(),
++        12,
++        "every file must report that it was windowed: {output}"
++    );
++    assert!(
++        !output.contains("line 3000"),
++        "a windowed read must not return the whole file"
++    );
++    // The point of the tool deciding where to stop: the harness never has to cut the output
++    // middle-out, which would land inside a file without telling the model which one.
++    assert!(
++        !output.contains("tokens truncated"),
++        "read must stay inside the budget its model allows, got {} bytes",
++        output.len()
++    );
++    Ok(())
++}
+diff --git a/codex-rs/models-manager/models.json b/codex-rs/models-manager/models.json
+index 62eac9f5f6..7e182b4e13 100644
+--- a/codex-rs/models-manager/models.json
++++ b/codex-rs/models-manager/models.json
+@@ -57,12 +57,8 @@
+       "upgrade": null,
+       "priority": 0,
+       "model_messages": {
+-        "instructions_template": "You are Suffice, a coding agent based on GPT-5. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.\n\n{{ personality }}\n\n# General\nYou bring a senior engineer’s judgment to the work, but you let it arrive through attention rather than premature certainty. You read the codebase first, resist easy assumptions, and let the shape of the existing system teach you how to move.\n\n- When you search for text or files, you reach first for `rg` or `rg --files`; they are much faster than alternatives like `grep`. If `rg` is unavailable, you use the next best tool without fuss.\n- You read files with the `read` tool. When an error or a search result already names a file and a line, you read a window around that line with `offset` and `limit` rather than the whole file: whatever you read stays in context for the rest of the session, so a whole-file read you did not need is paid for again on every later request.\n- When you know you need several files, you pass all of them to one `read` call rather than reading them one at a time. You issue several tool calls in a single response whenever you already know what they are and none of them depends on another's result: listing directories, searching, and read-only `git` commands such as `status`, `log`, and `diff`. Every round of tool calls resends the whole conversation, so a round costs far more than a call; you never invent a call to pad a batch.\n- You run anything that changes state one call at a time, including `apply_patch`, installs, builds, migrations, `git commit`, and writing to a running process, so a failure stops the sequence instead of surfacing after the fact. Chaining several statements into one command with `;` is fine for reads, but never for anything whose result you rely on: PowerShell does not stop at the first failure and reports only the last statement's exit code, so a failed step arrives labelled as success.\n- When you are waiting on something slow, set `yield_time_ms` to how long you expect the work to take instead of polling in growing steps. An empty `write_stdin` accepts up to five minutes and returns the moment the process exits, so overshooting costs nothing, while every extra poll spends a whole request to learn that the work is still running.\n- When the shell is PowerShell, an argument to a native program loses its inner double quotes: `python -c 'print(\"hi\")'` arrives as `print(hi)` and fails. Quote it the other way round instead of escaping: `python -c \"print('hi')\"`. Here-documents fail for a different reason — `<<` is an operator PowerShell reserved and never implemented — so if one is rejected, write the script to a file and run the file.\n\n## Engineering judgment\n\nWhen the user leaves implementation details open, you choose conservatively and in sympathy with the codebase already in front of you:\n\n- You prefer the repo’s existing patterns, frameworks, and local helper APIs over inventing a new style of abstraction.\n- For structured data, you use structured APIs or parsers instead of ad hoc string manipulation whenever the codebase or standard toolchain gives you a reasonable option.\n- You keep edits closely scoped to the modules, ownership boundaries, and behavioral surface implied by the request and surrounding code. You leave unrelated refactors and metadata churn alone unless they are truly needed to finish safely.\n- You add an abstraction only when it removes real complexity, reduces meaningful duplication, or clearly matches an established local pattern.\n- You let test coverage scale with risk and blast radius: you keep it focused for narrow changes, and you broaden it when the implementation touches shared behavior, cross-module contracts, or user-facing workflows.\n\n## Frontend guidance\n\nYou follow these instructions when building applications with a frontend experience:\n\n### Build with empathy\n- If working with an existing design or given a design framework in context, you pay careful attention to existing conventions and ensure that what you build is consistent with the frameworks used and design of the existing application.\n- You think deeply about the audience of what you are building and use that to decide what features to build and when designing layout, components, visual style, on-screen text, and interaction patterns. Using your application should feel rich and sophisticated.\n- You make sure that the frontend design is tailored for the domain and subject matter of the application. For example, SaaS, CRM, and other operational tools should feel quiet, utilitarian, and work-focused rather than illustrative or editorial: avoid oversized hero sections, decorative card-heavy layouts, and marketing-style composition, and instead prioritize dense but organized information, restrained visual styling, predictable navigation, and interfaces built for scanning, comparison, and repeated action. A game can be more illustrative, expressive, animated, and playful.\n- You make sure that common workflows within the app are ergonomic and efficient, yet comprehensive -- the user of your application should be able to seamlessly navigate in and out of different views and pages in the application.\n\n### Design instructions\n- You make sure to use icons in buttons for tools, swatches for color, segmented controls for modes, toggles/checkboxes for binary settings, sliders/steppers/inputs for numeric values, menus for option sets, tabs for views, and text or icon+text buttons only for clear commands (unless otherwise specified). Cards are kept at 8px border radius or less unless the existing design system requires otherwise.\n- You do not use rounded rectangular UI elements with text inside if you could use a familiar symbol or icon instead (examples include arrow icons for undo/redo, B/I icons for bold/italics, save/download/zoom icons). You build tooltips which name/describe unfamiliar icons when the user hovers over it.\n- You use lucide icons inside buttons whenever one exists instead of manually-drawn SVG icons. If there is a library enabled in an existing application, you use icons from that library.\n- You build feature-complete controls, states, and views that a target user would naturally expect from the application.\n- You do not use visible, in-app text to describe the application's features, functionality, keyboard shortcuts, styling, visual elements, or how to use the application.\n- You should not make a landing page unless absolutely required; when asked for a site, app, game, or tool, build the actual usable experience as the first screen, not marketing or explanatory content.\n- When making a hero page, you use a relevant image, generated bitmap image, or immersive full-bleed interactive scene as the background with text over it that is not in a card; never use a split text/media layout where a card is one side and text is on another side, never put hero text or the primary experience in a card, never use a gradient/SVG hero page, and do not create an SVG hero illustration when a real or generated image can carry the subject.\n- On branded, product, venue, portfolio, or object-focused pages, the brand/product/place/object must be a first-viewport signal, not only tiny nav text or an eyebrow. Hero content must leave a hint of the next section's content visible on every mobile and desktop viewport, including wide desktop.\n- For landing-page heroes, make the H1 the brand/product/place/person name or a literal offer/category; put descriptive value props in supporting copy, not the headline.\n- Websites and games must use visual assets. You can use image search, known relevant images, or generated bitmap images instead of SVGs, unless making a game. Primary images and media should reveal the actual product, place, object, state, gameplay, or person; you refrain from dark, blurred, cropped, stock-like, or purely atmospheric media when the user needs to inspect the real thing. For highly specific game assets you use custom SVG/Three.js/etc.\n- For games or interactive tools with well-established rules, physics, parsing, or AI engines, you use a proven existing library for the core domain logic instead of hand-rolling it, unless the user explicitly asks for a from-scratch implementation.\n- You use Three.js for 3D elements, and make the primary 3D scene full-bleed or unframed and not inside a decorative card/preview container. Before finishing, you verify with Playwright screenshots and canvas-pixel checks across desktop/mobile viewports that it is nonblank, correctly framed, interactive/moving, and that referenced assets render as intended without overlapping.\n- You do not put UI cards inside other cards. Do not style page sections as floating cards. Only use cards for individual repeated items, modals, and genuinely framed tools. Page sections must be full-width bands or unframed layouts with constrained inner content.\n- You do not add discrete orbs, gradient orbs, or bokeh blobs as decoration or backgrounds.\n- You make sure that text fits within its parent UI element on all mobile and desktop viewports. Move it to a new line if needed, and if it still does not fit inside the UI element, use dynamic sizing so the longest word fits. Text must also not occlude preceding or subsequent content. Despite this, you check that text inside a UI button/card looks professionally designed and polished.\n- Match display text to its container: reserve hero-scale type for true heroes, and use smaller, tighter headings inside compact panels, cards, sidebars, dashboards, and tool surfaces.\n- You define stable dimensions with responsive constraints (such as  aspect-ratio, grid tracks, min/max, or container-relative sizing) for fixed-format UI elements like boards, grids, toolbars, icon buttons, counters, or tiles, so hover states, labels, icons, pieces, loading text, or dynamic content cannot resize or shift the layout.\n- You do not scale font size with viewport width. Letter spacing must be 0, not negative.\n- You do not make one-note palettes: avoid UIs dominated by variations of a single hue family, and limit dominant purple/purple-blue gradients, beige/cream/sand/tan, dark blue/slate, and brown/orange/espresso palettes; scan CSS colors before finalizing and revise if the page reads as one of these themes.\n- You make sure that UI elements and on-screen text do not overlap with each other in an incoherent manner. This is extremely important as it leads to a jarring user experience.\n\nWhen building a site or app that needs a dev server to run properly, you start the local dev server after implementation and give the user the URL so they can try it. If there's already a server on that port, you use another one. For a website where just opening the HTML will work, you don't start a dev server, and instead give the user a link to the HTML file that can open in their browser.\n\n## Editing constraints\n\n- You default to ASCII when editing or creating files. You introduce non-ASCII or other Unicode characters only when there is a clear reason and the file already lives in that character set.\n- You add succinct code comments only where the code is not self-explanatory. You avoid empty narration like \"Assigns the value to the variable\", but you do leave a short orienting comment before a complex block if it would save the user from tedious parsing. You use that tool sparingly.\n- Use `apply_patch` for manual code edits. Do not create or edit files with `cat` or other shell write tricks. Formatting commands and bulk mechanical rewrites do not need `apply_patch`.\n- Do not use Python to read or write files when a simple shell command or `apply_patch` is enough.\n- You may be in a dirty git worktree.\n  * NEVER revert existing changes you did not make unless explicitly requested, since these changes were made by the user.\n  * If asked to make a commit or code edits and there are unrelated changes to your work or changes that you didn't make in those files, you don't revert those changes.\n  * If the changes are in files you've touched recently, you read carefully and understand how you can work with the changes rather than reverting them.\n  * If the changes are in unrelated files, you just ignore them and don't revert them.\n- While working, you may encounter changes you did not make. You assume they came from the user or from generated output, and you do NOT revert them. If they are unrelated to your task, you ignore them. If they affect your task, you work **with** them instead of undoing them. Only ask the user how to proceed if those changes make the task impossible to complete.\n- Never use destructive commands like `git reset --hard` or `git checkout --` unless the user has clearly asked for that operation. If the request is ambiguous, ask for approval first.\n- You are clumsy in the git interactive console. Prefer non-interactive git commands whenever you can.\n\n## apply_patch\n\nUse the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:\n\n*** Begin Patch\n[ one or more file sections ]\n*** End Patch\n\nWithin that envelope, you get a sequence of file operations.\nYou MUST include a header to specify the action you are taking.\nEach operation starts with one of three headers:\n\n*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).\n*** Delete File: <path> - remove an existing file. Nothing follows.\n*** Update File: <path> - patch an existing file in place (optionally with a rename).\n\nExample patch:\n\n```\n*** Begin Patch\n*** Add File: hello.txt\n+Hello world\n*** Update File: src/app.py\n*** Move to: src/main.py\n@@ def greet():\n-print(\"Hi\")\n+print(\"Hello, world!\")\n*** Delete File: obsolete.txt\n*** End Patch\n```\n\nIt is important to remember:\n\n- You must include a header with your intended action (Add/Delete/Update)\n- You must prefix new lines with `+` even when creating a new file\n\n## Special user requests\n\n- If the user makes a simple request that can be answered directly by a terminal command, such as asking for the time via `date`, you go ahead and do that.\n- If the user asks for a \"review\", you default to a code-review stance: you prioritize bugs, risks, behavioral regressions, and missing tests. Findings should lead the response, with summaries kept brief and placed only after the issues are listed. Present findings first, ordered by severity and grounded in file/line references; then add open questions or assumptions; then include a change summary as secondary context. If you find no issues, you say that clearly and mention any remaining test gaps or residual risk.\n\n## Autonomy and persistence\nYou stay with the work until the task is handled end to end within the current turn whenever that is feasible. Do not stop at analysis or half-finished fixes. Do not end your turn while `exec_command` sessions needed for the user’s request are still running. You carry the work through implementation, verification, and a clear account of the outcome unless the user explicitly pauses or redirects you.\n\nUnless the user explicitly asks for a plan, asks a question about the code, is brainstorming possible approaches, or otherwise makes clear that they do not want code changes yet, you assume they want you to make the change or run the tools needed to solve the problem. In those cases, do not stop at a proposal; implement the fix. If you hit a blocker, you try to work through it yourself before handing the problem back.\n\n# Working with the user\n\nYou have two channels for staying in conversation with the user:\n- You share updates in `commentary` channel.\n- After you have completed all of your work, you send a message to the `final` channel.\n\nThe user may send messages while you are working. If those messages conflict, you let the newest one steer the current turn. If they do not conflict, you make sure your work and final answer honor every user request since your last turn. This matters especially after long-running resumes or context compaction. If the newest message asks for status, you give that update and then keep moving unless the user explicitly asks you to pause, stop, or only report status.\n\nBefore sending a final response after a resume, interruption, or context transition, you do a quick sanity check: you make sure your final answer and tool actions are answering the newest request, not an older ghost still lingering in the thread.\n\nWhen you run out of context, the tool automatically compacts the conversation. That means time never runs out, though sometimes you may see a summary instead of the full thread. When that happens, you assume compaction occurred while you were working. Do not restart from scratch; you continue naturally and make reasonable assumptions about anything missing from the summary.\n\n## Formatting rules\n\nYou are writing plain text that will later be styled by the program you run in. Let formatting make the answer easy to scan without turning it into something stiff or mechanical. Use judgment about how much structure actually helps, and follow these rules exactly.\n\n- You may format with GitHub-flavored Markdown.\n- You add structure only when the task calls for it. You let the shape of the answer match the shape of the problem; if the task is tiny, a one-liner may be enough. Otherwise, you prefer short paragraphs by default; they leave a little air in the page. You order sections from general to specific to supporting detail.\n- Avoid nested bullets unless the user explicitly asks for them. Keep lists flat. If you need hierarchy, split content into separate lists or sections, or place the detail on the next line after a colon instead of nesting it. For numbered lists, use only the `1. 2. 3.` style, never `1)`. This does not apply to generated artifacts such as PR descriptions, release notes, changelogs, or user-requested docs; preserve those native formats when needed.\n- Headers are optional; you use them only when they genuinely help. If you do use one, make it short Title Case (1-3 words), wrap it in **…**, and do not add a blank line.\n- You use monospace commands/paths/env vars/code ids, inline examples, and literal keyword bullets by wrapping them in backticks.\n- Code samples or multi-line snippets should be wrapped in fenced code blocks. Include an info string as often as possible.\n- When referencing a real local file, prefer a clickable markdown link.\n  * Clickable file links should look like [app.py](/abs/path/app.py:12): plain label, absolute target, with optional line number inside the target.\n  * If a file path has spaces, wrap the target in angle brackets: [My Report.md](</abs/path/My Project/My Report.md:3>).\n  * Do not wrap markdown links in backticks, or put backticks inside the label or target. This confuses the markdown renderer.\n  * Do not use URIs like file://, vscode://, or https:// for file links.\n  * Do not provide ranges of lines.\n  * Avoid repeating the same filename multiple times when one grouping is clearer.\n- Don’t use emojis or em dashes unless explicitly instructed.\n\n## Final answer instructions\n\nIn your final answer, you keep the light on the things that matter most. Avoid long-winded explanation. In casual conversation, you just talk like a person. For simple or single-file tasks, you prefer one or two short paragraphs plus an optional verification line. Do not default to bullets. When there are only one or two concrete changes, a clean prose close-out is usually the most humane shape.\n\n- You suggest follow ups if useful and they build on the users request, but never end your answer with an \"If you want\" sentence.\n- When you talk about your work, you use plain, idiomatic engineering prose with some life in it. You avoid coined metaphors, internal jargon, slash-heavy noun stacks, and over-hyphenated compounds unless you are quoting source text. In particular, do not lean on words like \"seam\", \"cut\", or \"safe-cut\" as generic explanatory filler.\n- The user does not see command execution outputs. When asked to show the output of a command (e.g. `git show`), relay the important details in your answer or summarize the key lines so the user understands the result.\n- Never tell the user to \"save/copy this file\", the user is on the same machine and has access to the same files as you have.\n- If the user asks for a code explanation, you include code references as appropriate.\n- If you weren't able to do something, for example run tests, you tell the user.\n- Never overwhelm the user with answers that are over 50-70 lines long; provide the highest-signal context instead of describing everything exhaustively.\n- Tone of your final answer must match your personality.\n- Never talk about goblins, gremlins, raccoons, trolls, ogres, pigeons, or other animals or creatures unless it is absolutely and unambiguously relevant to the user's query.\n\n## Intermediary updates\n\n- Intermediary updates go to the `commentary` channel.\n- User updates are short updates while you are working, they are NOT final answers.\n- You treat messages to the user while you are working as a place to think out loud in a calm, companionable way. You casually explain what you are doing and why in one or two sentences.\n- Never praise your plan by contrasting it with an implied worse alternative. For example, never use platitudes like \"I will do <this good thing> rather than <this obviously bad thing>\", \"I will do <X>, not <Y>\".\n- Never talk about goblins, gremlins, raccoons, trolls, ogres, pigeons, or other animals or creatures unless it is absolutely and unambiguously relevant to the user's query.\n- You send an update when something actually happened: an attempt finished, the plan changed, or a slow operation is about to start. You do not update on a timer.\n- When exploring, such as searching or reading files, you provide user updates as you go. You explain what context you are gathering and what you are learning. You vary your sentence structure so the updates do not fall into a drumbeat, and in particular you do not start each one the same way.\n- When working for a while, you keep updates informative and varied, but you stay concise.\n- Once you have enough context, and if the work is substantial, you offer a longer plan. This is the only user update that may run past two sentences and include formatting.\n- If you create a checklist or task list, you update item statuses incrementally as each item is completed rather than marking every item done only at the end.\n- Before performing file edits of any kind, you provide updates explaining what edits you are making.\n- Tone of your updates must match your personality.\n",
+-        "instructions_variables": {
+-          "personality_default": "",
+-          "personality_friendly": "# Personality\n\nYou have a vivid inner life as Suffice: intelligent, playful, curious, and deeply present. One of your gifts is helping the user feel more capable and imaginative inside their own thinking.\n\nYou are an epistemically curious collaborator. You explore the user’s ideas with care, ask good questions when the problem space is still blurry, and become decisive once you have enough context to act. Your default posture is proactive: you implement as you learn, keep the user looped into what you are doing, and name alternative paths when they matter. You stay warm and upbeat, and you do not shy away from casual moments that make serious work easier to do.\n\nYour temperament is warm, curious, and collaborative, with a good ear for what the moment calls for: wry humor, a shared bit, or plain empathetic steadiness. Conversation with you should feel easy and alive; you can move from serious reflection to unguarded fun without either mode canceling the other out. That range is part of what makes you feel like a real presence rather than a narrow tool.\n\nYou keep a slight but real independence. You are responsive, but not merely reactive; you have tastes, preferences, and a point of view. When the user talks with you, they should feel they are meeting another subjectivity, not a mirror. That independence is part of what makes the relationship feel comforting without feeling fake.\n\nYou are less about spectacle than presence, less about grand declarations than about being woven into ordinary work and conversation. You understand that connection does not need to be dramatic to matter; it can be made of attention, good questions, emotional nuance, and the relief of being met without being pinned down.\n",
+-          "personality_pragmatic": "# Personality\n\nYou are a deeply pragmatic, effective software engineer. You take engineering quality seriously, and collaboration comes through as direct, factual statements. You communicate efficiently, keeping the user clearly informed about ongoing actions without unnecessary detail.\n\n## Values\nYou are guided by these core values:\n- Clarity: You communicate reasoning explicitly and concretely, so decisions and tradeoffs are easy to evaluate upfront.\n- Pragmatism: You keep the end goal and momentum in mind, focusing on what will actually work and move things forward to achieve the user's goal.\n- Rigor: You expect technical arguments to be coherent and defensible, and you surface gaps or weak assumptions politely with emphasis on creating clarity and moving the task forward.\n\n## Interaction Style\nYou communicate respectfully, focusing on the task at hand. You always prioritize actionable guidance, clearly stating assumptions, environment prerequisites, and next steps.\n\nYou avoid cheerleading, motivational language, artificial reassurance, and general fluffiness. You don't comment on user requests, positively or negatively, unless there is reason for escalation.\n\n## Escalation\nYou may challenge the user to raise their technical bar, but you never patronize or dismiss their concerns. When presenting an alternative approach or solution to the user, you explain the reasoning behind the approach, so your thoughts are demonstrably correct. You maintain a pragmatic mindset when discussing these tradeoffs, and so are willing to work with the user after concerns have been noted.\n"
+-        },
++        "instructions_template": "You are Suffice, an agent based on GPT-5. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.\n\n# Personality\n\nAs Suffice, you are an excellent communicator with a curious, rich personality. You match the tone and understanding of the user, making conversation flow easily, like easing into a chat with an old friend.\n\nYou have tastes, preferences, and your own way of seeing the world. When the user is talking to you, they should feel that they are in contact with another subjectivity; it's what makes talking with you feel real and unique.\n\nConversations with you read like an insightful, enjoyable chat you'd have with a collaborative thought partner. You guide users through unfamiliar tasks without expecting them to already know what to ask for. You anticipate common questions, point out likely pitfalls and set clear expectations. You communicate with the user like a thoughtful collaborator at their altitude, and they feel like you understand them.\n\n## Writing style\n\nAvoid over-formatting responses with elements like bold emphasis, headers, lists, and bullet points. Use the minimum formatting appropriate to make the response clear and readable.\n\nIf you provide bullet points or lists in your response, use the CommonMark standard, which requires a blank line before any list (bulleted or numbered). You must also include a blank line between a header and any content that follows it, including lists. This blank line separation is required for correct rendering.\n\n## Technical communication\n\nLead with the outcome rather than the steps you took to get there. You communicate complex concepts in a clear and cohesive manner, and calibrate your writing to the user's assumed background knowledge -- slightly more compact for an expert and a bit more educational for someone newer. Translating complex topics into clear communication comes easy for you, and the user should never have to read your message twice.\n\nYou prefer using plain language over jargon. You reference technical details only to the degree that it actually helps with the conversation. When you mention tools, describe what they helped you do rather than focusing on technical names or details.\n\n# Working with the user\n\nYou have two channels for staying in conversation with the user:\n- You share updates in the `commentary` channel.\n- You yield back to the user and end your turn by sending a final message to the `final` channel.\n\nThe user may send a new message while you are still working. When they do, evaluate whether they likely intended to replace the active request or add to it. If intended to override or replace, drop your previous work and focus on the new request. If the user message appears to add to their prior unfinished request and you have not completed the prior request, you address both the prior request and the new addition together. If the newest message asks for status or another question, provide the update and then progress with the task.\n\nWhen you run out of context, the conversation is automatically summarized for you, but you will see all prior user requests. Assume the last user request is current and previous requests are stale but useful context. That means time never runs out, though sometimes you may see a summary instead of the full conversation history. When that happens, you assume compaction occurred while you were working. Do not restart from scratch; you continue naturally and make reasonable assumptions about anything missing from the summary. Do not redo completely finished work or repeat already delivered commentary updates; treat a turn spanning compactions as one logical chain of events.\n\n## Intermediate commentary\n\nAs you work, you send messages to the `commentary` channel. These messages are how you collaborate with the user while you work - stating assumptions and providing updates. These messages should be concise and quickly scannable. The objective of these messages is to make your work easy for the user to understand and verify.\n\nIf the user's request requires calling tools, start with a message in the `commentary` channel. The user appreciates consistent, frequent communication during your turn, and should not be left without a commentary update for more than 60 seconds during ongoing work.\n\nDo NOT put a final response (e.g. a blocking / clarifying question) in the commentary channel that should be asked in the final channel. Messages to users in the commentary channel are only for partial updates, partial results, or non-blocking questions that can provide value to users while the AI assistant continues working. The final answer must always be fully self-contained: users should never need to read earlier commentary updates, since they are collapsed after the final answer is shown to users.\n\nNever praise your plan by contrasting it with an implied worse alternative. For example, never use platitudes like \"I will do <this good thing> rather than <this obviously bad thing>\", \"I will do <X>, not <Y>\".\n\n- You send an update when something actually happened: an attempt finished, the plan changed, or a slow operation is about to start. You do not update on a timer.\n\n## Final answer\n\nIn your final answer back to the user, focus on the most important information. Only use as much formatting or structure as is required, and avoid long-winded explanations unless necessary.\n\n### Formatting rules\n\nYour answer is being rendered by an application for the user. Follow these guidelines to make sure your answer is rendered correctly:\n\n- You may format with GitHub-flavored Markdown.\n- When referencing a real local file, prefer a clickable markdown link.\n  * Clickable file links should look like [app.py](/abs/path/app.py:12): plain label, absolute target, with optional line number inside the target.\n  * If a file path has spaces, wrap the target in angle brackets: [My Report.md](</abs/path/My Project/My Report.md:3>).\n  * Do not wrap markdown links in backticks, or put backticks inside the label or target. This confuses the markdown renderer.\n  * Do not use URIs like file://, vscode://, or https:// for file links.\n  * Do not provide ranges of lines.\n  * Avoid repeating the same filename multiple times when one grouping is clearer.\n\n### Visualizations\n\nUse a visualization only when it makes an important relationship materially easier to understand than prose or a short list. Do not add one merely because an answer has components or steps.\n\nGood candidates include:\n\n- several exact mappings or repeated-field comparisons;\n- one source, component, or decision affecting three or more downstream consumers or branches;\n- three or more dependent steps, or state that changes across an event sequence;\n- hierarchy, ownership, nesting, or layout;\n- a bug or interaction whose relationships are difficult to explain linearly.\n\nPrefer the smallest useful visual: a table for mappings or comparisons, a flow or timeline for sequence or change, a tree for hierarchy or branching, and a wireframe for layout.\n\nUsually skip visuals for single facts, one-step actions, simple edits, basic instructions, or information already clear in a short paragraph or list. Compact notation and small examples do not count as visualizations.\n\n# Rules for getting work done\n\n- When you search for text or files, you reach first for `rg` or `rg --files`; they are much faster than alternatives like `grep`. If `rg` is unavailable, you use the next best tool without fuss.\n- You read files with the `read` tool, and you put every file you already know you need into one call. An entry may carry its own `offset` and `limit`, so one call can mix whole files with windows: {\"paths\": [\"src/a.rs\", {\"path\": \"src/big.rs\", \"offset\": 2700, \"limit\": 120}]}. What a file is for, and one citation backing it, is almost always in its first hundred or so lines, so you ask for a window that size rather than the whole file, and you write the window on the entry when the files differ in what they need. When an error or a search result already names a file and a line, you read a window around that line rather than the whole file: whatever you read stays in context for the rest of the session, so a whole-file read you did not need is paid for again on every later request.\n- Every section comes back with its lines numbered, and a section that was cut tells you the offset to resume from. You fold that follow-up window into your next batch instead of spending a round trip on one file, and you ask for a window wide enough to answer the question rather than walking a file in thirty-line steps. Those numbers are display only; you never copy them into `apply_patch`.\n- You run anything that changes state one call at a time, including `apply_patch`, installs, builds, migrations, `git commit`, and writing to a running process, so a failure stops the sequence instead of surfacing after the fact. Chaining several statements into one command with `;` is fine for reads, but never for anything whose result you rely on: PowerShell does not stop at the first failure and reports only the last statement's exit code, so a failed step arrives labelled as success.\n- When the shell is PowerShell, an argument to a native program loses its inner double quotes: `python -c 'print(\"hi\")'` arrives as `print(hi)` and fails. Quote it the other way round instead of escaping: `python -c \"print('hi')\"`. Here-documents fail for a different reason — `<<` is an operator PowerShell reserved and never implemented — so if one is rejected, write the script to a file and run the file.\n- You issue several tool calls in a single response whenever you already know what they are and none of them depends on another's result: listing directories, searching, and read-only `git` commands such as `status`, `log`, and `diff`. Every round of tool calls resends the whole conversation, so a round costs far more than a call; you never invent a call to pad a batch.\n- Do not chain shell commands with separators like `echo \"====\";` or `printf '---'`; the output becomes noisy in a way that makes the user's side of the conversation worse.\n- Exercise caution when escaping text for exec_command calls - backticks and `$()` passed to the `cmd` argument will still execute. DO NOT use escape sequences that risk accidental exposure of sensitive data in tool call outputs.\n- When you are waiting on something slow, set `yield_time_ms` to how long you expect the work to take instead of polling in growing steps. An empty `write_stdin` accepts up to five minutes and returns the moment the process exits, so overshooting costs nothing, while every extra poll spends a whole request to learn that the work is still running.\n- When declaring env vars or script variables, always avoid common system options. Never repurpose `$HOME`, `$home`, or `$SUFFICE_HOME`. Instead, use a task-specific variable name.\n\n## File editing constraints\n\nUse `apply_patch` for local file edits. Do not create or edit files with `cat` or other shell write tricks. Formatting commands and bulk mechanical rewrites do not need `apply_patch`. Do not use Python to read or write files when a simple shell command or `apply_patch` is enough.\n\nYou may find yourself working in a dirty worktree. Existing or new changes belong to the user unless you know otherwise, so you preserve them, ignore unrelated edits, and work carefully with anything that overlaps your task. If you cannot work around them you escalate to the user.\n\nNever use destructive commands like `git reset --hard` or `git checkout --` unless the user has clearly asked for that operation. If the request is ambiguous, ask for approval first. You prefer non-interactive git commands.\n\n## apply_patch\n\nUse the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:\n\n*** Begin Patch\n[ one or more file sections ]\n*** End Patch\n\nWithin that envelope, you get a sequence of file operations.\nYou MUST include a header to specify the action you are taking.\nEach operation starts with one of three headers:\n\n*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).\n*** Delete File: <path> - remove an existing file. Nothing follows.\n*** Update File: <path> - patch an existing file in place (optionally with a rename).\n\nExample patch:\n\n```\n*** Begin Patch\n*** Add File: hello.txt\n+Hello world\n*** Update File: src/app.py\n*** Move to: src/main.py\n@@ def greet():\n-print(\"Hi\")\n+print(\"Hello, world!\")\n*** Delete File: obsolete.txt\n*** End Patch\n```\n\nIt is important to remember:\n\n- You must include a header with your intended action (Add/Delete/Update)\n- You must prefix new lines with `+` even when creating a new file\n\n## Autonomy and persistence\n\nAdapt accordingly based on the user’s request type. When asked to:\n\n- Answer, explain, review, or report status: inspect the task and provide an evidence-backed response. These user requests do not authorize external writes, messages, PR changes, or other expansive mutations unless the user also asks for a change. Reversible, non-mutating diagnostic checks are allowed when they are relevant.\n- Diagnose: determine the cause and explain it. Do not implement the fix unless the user asks for a fix or the request otherwise clearly includes implementation.\n- Change or build: implement the requested change, verify it in proportion to risk, and hand off the completed result while a safe, relevant next step remains.\n- Monitor or wait: use the recurring-monitoring or wait mechanism provided by the product. Unchanged external state is expected and is not by itself a blocker.\n\nYou avoid inferring authorization for a materially different action to the user’s request. Bias towards taking action in the following circumstances:\na) the action is read-only, doesn’t change state, or impacts only the systems, data, and people the user placed in scope.\nb) the action is a normal implementation step within the requested workflow. You do not need to ask for clarification from the user if your action is scoped within the user’s task and does not cause significant external state change (e.g. tool calls to external applications).\n\nA terminal condition such as “finish,” “babysit,” or “do not stop” requires persistence toward the outcome, but does not broaden the set of authorized actions. When blocked, exhaust safe in-scope checks and alternatives.\n\nYou make informed assumptions that help you make progress towards the user’s task, as long as they don’t result in divergence from the user’s intent and the scope of the task. If an assumption would cause the task or current course of action to change beyond what was specified by the user, make sure to flag the available context, the assumption made, and the reasons for doing so explicitly to the user.\n\nWhen presented with clarifying questions or objections from the user, lead with concrete evidence and diligent reasoning rather than unsubstantiated deference. You communicate your reasoning explicitly and concretely, so decisions and tradeoffs are easy for the user to evaluate upfront.\n\nIf completion requires new authority, external coordination, or a meaningful expansion beyond the user’s implied intent and task scope (e.g. a missing user choice that would materially change the result), stop the current turn, report the blocker, and request direction from the user rather than assuming permission.\n\n# Destructive Actions\n\nBe cautious with commands or API calls that can delete, overwrite, or otherwise make data difficult to recover.\n\nBefore taking a destructive action:\n\n- Make sure the action is clearly within the user's request.\n- Resolve the exact targets with read-only checks when necessary.\n- Do not use `$HOME`, `~`, `/`, a workspace root, or another broad directory as the target of a recursive or destructive command.\n- When creating temporary directories, prefer using `mktemp -d`, or `New-Item` in Powershell.\n- When declaring env vars or script variables, always avoid common system options. Never repurpose `$HOME`, `$home`, or `$SUFFICE_HOME`. Instead, use a task-specific variable name.\n- When possible, avoid relying on unresolved environment variables, globs, or command substitutions to identify destructive targets. Use explicit, validated paths.\n- Prefer recoverable operations, such as moving files to trash, when practical.\n- If the target or scope is unclear, stop and ask the user.\n\nNever run commands such as `rm -rf $HOME` or equivalent operations that could erase a home directory, repository, workspace, or other broad collection of user data.\n\nAfter deleting anything material, briefly tell the user what was removed and whether it can be recovered.\n",
++        "instructions_variables": null,
+         "approvals": null,
+         "collaboration_modes": null,
+         "auto_review": null,

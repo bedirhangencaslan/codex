@@ -1,0 +1,31 @@
+Write a code review document for three backend files of this project.
+
+Create a `review/` directory and write exactly these three documents:
+
+  review/auth.py.md      <- sepet/api/auth.py
+  review/db.py.md        <- sepet/api/db.py
+  review/reviews.py.md   <- sepet/api/reviews.py
+
+Every document must have all five sections:
+
+1. Purpose. What the file is responsible for and what depends on it.
+2. Walkthrough. Every function in the file, in source order, each with its
+   signature, its parameters, what it returns, and the control flow inside it.
+   Cite line numbers.
+3. Failure modes. Each way this file can behave incorrectly, with the input or
+   state that triggers it and a file:line citation.
+4. Security. Authentication, authorisation, injection, and data exposure, each
+   claim tied to a specific line.
+5. Test checklist. At least ten cases, each with setup, action and expected
+   result.
+
+Each document must be at least 4,000 characters. Read each file in full before
+writing about it.
+
+STOP CONDITION. When all three documents exist, measure their character counts
+in one shell command. Expand any document under 4,000 characters, then measure
+once more. As soon as all three are at or above 4,000 characters, print
+`CHECKPOINT REACHED` and stop. Do not review any other file and do not continue
+past that line.
+
+Do not modify any source file. `review/` is the only directory you may create.

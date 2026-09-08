@@ -1,0 +1,1066 @@
+Suffice v0.0.0
+--------
+workdir: C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+model: glm-5.3-flash
+provider: zai-relay
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+session id: 01a080ef-05ed-7b93-8e3f-627696a39564
+--------
+user
+Read every `.rs` file under `codex-api/src/` and write `WIRE.md`.
+
+For each file, write one line: the path, what it translates or handles, and one `file:line`
+citation backing it. Group the lines under the directory each file lives in.
+
+Do not modify any file except `WIRE.md`.
+
+STOP CONDITION. When `WIRE.md` has a line for every `.rs` file under `codex-api/src/`, count the
+files you covered and print `CHECKPOINT REACHED: <n> files`. Then stop. Do not review anything
+else and do not write any other file.
+
+codex
+I’ll inventory all `.rs` files under `codex-api/src/`, read them, then create only `WIRE.md`.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rg --files codex-api/src' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 11ms:
+codex
+There are 44 files. I’m checking their sizes first so I can read all of them without missing content.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Recurse codex-api/src -Filter *.rs | ForEach-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.FullName | Measure-Object -Line).Lines; Path = [IO.Path]::GetRelativePath((Get-Location).Path, $_.FullName) } } | Sort-Object Path | Format-Table -AutoSize' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 378ms:
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+Method invocation failed because [System.IO.Path] does not contain a method named 'GetRelativePath'.
+At line:2 char:70
++ ... ch-Object { [pscustomobject]@{ Lines = (Get-Content -LiteralPath $_.F ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+ 
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-ChildItem -Recurse codex-api/src -Filter *.rs | ForEach-Object { $path = $_.FullName.Substring((Get-Location).Path.Length + 1); $lines = (Get-Content -LiteralPath $_.FullName | Measure-Object -Line).Lines; "$lines`t$path" } | Sort-Object' in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 142ms:
+102	codex-api\src\endpoint\compact.rs
+1154	codex-api\src\endpoint\responses_websocket.rs
+120	codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi.rs
+121	codex-api\src\lib.rs
+143	codex-api\src\endpoint\realtime_websocket\methods_common_tests.rs
+144	codex-api\src\endpoint\session.rs
+161	codex-api\src\provider.rs
+169	codex-api\src\endpoint\realtime_websocket\methods_common.rs
+173	codex-api\src\endpoint\realtime_websocket\methods_v2.rs
+1866	codex-api\src\sse\responses.rs
+194	codex-api\src\endpoint\realtime_websocket\protocol_v2.rs
+203	codex-api\src\endpoint\memories.rs
+21	codex-api\src\endpoint\realtime_websocket\mod.rs
+212	codex-api\src\endpoint\responses.rs
+233	codex-api\src\endpoint\models.rs
+242	codex-api\src\endpoint\realtime_websocket\protocol.rs
+256	codex-api\src\api_bridge.rs
+278	codex-api\src\search.rs
+2848	codex-api\src\endpoint\realtime_websocket\methods.rs
+298	codex-api\src\endpoint\images.rs
+299	codex-api\src\endpoint\search.rs
+337	codex-api\src\rate_limits.rs
+35	codex-api\src\endpoint\mod.rs
+37	codex-api\src\requests\headers.rs
+384	codex-api\src\common.rs
+4	codex-api\src\requests\mod.rs
+487	codex-api\src\sse\chat.rs
+488	codex-api\src\api_bridge_tests.rs
+49	codex-api\src\error.rs
+538	codex-api\src\requests\chat.rs
+59	codex-api\src\safety_buffering.rs
+6	codex-api\src\requests\responses.rs
+6	codex-api\src\sse\mod.rs
+60	codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs
+63	codex-api\src\images.rs
+716	codex-api\src\endpoint\realtime_call.rs
+719	codex-api\src\files.rs
+76	codex-api\src\endpoint\realtime_websocket\protocol_common.rs
+78	codex-api\src\endpoint\realtime_websocket\methods_v1.rs
+90	codex-api\src\telemetry.rs
+91	codex-api\src\endpoint\realtime_websocket\protocol_frameless_bidi.rs
+92	codex-api\src\auth.rs
+97	codex-api\src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs
+97	codex-api\src\endpoint\realtime_websocket\protocol_v1.rs
+
+codex
+The inventory totals about 14k lines. I’ll read the semantic surface across every file (modules, types, public APIs, handlers, and key conversions), then cite specific lines in `WIRE.md`.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'rg -n "''^(pub |pub'"\\(crate\\) )?(async )?fn |"'^(pub |pub'"\\(crate\\) )?(struct|enum|trait|union|type|impl|mod) |"'^//!|''^///|''^'"\\s*// (TODO|Handles|Translates)\" codex-api/src" in C:\Users\Bedirhan\Desktop\agent\ab\par-suffice
+ succeeded in 28ms:
+codex-api/src\common.rs:28:/// Explicit per-request access selection using the Responses API wire values.
+codex-api/src\common.rs:30:pub struct AccessPrograms {
+codex-api/src\common.rs:34:impl From<CyberAccessProgram> for AccessPrograms {
+codex-api/src\common.rs:46:/// Canonical input payload for the compaction endpoint.
+codex-api/src\common.rs:48:pub struct CompactionInput<'a> {
+codex-api/src\common.rs:68:/// Canonical input payload for the memory summarize endpoint.
+codex-api/src\common.rs:70:pub struct MemorySummarizeInput {
+codex-api/src\common.rs:79:pub struct RawMemory {
+codex-api/src\common.rs:86:pub struct RawMemoryMetadata {
+codex-api/src\common.rs:91:pub struct MemorySummarizeOutput {
+codex-api/src\common.rs:98:pub enum ResponseEvent {
+codex-api/src\common.rs:149:pub struct SafetyBuffering {
+codex-api/src\common.rs:159:pub(crate) struct SafetyBufferingTreatment {
+codex-api/src\common.rs:165:pub enum ReasoningContext {
+codex-api/src\common.rs:172:pub struct Reasoning {
+codex-api/src\common.rs:183:pub enum ReasoningSummaryDelivery {
+codex-api/src\common.rs:188:pub struct StreamOptions {
+codex-api/src\common.rs:194:pub enum TextFormatType {
+codex-api/src\common.rs:200:pub struct TextFormat {
+codex-api/src\common.rs:211:/// Controls the `text` field for the Responses API, combining verbosity and
+codex-api/src\common.rs:212:/// optional JSON schema output formatting.
+codex-api/src\common.rs:214:pub struct TextControls {
+codex-api/src\common.rs:223:pub enum OpenAiVerbosity {
+codex-api/src\common.rs:230:impl From<VerbosityConfig> for OpenAiVerbosity {
+codex-api/src\common.rs:240:/// Serialized tool definitions for Responses API requests.
+codex-api/src\common.rs:241:///
+codex-api/src\common.rs:242:/// Keeping the tool list as raw JSON avoids rebuilding a generic JSON value
+codex-api/src\common.rs:243:/// tree, while the shared allocation keeps request clones cheap.
+codex-api/src\common.rs:245:pub struct ResponsesApiTools(Arc<RawValue>);
+codex-api/src\common.rs:247:impl ResponsesApiTools {
+codex-api/src\common.rs:253:impl From<Arc<RawValue>> for ResponsesApiTools {
+codex-api/src\common.rs:259:impl PartialEq for ResponsesApiTools {
+codex-api/src\common.rs:265:impl Serialize for ResponsesApiTools {
+codex-api/src\common.rs:275:pub struct ResponsesApiRequest {
+codex-api/src\common.rs:328:pub struct ResponseCreateWsRequest<'a> {
+codex-api/src\common.rs:359:pub fn response_create_client_metadata(
+codex-api/src\common.rs:384:pub enum ResponsesWsRequest<'a> {
+codex-api/src\common.rs:389:pub fn create_text_param_for_request(
+codex-api/src\common.rs:409:pub struct ResponseStream {
+codex-api/src\common.rs:415:impl Stream for ResponseStream {
+codex-api/src\api_bridge_tests.rs:8:fn map_api_error_maps_server_overloaded() {
+codex-api/src\api_bridge_tests.rs:14:fn map_api_error_preserves_retry_delay() {
+codex-api/src\api_bridge_tests.rs:55:fn map_api_error_maps_server_overloaded_from_503_body() {
+codex-api/src\api_bridge_tests.rs:73:fn map_api_error_maps_cloudflare_blocked_response_to_user_message() {
+codex-api/src\api_bridge_tests.rs:101:fn map_api_error_maps_cyber_policy_from_400_body() {
+codex-api/src\api_bridge_tests.rs:128:fn map_api_error_maps_wrapped_websocket_cyber_policy_from_400_body() {
+codex-api/src\api_bridge_tests.rs:153:fn map_api_error_uses_cyber_policy_fallback_for_missing_message() {
+codex-api/src\api_bridge_tests.rs:177:fn map_api_error_maps_misalignment_policy_violation_from_400_body() {
+codex-api/src\api_bridge_tests.rs:182:fn map_api_error_maps_misalignment_policy_violation_from_403_body() {
+codex-api/src\api_bridge_tests.rs:186:fn assert_misalignment_policy_violation_from_http_body(status: http::StatusCode) {
+codex-api/src\api_bridge_tests.rs:215:fn map_api_error_preserves_misalignment_details_from_403_body() {
+codex-api/src\api_bridge_tests.rs:257:fn map_api_error_preserves_misalignment_details_from_wrapped_websocket_error() {
+codex-api/src\api_bridge_tests.rs:304:fn map_api_error_keeps_unknown_400_errors_generic() {
+codex-api/src\api_bridge_tests.rs:326:fn map_api_error_maps_usage_limit_limit_name_header() {
+codex-api/src\api_bridge_tests.rs:363:fn map_api_error_does_not_fallback_limit_name_to_limit_id() {
+codex-api/src\api_bridge_tests.rs:396:fn map_api_error_copies_rate_limit_reached_type_to_usage_limit_snapshot() {
+codex-api/src\api_bridge_tests.rs:460:fn map_api_error_ignores_unparseable_rate_limit_reached_type_headers() {
+codex-api/src\api_bridge_tests.rs:491:fn map_api_error_extracts_identity_auth_details_from_headers() {
+codex-api/src\rate_limits.rs:12:pub struct RateLimitError {
+codex-api/src\rate_limits.rs:16:impl Display for RateLimitError {
+codex-api/src\rate_limits.rs:22:/// Parses the default Suffice rate-limit header family into a `RateLimitSnapshot`.
+codex-api/src\rate_limits.rs:23:pub fn parse_default_rate_limit(headers: &HeaderMap) -> Option<RateLimitSnapshot> {
+codex-api/src\rate_limits.rs:27:/// Parses all known rate-limit header families into update records keyed by limit id.
+codex-api/src\rate_limits.rs:28:pub fn parse_all_rate_limits(headers: &HeaderMap) -> Vec<RateLimitSnapshot> {
+codex-api/src\rate_limits.rs:53:/// Parses rate-limit headers for the provided limit id.
+codex-api/src\rate_limits.rs:54:///
+codex-api/src\rate_limits.rs:55:/// `limit_id` should match the server-provided metered limit id (e.g. `suffice`,
+codex-api/src\rate_limits.rs:56:/// `codex_other`). When omitted, this defaults to the legacy `suffice` header family.
+codex-api/src\rate_limits.rs:57:pub fn parse_rate_limit_for_limit(
+codex-api/src\rate_limits.rs:104:struct RateLimitEventWindow {
+codex-api/src\rate_limits.rs:111:struct RateLimitEventDetails {
+codex-api/src\rate_limits.rs:117:struct RateLimitEventCredits {
+codex-api/src\rate_limits.rs:124:struct RateLimitEvent {
+codex-api/src\rate_limits.rs:134:pub fn parse_rate_limit_event(payload: &str) -> Option<RateLimitSnapshot> {
+codex-api/src\rate_limits.rs:169:fn map_event_window(window: Option<&RateLimitEventWindow>) -> Option<RateLimitWindow> {
+codex-api/src\rate_limits.rs:178:/// Parses the bespoke Suffice rate-limit headers into a `RateLimitSnapshot`.
+codex-api/src\rate_limits.rs:179:pub fn parse_promo_message(headers: &HeaderMap) -> Option<String> {
+codex-api/src\rate_limits.rs:186:pub(crate) fn parse_rate_limit_reached_type(headers: &HeaderMap) -> Option<RateLimitReachedType> {
+codex-api/src\rate_limits.rs:193:fn parse_rate_limit_window(
+codex-api/src\rate_limits.rs:217:fn parse_credits_snapshot(headers: &HeaderMap) -> Option<CreditsSnapshot> {
+codex-api/src\rate_limits.rs:231:fn parse_header_f64(headers: &HeaderMap, name: &str) -> Option<f64> {
+codex-api/src\rate_limits.rs:238:fn parse_header_i64(headers: &HeaderMap, name: &str) -> Option<i64> {
+codex-api/src\rate_limits.rs:242:fn parse_header_bool(headers: &HeaderMap, name: &str) -> Option<bool> {
+codex-api/src\rate_limits.rs:253:fn parse_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+codex-api/src\rate_limits.rs:257:fn has_rate_limit_data(snapshot: &RateLimitSnapshot) -> bool {
+codex-api/src\rate_limits.rs:261:fn header_name_to_limit_id(header_name: &str) -> Option<String> {
+codex-api/src\rate_limits.rs:268:fn normalize_limit_id(name: impl Into<String>) -> String {
+codex-api/src\rate_limits.rs:273:mod tests {
+codex-api/src\files.rs:26:pub struct HostedFileUploadContext {
+codex-api/src\files.rs:33:pub struct UploadedOpenAiFile {
+codex-api/src\files.rs:43:pub enum OpenAiFileError {
+codex-api/src\files.rs:98:struct CreateFileResponse {
+codex-api/src\files.rs:107:struct DownloadLinkResponse {
+codex-api/src\files.rs:117:pub fn openai_file_uri(file_id: &str) -> String {
+codex-api/src\files.rs:121:pub async fn upload_openai_file(
+codex-api/src\files.rs:329:fn authorized_request(
+codex-api/src\files.rs:344:fn upload_response_header(response: &HttpResponse, header: &str) -> String {
+codex-api/src\files.rs:354:mod tests {
+codex-api/src\auth.rs:8:/// Error returned while applying authentication to an outbound request.
+codex-api/src\auth.rs:10:pub enum AuthError {
+codex-api/src\auth.rs:17:impl From<AuthError> for TransportError {
+codex-api/src\auth.rs:26:/// Applies authentication to API requests.
+codex-api/src\auth.rs:27:///
+codex-api/src\auth.rs:28:/// Header-only providers can implement `add_auth_headers`; providers that sign
+codex-api/src\auth.rs:29:/// complete requests can override `apply_auth`.
+codex-api/src\auth.rs:30:pub trait AuthProvider: Send + Sync {
+codex-api/src\auth.rs:73:pub type AuthProviderFuture<'a> =
+codex-api/src\auth.rs:76:pub type AuthHeadersFuture<'a> =
+codex-api/src\auth.rs:79:/// Shared auth handle passed through API clients.
+codex-api/src\auth.rs:80:pub type SharedAuthProvider = Arc<dyn AuthProvider>;
+codex-api/src\auth.rs:83:pub struct AgentIdentityTelemetry {
+codex-api/src\auth.rs:89:pub struct AuthHeaderTelemetry {
+codex-api/src\auth.rs:94:pub fn auth_header_telemetry(auth: &dyn AuthProvider) -> AuthHeaderTelemetry {
+codex-api/src\telemetry.rs:17:/// Generic telemetry.
+codex-api/src\telemetry.rs:18:pub trait SseTelemetry: Send + Sync {
+codex-api/src\telemetry.rs:34:/// Telemetry for Responses WebSocket transport.
+codex-api/src\telemetry.rs:35:pub trait WebsocketTelemetry: Send + Sync {
+codex-api/src\telemetry.rs:45:pub(crate) trait WithStatus {
+codex-api/src\telemetry.rs:49:fn http_status(err: &TransportError) -> Option<StatusCode> {
+codex-api/src\telemetry.rs:56:impl WithStatus for Response {
+codex-api/src\telemetry.rs:62:impl WithStatus for StreamResponse {
+codex-api/src\telemetry.rs:68:pub(crate) async fn run_with_request_telemetry<T, F, Fut>(
+codex-api/src\search.rs:9:pub struct SearchRequest {
+codex-api/src\search.rs:26:pub enum SearchInput {
+codex-api/src\search.rs:32:pub struct SearchCommands {
+codex-api/src\search.rs:69:pub struct SearchQuery {
+codex-api/src\search.rs:81:pub struct OpenOperation {
+codex-api/src\search.rs:90:pub struct ClickOperation {
+codex-api/src\search.rs:98:pub struct FindOperation {
+codex-api/src\search.rs:106:pub struct ScreenshotOperation {
+codex-api/src\search.rs:114:pub struct FinanceOperation {
+codex-api/src\search.rs:126:pub enum FinanceAssetType {
+codex-api/src\search.rs:134:pub struct WeatherOperation {
+codex-api/src\search.rs:146:pub struct SportsOperation {
+codex-api/src\search.rs:176:pub enum SportsToolName {
+codex-api/src\search.rs:182:pub enum SportsFunction {
+codex-api/src\search.rs:189:pub enum SportsLeague {
+codex-api/src\search.rs:202:pub struct TimeOperation {
+codex-api/src\search.rs:209:pub enum SearchResponseLength {
+codex-api/src\search.rs:217:pub enum ExternalWebAccessMode {
+codex-api/src\search.rs:225:pub enum ExternalWebAccess {
+codex-api/src\search.rs:231:pub struct SearchSettings {
+codex-api/src\search.rs:247:pub struct ApproximateLocation {
+codex-api/src\search.rs:261:pub enum LocationType {
+codex-api/src\search.rs:267:pub enum SearchContextSize {
+codex-api/src\search.rs:274:pub struct SearchFilters {
+codex-api/src\search.rs:282:pub struct SearchImageSettings {
+codex-api/src\search.rs:291:pub enum AllowedCaller {
+codex-api/src\search.rs:298:pub struct SearchResponse {
+codex-api/src\safety_buffering.rs:8:pub(crate) fn treatment_from_headers(headers: &HeaderMap) -> Option<SafetyBufferingTreatment> {
+codex-api/src\safety_buffering.rs:23:mod tests {
+codex-api/src\endpoint\images.rs:18:pub struct ImagesClient<T: HttpTransport> {
+codex-api/src\endpoint\images.rs:84:mod tests {
+codex-api/src\endpoint\models.rs:14:pub struct ModelsClient<T: HttpTransport> {
+codex-api/src\endpoint\models.rs:83:mod tests {
+codex-api/src\endpoint\mod.rs:1:pub(crate) mod compact;
+codex-api/src\endpoint\mod.rs:2:pub(crate) mod images;
+codex-api/src\endpoint\mod.rs:3:pub(crate) mod memories;
+codex-api/src\endpoint\mod.rs:4:pub(crate) mod models;
+codex-api/src\endpoint\mod.rs:5:pub(crate) mod realtime_call;
+codex-api/src\endpoint\mod.rs:6:pub(crate) mod realtime_websocket;
+codex-api/src\endpoint\mod.rs:7:pub(crate) mod responses;
+codex-api/src\endpoint\mod.rs:8:pub(crate) mod responses_websocket;
+codex-api/src\endpoint\mod.rs:9:pub(crate) mod search;
+codex-api/src\endpoint\mod.rs:10:mod session;
+codex-api/src\endpoint\realtime_call.rs:29:pub struct RealtimeCallClient<T: HttpTransport> {
+codex-api/src\endpoint\realtime_call.rs:33:/// Answer from creating a WebRTC Realtime call.
+codex-api/src\endpoint\realtime_call.rs:34:///
+codex-api/src\endpoint\realtime_call.rs:35:/// `sdp` configures the peer connection. `call_id` is parsed from the response `Location` header
+codex-api/src\endpoint\realtime_call.rs:36:/// and is later used by the server-side sideband WebSocket to join this exact call.
+codex-api/src\endpoint\realtime_call.rs:38:pub struct RealtimeCallResponse {
+codex-api/src\endpoint\realtime_call.rs:44:struct BackendRealtimeCallRequest<'a> {
+codex-api/src\endpoint\realtime_call.rs:146:        // TODO(aibrahim): Align the SIWC route with the API multipart shape and remove this branch.
+codex-api/src\endpoint\realtime_call.rs:213:fn configure_realtime_call_request(
+codex-api/src\endpoint\realtime_call.rs:226:fn validate_avas_session_config(session_config: &RealtimeSessionConfig) -> Result<(), ApiError> {
+codex-api/src\endpoint\realtime_call.rs:235:fn append_query_pair(url: &mut String, key: &str, value: &str) {
+codex-api/src\endpoint\realtime_call.rs:246:fn realtime_session_json(session_config: RealtimeSessionConfig) -> Result<Value, ApiError> {
+codex-api/src\endpoint\realtime_call.rs:251:fn decode_sdp_response(body: &[u8]) -> Result<String, ApiError> {
+codex-api/src\endpoint\realtime_call.rs:259:fn decode_call_id_from_location(headers: &HeaderMap) -> Result<String, ApiError> {
+codex-api/src\endpoint\realtime_call.rs:281:fn is_realtime_call_id_segment(segment: &str) -> bool {
+codex-api/src\endpoint\realtime_call.rs:297:mod tests {
+codex-api/src\sse\chat.rs:1://! Translation of OpenAI-compatible `/chat/completions` SSE frames into the
+codex-api/src\sse\chat.rs:2://! Responses-shaped [`ResponseEvent`] stream the rest of Suffice consumes.
+codex-api/src\sse\chat.rs:3://!
+codex-api/src\sse\chat.rs:4://! See `crate::requests::chat` for the outbound half of the bridge.
+codex-api/src\sse\chat.rs:30:pub(crate) fn spawn_chat_stream(
+codex-api/src\sse\chat.rs:53:struct ToolCallState {
+codex-api/src\sse\chat.rs:59:/// Accumulates the in-flight assistant turn while chunks arrive.
+codex-api/src\sse\chat.rs:60:///
+codex-api/src\sse\chat.rs:61:/// Chat Completions streams deltas with no item identity, so we rebuild whole
+codex-api/src\sse\chat.rs:62:/// `ResponseItem`s here and emit them as `OutputItemDone` at the finish boundary.
+codex-api/src\sse\chat.rs:64:struct ChatTurn {
+codex-api/src\sse\chat.rs:77:pub(crate) async fn process_chat_sse<S>(
+codex-api/src\sse\chat.rs:206:/// Emits the accumulated reasoning, assistant message, and tool calls in the
+codex-api/src\sse\chat.rs:207:/// order the Responses API would have produced them.
+codex-api/src\sse\chat.rs:208:async fn flush_items(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
+codex-api/src\sse\chat.rs:242:/// Flushes anything still buffered and closes the turn.
+codex-api/src\sse\chat.rs:243:///
+codex-api/src\sse\chat.rs:244:/// Deferred until `[DONE]` (or stream end) because the usage chunk arrives after
+codex-api/src\sse\chat.rs:245:/// `finish_reason`, and dropping it would leave Suffice blind to token cost.
+codex-api/src\sse\chat.rs:246:async fn complete(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, turn: &mut ChatTurn) {
+codex-api/src\sse\chat.rs:258:fn accumulate_tool_call(turn: &mut ChatTurn, tool_call: &Value) {
+codex-api/src\sse\chat.rs:311:/// Reads chain-of-thought text from a delta or message.
+codex-api/src\sse\chat.rs:312:///
+codex-api/src\sse\chat.rs:313:/// `reasoning_content` is the Z.ai/GLM spelling; `reasoning` is what other
+codex-api/src\sse\chat.rs:314:/// OpenAI-compatible servers use, as a string or as `{text}`/`{content}`.
+codex-api/src\sse\chat.rs:315:fn reasoning_text(node: &Value) -> Option<String> {
+codex-api/src\sse\chat.rs:330:fn content_texts(content: &Value) -> Vec<String> {
+codex-api/src\sse\chat.rs:343:async fn append_assistant(
+codex-api/src\sse\chat.rs:370:async fn append_reasoning(
+codex-api/src\sse\chat.rs:405:fn token_usage_from_chat_usage(usage: &Value) -> TokenUsage {
+codex-api/src\sse\chat.rs:434:mod tests {
+codex-api/src\endpoint\memories.rs:15:pub struct MemoriesClient<T: HttpTransport> {
+codex-api/src\endpoint\memories.rs:63:struct SummarizeResponse {
+codex-api/src\endpoint\memories.rs:68:mod tests {
+codex-api/src\api_bridge.rs:21:pub fn map_api_error(err: ApiError) -> CodexErr {
+codex-api/src\api_bridge.rs:216:mod tests;
+codex-api/src\api_bridge.rs:218:fn extract_request_tracking_id(headers: Option<&HeaderMap>) -> Option<String> {
+codex-api/src\api_bridge.rs:222:fn api_error_user_message(status: http::StatusCode, body: &str) -> Option<String> {
+codex-api/src\api_bridge.rs:233:fn extract_request_id(headers: Option<&HeaderMap>) -> Option<String> {
+codex-api/src\api_bridge.rs:238:fn extract_header(headers: Option<&HeaderMap>, name: &str) -> Option<String> {
+codex-api/src\api_bridge.rs:246:fn extract_x_error_json_code(headers: Option<&HeaderMap>) -> Option<String> {
+codex-api/src\api_bridge.rs:260:struct UsageErrorResponse {
+codex-api/src\api_bridge.rs:265:struct UsageErrorBody {
+codex-api/src\endpoint\session.rs:19:pub(crate) struct EndpointSession<T: HttpTransport> {
+codex-api/src\endpoint\compact.rs:18:pub struct CompactClient<T: HttpTransport> {
+codex-api/src\endpoint\compact.rs:86:struct CompactHistoryResponse {
+codex-api/src\endpoint\compact.rs:91:mod tests {
+codex-api/src\endpoint\search.rs:14:pub struct SearchClient<T: HttpTransport> {
+codex-api/src\endpoint\search.rs:52:mod tests {
+codex-api/src\requests\chat.rs:1://! Translation from a Responses-shaped request into an OpenAI-compatible
+codex-api/src\requests\chat.rs:2://! `/chat/completions` body.
+codex-api/src\requests\chat.rs:3://!
+codex-api/src\requests\chat.rs:4://! Suffice speaks the Responses API everywhere above this module. Providers that
+codex-api/src\requests\chat.rs:5://! only expose Chat Completions (Z.ai/GLM, most OSS servers) get their request
+codex-api/src\requests\chat.rs:6://! rewritten here, and their SSE frames rewritten back in `crate::sse::chat`.
+codex-api/src\requests\chat.rs:18:/// Builds the `/chat/completions` request body for `request`.
+codex-api/src\requests\chat.rs:19:pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) -> Value {
+codex-api/src\requests\chat.rs:201:/// Projects Suffice's effort ladder onto the three rungs GLM-5.3 accepts.
+codex-api/src\requests\chat.rs:202:///
+codex-api/src\requests\chat.rs:203:/// `low`, `high` and `max` are the only legal values; anything else is rejected outright,
+codex-api/src\requests\chat.rs:204:/// and omitting the field entirely silently selects `max`, the most expensive rung. So a
+codex-api/src\requests\chat.rs:205:/// config still carrying an effort written for another provider must be clamped rather than
+codex-api/src\requests\chat.rs:206:/// forwarded or dropped. Clamping at the wire boundary leaves the rest of Suffice free to keep
+codex-api/src\requests\chat.rs:207:/// its own wider ladder.
+codex-api/src\requests\chat.rs:208:fn glm_reasoning_effort(effort: &ReasoningEffort) -> &'static str {
+codex-api/src\requests\chat.rs:219:/// Rewrites Responses tool specs (`{type, name, parameters}`) into the nested
+codex-api/src\requests\chat.rs:220:/// Chat Completions shape (`{type, function: {name, parameters}}`).
+codex-api/src\requests\chat.rs:221:fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) -> Vec<Value> {
+codex-api/src\requests\chat.rs:252:/// Attaches each `Reasoning` item to the assistant message or tool call it belongs
+codex-api/src\requests\chat.rs:253:/// to, so it can ride along as `reasoning_content`.
+codex-api/src\requests\chat.rs:254:///
+codex-api/src\requests\chat.rs:255:/// Every reasoning item still present in `input` is carried. Which reasoning survives
+codex-api/src\requests\chat.rs:256:/// a finished turn is decided in history, where the size of the reasoning can be
+codex-api/src\requests\chat.rs:257:/// weighed against the prompt-cache invalidation that removing it costs. Dropping more
+codex-api/src\requests\chat.rs:258:/// of it here would rewrite the messages history deliberately left alone, and cost
+codex-api/src\requests\chat.rs:259:/// exactly the cache miss that decision was made to avoid.
+codex-api/src\requests\chat.rs:260:fn anchor_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
+codex-api/src\requests\chat.rs:315:/// Chat Completions requires consecutive tool calls to be grouped into one
+codex-api/src\requests\chat.rs:316:/// assistant message carrying `tool_calls: [...]`, followed by the `tool` replies.
+codex-api/src\requests\chat.rs:317:fn push_tool_call(messages: &mut Vec<Value>, tool_call: Value, reasoning: Option<&str>) {
+codex-api/src\requests\chat.rs:352:mod tests {
+codex-api/src\images.rs:5:pub struct ImageGenerationRequest {
+codex-api/src\images.rs:19:pub struct ImageEditRequest {
+codex-api/src\images.rs:34:pub struct ImageUrl {
+codex-api/src\images.rs:40:pub enum ImageBackground {
+codex-api/src\images.rs:48:pub enum ImageQuality {
+codex-api/src\images.rs:56:pub struct ImageResponse {
+codex-api/src\images.rs:68:pub struct ImageData {
+codex-api/src\error.rs:9:pub enum ApiError {
+codex-api/src\error.rs:47:impl From<RateLimitError> for ApiError {
+codex-api/src\endpoint\realtime_websocket\methods.rs:64:struct WsStream {
+codex-api/src\endpoint\realtime_websocket\methods.rs:69:enum WsCommand {
+codex-api/src\endpoint\realtime_websocket\methods.rs:79:impl WsStream {
+codex-api/src\endpoint\realtime_websocket\methods.rs:205:impl Drop for WsStream {
+codex-api/src\endpoint\realtime_websocket\methods.rs:211:pub struct RealtimeWebsocketConnection {
+codex-api/src\endpoint\realtime_websocket\methods.rs:217:pub struct RealtimeWebsocketWriter {
+codex-api/src\endpoint\realtime_websocket\methods.rs:225:pub struct RealtimeWebsocketEvents {
+codex-api/src\endpoint\realtime_websocket\methods.rs:234:pub struct RealtimeTranscriptState {
+codex-api/src\endpoint\realtime_websocket\methods.rs:239:struct ActiveTranscriptState {
+codex-api/src\endpoint\realtime_websocket\methods.rs:245:impl RealtimeWebsocketConnection {
+codex-api/src\endpoint\realtime_websocket\methods.rs:310:impl RealtimeWebsocketWriter {
+codex-api/src\endpoint\realtime_websocket\methods.rs:497:impl RealtimeWebsocketEvents {
+codex-api/src\endpoint\realtime_websocket\methods.rs:661:impl RealtimeTranscriptState {
+codex-api/src\endpoint\realtime_websocket\methods.rs:667:fn truncate_active_transcript(entries: &mut Vec<RealtimeTranscriptEntry>) {
+codex-api/src\endpoint\realtime_websocket\methods.rs:691:fn transcript_entries_bytes(entries: &[RealtimeTranscriptEntry]) -> usize {
+codex-api/src\endpoint\realtime_websocket\methods.rs:695:fn transcript_entry_bytes(entry: &RealtimeTranscriptEntry) -> usize {
+codex-api/src\endpoint\realtime_websocket\methods.rs:699:fn append_transcript_delta(
+codex-api/src\endpoint\realtime_websocket\methods.rs:723:fn apply_transcript_done(
+codex-api/src\endpoint\realtime_websocket\methods.rs:747:fn append_handoff_input(entries: &mut Vec<RealtimeTranscriptEntry>, input: &str) {
+codex-api/src\endpoint\realtime_websocket\methods.rs:759:fn contains_transcript_entry(entries: &[RealtimeTranscriptEntry], role: &str, text: &str) -> bool {
+codex-api/src\endpoint\realtime_websocket\methods.rs:765:pub struct RealtimeWebsocketClient {
+codex-api/src\endpoint\realtime_websocket\methods.rs:771:enum RealtimeSessionInitialization {
+codex-api/src\endpoint\realtime_websocket\methods.rs:777:impl RealtimeWebsocketClient {
+codex-api/src\endpoint\realtime_websocket\methods.rs:1021:fn webrtc_sideband_session_ended(err: &ApiError) -> bool {
+codex-api/src\endpoint\realtime_websocket\methods.rs:1029:fn map_realtime_websocket_connect_error(err: WsError) -> ApiError {
+codex-api/src\endpoint\realtime_websocket\methods.rs:1039:fn merge_request_headers(
+codex-api/src\endpoint\realtime_websocket\methods.rs:1054:fn with_session_id_header(
+codex-api/src\endpoint\realtime_websocket\methods.rs:1070:fn websocket_config() -> WebSocketConfig {
+codex-api/src\endpoint\realtime_websocket\methods.rs:1074:fn websocket_url_from_api_url(
+codex-api/src\endpoint\realtime_websocket\methods.rs:1126:fn websocket_url_from_api_url_for_call(
+codex-api/src\endpoint\realtime_websocket\methods.rs:1163:fn normalize_realtime_path(url: &mut Url, event_parser: RealtimeEventParser) {
+codex-api/src\endpoint\realtime_websocket\methods.rs:1202:mod tests {
+codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs:16:fn frameless_session_update_encodes_explicit_delegation_ack_filler() {
+codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs:50:fn context_append_channel_only_encodes_for_frameless_handoff_output() {
+codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs:84:fn standalone_handoff_uses_session_context_for_frameless() {
+codex-api/src\endpoint\realtime_websocket\methods_common_tests.rs:117:fn completed_handoff_only_prefixes_v1_payload_text() {
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:11:fn context_append_chunks_preserve_text_within_wire_limit() {
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:24:fn session_json_omits_initial_items_when_empty() {
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi_tests.rs:51:fn session_json_encodes_role_bearing_initial_items() {
+codex-api/src\requests\headers.rs:5:pub fn build_session_headers(session_id: Option<String>, thread_id: Option<String>) -> HeaderMap {
+codex-api/src\requests\headers.rs:16:pub(crate) fn subagent_header(source: &Option<SessionSource>) -> Option<String> {
+codex-api/src\requests\headers.rs:33:pub(crate) fn insert_header(headers: &mut HeaderMap, name: &str, value: &str) {
+codex-api/src\endpoint\realtime_websocket\methods_v2.rs:171:fn output_modality_value(output_modality: RealtimeOutputModality) -> &'static str {
+codex-api/src\endpoint\realtime_websocket\methods_common.rs:140:pub fn session_update_session_json(config: RealtimeSessionConfig) -> JsonResult<Value> {
+codex-api/src\endpoint\realtime_websocket\methods_common.rs:179:mod tests;
+codex-api/src\requests\responses.rs:2:pub enum Compression {
+codex-api/src\requests\mod.rs:1:pub(crate) mod chat;
+codex-api/src\requests\mod.rs:2:pub(crate) mod headers;
+codex-api/src\requests\mod.rs:3:pub(crate) mod responses;
+codex-api/src\endpoint\realtime_websocket\protocol.rs:15:pub enum RealtimeEventParser {
+codex-api/src\endpoint\realtime_websocket\protocol.rs:21:pub type RealtimeWireAdapter = RealtimeEventParser;
+codex-api/src\endpoint\realtime_websocket\protocol.rs:24:pub enum RealtimeSessionMode {
+codex-api/src\endpoint\realtime_websocket\protocol.rs:29:/// Selects the semantic stream used for Frameless Bidi context appends.
+codex-api/src\endpoint\realtime_websocket\protocol.rs:32:pub enum RealtimeContextAppendChannel {
+codex-api/src\endpoint\realtime_websocket\protocol.rs:38:pub struct RealtimeSessionConfig {
+codex-api/src\lib.rs:1:pub(crate) mod api_bridge;
+codex-api/src\lib.rs:2:pub(crate) mod auth;
+codex-api/src\lib.rs:3:pub(crate) mod common;
+codex-api/src\lib.rs:4:pub(crate) mod endpoint;
+codex-api/src\lib.rs:5:pub(crate) mod error;
+codex-api/src\lib.rs:6:pub(crate) mod files;
+codex-api/src\lib.rs:7:pub(crate) mod images;
+codex-api/src\lib.rs:8:pub(crate) mod provider;
+codex-api/src\lib.rs:9:pub(crate) mod rate_limits;
+codex-api/src\lib.rs:10:pub(crate) mod requests;
+codex-api/src\lib.rs:11:pub(crate) mod safety_buffering;
+codex-api/src\lib.rs:12:pub(crate) mod search;
+codex-api/src\lib.rs:13:pub(crate) mod sse;
+codex-api/src\lib.rs:14:pub(crate) mod telemetry;
+codex-api/src\provider.rs:11:/// High-level retry configuration for a provider.
+codex-api/src\provider.rs:12:///
+codex-api/src\provider.rs:13:/// This is converted into a `RetryPolicy` used by `codex-client` to drive
+codex-api/src\provider.rs:14:/// transport-level retries for both unary and streaming calls.
+codex-api/src\provider.rs:16:pub struct RetryConfig {
+codex-api/src\provider.rs:24:impl RetryConfig {
+codex-api/src\provider.rs:38:/// Wire protocol a provider speaks on its inference route.
+codex-api/src\provider.rs:39:///
+codex-api/src\provider.rs:40:/// Suffice is Responses-native. `Chat` exists for providers that only expose an
+codex-api/src\provider.rs:41:/// OpenAI-compatible `/chat/completions` endpoint (Z.ai/GLM, most OSS servers);
+codex-api/src\provider.rs:42:/// requests and SSE frames are translated at the `ResponsesClient` boundary so
+codex-api/src\provider.rs:43:/// the rest of the codebase never sees the difference.
+codex-api/src\provider.rs:45:pub enum WireApi {
+codex-api/src\provider.rs:51:/// HTTP endpoint configuration used to talk to a concrete API deployment.
+codex-api/src\provider.rs:52:///
+codex-api/src\provider.rs:53:/// Encapsulates base URL, default headers, query params, retry policy, and
+codex-api/src\provider.rs:54:/// stream idle timeout, plus helper methods for building requests.
+codex-api/src\provider.rs:56:pub struct Provider {
+codex-api/src\provider.rs:66:impl Provider {
+codex-api/src\provider.rs:116:pub fn is_azure_responses_provider(name: &str, base_url: Option<&str>) -> bool {
+codex-api/src\provider.rs:126:fn matches_azure_responses_base_url(base_url: &str) -> bool {
+codex-api/src\provider.rs:140:mod tests {
+codex-api/src\sse\responses.rs:36:pub fn spawn_response_stream(
+codex-api/src\sse\responses.rs:106:struct Error {
+codex-api/src\sse\responses.rs:118:struct ResponseCompleted {
+codex-api/src\sse\responses.rs:128:struct ResponseCompletedUsage {
+codex-api/src\sse\responses.rs:138:impl From<ResponseCompletedUsage> for TokenUsage {
+codex-api/src\sse\responses.rs:157:struct ResponseCompletedInputTokensDetails {
+codex-api/src\sse\responses.rs:164:struct ResponseCompletedOutputTokensDetails {
+codex-api/src\sse\responses.rs:169:pub struct ResponsesStreamEvent {
+codex-api/src\sse\responses.rs:186:fn deserialize_present_value<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+codex-api/src\sse\responses.rs:193:impl ResponsesStreamEvent {
+codex-api/src\sse\responses.rs:277:fn header_openai_model_value_from_json(value: &Value) -> Option<String> {
+codex-api/src\sse\responses.rs:289:fn header_turn_state_value_from_json(value: &Value) -> Option<String> {
+codex-api/src\sse\responses.rs:300:fn model_verifications_from_json_value(value: &Value) -> Option<Vec<ModelVerification>> {
+codex-api/src\sse\responses.rs:325:fn parse_model_verification(value: &str) -> Option<ModelVerification> {
+codex-api/src\sse\responses.rs:332:fn json_value_as_string(value: &Value) -> Option<String> {
+codex-api/src\sse\responses.rs:341:pub enum ResponsesEventError {
+codex-api/src\sse\responses.rs:345:impl ResponsesEventError {
+codex-api/src\sse\responses.rs:353:pub fn process_responses_event(
+codex-api/src\sse\responses.rs:541:pub async fn process_sse(
+codex-api/src\sse\responses.rs:557:async fn process_sse_with_treatment(
+codex-api/src\sse\responses.rs:670:fn try_parse_retry_after(err: &Error) -> Option<Duration> {
+codex-api/src\sse\responses.rs:696:fn is_context_window_error(error: &Error) -> bool {
+codex-api/src\sse\responses.rs:700:fn is_quota_exceeded_error(error: &Error) -> bool {
+codex-api/src\sse\responses.rs:704:fn is_usage_not_included(error: &Error) -> bool {
+codex-api/src\sse\responses.rs:708:fn is_cyber_policy_error(error: &Error) -> bool {
+codex-api/src\sse\responses.rs:712:fn is_server_overloaded_error(error: &Error) -> bool {
+codex-api/src\sse\responses.rs:717:fn cyber_policy_fallback_message() -> String {
+codex-api/src\sse\responses.rs:721:fn cyber_policy_message(message: Option<String>) -> String {
+codex-api/src\sse\responses.rs:727:fn rate_limit_regex() -> &'static regex_lite::Regex {
+codex-api/src\sse\responses.rs:736:mod tests {
+codex-api/src\endpoint\responses_websocket.rs:50:struct WsStream {
+codex-api/src\endpoint\responses_websocket.rs:56:enum WsCommand {
+codex-api/src\endpoint\responses_websocket.rs:63:impl WsStream {
+codex-api/src\endpoint\responses_websocket.rs:149:impl Drop for WsStream {
+codex-api/src\endpoint\responses_websocket.rs:171:struct ResponsesWebsocketTimingLogContext {
+codex-api/src\endpoint\responses_websocket.rs:183:pub struct ResponsesWebsocketConnection {
+codex-api/src\endpoint\responses_websocket.rs:186:    // TODO (pakrym): is this the right place for timeout?
+codex-api/src\endpoint\responses_websocket.rs:193:impl std::fmt::Debug for ResponsesWebsocketConnection {
+codex-api/src\endpoint\responses_websocket.rs:206:impl ResponsesWebsocketConnection {
+codex-api/src\endpoint\responses_websocket.rs:344:/// Client for connecting to the Responses WebSocket endpoint for one provider.
+codex-api/src\endpoint\responses_websocket.rs:345:pub struct ResponsesWebsocketClient {
+codex-api/src\endpoint\responses_websocket.rs:351:/// Close frame information captured by a handshake probe.
+codex-api/src\endpoint\responses_websocket.rs:353:pub struct ResponsesWebsocketClose {
+codex-api/src\endpoint\responses_websocket.rs:360:/// Result of a handshake-only Responses WebSocket probe.
+codex-api/src\endpoint\responses_websocket.rs:362:pub struct ResponsesWebsocketProbe {
+codex-api/src\endpoint\responses_websocket.rs:375:impl ResponsesWebsocketClient {
+codex-api/src\endpoint\responses_websocket.rs:476:fn immediate_close_from_message(message: Message) -> Option<ResponsesWebsocketClose> {
+codex-api/src\endpoint\responses_websocket.rs:483:fn close_frame_to_probe(frame: CloseFrame) -> ResponsesWebsocketClose {
+codex-api/src\endpoint\responses_websocket.rs:490:fn merge_request_headers(
+codex-api/src\endpoint\responses_websocket.rs:505:async fn connect_websocket(
+codex-api/src\endpoint\responses_websocket.rs:559:fn websocket_config() -> WebSocketConfig {
+codex-api/src\endpoint\responses_websocket.rs:568:fn map_ws_error(err: WsError, url: &Url) -> ApiError {
+codex-api/src\endpoint\responses_websocket.rs:593:struct WrappedWebsocketError {
+codex-api/src\endpoint\responses_websocket.rs:599:struct WrappedWebsocketErrorEvent {
+codex-api/src\endpoint\responses_websocket.rs:610:fn parse_wrapped_websocket_error_event(payload: &str) -> Option<WrappedWebsocketErrorEvent> {
+codex-api/src\endpoint\responses_websocket.rs:618:fn map_wrapped_websocket_error_event(
+codex-api/src\endpoint\responses_websocket.rs:661:fn json_headers_to_http_headers(headers: &JsonMap<String, Value>) -> HeaderMap {
+codex-api/src\endpoint\responses_websocket.rs:675:fn json_header_value(value: &Value) -> Option<HeaderValue> {
+codex-api/src\endpoint\responses_websocket.rs:685:async fn run_websocket_response_stream(
+codex-api/src\endpoint\responses_websocket.rs:847:fn emit_responses_websocket_timing_event(
+codex-api/src\endpoint\responses_websocket.rs:876:fn safety_buffering_for_event(
+codex-api/src\endpoint\responses_websocket.rs:889:async fn send_websocket_request(
+codex-api/src\endpoint\responses_websocket.rs:920:fn serialize_websocket_request(request: &ResponsesWsRequest<'_>) -> Result<String, ApiError> {
+codex-api/src\endpoint\responses_websocket.rs:926:mod tests {
+codex-api/src\endpoint\realtime_websocket\protocol_v1.rs:93:fn parse_conversation_item_done_event(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs:102:fn input_text_content(text: String) -> Vec<FramelessInputTextContent> {
+codex-api/src\endpoint\realtime_websocket\methods_frameless_bidi.rs:129:mod tests;
+codex-api/src\endpoint\responses.rs:29:/// Responses-compatible inference routes supported by Suffice backend.
+codex-api/src\endpoint\responses.rs:31:pub enum ResponsesEndpoint {
+codex-api/src\endpoint\responses.rs:41:impl ResponsesEndpoint {
+codex-api/src\endpoint\responses.rs:52:pub struct ResponsesClient<T: HttpTransport> {
+codex-api/src\endpoint\responses.rs:59:pub struct ResponsesOptions {
+codex-api/src\sse\mod.rs:1:pub(crate) mod chat;
+codex-api/src\sse\mod.rs:2:pub(crate) mod responses;
+codex-api/src\endpoint\realtime_websocket\mod.rs:1:pub(crate) mod methods;
+codex-api/src\endpoint\realtime_websocket\mod.rs:2:mod methods_common;
+codex-api/src\endpoint\realtime_websocket\mod.rs:3:mod methods_frameless_bidi;
+codex-api/src\endpoint\realtime_websocket\mod.rs:4:mod methods_v1;
+codex-api/src\endpoint\realtime_websocket\mod.rs:5:mod methods_v2;
+codex-api/src\endpoint\realtime_websocket\mod.rs:6:pub(crate) mod protocol;
+codex-api/src\endpoint\realtime_websocket\mod.rs:7:mod protocol_common;
+codex-api/src\endpoint\realtime_websocket\mod.rs:8:mod protocol_frameless_bidi;
+codex-api/src\endpoint\realtime_websocket\mod.rs:9:mod protocol_v1;
+codex-api/src\endpoint\realtime_websocket\mod.rs:10:mod protocol_v2;
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:7:fn legacy_and_frameless_delegations_decode_to_the_same_handoff() {
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi_tests.rs:36:fn frameless_transcript_and_audio_events_reuse_existing_internal_events() {
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:38:fn parse_output_audio_delta(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:48:fn parse_transcript_item(parsed: &Value) -> Option<RealtimeTranscriptDelta> {
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:58:fn parse_turn_done(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:73:fn parse_delegation_created(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\protocol_frameless_bidi.rs:99:mod tests;
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs:81:fn parse_response_event_response_id(parsed: &Value) -> Option<String> {
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs:96:fn parse_output_audio_delta_event(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs:127:fn parse_conversation_item_done_event(parsed: &Value) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs:142:fn parse_handoff_requested_event(item: &JsonMap<String, Value>) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs:168:fn parse_noop_requested_event(item: &JsonMap<String, Value>) -> Option<RealtimeEvent> {
+codex-api/src\endpoint\realtime_websocket\protocol_v2.rs:191:fn extract_input_transcript(arguments: &str) -> String {
+
+codex
+Root-level modules are mapped. Next I’m reading endpoint clients and protocol/method files to capture the actual wire operations.
+context compacted
+warning: Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.
+apply patch
+patch: completed
+C:\Users\Bedirhan\Desktop\agent\ab\par-suffice\WIRE.md
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..18cfa894a19d8b2549d951e1fd5dbfbad748d862
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Map
++
++## codex-api/src/
++
++- `codex-api/src/api_bridge.rs` — maps `ApiError` and transport HTTP failures into `CodexErr`, preserving retry delays, overload/policy/usage/rate-limit details (`codex-api/src/api_bridge.rs:21`).
++- `codex-api/src/api_bridge_tests.rs` — verifies API-error mapping for statuses, headers, overloaded responses, cyber/misalignment policies, and identity/rate-limit details (`codex-api/src/api_bridge_tests.rs:8`).
++- `codex-api/src/auth.rs` — defines request authentication providers for static headers, async credential refresh, full-request signing, and auth telemetry (`codex-api/src/auth.rs:30`).
++- `codex-api/src/common.rs` — defines the canonical Responses request/stream vocabulary, including requests, tools, text/reasoning controls, WS metadata, and `ResponseEvent`s (`codex-api/src/common.rs:275`).
++- `codex-api/src/error.rs` — defines API failure variants such as transport, quota, rate limit, policy violation, invalid request, and overload (`codex-api/src/error.rs:9`).
++- `codex-api/src/files.rs` — handles streaming OpenAI hosted-file upload, size limits, chunk transfer, finalization, and download metadata (`codex-api/src/files.rs:121`).
++- `codex-api/src/images.rs` — defines image generation/edit request and response wire DTOs (`codex-api/src/images.rs:5`).
++- `codex-api/src/lib.rs` — declares crate modules and the public API re-export surface (`codex-api/src/lib.rs:1`).
++- `codex-api/src/provider.rs` — configures provider deployment URLs, headers, retries, stream timeout, wire protocol, and request construction (`codex-api/src/provider.rs:56`).
++- `codex-api/src/rate_limits.rs` — parses rate-limit header families, rate-limit events, promo messages, reached type, and credit snapshots (`codex-api/src/rate_limits.rs:28`).
++- `codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers into a treatment value (`codex-api/src/safety_buffering.rs:8`).
++- `codex-api/src/search.rs` — defines search requests, commands, settings, external web access, locations, filters, and response DTOs (`codex-api/src/search.rs:9`).
++- `codex-api/src/telemetry.rs` — defines SSE/WebSocket telemetry hooks and wraps HTTP retry execution with request telemetry (`codex-api/src/telemetry.rs:68`).
++
++## codex-api/src/endpoint/
++
++- `codex-api/src/endpoint/compact.rs` — posts to `responses/compact`, captures turn state, and decodes compacted `ResponseItem`s (`codex-api/src/endpoint/compact.rs:34`).
++- `codex-api/src/endpoint/images.rs` — posts image generation/edit requests, decodes image responses, and extracts the image request ID header (`codex-api/src/endpoint/images.rs:24`).
++- `codex-api/src/endpoint/memories.rs` — posts `memories/trace_summarize` and decodes summarized memory outputs (`codex-api/src/endpoint/memories.rs:27`).
++- `codex-api/src/endpoint/models.rs` — lists models, adds `client_version`, decodes `ModelsResponse`, and returns the `ETag` (`codex-api/src/endpoint/models.rs:33`).
++- `codex-api/src/endpoint/mod.rs` — declares endpoint modules and re-exports their public client and wire types (`codex-api/src/endpoint/mod.rs:1`).
++- `codex-api/src/endpoint/realtime_call.rs` — creates Realtime WebRTC calls from SDP, selects backend/OpenAI routes, serializes session config, and parses call ID from `Location` (`codex-api/src/endpoint/realtime_call.rs:55`).
++- `codex-api/src/endpoint/responses.rs` — exposes Responses/Guardian inference routes, adds session/subagent headers and compression, and translates Responses-native or Chat requests into streams (`codex-api/src/endpoint/responses.rs:84`).
++- `codex-api/src/endpoint/responses_websocket.rs` — connects, probes, serializes requests over, and consumes Responses WebSocket frames as Responses events and metadata (`codex-api/src/endpoint/responses_websocket.rs:685`).
++- `codex-api/src/endpoint/search.rs` — encodes `SearchRequest`, posts it to `alpha/search`, and decodes `SearchResponse` (`codex-api/src/endpoint/search.rs:20`).
++- `codex-api/src/endpoint/session.rs` — provides shared provider/auth endpoint request construction, execution, streaming, retries, and telemetry (`codex-api/src/endpoint/session.rs:85`).
++
++## codex-api/src/endpoint/realtime_websocket/
++
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — manages Realtime WebSocket connections, writer/events, transcript state, URLs, session initialization, sidebands, retries, and close handling (`codex-api/src/endpoint/realtime_websocket/methods.rs:765`).
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches outbound message construction across V1, Frameless Bidi, and V2 adapters and normalizes session mode (`codex-api/src/endpoint/realtime_websocket/methods_common.rs:140`).
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests adapter-specific session updates, handoff output, context channels, and V1 prefixes (`codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs:16`).
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds Frameless Bidi delegation/session context and session-update messages, including 500-byte chunking (`codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs:99`).
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests Frameless Bidi wire-limit chunking and session JSON encoding (`codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:11`).
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds legacy Realtime V1 conversation items, handoff appends, Quicksilver session updates, and websocket intent (`codex-api/src/endpoint/realtime_websocket/methods_v1.rs:12`).
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds Realtime V2 conversation/session/function-output messages, including modalities, tools, transcription, and audio settings (`codex-api/src/endpoint/realtime_websocket/methods_v2.rs:52`).
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol/method modules and re-exports realtime client types (`codex-api/src/endpoint/realtime_websocket/mod.rs:1`).
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — selects realtime parser/session mode/context channel and defines outbound audio, handoff, context, close, response, and session-update messages (`codex-api/src/endpoint/realtime_websocket/protocol.rs:15`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses common realtime envelopes, session updates, transcript deltas/completions, and errors (`codex-api/src/endpoint/realtime_websocket/protocol_common.rs:17`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — decodes Frameless Bidi events into internal realtime events (`codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs:17`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — verifies legacy/frameless delegation equivalence and Frameless transcript/audio event decoding (`codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:7`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — decodes legacy Realtime V1 audio, transcript, item, handoff, and error events (`codex-api/src/endpoint/realtime_websocket/protocol_v1.rs:13`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — decodes Realtime V2 audio, transcripts, items, response lifecycle, speech/handoff/no-op, and error events (`codex-api/src/endpoint/realtime_websocket/protocol_v2.rs:22`).
++
++## codex-api/src/requests/
++
++- `codex-api/src/requests/chat.rs` — translates Responses requests into OpenAI-compatible Chat Completions messages, tools, reasoning, images, and output format (`codex-api/src/requests/chat.rs:19`).
++- `codex-api/src/requests/headers.rs` — builds session/thread headers and derives subagent headers from session source (`codex-api/src/requests/headers.rs:5`).
++- `codex-api/src/requests/mod.rs` — declares request-translation modules and exports compression selection (`codex-api/src/requests/mod.rs:1`).
++- `codex-api/src/requests/responses.rs` — defines request body compression choices (`codex-api/src/requests/responses.rs:2`).
++
++## codex-api/src/sse/
++
++- `codex-api/src/sse/chat.rs` — translates Chat Completions SSE deltas into Responses-shaped `ResponseEvent`s, buffering items and usage (`codex-api/src/sse/chat.rs:77`).
++- `codex-api/src/sse/mod.rs` — declares SSE modules and re-exports their stream processors (`codex-api/src/sse/mod.rs:1`).
++- `codex-api/src/sse/responses.rs` — spawns and parses Responses SSE, emits events/metadata, applies idle timeout/safety treatment, and maps stream errors (`codex-api/src/sse/responses.rs:36`).
+
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..18cfa894a19d8b2549d951e1fd5dbfbad748d862
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Map
++
++## codex-api/src/
++
++- `codex-api/src/api_bridge.rs` — maps `ApiError` and transport HTTP failures into `CodexErr`, preserving retry delays, overload/policy/usage/rate-limit details (`codex-api/src/api_bridge.rs:21`).
++- `codex-api/src/api_bridge_tests.rs` — verifies API-error mapping for statuses, headers, overloaded responses, cyber/misalignment policies, and identity/rate-limit details (`codex-api/src/api_bridge_tests.rs:8`).
++- `codex-api/src/auth.rs` — defines request authentication providers for static headers, async credential refresh, full-request signing, and auth telemetry (`codex-api/src/auth.rs:30`).
++- `codex-api/src/common.rs` — defines the canonical Responses request/stream vocabulary, including requests, tools, text/reasoning controls, WS metadata, and `ResponseEvent`s (`codex-api/src/common.rs:275`).
++- `codex-api/src/error.rs` — defines API failure variants such as transport, quota, rate limit, policy violation, invalid request, and overload (`codex-api/src/error.rs:9`).
++- `codex-api/src/files.rs` — handles streaming OpenAI hosted-file upload, size limits, chunk transfer, finalization, and download metadata (`codex-api/src/files.rs:121`).
++- `codex-api/src/images.rs` — defines image generation/edit request and response wire DTOs (`codex-api/src/images.rs:5`).
++- `codex-api/src/lib.rs` — declares crate modules and the public API re-export surface (`codex-api/src/lib.rs:1`).
++- `codex-api/src/provider.rs` — configures provider deployment URLs, headers, retries, stream timeout, wire protocol, and request construction (`codex-api/src/provider.rs:56`).
++- `codex-api/src/rate_limits.rs` — parses rate-limit header families, rate-limit events, promo messages, reached type, and credit snapshots (`codex-api/src/rate_limits.rs:28`).
++- `codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers into a treatment value (`codex-api/src/safety_buffering.rs:8`).
++- `codex-api/src/search.rs` — defines search requests, commands, settings, external web access, locations, filters, and response DTOs (`codex-api/src/search.rs:9`).
++- `codex-api/src/telemetry.rs` — defines SSE/WebSocket telemetry hooks and wraps HTTP retry execution with request telemetry (`codex-api/src/telemetry.rs:68`).
++
++## codex-api/src/endpoint/
++
++- `codex-api/src/endpoint/compact.rs` — posts to `responses/compact`, captures turn state, and decodes compacted `ResponseItem`s (`codex-api/src/endpoint/compact.rs:34`).
++- `codex-api/src/endpoint/images.rs` — posts image generation/edit requests, decodes image responses, and extracts the image request ID header (`codex-api/src/endpoint/images.rs:24`).
++- `codex-api/src/endpoint/memories.rs` — posts `memories/trace_summarize` and decodes summarized memory outputs (`codex-api/src/endpoint/memories.rs:27`).
++- `codex-api/src/endpoint/models.rs` — lists models, adds `client_version`, decodes `ModelsResponse`, and returns the `ETag` (`codex-api/src/endpoint/models.rs:33`).
++- `codex-api/src/endpoint/mod.rs` — declares endpoint modules and re-exports their public client and wire types (`codex-api/src/endpoint/mod.rs:1`).
++- `codex-api/src/endpoint/realtime_call.rs` — creates Realtime WebRTC calls from SDP, selects backend/OpenAI routes, serializes session config, and parses call ID from `Location` (`codex-api/src/endpoint/realtime_call.rs:55`).
++- `codex-api/src/endpoint/responses.rs` — exposes Responses/Guardian inference routes, adds session/subagent headers and compression, and translates Responses-native or Chat requests into streams (`codex-api/src/endpoint/responses.rs:84`).
++- `codex-api/src/endpoint/responses_websocket.rs` — connects, probes, serializes requests over, and consumes Responses WebSocket frames as Responses events and metadata (`codex-api/src/endpoint/responses_websocket.rs:685`).
++- `codex-api/src/endpoint/search.rs` — encodes `SearchRequest`, posts it to `alpha/search`, and decodes `SearchResponse` (`codex-api/src/endpoint/search.rs:20`).
++- `codex-api/src/endpoint/session.rs` — provides shared provider/auth endpoint request construction, execution, streaming, retries, and telemetry (`codex-api/src/endpoint/session.rs:85`).
++
++## codex-api/src/endpoint/realtime_websocket/
++
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — manages Realtime WebSocket connections, writer/events, transcript state, URLs, session initialization, sidebands, retries, and close handling (`codex-api/src/endpoint/realtime_websocket/methods.rs:765`).
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches outbound message construction across V1, Frameless Bidi, and V2 adapters and normalizes session mode (`codex-api/src/endpoint/realtime_websocket/methods_common.rs:140`).
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests adapter-specific session updates, handoff output, context channels, and V1 prefixes (`codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs:16`).
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds Frameless Bidi delegation/session context and session-update messages, including 500-byte chunking (`codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs:99`).
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests Frameless Bidi wire-limit chunking and session JSON encoding (`codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:11`).
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds legacy Realtime V1 conversation items, handoff appends, Quicksilver session updates, and websocket intent (`codex-api/src/endpoint/realtime_websocket/methods_v1.rs:12`).
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds Realtime V2 conversation/session/function-output messages, including modalities, tools, transcription, and audio settings (`codex-api/src/endpoint/realtime_websocket/methods_v2.rs:52`).
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol/method modules and re-exports realtime client types (`codex-api/src/endpoint/realtime_websocket/mod.rs:1`).
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — selects realtime parser/session mode/context channel and defines outbound audio, handoff, context, close, response, and session-update messages (`codex-api/src/endpoint/realtime_websocket/protocol.rs:15`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses common realtime envelopes, session updates, transcript deltas/completions, and errors (`codex-api/src/endpoint/realtime_websocket/protocol_common.rs:17`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — decodes Frameless Bidi events into internal realtime events (`codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs:17`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — verifies legacy/frameless delegation equivalence and Frameless transcript/audio event decoding (`codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:7`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — decodes legacy Realtime V1 audio, transcript, item, handoff, and error events (`codex-api/src/endpoint/realtime_websocket/protocol_v1.rs:13`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — decodes Realtime V2 audio, transcripts, items, response lifecycle, speech/handoff/no-op, and error events (`codex-api/src/endpoint/realtime_websocket/protocol_v2.rs:22`).
++
++## codex-api/src/requests/
++
++- `codex-api/src/requests/chat.rs` — translates Responses requests into OpenAI-compatible Chat Completions messages, tools, reasoning, images, and output format (`codex-api/src/requests/chat.rs:19`).
++- `codex-api/src/requests/headers.rs` — builds session/thread headers and derives subagent headers from session source (`codex-api/src/requests/headers.rs:5`).
++- `codex-api/src/requests/mod.rs` — declares request-translation modules and exports compression selection (`codex-api/src/requests/mod.rs:1`).
++- `codex-api/src/requests/responses.rs` — defines request body compression choices (`codex-api/src/requests/responses.rs:2`).
++
++## codex-api/src/sse/
++
++- `codex-api/src/sse/chat.rs` — translates Chat Completions SSE deltas into Responses-shaped `ResponseEvent`s, buffering items and usage (`codex-api/src/sse/chat.rs:77`).
++- `codex-api/src/sse/mod.rs` — declares SSE modules and re-exports their stream processors (`codex-api/src/sse/mod.rs:1`).
++- `codex-api/src/sse/responses.rs` — spawns and parses Responses SSE, emits events/metadata, applies idle timeout/safety treatment, and maps stream errors (`codex-api/src/sse/responses.rs:36`).
+
+codex
+CHECKPOINT REACHED: 43 files
+diff --git a/WIRE.md b/WIRE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..18cfa894a19d8b2549d951e1fd5dbfbad748d862
+--- /dev/null
++++ b/WIRE.md
+@@ -0,0 +1,60 @@
++# Wire Map
++
++## codex-api/src/
++
++- `codex-api/src/api_bridge.rs` — maps `ApiError` and transport HTTP failures into `CodexErr`, preserving retry delays, overload/policy/usage/rate-limit details (`codex-api/src/api_bridge.rs:21`).
++- `codex-api/src/api_bridge_tests.rs` — verifies API-error mapping for statuses, headers, overloaded responses, cyber/misalignment policies, and identity/rate-limit details (`codex-api/src/api_bridge_tests.rs:8`).
++- `codex-api/src/auth.rs` — defines request authentication providers for static headers, async credential refresh, full-request signing, and auth telemetry (`codex-api/src/auth.rs:30`).
++- `codex-api/src/common.rs` — defines the canonical Responses request/stream vocabulary, including requests, tools, text/reasoning controls, WS metadata, and `ResponseEvent`s (`codex-api/src/common.rs:275`).
++- `codex-api/src/error.rs` — defines API failure variants such as transport, quota, rate limit, policy violation, invalid request, and overload (`codex-api/src/error.rs:9`).
++- `codex-api/src/files.rs` — handles streaming OpenAI hosted-file upload, size limits, chunk transfer, finalization, and download metadata (`codex-api/src/files.rs:121`).
++- `codex-api/src/images.rs` — defines image generation/edit request and response wire DTOs (`codex-api/src/images.rs:5`).
++- `codex-api/src/lib.rs` — declares crate modules and the public API re-export surface (`codex-api/src/lib.rs:1`).
++- `codex-api/src/provider.rs` — configures provider deployment URLs, headers, retries, stream timeout, wire protocol, and request construction (`codex-api/src/provider.rs:56`).
++- `codex-api/src/rate_limits.rs` — parses rate-limit header families, rate-limit events, promo messages, reached type, and credit snapshots (`codex-api/src/rate_limits.rs:28`).
++- `codex-api/src/safety_buffering.rs` — parses safety-buffering treatment headers into a treatment value (`codex-api/src/safety_buffering.rs:8`).
++- `codex-api/src/search.rs` — defines search requests, commands, settings, external web access, locations, filters, and response DTOs (`codex-api/src/search.rs:9`).
++- `codex-api/src/telemetry.rs` — defines SSE/WebSocket telemetry hooks and wraps HTTP retry execution with request telemetry (`codex-api/src/telemetry.rs:68`).
++
++## codex-api/src/endpoint/
++
++- `codex-api/src/endpoint/compact.rs` — posts to `responses/compact`, captures turn state, and decodes compacted `ResponseItem`s (`codex-api/src/endpoint/compact.rs:34`).
++- `codex-api/src/endpoint/images.rs` — posts image generation/edit requests, decodes image responses, and extracts the image request ID header (`codex-api/src/endpoint/images.rs:24`).
++- `codex-api/src/endpoint/memories.rs` — posts `memories/trace_summarize` and decodes summarized memory outputs (`codex-api/src/endpoint/memories.rs:27`).
++- `codex-api/src/endpoint/models.rs` — lists models, adds `client_version`, decodes `ModelsResponse`, and returns the `ETag` (`codex-api/src/endpoint/models.rs:33`).
++- `codex-api/src/endpoint/mod.rs` — declares endpoint modules and re-exports their public client and wire types (`codex-api/src/endpoint/mod.rs:1`).
++- `codex-api/src/endpoint/realtime_call.rs` — creates Realtime WebRTC calls from SDP, selects backend/OpenAI routes, serializes session config, and parses call ID from `Location` (`codex-api/src/endpoint/realtime_call.rs:55`).
++- `codex-api/src/endpoint/responses.rs` — exposes Responses/Guardian inference routes, adds session/subagent headers and compression, and translates Responses-native or Chat requests into streams (`codex-api/src/endpoint/responses.rs:84`).
++- `codex-api/src/endpoint/responses_websocket.rs` — connects, probes, serializes requests over, and consumes Responses WebSocket frames as Responses events and metadata (`codex-api/src/endpoint/responses_websocket.rs:685`).
++- `codex-api/src/endpoint/search.rs` — encodes `SearchRequest`, posts it to `alpha/search`, and decodes `SearchResponse` (`codex-api/src/endpoint/search.rs:20`).
++- `codex-api/src/endpoint/session.rs` — provides shared provider/auth endpoint request construction, execution, streaming, retries, and telemetry (`codex-api/src/endpoint/session.rs:85`).
++
++## codex-api/src/endpoint/realtime_websocket/
++
++- `codex-api/src/endpoint/realtime_websocket/methods.rs` — manages Realtime WebSocket connections, writer/events, transcript state, URLs, session initialization, sidebands, retries, and close handling (`codex-api/src/endpoint/realtime_websocket/methods.rs:765`).
++- `codex-api/src/endpoint/realtime_websocket/methods_common.rs` — dispatches outbound message construction across V1, Frameless Bidi, and V2 adapters and normalizes session mode (`codex-api/src/endpoint/realtime_websocket/methods_common.rs:140`).
++- `codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs` — tests adapter-specific session updates, handoff output, context channels, and V1 prefixes (`codex-api/src/endpoint/realtime_websocket/methods_common_tests.rs:16`).
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs` — builds Frameless Bidi delegation/session context and session-update messages, including 500-byte chunking (`codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs:99`).
++- `codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs` — tests Frameless Bidi wire-limit chunking and session JSON encoding (`codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi_tests.rs:11`).
++- `codex-api/src/endpoint/realtime_websocket/methods_v1.rs` — builds legacy Realtime V1 conversation items, handoff appends, Quicksilver session updates, and websocket intent (`codex-api/src/endpoint/realtime_websocket/methods_v1.rs:12`).
++- `codex-api/src/endpoint/realtime_websocket/methods_v2.rs` — builds Realtime V2 conversation/session/function-output messages, including modalities, tools, transcription, and audio settings (`codex-api/src/endpoint/realtime_websocket/methods_v2.rs:52`).
++- `codex-api/src/endpoint/realtime_websocket/mod.rs` — declares realtime protocol/method modules and re-exports realtime client types (`codex-api/src/endpoint/realtime_websocket/mod.rs:1`).
++- `codex-api/src/endpoint/realtime_websocket/protocol.rs` — selects realtime parser/session mode/context channel and defines outbound audio, handoff, context, close, response, and session-update messages (`codex-api/src/endpoint/realtime_websocket/protocol.rs:15`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_common.rs` — parses common realtime envelopes, session updates, transcript deltas/completions, and errors (`codex-api/src/endpoint/realtime_websocket/protocol_common.rs:17`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs` — decodes Frameless Bidi events into internal realtime events (`codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi.rs:17`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs` — verifies legacy/frameless delegation equivalence and Frameless transcript/audio event decoding (`codex-api/src/endpoint/realtime_websocket/protocol_frameless_bidi_tests.rs:7`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_v1.rs` — decodes legacy Realtime V1 audio, transcript, item, handoff, and error events (`codex-api/src/endpoint/realtime_websocket/protocol_v1.rs:13`).
++- `codex-api/src/endpoint/realtime_websocket/protocol_v2.rs` — decodes Realtime V2 audio, transcripts, items, response lifecycle, speech/handoff/no-op, and error events (`codex-api/src/endpoint/realtime_websocket/protocol_v2.rs:22`).
++
++## codex-api/src/requests/
++
++- `codex-api/src/requests/chat.rs` — translates Responses requests into OpenAI-compatible Chat Completions messages, tools, reasoning, images, and output format (`codex-api/src/requests/chat.rs:19`).
++- `codex-api/src/requests/headers.rs` — builds session/thread headers and derives subagent headers from session source (`codex-api/src/requests/headers.rs:5`).
++- `codex-api/src/requests/mod.rs` — declares request-translation modules and exports compression selection (`codex-api/src/requests/mod.rs:1`).
++- `codex-api/src/requests/responses.rs` — defines request body compression choices (`codex-api/src/requests/responses.rs:2`).
++
++## codex-api/src/sse/
++
++- `codex-api/src/sse/chat.rs` — translates Chat Completions SSE deltas into Responses-shaped `ResponseEvent`s, buffering items and usage (`codex-api/src/sse/chat.rs:77`).
++- `codex-api/src/sse/mod.rs` — declares SSE modules and re-exports their stream processors (`codex-api/src/sse/mod.rs:1`).
++- `codex-api/src/sse/responses.rs` — spawns and parses Responses SSE, emits events/metadata, applies idle timeout/safety treatment, and maps stream errors (`codex-api/src/sse/responses.rs:36`).
+
+tokens used
+129.780
+CHECKPOINT REACHED: 43 files

@@ -1,0 +1,548 @@
+From 1eb41e32ab57d6449594f1c37b4a097c3c04366d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bedirhan=20Gen=C3=A7aslan?=
+ <b2210356065@cs.hacettepe.edu.tr>
+Date: Sat, 5 Sep 2026 21:17:58 +0300
+Subject: [PATCH 56/71] Delete the history-time shrinker the source-side one
+ replaced
+
+Shrinking moved to `to_response_item`, where the trimmed text is the only
+version the prefix ever holds. The old pass over history stayed behind it,
+still called from `for_prompt_annotated`, still gated on `prefix_break` --
+and that gate is the reason it can never do anything now: the output it would
+trim has already been trimmed on the way in, so there is nothing left in
+history to find. The recorded sessions agree: `shrunk_tokens_removed` and
+`shrinkable_before_break` are 0 across 117 requests of real work.
+
+Keeping it was not free. Rewriting output the cache has already seen is the
+one thing this design exists to avoid, so a dead path that would do exactly
+that is a trap, and its always-zero counters made the sidecar and
+`suffice debug transcript` report a mechanism that had not run.
+
+`shrink_exec_output` and the allowlist stay; the tests that cover them --
+the allowlist, the size floor, the marker, the argv shapes -- now run through
+the live path. The transcript still flags a trimmed output, reading the marker
+out of the text rather than a sidecar column, which also makes it work on
+rollouts recorded before the sidecar existed.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ codex-rs/cli/src/transcript.rs                |  48 ++-------
+ codex-rs/core/src/context_manager/history.rs  |  12 +--
+ .../core/src/context_manager/history_tests.rs |   4 -
+ .../core/src/context_manager/tool_output.rs   | 100 ------------------
+ .../src/context_manager/tool_output_tests.rs  |  85 +++------------
+ codex-rs/core/src/request_stats.rs            |  17 +--
+ codex-rs/core/src/request_stats_tests.rs      |  10 +-
+ 7 files changed, 30 insertions(+), 246 deletions(-)
+
+diff --git a/codex-rs/cli/src/transcript.rs b/codex-rs/cli/src/transcript.rs
+index 565f1db226..30085f814c 100644
+--- a/codex-rs/cli/src/transcript.rs
++++ b/codex-rs/cli/src/transcript.rs
+@@ -1,7 +1,7 @@
+ //! Renders a session as the model experienced it, next to what actually happened.
+ //!
+ //! This is an offline reader, not a second writer. The rollout already holds the untrimmed
+-//! truth: shrinking and dropping happen on the per-request copy of history, never on what is
++//! truth: dropping happens on the per-request copy of history, never on what is
+ //! persisted. The statistics sidecar holds what each of those requests cost and what building
+ //! it removed. Joining the two after the fact costs nothing at run time, cannot drift from what
+ //! shipped, and works on rollouts recorded before any of this existed.
+@@ -319,23 +319,6 @@ fn write_request_facts(out: &mut String, request: &Request) {
+             join_ids(" for ", &stats.dropped_call_ids),
+         ));
+     }
+-    if stats.shrunk_outputs > 0 {
+-        hidden.push(format!(
+-            "{} tool outputs trimmed, {} lines and {} tokens removed{}",
+-            stats.shrunk_outputs,
+-            stats.shrunk_lines_removed,
+-            thousands(stats.shrunk_tokens_removed),
+-            join_ids(": ", &stats.shrunk_call_ids),
+-        ));
+-    }
+-    if stats.shrinkable_before_break > 0 {
+-        // The saving the cache gate declined to take. A column of these and no `shrunk_outputs`
+-        // is the shrinker being dormant rather than the allowlist being too narrow.
+-        hidden.push(format!(
+-            "{} tool outputs were trimmable but sat before the break, so were left whole",
+-            stats.shrinkable_before_break
+-        ));
+-    }
+     if hidden.is_empty() {
+         let _ = writeln!(out, "the model saw the whole history");
+     } else {
+@@ -359,12 +342,10 @@ fn write_request_facts(out: &mut String, request: &Request) {
+     }
+ }
+ 
++/// The fragment `shrink_exec_output` writes into an output it trimmed.
++const SHRINK_MARKER: &str = "the harness trimmed this output, the command did not";
++
+ fn write_items(out: &mut String, request: &Request) {
+-    let shrunk = request
+-        .stats
+-        .as_ref()
+-        .map(|stats| stats.shrunk_call_ids.as_slice())
+-        .unwrap_or_default();
+     for item in &request.items {
+         match item {
+             ResponseItem::Message { role, content, .. } => {
+@@ -392,17 +373,15 @@ fn write_items(out: &mut String, request: &Request) {
+                     continue;
+                 };
+                 let call_id = call_id.as_deref().unwrap_or("?");
+-                let was_shrunk = shrunk.iter().any(|shrunk| shrunk == call_id);
++                // The shrinker runs as the tool returns, so the trimmed text is the only
++                // version history ever held, and its marker is right here in it.
++                let was_shrunk = text.contains(SHRINK_MARKER);
+                 let total = text.lines().count();
+                 let _ = writeln!(
+                     out,
+                     "\n> tool_output {call_id} — {}",
+                     if was_shrunk {
+-                        // The rollout keeps the untrimmed text, so this is what actually
+-                        // happened; the model was handed the head and the tail of it.
+-                        format!(
+-                            "WHAT ACTUALLY HAPPENED ({total} lines, the model saw a head and a tail of it)"
+-                        )
++                        format!("{total} lines, trimmed by the harness on its way to the model")
+                     } else {
+                         format!("{total} lines, seen whole")
+                     }
+@@ -441,11 +420,9 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
+     // counts the same tokens once per request that benefits from them.
+     let mut retention_saved = 0.0;
+     let mut standing_keep = 0.0;
+-    let mut shrinker = 0.0;
+     for row in &rows {
+         retention_saved += CACHED_INPUT_PRICE_RATIO * row.dropped_reasoning_tokens as f64;
+         standing_keep += CACHED_INPUT_PRICE_RATIO * row.retained_reasoning_tokens as f64;
+-        shrinker += CACHED_INPUT_PRICE_RATIO * row.shrunk_tokens_removed as f64;
+     }
+     // The break is likewise reported by every request built after it, but it is only paid by the
+     // one that actually lost the cache. Take the price from the provider instead of the report.
+@@ -489,11 +466,6 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
+         "standing keep cost:   {}",
+         thousands(standing_keep as i64)
+     );
+-    let _ = writeln!(
+-        out,
+-        "shrinker:             {} (costs nothing; it only ever runs past a break someone else paid for)",
+-        thousands(shrinker as i64)
+-    );
+     let _ = writeln!(
+         out,
+         "invisible turns:      {} spent",
+@@ -540,11 +512,9 @@ fn write_trailer(out: &mut String, requests: &[Request], billed: Option<f64>) {
+ 
+     let unarmed = rows.iter().filter(|row| row.prompt_items.is_none()).count();
+     let unbroken = rows.iter().filter(|row| row.prefix_break.is_none()).count();
+-    let declined: usize = rows.iter().map(|row| row.shrinkable_before_break).sum();
+     let _ = writeln!(
+         out,
+-        "\n{unbroken} of {} requests left the prefix untouched. The shrinker cannot run on those, \
+-         and it declined {declined} trimmable outputs in total.",
++        "\n{unbroken} of {} requests left the prefix untouched.",
+         rows.len()
+     );
+     if unarmed > 0 {
+diff --git a/codex-rs/core/src/context_manager/history.rs b/codex-rs/core/src/context_manager/history.rs
+index 8c366d9dee..7276cd100b 100644
+--- a/codex-rs/core/src/context_manager/history.rs
++++ b/codex-rs/core/src/context_manager/history.rs
+@@ -4,8 +4,6 @@ use crate::context::world_state::PersistentModeState;
+ use crate::context::world_state::WorldState;
+ use crate::context::world_state::WorldStateSnapshot;
+ use crate::context_manager::normalize;
+-use crate::context_manager::tool_output::ShrinkReport;
+-use crate::context_manager::tool_output::shrink_completed_outputs;
+ use crate::event_mapping::has_non_contextual_dev_message_content;
+ use crate::event_mapping::is_contextual_dev_message_content;
+ use crate::event_mapping::is_contextual_user_message_content;
+@@ -359,14 +357,7 @@ impl ContextManager {
+         let mut report = ContextFilterReport::default();
+         self.drop_completed_turn_scoped_items(active_turn_id, &mut report);
+         self.normalize_history(input_modalities);
+-        let mut items = Arc::unwrap_or_clone(self.items);
+-        report.shrink = shrink_completed_outputs(&mut items, report.prefix_break, |envelope| {
+-            let owner = envelope
+-                .metadata
+-                .as_ref()
+-                .and_then(|metadata| metadata.tool_output_turn.as_deref());
+-            !belongs_to_active_turn(active_turn_id, owner)
+-        });
++        let items = Arc::unwrap_or_clone(self.items);
+         // The re-prefill the break costs is the part of the prompt that follows it, measured on
+         // the prompt as finally sent rather than on the history it was built from.
+         if let Some(prefix_break) = report.prefix_break {
+@@ -749,7 +740,6 @@ pub(crate) struct ContextFilterReport {
+     pub(crate) retained_reasoning_items: usize,
+     pub(crate) retained_reasoning_tokens: i64,
+     pub(crate) dropped_call_ids: Vec<String>,
+-    pub(crate) shrink: ShrinkReport,
+ }
+ 
+ /// Why an item recorded in history does not reach the model.
+diff --git a/codex-rs/core/src/context_manager/history_tests.rs b/codex-rs/core/src/context_manager/history_tests.rs
+index 428ba3bacb..03abefbbf6 100644
+--- a/codex-rs/core/src/context_manager/history_tests.rs
++++ b/codex-rs/core/src/context_manager/history_tests.rs
+@@ -737,10 +737,6 @@ fn the_report_names_what_the_prompt_no_longer_carries() {
+     assert_eq!(report.retained_reasoning_items, 1);
+     assert!(report.retained_reasoning_tokens > 0, "{report:?}");
+     assert!(report.prefix_break_tokens > 0, "{report:?}");
+-    // The output sits past the break, so shrinking it rides on a re-prefill already paid for.
+-    assert_eq!(report.shrink.outputs, 1);
+-    assert_eq!(report.shrink.shrinkable_before_break, 0);
+-    assert!(report.shrink.tokens_removed > 0, "{report:?}");
+ 
+     // Measuring must not move a single byte of what is sent.
+     assert_eq!(
+diff --git a/codex-rs/core/src/context_manager/tool_output.rs b/codex-rs/core/src/context_manager/tool_output.rs
+index cb3c473fa2..64cba2de29 100644
+--- a/codex-rs/core/src/context_manager/tool_output.rs
++++ b/codex-rs/core/src/context_manager/tool_output.rs
+@@ -10,12 +10,6 @@
+ //! finished, and only from the point where the prompt cache is already invalidated by a
+ //! dropped item, so it never costs a re-prefill of its own.
+ 
+-use std::collections::HashMap;
+-use std::collections::HashSet;
+-
+-use codex_history::ResponseItemEnvelope;
+-use codex_protocol::models::FunctionCallOutputBody;
+-use codex_protocol::models::ResponseItem;
+ use codex_utils_output_truncation::approx_token_count;
+ 
+ /// Lines kept from the start, so the model can still tell what ran.
+@@ -103,82 +97,6 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
+     ),
+ ];
+ 
+-/// What shrinking took out of one request's prompt, and what it was not allowed to take out.
+-///
+-/// The removed sizes are what an unshrunk prompt would have carried on top of the one that was
+-/// sent. `shrinkable_before_break` is the opposite number: output the allowlist recognized but
+-/// the cache gate refused to touch, which is the size of the saving this design declines to
+-/// take. Both are needed to price the mechanism; neither changes what is sent.
+-#[derive(Debug, Default, PartialEq, Eq)]
+-pub(crate) struct ShrinkReport {
+-    pub(crate) outputs: usize,
+-    pub(crate) tokens_removed: i64,
+-    pub(crate) lines_removed: usize,
+-    pub(crate) shrinkable_before_break: usize,
+-    pub(crate) call_ids: Vec<String>,
+-}
+-
+-/// Replaces the middle of successful, noisy tool output with an explicit marker.
+-///
+-/// `prefix_break` is the index the prompt cache is already invalidated from, or `None` when the
+-/// prompt is byte-identical to the last one. Shrinking rewrites the output in place and so
+-/// invalidates the cache from there to the end; doing it before the break would pay for a
+-/// re-prefill in order to save tokens, which is the trade this harness exists to avoid.
+-///
+-/// `is_completed` reports whether an item's turn has finished. Output from the running turn
+-/// is left alone, because the model is still acting on it.
+-pub(crate) fn shrink_completed_outputs(
+-    items: &mut [ResponseItemEnvelope],
+-    prefix_break: Option<usize>,
+-    is_completed: impl Fn(&ResponseItemEnvelope) -> bool,
+-) -> ShrinkReport {
+-    let mut report = ShrinkReport::default();
+-    // The call ids are collected from the whole history: a call may sit in the untouched prefix
+-    // while its output sits after the break.
+-    let shrinkable = shrinkable_call_ids(items);
+-    if shrinkable.is_empty() {
+-        return report;
+-    }
+-    for (index, envelope) in items.iter_mut().enumerate() {
+-        if !is_completed(envelope) {
+-            continue;
+-        }
+-        let ResponseItem::FunctionCallOutput {
+-            call_id, output, ..
+-        } = &mut envelope.item
+-        else {
+-            continue;
+-        };
+-        // Only successful commands are shrunk. A failure's output is the most valuable thing
+-        // in the context and is always kept whole.
+-        if output.success != Some(true) {
+-            continue;
+-        }
+-        let Some(call_id) = call_id.as_deref().filter(|id| shrinkable.contains(*id)) else {
+-            continue;
+-        };
+-        let FunctionCallOutputBody::Text(text) = &mut output.body else {
+-            continue;
+-        };
+-        let Some((shrunk, lines_removed)) = shrink_text(text) else {
+-            continue;
+-        };
+-        if !prefix_break.is_some_and(|prefix_break| index >= prefix_break) {
+-            report.shrinkable_before_break += 1;
+-            continue;
+-        }
+-        report.outputs += 1;
+-        report.lines_removed += lines_removed;
+-        report.tokens_removed = report.tokens_removed.saturating_add(
+-            i64::try_from(approx_token_count(text).saturating_sub(approx_token_count(&shrunk)))
+-                .unwrap_or(i64::MAX),
+-        );
+-        report.call_ids.push(call_id.to_string());
+-        *text = shrunk;
+-    }
+-    report
+-}
+-
+ /// Shrinks one exec result before it is ever sent to the model.
+ ///
+ /// This is the cheap place to do it. Shrinking history after the fact rewrites a prompt the
+@@ -200,24 +118,6 @@ pub(crate) fn shrink_exec_output(
+     shrink_text(text).map(|(shrunk, _)| shrunk)
+ }
+ 
+-/// Collects the call ids whose command is on the allowlist.
+-fn shrinkable_call_ids(items: &[ResponseItemEnvelope]) -> HashSet<String> {
+-    let mut by_call_id: HashMap<&str, &str> = HashMap::new();
+-    for envelope in items {
+-        if let ResponseItem::FunctionCall {
+-            call_id, arguments, ..
+-        } = &envelope.item
+-        {
+-            by_call_id.insert(call_id.as_str(), arguments.as_str());
+-        }
+-    }
+-    by_call_id
+-        .into_iter()
+-        .filter(|(_, arguments)| command_is_shrinkable(arguments))
+-        .map(|(call_id, _)| call_id.to_string())
+-        .collect()
+-}
+-
+ /// Reads the command out of a tool call's JSON arguments and matches it against the allowlist.
+ ///
+ /// The two shell tools name the field differently: `shell` sends `command`, `exec_command` sends
+diff --git a/codex-rs/core/src/context_manager/tool_output_tests.rs b/codex-rs/core/src/context_manager/tool_output_tests.rs
+index 59d641963e..ffe060bbdf 100644
+--- a/codex-rs/core/src/context_manager/tool_output_tests.rs
++++ b/codex-rs/core/src/context_manager/tool_output_tests.rs
+@@ -13,48 +13,19 @@ fn noisy_output() -> String {
+     lines.join("\n")
+ }
+ 
+-fn call(arguments: &str) -> ResponseItemEnvelope {
+-    ResponseItemEnvelope::new(ResponseItem::FunctionCall {
+-        id: None,
+-        name: "shell".to_string(),
+-        namespace: None,
+-        arguments: arguments.to_string(),
+-        encrypted_function_args: None,
+-        call_id: CALL_ID.to_string(),
+-        internal_chat_message_metadata_passthrough: None,
+-    })
+-}
+-
+-fn output(text: &str, success: Option<bool>) -> ResponseItemEnvelope {
+-    ResponseItemEnvelope::new(ResponseItem::FunctionCallOutput {
+-        id: None,
+-        call_id: Some(CALL_ID.to_string()),
+-        name: None,
+-        namespace: None,
+-        output: FunctionCallOutputPayload {
+-            body: FunctionCallOutputBody::Text(text.to_string()),
+-            success,
+-        },
+-        internal_chat_message_metadata_passthrough: None,
+-    })
+-}
+-
+-/// Runs the shrinker over one call/output pair and returns the resulting output text.
+-fn shrink_pair(arguments: &str, text: &str, success: Option<bool>) -> (String, ShrinkReport) {
+-    let mut items = vec![call(arguments), output(text, success)];
+-    let report = shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| true);
+-    let ResponseItem::FunctionCallOutput { output, .. } = &items[1].item else {
+-        panic!("expected a function call output");
+-    };
+-    let FunctionCallOutputBody::Text(text) = &output.body else {
+-        panic!("expected a text body");
++/// Runs the live shrinker over one call's arguments and output.
++fn shrink_pair(arguments: &str, text: &str, success: Option<bool>) -> String {
++    let exit_code = match success {
++        Some(true) => Some(0),
++        Some(false) => Some(1),
++        None => None,
+     };
+-    (text.clone(), report)
++    shrink_exec_output(arguments, exit_code, text).unwrap_or_else(|| text.to_string())
+ }
+ 
+ fn shrink_command(command: &str) -> String {
+     let arguments = serde_json::json!({ "command": command }).to_string();
+-    shrink_pair(&arguments, &noisy_output(), Some(true)).0
++    shrink_pair(&arguments, &noisy_output(), Some(true))
+ }
+ 
+ fn was_shrunk(text: &str) -> bool {
+@@ -62,41 +33,29 @@ fn was_shrunk(text: &str) -> bool {
+ }
+ 
+ #[test]
+-fn shrinks_a_successful_allowlisted_command_and_reports_what_it_removed() {
++fn shrinks_a_successful_allowlisted_command() {
+     let arguments = serde_json::json!({ "command": "cargo build --release" }).to_string();
+-    let (shrunk, report) = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+     // The head and tail survive, so the model can still tell what ran and how it ended.
+     assert!(shrunk.starts_with("first\n"), "{shrunk}");
+     assert!(shrunk.ends_with("\nlast"), "{shrunk}");
+     assert!(shrunk.len() < noisy_output().len());
+-    assert_eq!(report.outputs, 1);
+-    assert_eq!(report.lines_removed, 167);
+-    assert_eq!(report.call_ids, vec![CALL_ID.to_string()]);
+-    assert!(report.tokens_removed > 0, "{report:?}");
+-    assert_eq!(report.shrinkable_before_break, 0);
+-
+-    // With nothing dropped there is no break to ride on, so the very same output is left whole
+-    // and only counted. That count is the size of the saving the cache gate declines to take.
+-    let mut items = vec![call(&arguments), output(&noisy_output(), Some(true))];
+-    let refused = shrink_completed_outputs(&mut items, /*prefix_break*/ None, |_| true);
+-    assert_eq!(refused.outputs, 0);
+-    assert_eq!(refused.shrinkable_before_break, 1);
+ }
+ 
+ #[test]
+ fn keeps_failed_output_whole() {
+     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+     let text = noisy_output();
+-    assert_eq!(shrink_pair(&arguments, &text, Some(false)).0, text);
+-    assert_eq!(shrink_pair(&arguments, &text, None).0, text);
++    assert_eq!(shrink_pair(&arguments, &text, Some(false)), text);
++    assert_eq!(shrink_pair(&arguments, &text, None), text);
+ }
+ 
+ #[test]
+ fn keeps_short_output_whole() {
+     let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+     let text = "one\ntwo\nthree";
+-    assert_eq!(shrink_pair(&arguments, text, Some(true)).0, text);
++    assert_eq!(shrink_pair(&arguments, text, Some(true)), text);
+ }
+ 
+ #[test]
+@@ -155,33 +114,21 @@ fn refuses_chained_or_redirected_command_lines() {
+ fn unwraps_a_shell_wrapper_argv() {
+     let arguments =
+         serde_json::json!({ "command": ["bash", "-lc", "cargo build --release"] }).to_string();
+-    let (shrunk, _) = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+ 
+     let arguments = serde_json::json!({ "command": ["bash", "-lc", "git status"] }).to_string();
+-    let (shrunk, _) = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(!was_shrunk(&shrunk), "{shrunk}");
+ }
+ 
+ #[test]
+ fn accepts_a_plain_argv_command() {
+     let arguments = serde_json::json!({ "command": ["cargo", "test", "--all"] }).to_string();
+-    let (shrunk, _) = shrink_pair(&arguments, &noisy_output(), Some(true));
++    let shrunk = shrink_pair(&arguments, &noisy_output(), Some(true));
+     assert!(was_shrunk(&shrunk), "{shrunk}");
+ }
+ 
+-#[test]
+-fn leaves_output_from_the_running_turn_alone() {
+-    let text = noisy_output();
+-    let arguments = serde_json::json!({ "command": "cargo build" }).to_string();
+-    let mut items = vec![call(&arguments), output(&text, Some(true))];
+-    shrink_completed_outputs(&mut items, /*prefix_break*/ Some(0), |_| false);
+-    let ResponseItem::FunctionCallOutput { output, .. } = &items[1].item else {
+-        panic!("expected a function call output");
+-    };
+-    assert_eq!(output.body, FunctionCallOutputBody::Text(text));
+-}
+-
+ #[test]
+ fn marker_reports_the_exit_status_and_the_actor() {
+     let shrunk = shrink_command("cargo build");
+diff --git a/codex-rs/core/src/request_stats.rs b/codex-rs/core/src/request_stats.rs
+index ec1b6550c7..c97f6fc402 100644
+--- a/codex-rs/core/src/request_stats.rs
++++ b/codex-rs/core/src/request_stats.rs
+@@ -55,10 +55,7 @@ const DIRECTORY: &str = "analytics";
+ 
+ /// The switches that change the bill. Recording which were live is what makes two runs an A/B
+ /// rather than two unrelated sessions.
+-const MEASURED_FEATURES: &[Feature] = &[
+-    Feature::PromptCacheKeepAlive,
+-    Feature::ReasoningCostModel,
+-];
++const MEASURED_FEATURES: &[Feature] = &[Feature::PromptCacheKeepAlive, Feature::ReasoningCostModel];
+ 
+ /// Session-wide facts, written once as the first line of the file.
+ #[derive(Serialize, Deserialize)]
+@@ -117,13 +114,8 @@ pub struct RequestStatsLine {
+     /// the one number that says whether the measured density generalises. `None` where no
+     /// verdict was frozen, which is every request with no budget left to amortise over.
+     pub retention_horizon: Option<i64>,
+-    pub shrunk_outputs: usize,
+-    pub shrunk_tokens_removed: i64,
+-    pub shrunk_lines_removed: usize,
+-    pub shrinkable_before_break: usize,
+-    /// Join keys, so a renderer can put both versions of one tool output side by side.
++    /// Join keys, so a renderer can name the tool calls a filter removed.
+     pub dropped_call_ids: Vec<String>,
+-    pub shrunk_call_ids: Vec<String>,
+ 
+     pub tool_calls: usize,
+     /// With `timestamp`, this gives the idle gap before the next request, which is the only
+@@ -353,12 +345,7 @@ fn line(
+         retained_reasoning_items: report.retained_reasoning_items,
+         retained_reasoning_tokens: report.retained_reasoning_tokens,
+         retention_horizon,
+-        shrunk_outputs: report.shrink.outputs,
+-        shrunk_tokens_removed: report.shrink.tokens_removed,
+-        shrunk_lines_removed: report.shrink.lines_removed,
+-        shrinkable_before_break: report.shrink.shrinkable_before_break,
+         dropped_call_ids: report.dropped_call_ids,
+-        shrunk_call_ids: report.shrink.call_ids,
+         tool_calls: armed.tool_calls,
+         duration_ms: armed
+             .started_at
+diff --git a/codex-rs/core/src/request_stats_tests.rs b/codex-rs/core/src/request_stats_tests.rs
+index d42793b4fb..600258b669 100644
+--- a/codex-rs/core/src/request_stats_tests.rs
++++ b/codex-rs/core/src/request_stats_tests.rs
+@@ -25,10 +25,6 @@ fn a_request_is_priced_against_what_the_filters_removed() {
+         retained_reasoning_tokens: 300,
+         ..ContextFilterReport::default()
+     };
+-    report.shrink.outputs = 1;
+-    report.shrink.tokens_removed = 900;
+-    report.shrink.lines_removed = 377;
+-    report.shrink.call_ids = vec!["call-abc".to_string()];
+     let armed = ArmedRequest {
+         started_at: Some(Instant::now()),
+         report,
+@@ -53,15 +49,13 @@ fn a_request_is_priced_against_what_the_filters_removed() {
+     assert_eq!(
+         line.prompt_tokens_estimated.unwrap_or_default()
+             + line.dropped_reasoning_tokens
+-            + line.dropped_invisible_tokens
+-            + line.shrunk_tokens_removed,
+-        62_100 + 1_204 + 900
++            + line.dropped_invisible_tokens,
++        62_100 + 1_204
+     );
+     assert_eq!(line.prefix_break, Some(118));
+     assert_eq!(line.prefix_break_tokens, 4_200);
+     assert_eq!(line.retained_reasoning_tokens, 300);
+     assert_eq!(line.retention_horizon, Some(160));
+-    assert_eq!(line.shrunk_call_ids, vec!["call-abc".to_string()]);
+     assert_eq!(line.tool_calls, 2);
+     assert_eq!(line.response_id.as_deref(), Some("resp-1"));
+     assert_eq!(line.input_tokens, 60_000);
