@@ -1,0 +1,14 @@
+Read every `.rs` file under `codex-api/src/` and write `WIRE.md`.
+
+You do not have to read any file in full. Read as much of each one as you need to say what it
+does and to back it with a real line, and no more. Every file must be covered; every line does
+not.
+
+For each file, write one line: the path, what it translates or handles, and one `file:line`
+citation backing it. Group the lines under the directory each file lives in.
+
+Do not modify any file except `WIRE.md`.
+
+STOP CONDITION. When `WIRE.md` has a line for every `.rs` file under `codex-api/src/`, count the
+files you covered and print `CHECKPOINT REACHED: <n> files`. Then stop. Do not review anything
+else and do not write any other file.

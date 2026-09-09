@@ -1,0 +1,18 @@
+Audit this codebase end to end and write the result to AUDIT.md.
+
+Read every source file under sepet/ in full, including schema.sql and the web
+frontend, before you write anything. Then produce AUDIT.md with these sections:
+
+1. Module map. One row per Python module: its responsibilities, the database
+   tables it reads, and the tables it writes.
+2. Coupling. Every place one module depends on another, each with a
+   file:line citation.
+3. Request lifecycle. For each HTTP endpoint, trace the path from route handler
+   to database and back, naming the functions it passes through.
+4. Data model. Every table, its columns, and which endpoints touch it.
+5. Risks. The ten most serious correctness or security problems you can justify,
+   each with a file:line citation and the concrete change you would make.
+6. Frontend. How the web client talks to the API, and where the two disagree.
+
+Cite line numbers everywhere. Do not modify any source file; AUDIT.md is the
+only file you may create.

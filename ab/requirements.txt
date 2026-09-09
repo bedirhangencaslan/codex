@@ -1,0 +1,14 @@
+# Measurement harness dependencies. Everything else the scripts use is standard library.
+#
+#   pip install -r requirements.txt
+#
+# httpx   - relay.py sits in front of Z.ai and streams responses through; it needs a client that
+#           can stream a POST body and read SSE frames back (`client.stream`).
+# tiktoken - the only honest token count. `len / 4` is 0.98x of provider truth on plain source but
+#           roughly ten times wrong on whitespace-heavy text, because BPE merges runs of spaces
+#           (121 spaces = 2 tokens). Every per-item number in measure.py, read-report.py and
+#           window.py is counted with the `o200k_base` encoding.
+#
+# Versions are floors, not pins: these are the ones the recorded runs were measured with.
+httpx>=0.28.1
+tiktoken>=0.13.0

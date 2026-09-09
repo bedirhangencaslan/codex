@@ -1,0 +1,7 @@
+`python check.py` reports three failing checks, one in each of area.py, slug.py and quarter.py.
+
+Fix all three in their own modules. check.py is the specification: do not edit it, and do not
+special-case the values it tests.
+
+Stop as soon as `python check.py` prints ALL OK. Then reply with one sentence naming the three
+fixes.
