@@ -217,6 +217,8 @@ async fn prompt_tools_are_consistent_across_requests(
         "apply_patch",
         "view_image",
         "read",
+        "glob",
+        "grep",
         "tool_search",
         "web_search",
     ]);

@@ -1232,6 +1232,8 @@ async fn environment_count_controls_environment_backed_tools() {
         "apply_patch",
         "view_image",
         "read",
+        "glob",
+        "grep",
         "request_permissions",
     ]);
     no_environment.assert_registered_lacks(&[
@@ -1240,6 +1242,8 @@ async fn environment_count_controls_environment_backed_tools() {
         "apply_patch",
         "view_image",
         "read",
+        "glob",
+        "grep",
         "request_permissions",
     ]);
     assert!(!no_environment.has_terminal_controls);
@@ -1259,6 +1263,8 @@ async fn environment_count_controls_environment_backed_tools() {
         "apply_patch",
         "view_image",
         "read",
+        "glob",
+        "grep",
         "request_permissions",
     ]);
     assert!(multiple_environments.has_terminal_controls);

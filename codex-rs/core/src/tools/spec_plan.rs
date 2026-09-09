@@ -28,6 +28,8 @@ use crate::tools::handlers::SendUserMessageAsyncHandler;
 use crate::tools::handlers::SleepHandler;
 use crate::tools::handlers::TestSyncHandler;
 use crate::tools::handlers::ToolSearchHandlerCache;
+use crate::tools::handlers::GlobHandler;
+use crate::tools::handlers::GrepHandler;
 use crate::tools::handlers::ReadHandler;
 use crate::tools::handlers::ViewImageHandler;
 use crate::tools::handlers::WaitForEnvironmentHandler;
@@ -52,6 +54,7 @@ use crate::tools::handlers::multi_agents_v2::SpawnAgentHandler as SpawnAgentHand
 use crate::tools::handlers::multi_agents_v2::WaitAgentHandler as WaitAgentHandlerV2;
 use crate::tools::handlers::tool_search_spec::ToolSearchSourceListing;
 use crate::tools::handlers::read_spec::ReadToolOptions;
+use crate::tools::handlers::search_spec::SearchToolOptions;
 use crate::tools::handlers::view_image_spec::ViewImageToolOptions;
 use crate::tools::hosted_spec::WebSearchToolOptions;
 use crate::tools::hosted_spec::create_web_search_tool;
@@ -1278,6 +1281,14 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
     if environment_mode.has_environment() {
         let include_environment_id = matches!(environment_mode, ToolEnvironmentMode::Multiple);
         registry.add(ReadHandler::new(ReadToolOptions {
+            include_environment_id,
+        }));
+        // `read`'s description points at both of these by name, and the model cannot search a large
+        // file without them: registering them together with `read` keeps that sentence honest.
+        registry.add(GlobHandler::new(SearchToolOptions {
+            include_environment_id,
+        }));
+        registry.add(GrepHandler::new(SearchToolOptions {
             include_environment_id,
         }));
     }

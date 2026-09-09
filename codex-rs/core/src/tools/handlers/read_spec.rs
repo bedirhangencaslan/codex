@@ -64,7 +64,8 @@ Usage:
 - By default, this tool returns up to 2000 lines from the start of the file, and at most about 32000 bytes: `limit` counts lines but the ceiling is bytes, so a file of long lines stops earlier than the line count suggests.
 - The offset parameter is the line number to start from (1-indexed).
 - To read later sections, call this tool again with a larger offset.
-- Use `rg` through `exec_command` to find specific content in large files or files with long lines.
+- Use the grep tool to find specific content in large files or files with long lines.
+- If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.
 - Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents \"foo\\n\", you will receive \"1: foo\\n\". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.
 - Any line longer than 2000 characters is truncated.
 - Call this tool in parallel when you know there are multiple files you want to read: several `read` calls in one response run together and each answers on its own.
@@ -87,17 +88,18 @@ mod tests {
     use super::*;
 
     /// The spec rides the fixed prefix of every request, which is the single biggest line of the
-    /// bill, so it is not allowed to grow quietly. Measured at 1_756 bytes as written - about 430
-    /// tokens - against 1_212 for the batched shape it replaced. The difference buys the sentence
-    /// that says several calls may go out together and the one that admits the ceiling is bytes
-    /// rather than lines, which is the thing the model otherwise has to discover by being cut.
+    /// bill, so it is not allowed to grow quietly. Measured at 1_845 bytes as written - about 450
+    /// tokens - against 1_212 for the batched shape it replaced. The difference buys three
+    /// sentences: that several calls may go out together, that the ceiling is bytes rather than
+    /// lines (the thing the model otherwise discovers by being cut), and the two that hand a large
+    /// file to `grep` and a missing name to `glob` instead of to another read.
     #[test]
     fn the_spec_stays_small_because_every_request_pays_for_it() {
         let spec = create_read_tool(ReadToolOptions::default());
         let json = serde_json::to_string(&spec).expect("spec must serialize");
         println!("read spec serializes to {} bytes", json.len());
         assert!(
-            json.len() <= 1_800,
+            json.len() <= 1_900,
             "read spec grew to {} bytes; every request carries it",
             json.len()
         );
