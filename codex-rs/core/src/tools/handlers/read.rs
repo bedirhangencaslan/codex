@@ -190,8 +190,7 @@ fn span(offset: Option<usize>, end: Option<usize>) -> Option<usize> {
 /// tells a model nothing it can act on.
 fn shape_error(arguments: &str) -> FunctionCallError {
     FunctionCallError::RespondToModel(format!(
-        "read expects {{\"paths\": [\"file.rs\", {{\"path\": \"other.rs\", \"offset\": 40, \
-         \"limit\": 80}}]}}; got: {}",
+        "read expects {{\"filePath\": \"other.rs\", \"offset\": 40, \"limit\": 80}}; got: {}",
         clip_to_bytes(arguments, 200)
     ))
 }
@@ -673,6 +672,16 @@ impl ReadHandler {
             environment_id,
             mut overflow,
         } = normalize_args(&arguments)?;
+        // One file per call. Reading the first path and dropping the rest would hide the shape of
+        // the tool; naming the parallel form turns a rejected call into one round trip rather than
+        // two, and the model already sends several calls in a response for searches.
+        if targets.len() + overflow.len() > 1 {
+            return Err(FunctionCallError::RespondToModel(
+                "`read` takes one `filePath`. To read several files, send several `read` calls \
+                 in one response - they run together and each answers on its own."
+                    .to_string(),
+            ));
+        }
 
         let Some(turn_environment) =
             resolve_tool_environment(&step_context.environments, environment_id.as_deref())?

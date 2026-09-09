@@ -58,40 +58,45 @@ fn numbered_lines(count: usize) -> String {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_batch_mixes_whole_files_with_windows_and_numbers_every_line() -> Result<()> {
+async fn a_window_is_numbered_from_its_own_offset_and_says_how_to_continue() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let output = read_output(
+        &[("windowed.txt", numbered_lines(200))],
+        serde_json::json!({ "filePath": "windowed.txt", "offset": 5, "limit": 2 }),
+    )
+    .await?;
+
+    // A window is numbered from its own offset, so a `file:line` citation can be written from the
+    // read itself rather than from a second pass with `rg -n`, and the read can be resumed.
+    assert!(output.contains("5: line 5
+6: line 6
+"), "{output}");
+    assert!(output.contains("from line 5"), "{output}");
+    assert!(output.contains("continue with offset 7"), "{output}");
+    Ok(())
+}
+
+/// The batched shape is refused rather than half-served: reading the first path and dropping the
+/// rest would leave the model believing it had them.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn several_paths_are_refused_with_the_parallel_form() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let output = read_output(
         &[
-            ("plain.txt", "alpha\nbeta\n".to_string()),
-            ("windowed.txt", numbered_lines(200)),
+            ("a.txt", "alpha
+".to_string()),
+            ("b.txt", "beta
+".to_string()),
         ],
-        serde_json::json!({
-            "paths": [
-                "plain.txt",
-                { "path": "windowed.txt", "offset": 5, "limit": 2 },
-            ]
-        }),
+        serde_json::json!({ "paths": ["a.txt", "b.txt"] }),
     )
     .await?;
 
-    let plain_at = output.find("plain.txt").expect("plain.txt must appear");
-    let windowed_at = output
-        .find("windowed.txt")
-        .expect("windowed.txt must appear");
-    assert!(
-        plain_at < windowed_at,
-        "sections must keep the order they were asked for: {output}"
-    );
-
-    // Every read is numbered, so a `file:line` citation can be written from the read itself
-    // rather than from a second pass with `rg -n`.
-    assert!(output.contains("1: alpha\n2: beta\n"), "{output}");
-
-    // A window is numbered from its own offset, so it can be cited and resumed.
-    assert!(output.contains("5: line 5\n6: line 6\n"), "{output}");
-    assert!(output.contains("from line 5"), "{output}");
-    assert!(output.contains("continue with offset 7"), "{output}");
+    assert!(output.contains("one `filePath`"), "{output}");
+    assert!(output.contains("in one response"), "{output}");
+    assert!(!output.contains("1: alpha"), "no file may be served: {output}");
     Ok(())
 }
 
@@ -105,7 +110,7 @@ async fn a_binary_file_is_refused_without_leaking_its_bytes() -> Result<()> {
 
     let output = read_output(
         &[("blob.bin", contents)],
-        serde_json::json!({ "paths": ["blob.bin"] }),
+        serde_json::json!({ "filePath": "blob.bin" }),
     )
     .await?;
 
@@ -118,50 +123,26 @@ async fn a_binary_file_is_refused_without_leaking_its_bytes() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_top_level_limit_windows_every_file_and_the_call_stays_inside_its_budget() -> Result<()> {
+async fn one_large_file_stays_inside_the_calls_budget() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
-    // The call that motivated this rewrite: a top-level `limit` alongside a dozen paths. It used to
-    // be dropped in silence and return twelve whole files.
-    let files: Vec<(String, String)> = (0..12)
-        .map(|index| (format!("big{index}.txt"), numbered_lines(3_000)))
-        .collect();
-    let borrowed: Vec<(&str, String)> = files
-        .iter()
-        .map(|(name, contents)| (name.as_str(), contents.clone()))
-        .collect();
-    let paths: Vec<String> = files.iter().map(|(name, _)| name.clone()).collect();
-
+    // A single file can still exceed what one tool output may carry, and the cut has to announce
+    // itself: the model needs the offset to continue from, not a silently short answer.
     let output = read_output(
-        &borrowed,
-        serde_json::json!({ "limit": 500, "paths": paths }),
+        &[("big.txt", numbered_lines(30_000))],
+        serde_json::json!({ "filePath": "big.txt" }),
     )
     .await?;
 
-    let missing: Vec<&str> = files
-        .iter()
-        .map(|(name, _)| name.as_str())
-        .filter(|name| !output.contains(*name))
-        .collect();
+    assert!(output.contains("1: line 1
+"), "{output}");
     assert!(
-        missing.is_empty(),
-        "every file asked for must have a section; missing {missing:?} of {} bytes",
-        output.len()
-    );
-    assert_eq!(
-        output.matches("showing").count(),
-        12,
-        "every file must report that it was windowed: {output}"
+        output.contains("continue with offset"),
+        "a cut read must say where to resume: {output}"
     );
     assert!(
-        !output.contains("line 3000"),
-        "a windowed read must not return the whole file"
-    );
-    // The point of the tool deciding where to stop: the harness never has to cut the output
-    // middle-out, which would land inside a file without telling the model which one.
-    assert!(
-        !output.contains("tokens truncated"),
-        "read must stay inside the budget its model allows, got {} bytes",
+        output.len() < 60_000,
+        "the call budget must bound one file too, got {} bytes",
         output.len()
     );
     Ok(())
