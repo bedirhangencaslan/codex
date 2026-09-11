@@ -160,6 +160,31 @@ PIECES = {
     # and `f-p-layout` stayed in band and contain neither. These two test that common factor: the
     # fork's whole tool surface with OpenCode's `read` put back, and OpenCode's surface with only
     # the fork's `read` spec (its envelope left alone).
+    # The fork whole, with the clause removed - the arm that should have been run before claiming
+    # the clause was the answer. It says what this fix can buy on the real stack, not in isolation.
+    "f-suf-nobytes": dict(
+        prefix="suf", toolset="suf", read_envelope="suffice",
+        max_tokens=None, parallel_tool_calls=True,
+        read_desc_edit=(
+            ", and at most about 32000 bytes: `limit` counts lines but the ceiling is bytes, "
+            "so a file of long lines stops earlier than the line count suggests",
+            "",
+        ),
+    ),
+    # The fork's prompt and message layout together, with OpenCode's tools. Each was clean alone;
+    # this asks whether they are clean together.
+    "f-prefix-only": dict(
+        prefix="suf", toolset="opencode", read_envelope="oc",
+        max_tokens=32000, parallel_tool_calls=None,
+    ),
+    "f-prefix-agents-inline": dict(
+        prefix="suf", agents_inline=True, toolset="opencode", read_envelope="oc",
+        max_tokens=32000, parallel_tool_calls=None,
+    ),
+    "f-prefix-ocprompt": dict(
+        prefix="suf", suf_prompt="oc", toolset="opencode", read_envelope="oc",
+        max_tokens=32000, parallel_tool_calls=None,
+    ),
     "f-p-tools-ocread": dict(OC, oc_capture="oc1", toolset="suf", read_from="opencode"),
     "f-p-readspec":     dict(OC, oc_capture="oc1", read_from="suf"),
     # The fork's `read` spec differs from OpenCode's in one substantive sentence. This is that arm
@@ -333,8 +358,24 @@ def build_messages(arm):
 
     if arm.get("prefix") == "suf":
         d = os.path.join(WIRE, "suf")
+        # `suf_prompt="oc"` keeps the fork's four-message shape, its skills and permissions block,
+        # its AGENTS.md-as-a-user-turn and its environment block, and puts OpenCode's prompt text
+        # in system[0]. Prompt and layout were each clean alone; this splits the pair.
+        head = (split_opencode_system("oc1")[0] if arm.get("suf_prompt") == "oc"
+                else retarget(cap(os.path.join(d, "msg00_system.txt"))))
+        if arm.get("agents_inline"):
+            # The fork's own content in OpenCode's shape: one system message carrying the prompt,
+            # the skills and permissions block and AGENTS.md, then the task. Tests whether what
+            # breaks the fork's prompt is simply the 24 KB and the role boundary between it and the
+            # task, rather than anything in the text.
+            joined = "\n\n".join([
+                head,
+                retarget(cap(os.path.join(d, "msg01_system.txt"))),
+                retarget(cap(os.path.join(d, "msg02_user.txt"))),
+            ])
+            return [{"role": "system", "content": joined}, {"role": "user", "content": task}]
         return [
-            {"role": "system", "content": retarget(cap(os.path.join(d, "msg00_system.txt")))},
+            {"role": "system", "content": head},
             {"role": "system", "content": retarget(cap(os.path.join(d, "msg01_system.txt")))},
             {"role": "user", "content": retarget(cap(os.path.join(d, "msg02_user.txt")))},
             {"role": "user", "content": task},
