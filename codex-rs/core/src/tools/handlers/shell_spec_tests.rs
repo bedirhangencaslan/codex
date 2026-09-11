@@ -6,6 +6,10 @@ fn windows_shell_guidance_description() -> String {
     format!("\n\n{}", windows_shell_guidance())
 }
 
+fn file_work_guidance_description() -> String {
+    format!("\n\n{}", file_work_guidance())
+}
+
 fn has_parameter(tool: &ToolSpec, parameter_name: &str) -> bool {
     serde_json::to_value(tool)
         .expect("tool spec should serialize")
@@ -22,12 +26,15 @@ fn exec_command_tool_matches_expected_spec() {
 
     let description = if cfg!(windows) {
         format!(
-            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.{}",
+            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.{}{}",
+            file_work_guidance_description(),
             windows_shell_guidance_description()
         )
     } else {
-        "Runs a command in a PTY, returning output or a session ID for ongoing interaction."
-            .to_string()
+        format!(
+            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.{}",
+            file_work_guidance_description()
+        )
     };
     let yield_time_ms_description = if cfg!(windows) {
         "Maximum time to wait before returning a session ID for a still-running command. Commands that finish sooner return immediately. For ordinary commands, omit this parameter to use the 10000 ms default. Effective range on Windows is 10000-30000 ms."
@@ -67,7 +74,7 @@ fn exec_command_tool_matches_expected_spec() {
         (
             "max_output_tokens".to_string(),
             JsonSchema::number(Some(
-                    "Output token budget. Defaults to 10000 tokens; larger requests may be capped by policy.".to_string(),
+                    "Cap on this one command's output, in tokens. Defaults to 10000; larger requests may be capped by policy. It bounds this command only and says nothing about how much conversation context remains.".to_string(),
                 )),
         ),
         (
@@ -140,7 +147,7 @@ fn write_stdin_tool_matches_expected_spec() {
         (
             "max_output_tokens".to_string(),
             JsonSchema::number(Some(
-                "Output token budget. Defaults to 10000 tokens; larger requests may be capped by policy.".to_string(),
+                "Cap on this one command's output, in tokens. Defaults to 10000; larger requests may be capped by policy. It bounds this command only and says nothing about how much conversation context remains.".to_string(),
             )),
         ),
     ]);

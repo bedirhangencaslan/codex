@@ -425,22 +425,34 @@ fn render_body(
             "offset {} is past the end; {total_lines} lines",
             start + 1
         ));
-    } else {
-        if start > 0 {
-            notes.push(format!("from line {}", start + 1));
-        }
-        if shown_to < total_lines {
+    } else if shown_to < total_lines {
+        // OpenCode's three closing sentences, which differ from ours in one way that turned out to
+        // matter: it names the byte cap when the byte cap is what stopped the read, so a short
+        // answer is never mistaken for a short file.
+        if hit_cap {
             notes.push(format!(
-                "showing {kept} of {total_lines} lines; continue with offset {}",
+                "output capped at {} KB, showing lines {}-{shown_to} of {total_lines}; use offset {} to continue",
+                PER_FILE_BUDGET_BYTES / 1024,
+                start + 1,
+                shown_to + 1
+            ));
+        } else {
+            notes.push(format!(
+                "showing lines {}-{shown_to} of {total_lines}; use offset {} to continue",
+                start + 1,
                 shown_to + 1
             ));
         }
+    } else {
+        // A read that fitted used to say nothing at all. OpenCode closes every complete read with
+        // `(End of file - total N lines)`, so its model learns each file's true length from the
+        // first read and never has to guess a window. Ours could only learn a length by truncating,
+        // and measured against that: OpenCode settles at an 80-line window, ours asked for 500 and
+        // sized several requests to within ten lines of the file - guesses, not knowledge.
+        notes.push(format!("end of file, {total_lines} lines"));
     }
     if clipped > 0 {
         notes.push(format!("{clipped} long line(s) clipped"));
-    }
-    if hit_cap && shown_to >= total_lines {
-        notes.push("output budget reached".to_string());
     }
 
     let note = (!notes.is_empty()).then(|| {

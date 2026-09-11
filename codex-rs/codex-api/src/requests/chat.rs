@@ -15,6 +15,9 @@ use serde_json::Value;
 use serde_json::json;
 use std::collections::HashMap;
 
+/// Ceiling on one response's output tokens, matching what OpenCode sends on the same wire.
+const MAX_OUTPUT_TOKENS: u32 = 32_000;
+
 /// Builds the `/chat/completions` request body for `request`.
 pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) -> Value {
     let mut messages = Vec::<Value>::new();
@@ -168,6 +171,11 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
         // Without this the provider omits `usage`, and Suffice cannot track cost
         // or drive the auto-compaction trigger.
         "stream_options": {"include_usage": true},
+        // OpenCode sends this on every Chat request against the same model and we sent nothing,
+        // leaving the provider's own default in force. Matching it is the point: the arm this is
+        // measured against differs from ours in the request body as well as in the prompt, and an
+        // unset ceiling is a difference like any other.
+        "max_tokens": MAX_OUTPUT_TOKENS,
     });
 
     let Some(obj) = body.as_object_mut() else {

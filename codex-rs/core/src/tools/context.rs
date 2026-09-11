@@ -344,6 +344,20 @@ impl ToolOutput for AbortedToolOutput {
     }
 }
 
+/// Ceiling for one `exec_command` result, in bytes.
+///
+/// `truncation_policy * 1.2` alone is 120,000 bytes for this model, while a `read` call may emit
+/// 53,333 - so one `rg` sweep could put 2.25x the largest possible read into the window, and the
+/// window, not the harness cut, is what compaction watches. Measured: a corpus-wide `rg` returned
+/// 102,233 bytes, 43% of everything that entered the window in that run, and the model discarded it
+/// as "truncated and disordered" while it went on being resent on every later request.
+///
+/// The number is OpenCode's. It applies one cap to every tool output - `MAX_BYTES = 51200`,
+/// `MAX_LINES = 2000` in its bundle - and uses the same 51,200 for its read tool, so a shell result
+/// can never cost more window than a file read. That symmetry is the point; this is not a new
+/// restriction so much as the one already imposed on `read` finally reaching the other door.
+const MAX_EXEC_OUTPUT_BYTES: usize = 51_200;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecCommandToolOutput {
     pub event_call_id: String,
@@ -549,6 +563,7 @@ impl ExecCommandToolOutput {
         let header = self.response_header(&condensed);
         let output_budget = (self.truncation_policy * 1.2)
             .byte_budget()
+            .min(MAX_EXEC_OUTPUT_BYTES)
             .saturating_sub(header.len().saturating_add(/*rhs*/ 1));
         let mut policy = self.model_output_policy();
         let mut output = self.truncated_output_with_policy(&text, policy);

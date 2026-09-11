@@ -57,8 +57,11 @@ pub(crate) fn create_exec_command_tool_with_environment_id(
         ),
         (
             "max_output_tokens".to_string(),
+            // Not "token budget": on two measured runs the model read that phrase as its *context*
+            // budget - "we have token budget 19k only" - and rationed its `read` windows against a
+            // ceiling that belongs to one command's output. The window was three times larger.
             JsonSchema::number(Some(
-                "Output token budget. Defaults to 10000 tokens; larger requests may be capped by policy.".to_string(),
+                "Cap on this one command's output, in tokens. Defaults to 10000; larger requests may be capped by policy. It bounds this command only and says nothing about how much conversation context remains.".to_string(),
             )),
         ),
     ]);
@@ -96,12 +99,15 @@ pub(crate) fn create_exec_command_tool_with_environment_id(
         name: "exec_command".to_string(),
         description: if include_windows_shell_guidance {
             format!(
-                "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}",
+                "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}\n\n{}",
+                file_work_guidance(),
                 windows_shell_guidance()
             )
         } else {
-            "Runs a command in a PTY, returning output or a session ID for ongoing interaction."
-                .to_string()
+            format!(
+                "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}",
+                file_work_guidance()
+            )
         },
         strict: false,
         defer_loading: None,
@@ -136,8 +142,11 @@ pub fn create_write_stdin_tool() -> ToolSpec {
         ),
         (
             "max_output_tokens".to_string(),
+            // Not "token budget": on two measured runs the model read that phrase as its *context*
+            // budget - "we have token budget 19k only" - and rationed its `read` windows against a
+            // ceiling that belongs to one command's output. The window was three times larger.
             JsonSchema::number(Some(
-                "Output token budget. Defaults to 10000 tokens; larger requests may be capped by policy.".to_string(),
+                "Cap on this one command's output, in tokens. Defaults to 10000; larger requests may be capped by policy. It bounds this command only and says nothing about how much conversation context remains.".to_string(),
             )),
         ),
     ]);
@@ -334,6 +343,22 @@ fn file_system_permissions_schema() -> JsonSchema {
     );
     schema.description = Some("Filesystem access request.".to_string());
     schema
+}
+
+/// The shell is the cheapest wrong answer for file work: its output arrives whole, under this
+/// tool's own cap rather than `read`'s per-file budget, and it stays in context for the rest of the
+/// session. Measured on the 44-file reading task, the model reached for `rg`, then `Get-Content
+/// -TotalCount`, then `Select-String`, and pulled 79 KB of file text through here while `read`,
+/// `glob` and `grep` sat unused - the tool descriptions offered them, but nothing said the shell was
+/// the wrong door. OpenCode's `bash` description says exactly that, by command name, and its model
+/// does not make this trade. This is that paragraph, with our tool names.
+fn file_work_guidance() -> &'static str {
+    r#"IMPORTANT: This tool is for terminal operations such as `git`, `cargo`, `npm`, and `docker`. Do NOT use it for file operations - reading, writing, editing, searching, or finding files. Use the dedicated tools for those instead:
+- File search: use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
+- Content search: use `grep` (NOT `Select-String`, `grep`, or `rg`)
+- Read files: use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
+- Edit or create files: use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)
+Reach for the shell on file work only for what the dedicated tools do not do, such as a count of matches, which `rg -c` gives and `grep` does not. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one."#
 }
 
 fn windows_shell_guidance() -> &'static str {
