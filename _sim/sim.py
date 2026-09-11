@@ -150,6 +150,28 @@ PIECES = {
     "f-sorted": dict(OC, oc_capture="oc1", replay="wire-stock-rep1", replay_tools={"glob"}, glob_order="sorted"),
     # The fork, whole: its prefix, its twelve tool specs, its read envelope, its request params.
     "f-suf":    dict(prefix="suf", toolset="suf", read_envelope="suffice", max_tokens=None, parallel_tool_calls=True),
+    # Full-task bisection: OpenCode whole, plus exactly one of the fork's pieces. Measured on cost,
+    # not on the opening window, because the opening window turned out not to predict cost.
+    "f-p-read":   dict(OC, oc_capture="oc1", read_from="suf", read_envelope="suffice"),
+    "f-p-tools":  dict(OC, oc_capture="oc1", toolset="suf"),
+    "f-p-prompt": dict(OC, oc_capture="oc1", prompt="suf"),
+    "f-p-layout": dict(OC, oc_capture="oc1", skills="suf", agents="user"),
+    # `f-p-read` and `f-p-tools` both spiked and both contain the fork's `read` spec; `f-p-prompt`
+    # and `f-p-layout` stayed in band and contain neither. These two test that common factor: the
+    # fork's whole tool surface with OpenCode's `read` put back, and OpenCode's surface with only
+    # the fork's `read` spec (its envelope left alone).
+    "f-p-tools-ocread": dict(OC, oc_capture="oc1", toolset="suf", read_from="opencode"),
+    "f-p-readspec":     dict(OC, oc_capture="oc1", read_from="suf"),
+    # The fork's `read` spec differs from OpenCode's in one substantive sentence. This is that arm
+    # minus the sentence, everything else left alone.
+    "f-p-readspec-nobytes": dict(
+        OC, oc_capture="oc1", read_from="suf",
+        read_desc_edit=(
+            ", and at most about 32000 bytes: `limit` counts lines but the ceiling is bytes, "
+            "so a file of long lines stops earlier than the line count suggests",
+            "",
+        ),
+    ),
     # Not a difference between the agents - a difference between this loop and both of them.
     "h1-feed-reasoning": piece(feed_reasoning=True),
     "h2-feed-reasoning-suftools": dict(prefix="suf", toolset="suf", read_envelope="oc", max_tokens=32000, parallel_tool_calls=None, feed_reasoning=True),
