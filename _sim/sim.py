@@ -44,6 +44,7 @@ CAPTURED_ROOTS = [
     r"C:\Users\Bedirhan\Desktop\agent\ab\par-opencode",
     r"C:\Users\azsxd\codex\_labs\work\wire-sufficefork-rep2",
     r"C:\Users\azsxd\codex\_labs\work\wire-sufficefork-rep4",
+    r"C:\Users\azsxd\codex\_labs\work\wire-stock-rep1",
 ]
 
 PRICE = {"fresh": 0.075e-6, "cached": 0.015e-6, "out": 0.25e-6}
@@ -75,11 +76,13 @@ def tool_specs(which, read_from=None, read_desc_edit=None, extra_tools=None, dro
         if name == "read.json" and read_from:
             spec = json.loads(retarget(cap(os.path.join(WIRE, read_from, "tools", "read.json"))))
         out.append(spec)
+    # Drop first, then add: an arm that *substitutes* one agent's tool for the other's names the
+    # same tool in both lists, and dropping afterwards would delete the replacement too.
+    if drop_tools:
+        out = [s for s in out if (s.get("function", s)).get("name") not in drop_tools]
     for extra in extra_tools or []:
         other = "opencode" if which != "opencode" else "suf"
         out.append(json.loads(retarget(cap(os.path.join(WIRE, other, "tools", extra + ".json")))))
-    if drop_tools:
-        out = [s for s in out if (s.get("function", s)).get("name") not in drop_tools]
     if read_desc_edit:
         for spec in out:
             fn = spec.get("function", spec)
@@ -95,6 +98,48 @@ def tool_specs(which, read_from=None, read_desc_edit=None, extra_tools=None, dro
 #
 # The ladder runs from a faithful OpenCode down to a faithful Suffice, moving one thing per rung.
 # `base` names the rung it is copied from, so each entry lists only its own change.
+
+OC = dict(toolset="opencode", read_envelope="oc", max_tokens=32000, parallel_tool_calls=None)
+
+
+def piece(**kw):
+    """A faithful OpenCode prefix with exactly one of Suffice's pieces put in its place."""
+    return dict(OC, **kw)
+
+
+# One piece at a time, each against the same OpenCode baseline. The coarse ladder below moved the
+# prompt, the layout and all twelve tool specs in three steps and could only say "the tool surface";
+# these say which piece.
+PIECES = {
+    # --- what reaches the model as text, in the order OpenCode lays it out
+    "p1-prompt":        piece(prompt="suf"),      # default.txt -> instructions_template
+    "p2-skills":        piece(skills="suf"),      # OC's skills tail -> our 5.6 KB skills+permissions
+    "p3-agents-user":   piece(agents="user"),     # AGENTS.md out of system, into its own user turn
+    "p4-env":           piece(env="suf"),         # <env> -> <environment_context>
+
+    # --- the tool surface, one tool or group at a time
+    "t1-goals":         piece(extra_tools=["create_goal", "get_goal", "update_goal"]),
+    "t2-updateplan":    piece(extra_tools=["update_plan"], drop_tools={"todowrite"}),
+    "t3-exec":          piece(extra_tools=["exec_command"], drop_tools={"bash"}),
+    "t4-applypatch":    piece(extra_tools=["apply_patch"], drop_tools={"edit", "write"}),
+    "t5-readspec":      piece(read_from="suf"),
+    "t6-globgrep":      piece(extra_tools=["glob", "grep"], drop_tools={"glob", "grep"}),
+    "t7-requestinput":  piece(extra_tools=["request_user_input"]),
+    "t8-viewimage":     piece(extra_tools=["view_image", "write_stdin"]),
+    "t9-drop-task":     piece(drop_tools={"task"}),
+    "t10-drop-skillweb": piece(drop_tools={"skill", "webfetch"}),
+
+    # --- everything else that reaches the model
+    "r1-nomaxtokens":   piece(max_tokens=None),
+    "r2-parallel":      piece(parallel_tool_calls=True),
+    "e1-sufreadenv":    piece(read_envelope="suffice"),
+    # The prefix used above came from an older capture on another machine. This one is the exact
+    # prefix of `wire-stock-rep1`, the run that read 44 files at 80 lines each with 44/44 bounded.
+    "v-oc1-real":       dict(OC, oc_capture="oc1"),
+    # Not a difference between the agents - a difference between this loop and both of them.
+    "h1-feed-reasoning": piece(feed_reasoning=True),
+    "h2-feed-reasoning-suftools": dict(prefix="suf", toolset="suf", read_envelope="oc", max_tokens=32000, parallel_tool_calls=None, feed_reasoning=True),
+}
 
 ARMS = {
     "0-oc": dict(
@@ -210,28 +255,83 @@ ARMS = {
     ),
 }
 
+ARMS.update(PIECES)
+
+
+# OpenCode packs its whole prefix into one system message. These markers cut it into the four
+# pieces that can be swapped for Suffice's independently, which is what "one small meaningful
+# piece at a time" requires: the coarse ladder moved all four together and could not say which.
+MARK_MODEL = "You are powered by the model named"
+MARK_AGENTS = "Instructions from: "
+MARK_SKILLS = "Skills provide specialized instructions"
+
+
+def split_opencode_system(which="opencode"):
+    """-> (agent prompt, model id + <env>, AGENTS.md section, skills section)"""
+    s = retarget(cap(os.path.join(WIRE, which, "msg00_system.txt")))
+    i_model = s.index(MARK_MODEL)
+    i_agents = s.index(MARK_AGENTS, i_model)
+    i_skills = s.index(MARK_SKILLS, i_agents)
+    return s[:i_model].rstrip(), s[i_model:i_agents].rstrip(), s[i_agents:i_skills].rstrip(), s[i_skills:].rstrip()
+
+
+def suf_env_block():
+    """Suffice's <environment_context>, which it sends at the end of the AGENTS.md user message."""
+    body = retarget(cap(os.path.join(WIRE, "suf", "msg02_user.txt")))
+    i = body.index("<environment_context>")
+    return body[i:].rstrip()
+
+
+def suf_agents_body():
+    """The same AGENTS.md, as Suffice wraps it: a heading, <INSTRUCTIONS>, and the env block."""
+    return retarget(cap(os.path.join(WIRE, "suf", "msg02_user.txt"))).rstrip()
+
 
 def build_messages(arm):
-    src = arm["prefix"]
-    if src == "opencode":
-        system = retarget(cap(os.path.join(WIRE, "opencode", "msg00_system.txt")))
-        if arm.get("swap_system"):
-            # Replace only the agent's own prompt, keeping the model id, <env>, AGENTS.md and the
-            # skills tail that follow it - the same surgery the `wire-suffice` arm did for real.
-            marker = "You are powered by the model named"
-            tail = system[system.index(marker):]
-            other = retarget(cap(os.path.join(WIRE, arm["swap_system"], "msg00_system.txt")))
-            system = other.rstrip() + "\n\n" + tail
-        user = retarget(cap(os.path.join(WIRE, "opencode", "msg01_user.txt")))
-        return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    """Assemble a prefix from four independently swappable pieces plus the task.
 
-    d = os.path.join(WIRE, "suf")
-    return [
-        {"role": "system", "content": retarget(cap(os.path.join(d, "msg00_system.txt")))},
-        {"role": "system", "content": retarget(cap(os.path.join(d, "msg01_system.txt")))},
-        {"role": "user", "content": retarget(cap(os.path.join(d, "msg02_user.txt")))},
-        {"role": "user", "content": retarget(cap(os.path.join(WIRE, "opencode", "msg01_user.txt")))},
-    ]
+    `prefix="suf"` is the faithful fork shape (four messages); anything else builds OpenCode's
+    single system message and applies whichever pieces the arm names.
+    """
+    task = retarget(cap(os.path.join(WIRE, "opencode", "msg01_user.txt")))
+
+    if arm.get("prefix") == "suf":
+        d = os.path.join(WIRE, "suf")
+        return [
+            {"role": "system", "content": retarget(cap(os.path.join(d, "msg00_system.txt")))},
+            {"role": "system", "content": retarget(cap(os.path.join(d, "msg01_system.txt")))},
+            {"role": "user", "content": retarget(cap(os.path.join(d, "msg02_user.txt")))},
+            {"role": "user", "content": task},
+        ]
+
+    prompt, envblock, agents, skills = split_opencode_system(arm.get("oc_capture", "opencode"))
+
+    if arm.get("prompt") == "suf":
+        prompt = retarget(cap(os.path.join(WIRE, "suf", "msg00_system.txt"))).rstrip()
+    if arm.get("env") == "suf":
+        envblock = envblock[: envblock.index("Here is some useful information")].rstrip()
+        envblock = envblock + "\n" + suf_env_block()
+    if arm.get("skills") == "suf":
+        skills = None
+
+    messages, tail = [], []
+    parts = [prompt, envblock]
+    if arm.get("agents") == "user":
+        tail.append({"role": "user", "content": suf_agents_body()})
+    else:
+        parts.append(agents)
+    if skills:
+        parts.append(skills)
+    messages.append({"role": "system", "content": "\n\n".join(p for p in parts if p)})
+
+    if arm.get("skills") == "suf":
+        messages.append({
+            "role": "system",
+            "content": retarget(cap(os.path.join(WIRE, "suf", "msg01_system.txt"))),
+        })
+    messages.extend(tail)
+    messages.append({"role": "user", "content": task})
+    return messages
 
 
 # --------------------------------------------------------------------------- tool dispatch
@@ -274,7 +374,7 @@ def run_tool(name, args, arm):
 
 def chat(client, url, body):
     """One streaming request, accumulated into a message plus its usage."""
-    content, calls, usage = "", {}, None
+    content, reasoning, calls, usage = "", "", {}, None
     with client.stream("POST", url, json=body) as resp:
         if resp.status_code != 200:
             raise RuntimeError(f"HTTP {resp.status_code}: {resp.read()[:400]!r}")
@@ -294,6 +394,7 @@ def chat(client, url, body):
             for choice in obj.get("choices") or []:
                 delta = choice.get("delta") or {}
                 content += delta.get("content") or ""
+                reasoning += delta.get("reasoning_content") or ""
                 for tc in delta.get("tool_calls") or []:
                     slot = calls.setdefault(tc.get("index", 0), {"id": "", "name": "", "args": ""})
                     if tc.get("id"):
@@ -302,10 +403,10 @@ def chat(client, url, body):
                     if fn.get("name"):
                         slot["name"] = fn["name"]
                     slot["args"] += fn.get("arguments") or ""
-    return content, [calls[k] for k in sorted(calls)], usage
+    return content, reasoning, [calls[k] for k in sorted(calls)], usage
 
 
-def run_arm(name, arm, url, steps, stop_on_read, verbose):
+def run_arm(name, arm, url, steps, stop_on_read, verbose, temperature=None):
     messages = build_messages(arm)
     specs = tool_specs(
         arm["toolset"], arm.get("read_from"), arm.get("read_desc_edit"),
@@ -314,7 +415,7 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose):
     client = httpx.Client(timeout=httpx.Timeout(600.0, connect=30.0))
 
     fresh = cached = out_tok = 0
-    read_limits, trace = [], []
+    read_limits, read_bytes, trace = [], [], []
 
     for step in range(1, steps + 1):
         body = {
@@ -327,12 +428,19 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose):
             "thinking": {"type": "enabled"},
             "reasoning_effort": "high",
         }
+        if temperature is not None:
+            # Neither agent sends `temperature`, so the provider default applies and the same arm
+            # answered 20/20 bounded in one session and 4/11 in the next. That spread is sampling,
+            # not the input under test, and it costs reps to average out. Pinning it is a deliberate
+            # departure from both agents: this measures which input changes the model's choice, not
+            # how often the real agents land on each choice.
+            body["temperature"] = temperature
         if arm.get("max_tokens"):
             body["max_tokens"] = arm["max_tokens"]
         if arm.get("parallel_tool_calls") is not None:
             body["parallel_tool_calls"] = arm["parallel_tool_calls"]
 
-        content, calls, usage = chat(client, url, body)
+        content, reasoning, calls, usage = chat(client, url, body)
         if usage:
             pt = usage.get("prompt_tokens", 0)
             ct = (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
@@ -348,7 +456,7 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose):
         if not calls:
             break
 
-        messages.append({
+        assistant = {
             "role": "assistant",
             "content": content or None,
             "tool_calls": [
@@ -356,7 +464,14 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose):
                  "function": {"name": c["name"], "arguments": c["args"]}}
                 for c in calls
             ],
-        })
+        }
+        if arm.get("feed_reasoning") and reasoning:
+            # GLM streams its thinking as `reasoning_content` and both real agents hand it back:
+            # Suffice's `chat.rs` folds it into the anchor assistant message, and OpenCode's
+            # provider returns it too. Dropping it - which this loop did at first - means the model
+            # plans its window in turn one and never sees that plan again in turn two.
+            assistant["reasoning_content"] = reasoning
+        messages.append(assistant)
 
         hit_read = False
         for c in calls:
@@ -373,6 +488,11 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose):
                 else:
                     read_limits.append(args.get("limit"))
             result = run_tool(c["name"], args, arm)
+            if c["name"] in READ_NAMES:
+                # The nominal `limit` is a poor metric: omitting it on a four-line `mod.rs` costs
+                # nothing, while 500 on a 3,000-line file costs everything. What is actually billed
+                # is the bytes that come back, so that is what is recorded.
+                read_bytes.append(len(result))
             messages.append({"role": "tool", "tool_call_id": c["id"], "content": result})
 
         if hit_read and stop_on_read:
@@ -383,6 +503,8 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose):
         "arm": name, "steps": len(trace), "fresh": fresh, "cached": cached,
         "out": out_tok, "cost": round(cost, 5),
         "read_calls": len(read_limits),
+        "read_bytes": read_bytes,
+        "bytes_per_read": round(sum(read_bytes) / len(read_bytes)) if read_bytes else 0,
         "read_limits": read_limits,
         "trace": trace,
     }
@@ -401,6 +523,7 @@ def main():
     ap.add_argument("--port", type=int, default=8799)
     ap.add_argument("--steps", type=int, default=4, help="hard ceiling on requests per arm")
     ap.add_argument("--all-steps", action="store_true", help="do not stop at the first read")
+    ap.add_argument("--temperature", type=float, default=None, help="pin sampling; omit to match both agents")
     ap.add_argument("--reps", type=int, default=1, help="repeat each arm; the spread is the finding")
     ap.add_argument("--out", default=os.path.join(HERE, "results.jsonl"))
     args = ap.parse_args()
@@ -417,7 +540,7 @@ def main():
         for rep in range(1, args.reps + 1):
             label = name if args.reps == 1 else f"{name}#{rep}"
             print(f"=== {label}")
-            row = run_arm(name, ARMS[name], url, args.steps, not args.all_steps, verbose=True)
+            row = run_arm(name, ARMS[name], url, args.steps, not args.all_steps, verbose=True, temperature=args.temperature)
             row["arm"] = label
             rows.append(row)
             lim = [x for x in row["read_limits"] if x]
@@ -428,12 +551,11 @@ def main():
                 fh.write(json.dumps(row) + "\n")
 
     print()
-    print(f"{'arm':32} {'reads':>6} {'set':>8} {'median':>7} {'cost':>9}")
+    print(f"{'arm':32} {'reads':>6} {'B/read':>8} {'total B':>9} {'median':>7} {'cost':>9}")
     for r in rows:
         lim = [x for x in r["read_limits"] if x]
         med = sorted(lim)[len(lim) // 2] if lim else "-"
-        setn = f"{len(lim)}/{r['read_calls']}"
-        print(f"{r['arm']:32} {r['read_calls']:>6} {setn:>8} {str(med):>7} ${r['cost']:>8.4f}")
+        print(f"{r['arm']:32} {r['read_calls']:>6} {r['bytes_per_read']:>8} {sum(r['read_bytes']):>9} {str(med):>7} ${r['cost']:>8.4f}")
     print(f"total ${sum(r['cost'] for r in rows):.4f}")
     return 0
 

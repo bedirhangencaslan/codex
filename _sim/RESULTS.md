@@ -1,4 +1,19 @@
-# What makes the fork read whole files: the three `*_goal` tool descriptions
+> **RETRACTED 2026-09-11, later the same day.** The conclusion below — that the three `*_goal`
+> specs cause the unbounded reads — does not survive a proper control. Two things broke it:
+>
+> 1. **The metric was wrong.** It counted whether the model set a nominal `limit`. Omitting `limit`
+>    on a four-line `mod.rs` costs nothing; 500 on a 3,000-line file costs everything. Re-measured
+>    as *bytes returned per read*, adding the goal tools to OpenCode's surface produced **0/2**
+>    unbounded reads — the opposite direction.
+> 2. **The baseline does not hold.** Fed the byte-identical prefix of `wire-stock-rep1` — the real
+>    run that read 44 files at 80 lines with **44/44 bounded** — this simulator goes unbounded
+>    **4 of 6 times**. So the discipline real OpenCode shows is not in its prompt, its tools, its
+>    layout or its parameters. It is in something its *runtime loop* does that this loop does not.
+>
+> The fine-grained sweep that established this is in `SWEEP.md`. Everything below is kept because the
+> method and the ruled-out list are still sound; the causal claim is not.
+
+# (retracted) What makes the fork read whole files: the three `*_goal` tool descriptions
 
 ## How this was found
 
