@@ -31,6 +31,7 @@ import time
 import httpx
 
 import tools as T
+import replay as RP
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LABS = os.path.dirname(HERE)
@@ -136,6 +137,11 @@ PIECES = {
     # The prefix used above came from an older capture on another machine. This one is the exact
     # prefix of `wire-stock-rep1`, the run that read 44 files at 80 lines each with 44/44 bounded.
     "v-oc1-real":       dict(OC, oc_capture="oc1"),
+    # The same, but every tool result is the one the real run received, not a re-implementation.
+    "v-oc1-replay":     dict(OC, oc_capture="oc1", replay="wire-stock-rep1"),
+    # The same replay with the file list alphabetised - the one thing this fork's glob does that
+    # OpenCode's does not (`search.rs:176`, `files.sort()`). Same files, same byte count.
+    "v-oc1-replay-sorted": dict(OC, oc_capture="oc1", replay="wire-stock-rep1", glob_order="sorted"),
     # Not a difference between the agents - a difference between this loop and both of them.
     "h1-feed-reasoning": piece(feed_reasoning=True),
     "h2-feed-reasoning-suftools": dict(prefix="suf", toolset="suf", read_envelope="oc", max_tokens=32000, parallel_tool_calls=None, feed_reasoning=True),
@@ -352,7 +358,12 @@ NOOP_OK = {
 }
 
 
-def run_tool(name, args, arm):
+def run_tool(name, args, arm, store=None):
+    if store is not None:
+        # Prefer the bytes the real run actually received over a re-implementation of them.
+        recorded = store.get(name, args, arm.get("glob_order"))
+        if recorded is not None:
+            return recorded
     if name == "glob":
         return T.glob_tool(WORK, args.get("pattern", ""), args.get("path"))
     if name == "grep":
@@ -407,6 +418,7 @@ def chat(client, url, body):
 
 
 def run_arm(name, arm, url, steps, stop_on_read, verbose, temperature=None):
+    store = RP.Store(arm["replay"], WORK) if arm.get("replay") else None
     messages = build_messages(arm)
     specs = tool_specs(
         arm["toolset"], arm.get("read_from"), arm.get("read_desc_edit"),
@@ -487,7 +499,7 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose, temperature=None):
                         read_limits.append(lim)
                 else:
                     read_limits.append(args.get("limit"))
-            result = run_tool(c["name"], args, arm)
+            result = run_tool(c["name"], args, arm, store)
             if c["name"] in READ_NAMES:
                 # The nominal `limit` is a poor metric: omitting it on a four-line `mod.rs` costs
                 # nothing, while 500 on a 3,000-line file costs everything. What is actually billed
