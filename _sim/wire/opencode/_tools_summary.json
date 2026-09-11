@@ -1,0 +1,124 @@
+[
+  {
+    "name": "bash",
+    "desc_chars": 4660,
+    "params": [
+      "command",
+      "timeout",
+      "workdir"
+    ],
+    "required": [
+      "command"
+    ]
+  },
+  {
+    "name": "edit",
+    "desc_chars": 1369,
+    "params": [
+      "filePath",
+      "newString",
+      "oldString",
+      "replaceAll"
+    ],
+    "required": [
+      "filePath",
+      "oldString",
+      "newString"
+    ]
+  },
+  {
+    "name": "glob",
+    "desc_chars": 517,
+    "params": [
+      "path",
+      "pattern"
+    ],
+    "required": [
+      "pattern"
+    ]
+  },
+  {
+    "name": "grep",
+    "desc_chars": 657,
+    "params": [
+      "include",
+      "path",
+      "pattern"
+    ],
+    "required": [
+      "pattern"
+    ]
+  },
+  {
+    "name": "read",
+    "desc_chars": 1158,
+    "params": [
+      "filePath",
+      "limit",
+      "offset"
+    ],
+    "required": [
+      "filePath"
+    ]
+  },
+  {
+    "name": "skill",
+    "desc_chars": 399,
+    "params": [
+      "name"
+    ],
+    "required": [
+      "name"
+    ]
+  },
+  {
+    "name": "task",
+    "desc_chars": 3019,
+    "params": [
+      "command",
+      "description",
+      "prompt",
+      "subagent_type",
+      "task_id"
+    ],
+    "required": [
+      "description",
+      "prompt",
+      "subagent_type"
+    ]
+  },
+  {
+    "name": "todowrite",
+    "desc_chars": 2012,
+    "params": [
+      "todos"
+    ],
+    "required": [
+      "todos"
+    ]
+  },
+  {
+    "name": "webfetch",
+    "desc_chars": 750,
+    "params": [
+      "format",
+      "timeout",
+      "url"
+    ],
+    "required": [
+      "url"
+    ]
+  },
+  {
+    "name": "write",
+    "desc_chars": 623,
+    "params": [
+      "content",
+      "filePath"
+    ],
+    "required": [
+      "content",
+      "filePath"
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "type": "function",
+  "function": {
+    "name": "apply_patch",
+    "description": "The `apply_patch` tool can be used to edit files. Send the entire body as the `input` string; it is passed through verbatim, so do not add any wrapper of your own.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "string",
+          "description": "The complete tool body, exactly as it would be written."
+        }
+      },
+      "required": [
+        "input"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
