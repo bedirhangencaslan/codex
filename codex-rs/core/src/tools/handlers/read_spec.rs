@@ -61,7 +61,7 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
 
 Usage:
 - The filePath parameter should be an absolute path.
-- By default, this tool returns up to 2000 lines from the start of the file, and at most about 32000 bytes: `limit` counts lines but the ceiling is bytes, so a file of long lines stops earlier than the line count suggests.
+- By default, this tool returns up to 2000 lines from the start of the file.
 - The offset parameter is the line number to start from (1-indexed).
 - To read later sections, call this tool again with a larger offset.
 - Use the grep tool to find specific content in large files or files with long lines.
@@ -88,11 +88,17 @@ mod tests {
     use super::*;
 
     /// The spec rides the fixed prefix of every request, which is the single biggest line of the
-    /// bill, so it is not allowed to grow quietly. Measured at 1_845 bytes as written - about 450
-    /// tokens - against 1_212 for the batched shape it replaced. The difference buys three
-    /// sentences: that several calls may go out together, that the ceiling is bytes rather than
-    /// lines (the thing the model otherwise discovers by being cut), and the two that hand a large
-    /// file to `grep` and a missing name to `glob` instead of to another read.
+    /// bill, so it is not allowed to grow quietly. The difference over the batched shape it
+    /// replaced buys two sentences: that several calls may go out together, and the pair that hand
+    /// a large file to `grep` and a missing name to `glob` instead of to another read.
+    ///
+    /// A third sentence used to be here, naming the byte ceiling so the model would not "discover
+    /// it by being cut". Measured, that is the single most expensive sentence in the tool surface:
+    /// told a ceiling is enforced for it, this model stops setting `limit` at all and takes the
+    /// 2000-line default. Eight simulated runs carrying it read 6,939 bytes a file against 3,184
+    /// for thirteen without, five of the eight over 6,000 against none - one-sided Fisher
+    /// p = 0.0028. OpenCode does not advertise its own 50 KB cap either, and a read that is cut
+    /// still says so in its own output, which is where the model can act on it.
     #[test]
     fn the_spec_stays_small_because_every_request_pays_for_it() {
         let spec = create_read_tool(ReadToolOptions::default());

@@ -81,6 +81,50 @@ output, which is where the model can act on it.
 Not yet verified in the binary: one line, one build, one run against `wire-sufficefork-rep4`
 (11 requests, 479 KB, $0.0196, 44/44 citations).
 
+## Verified in the binary — partly
+
+The clause was removed from `read_spec.rs`, rebuilt, and run twice against
+`wire-sufficefork-rep4`, the only fork run that had completed on the pre-fix tree.
+
+| | rep4 (before) | rep6 (after) | rep7 (after) |
+|---|---|---|---|
+| requests | 11 | 13 | 12 |
+| **fresh tokens** | 148,187 | **76,965** | 141,106 |
+| cached | 379,328 | 569,664 | 347,136 |
+| peak context | 111,090 | **76,458** | **79,800** |
+| compactions | **1** | **0** | **0** |
+| corpus into context | 484 KB | **224 KB** | 413 KB |
+| `read` calls | 51 | 46 | 44 |
+| **calls carrying a `limit`** | **32/51** | **46/46** | **44/44** |
+| median window | 500 | **140** | **2000** |
+| bytes per read | 9,398 | **4,719** | 9,281 |
+| citations | 44/44 | 44/44 | 44/44 |
+| wall time | 419 s | 218 s | 234 s |
+| **cost** | **$0.0196** | **$0.0158** | **$0.0180** |
+
+**What the fix did.** Every read is now bounded — 90 of 90 across both runs, against 32 of 51
+before. Neither run compacted, where the pre-fix run did. Peak context fell by a third in both, and
+wall time by almost half. Mean cost $0.0169 against $0.0196, **a 14% drop**.
+
+**What it did not do.** rep7 wrote `limit: 2000` explicitly on 24 of its 44 calls. Removing the
+sentence stopped the model *omitting* the limit and started it *stating the default* — the same
+number, arrived at differently — so that run pulled 413 KB and cost $0.0180, no better than before.
+rep6 did what the simulator predicted, median 140 and 224 KB. Two runs, two different behaviours.
+
+**So the clause is real but not sufficient.** In the simulator it was isolated against OpenCode's
+prefix, where it was the only fork-shaped thing present and removing it worked 3/3. In the binary
+the rest of the fork is there too, and the effects are additive: `f-suf` (everything) read 6,502 and
+9,706 where `f-p-tools-ocread` (the fork's tools with OpenCode's `read`) read 4,011 and 3,336. The
+clause was the largest single contributor found, not the whole of it.
+
+**Next lever, from these two runs specifically:** the documented `2000` default itself, which
+survives in both the usage line and the `limit` parameter description. OpenCode documents 2000 too
+and its model still picks 80, so the number alone is not the problem — but with the fork's prompt
+and tool surface around it, it is what rep7 reached for.
+
+n = 2, against a recorded fork spread of $0.0073–$0.0301 on configurations that differ by nothing.
+Treat the 14% as a direction, not a measurement.
+
 ## Cost of finding it
 
 $0.25 across roughly 140 simulator reps, against $0.13 for five binary runs that identified nothing
