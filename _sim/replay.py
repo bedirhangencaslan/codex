@@ -69,7 +69,12 @@ class Store:
         self.hits = 0
         self.misses = 0
 
-    def get(self, tool, args, glob_order=None):
+    def get(self, tool, args, glob_order=None, only=None):
+        # `only` restricts replay to named tools. Replaying `read` as well would hand the model the
+        # windows the *real* run asked for regardless of what this one asked, which is the confound
+        # the whole rig exists to avoid.
+        if only is not None and tool not in only:
+            return None
         k = _key(tool, args, self.root, self.retarget_to)
         seq = self.rows.get(k)
         if not seq:

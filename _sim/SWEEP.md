@@ -124,6 +124,46 @@ The noise floor is enormous and the earlier arms were all under it: `v-oc1-real`
 n ≤ 9 in the table above survives that, including every piece in the sweep. The ordering result
 stands only because it was taken to n = 17 against n = 24.
 
+## The rig now reproduces the 2×, and the opening-window metric is retired
+
+Everything above measures the *first* read batch, on the theory that the window chosen there is the
+window the task gets. Run to the end of the read phase, that theory fails: the ordering effect
+disappears, because a model that reads unbounded in batch one corrects itself in batch two.
+
+`--all-steps --steps 8` runs the read phase out and measures the bill instead:
+
+| arm | files read | B/read | corpus into context | peak | ∑prompt | cost |
+|---|---|---|---|---|---|---|
+| `f-walk` #1 | 32 | 2,840 | 91 KB | 36,050 | 189,705 | $0.0054 |
+| `f-walk` #2 | 24 | 2,566 | 64 KB | 29,289 | 165,241 | $0.0037 |
+| `f-sorted` #1 | 41 | 3,264 | 134 KB | 46,933 | 227,365 | $0.0060 |
+| `f-sorted` #2 | 44 | 2,160 | 95 KB | 41,242 | 205,998 | $0.0054 |
+| **`f-suf`** #1 | 45 | **9,706** | 437 KB | 127,702 | 597,645 | **$0.0178** |
+| **`f-suf`** #2 | 44 | **6,502** | 325 KB | 96,823 | 430,390 | **$0.0121** |
+
+Against the binaries this is being built to explain:
+
+| | B/read | cost |
+|---|---|---|
+| OpenCode, real | 2,779 | $0.0086–0.0109 |
+| **OpenCode, simulated** | **2,160–3,264** | $0.0037–0.0060 |
+| the fork, real (rep4) | 9,398 | $0.0196 |
+| **the fork, simulated** | **6,502–9,706** | $0.0121–0.0178 |
+
+Both ratios land: about 3× the bytes a file, about 3× the bill. The read windows land too — 50-80
+lines on the OpenCode arms, median 260 on the fork's.
+
+**So the gap is in the inputs after all, and it is now reproducible for a cent and a half.** What it
+is not is `glob` ordering: `f-walk` and `f-sorted` are indistinguishable.
+
+### What this retires
+
+Every result above this section was measured with the two-step probe, and the two-step probe does
+not predict cost. Treat the piece table as untested rather than as a list of negatives. The
+bisection has to be redone in `--all-steps` mode, from the cheap side: the OpenCode arms cost about
+$0.005 a rep against the fork's $0.015, so add one of the fork's pieces at a time to OpenCode rather
+than removing one at a time from the fork.
+
 ## Honest status
 
 The question *"which input makes our agent read whole files"* now has a negative answer: **none of

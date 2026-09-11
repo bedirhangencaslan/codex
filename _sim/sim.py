@@ -142,6 +142,14 @@ PIECES = {
     # The same replay with the file list alphabetised - the one thing this fork's glob does that
     # OpenCode's does not (`search.rs:176`, `files.sort()`). Same files, same byte count.
     "v-oc1-replay-sorted": dict(OC, oc_capture="oc1", replay="wire-stock-rep1", glob_order="sorted"),
+
+    # Full-task arms. The arms above stop at the first read batch, which measures the opening
+    # window but not the bill; these run the read phase out so the cost itself is the measurement.
+    # Only `glob` is replayed - replaying `read` would hand back the real run's windows.
+    "f-walk":   dict(OC, oc_capture="oc1", replay="wire-stock-rep1", replay_tools={"glob"}),
+    "f-sorted": dict(OC, oc_capture="oc1", replay="wire-stock-rep1", replay_tools={"glob"}, glob_order="sorted"),
+    # The fork, whole: its prefix, its twelve tool specs, its read envelope, its request params.
+    "f-suf":    dict(prefix="suf", toolset="suf", read_envelope="suffice", max_tokens=None, parallel_tool_calls=True),
     # Not a difference between the agents - a difference between this loop and both of them.
     "h1-feed-reasoning": piece(feed_reasoning=True),
     "h2-feed-reasoning-suftools": dict(prefix="suf", toolset="suf", read_envelope="oc", max_tokens=32000, parallel_tool_calls=None, feed_reasoning=True),
@@ -361,7 +369,7 @@ NOOP_OK = {
 def run_tool(name, args, arm, store=None):
     if store is not None:
         # Prefer the bytes the real run actually received over a re-implementation of them.
-        recorded = store.get(name, args, arm.get("glob_order"))
+        recorded = store.get(name, args, arm.get("glob_order"), arm.get("replay_tools"))
         if recorded is not None:
             return recorded
     if name == "glob":
@@ -426,8 +434,8 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose, temperature=None):
     )
     client = httpx.Client(timeout=httpx.Timeout(600.0, connect=30.0))
 
-    fresh = cached = out_tok = 0
-    read_limits, read_bytes, trace = [], [], []
+    fresh = cached = out_tok = peak = 0
+    read_limits, read_bytes, read_files, trace = [], [], [], []
 
     for step in range(1, steps + 1):
         body = {
@@ -459,6 +467,7 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose, temperature=None):
             fresh += pt - ct
             cached += ct
             out_tok += usage.get("completion_tokens", 0)
+            peak = max(peak, pt)
 
         names = [c["name"] for c in calls]
         trace.append({"step": step, "calls": names, "text": content[:200]})
@@ -499,6 +508,7 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose, temperature=None):
                         read_limits.append(lim)
                 else:
                     read_limits.append(args.get("limit"))
+                    read_files.append(args.get("filePath") or "")
             result = run_tool(c["name"], args, arm, store)
             if c["name"] in READ_NAMES:
                 # The nominal `limit` is a poor metric: omitting it on a four-line `mod.rs` costs
@@ -514,6 +524,9 @@ def run_arm(name, arm, url, steps, stop_on_read, verbose, temperature=None):
     return {
         "arm": name, "steps": len(trace), "fresh": fresh, "cached": cached,
         "out": out_tok, "cost": round(cost, 5),
+        "peak": peak,
+        "sum_prompt": fresh + cached,
+        "files": len(set(read_files)),
         "read_calls": len(read_limits),
         "read_bytes": read_bytes,
         "bytes_per_read": round(sum(read_bytes) / len(read_bytes)) if read_bytes else 0,
@@ -563,11 +576,11 @@ def main():
                 fh.write(json.dumps(row) + "\n")
 
     print()
-    print(f"{'arm':32} {'reads':>6} {'B/read':>8} {'total B':>9} {'median':>7} {'cost':>9}")
+    print(f"{'arm':22} {'steps':>5} {'reads':>6} {'files':>6} {'B/read':>8} {'corpusB':>9} {'peak':>8} {'sumprompt':>10} {'cost':>9}")
     for r in rows:
         lim = [x for x in r["read_limits"] if x]
         med = sorted(lim)[len(lim) // 2] if lim else "-"
-        print(f"{r['arm']:32} {r['read_calls']:>6} {r['bytes_per_read']:>8} {sum(r['read_bytes']):>9} {str(med):>7} ${r['cost']:>8.4f}")
+        print(f"{r['arm']:22} {r['steps']:>5} {r['read_calls']:>6} {r.get('files',0):>6} {r['bytes_per_read']:>8} {sum(r['read_bytes']):>9} {r.get('peak',0):>8} {r.get('sum_prompt',0):>10} ${r['cost']:>8.4f}")
     print(f"total ${sum(r['cost'] for r in rows):.4f}")
     return 0
 
