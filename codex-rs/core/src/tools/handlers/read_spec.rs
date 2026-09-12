@@ -64,6 +64,7 @@ Usage:
 - By default, this tool returns up to 2000 lines from the start of the file.
 - The offset parameter is the line number to start from (1-indexed).
 - To read later sections, call this tool again with a larger offset.
+- What a file is for, and one citation backing it, is almost always in its first hundred or so lines: ask for a window that size rather than the whole file. Whatever you read stays in context for every later request, so a whole-file read you did not need is paid for again on each one.
 - Use the grep tool to find specific content in large files or files with long lines.
 - If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.
 - Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents \"foo\\n\", you will receive \"1: foo\\n\". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.
@@ -99,13 +100,22 @@ mod tests {
     /// for thirteen without, five of the eight over 6,000 against none - one-sided Fisher
     /// p = 0.0028. OpenCode does not advertise its own 50 KB cap either, and a read that is cut
     /// still says so in its own output, which is where the model can act on it.
+    ///
+    /// The ceiling moved 1_900 -> 2_000 to make room for the window sentence, which came out of
+    /// `instructions_template` and cost the prompt the same 306 bytes it added here, so the fixed
+    /// prefix is unchanged. It had to move: measured, the prompt's copy of that guidance works in
+    /// OpenCode's two-message layout and stops working in ours, where it sits ~30 KB and a role
+    /// boundary upstream of the task - the fork's prompt and the fork's layout are each harmless
+    /// alone and cost 2.71x together, 9,406 bytes a read against 3,465, with no overlap across
+    /// three reps a side. A tool description is adjacent to the decision however the messages are
+    /// arranged, which is why OpenCode keeps its reading guidance here and none in its prompt.
     #[test]
     fn the_spec_stays_small_because_every_request_pays_for_it() {
         let spec = create_read_tool(ReadToolOptions::default());
         let json = serde_json::to_string(&spec).expect("spec must serialize");
         println!("read spec serializes to {} bytes", json.len());
         assert!(
-            json.len() <= 1_900,
+            json.len() <= 2_000,
             "read spec grew to {} bytes; every request carries it",
             json.len()
         );

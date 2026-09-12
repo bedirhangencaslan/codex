@@ -1,0 +1,13 @@
+Runs a command in a PTY, returning output or a session ID for ongoing interaction.
+
+IMPORTANT: This tool is for terminal operations such as `git`, `cargo`, `npm`, and `docker`. Do NOT use it for file operations - reading, writing, editing, searching, or finding files. Use the dedicated tools for those instead:
+- File search: use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
+- Content search: use `grep` (NOT `Select-String`, `grep`, or `rg`)
+- Read files: use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
+- Edit or create files: use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)
+Reach for the shell on file work only for what the dedicated tools do not do, such as a count of matches, which `rg -c` gives and `grep` does not. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
+
+Windows safety rules:
+- Do not compose destructive filesystem commands across shells. Do not enumerate paths in PowerShell and then pass them to `cmd /c`, batch builtins, or another shell for deletion or moving. Use one shell end-to-end, prefer native PowerShell cmdlets such as `Remove-Item` / `Move-Item` with `-LiteralPath`, and avoid string-built shell commands for file operations.
+- Before any recursive delete or move on Windows, verify the resolved absolute target paths stay within the intended workspace or explicitly named target directory. Never issue a recursive delete or move against a computed path if the final target has not been checked.
+- When using `Start-Process` to launch a background helper or service, pass `-WindowStyle Hidden` unless the user explicitly asked for a visible interactive window. Use visible windows only for interactive tools the user needs to see or control.

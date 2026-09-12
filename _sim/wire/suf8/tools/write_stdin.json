@@ -1,0 +1,33 @@
+{
+  "type": "function",
+  "function": {
+    "name": "write_stdin",
+    "description": "Writes characters to an existing unified exec session and returns recent output.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "chars": {
+          "type": "string",
+          "description": "Bytes to write to stdin. Defaults to empty, which polls without writing."
+        },
+        "max_output_tokens": {
+          "type": "number",
+          "description": "Cap on this one command's output, in tokens. Defaults to 10000; larger requests may be capped by policy. It bounds this command only and says nothing about how much conversation context remains."
+        },
+        "session_id": {
+          "type": "number",
+          "description": "Identifier of the running unified exec session."
+        },
+        "yield_time_ms": {
+          "type": "number",
+          "description": "Wait before yielding output. Non-empty writes default to 250 ms and cap at 30000 ms; empty polls wait 5000-300000 ms by default."
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "strict": false
+  }
+}
