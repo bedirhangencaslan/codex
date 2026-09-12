@@ -101,8 +101,25 @@ def o_sufprompt(b, suf):
     return b
 
 
+def m_ocprompt_ocbash(b, oc):
+    """Both leading candidates at once.
+
+    Separately they move the measuring rate 4/12 -> 1/12 and 4/12 -> 2/12, neither significant on
+    its own. If they compose, together they should land near OpenCode's 0/12; if they do not, the
+    motive is in neither.
+    """
+    return m_ocbash(m_ocprompt(b, oc), oc)
+
+
+def o_sufprompt_sufexec(b, suf):
+    """The reverse pair - our prompt and our shell spec together, inside OpenCode's request."""
+    return o_sufexec(o_sufprompt(b, suf), suf)
+
+
 VARIANTS = {
     "suf002-base":      (None, "suf"),
+    "suf002+ocboth":    (m_ocprompt_ocbash, "suf"),
+    "oc003+sufboth":    (o_sufprompt_sufexec, "oc"),
     "suf002+ocprompt":  (m_ocprompt, "suf"),
     "suf002+ocread":    (m_ocread, "suf"),
     "suf002+ocbash":    (m_ocbash, "suf"),

@@ -237,6 +237,48 @@ def v_suf_noprose(suf, oc):
     return suf
 
 
+def v_oc_sufagents(oc, suf):
+    """AGENTS.md out of the system message and into its own user turn, the way the fork sends it."""
+    prompt, agents, skills = cut_oc_system(oc["messages"][0]["content"])
+    if not agents:
+        return oc
+    oc["messages"][0]["content"] = "\n\n".join(x for x in (prompt, skills) if x)
+    oc["messages"].insert(1, {"role": "user", "content": agents})
+    return oc
+
+
+def v_oc_sufprose(oc, suf):
+    """The fork opens with a sentence of its own before calling anything; OpenCode does not."""
+    for m in suf["messages"]:
+        if m.get("role") == "assistant" and (m.get("content") or "") and not m.get("tool_calls"):
+            for i, om in enumerate(oc["messages"]):
+                if om.get("role") == "assistant":
+                    oc["messages"].insert(i, copy.deepcopy(m))
+                    return oc
+    return oc
+
+
+def v_pure_base(suf, oc):
+    """The fork with the line-count step gone - its pure glob -> read state.
+
+    Real runs show this is where it is worst: `rep21` and `rep9` never measured anything and bounded
+    1 of 47 and 0 of 12 reads. Every block swap so far was run against `suf-base`, which carries the
+    counts, so the pure path has never been bisected. This is its baseline.
+    """
+    return v_suf_nocounts(suf, oc)
+
+
+def v_pure_ocprompt(suf, oc):
+    return v_suf_ocprompt(v_suf_nocounts(suf, oc), oc)
+
+
+def v_pure_ocread(suf, oc):
+    return v_suf_ocread(v_suf_nocounts(suf, oc), oc)
+
+
+def v_pure_octools(suf, oc):
+    return v_suf_octools(v_suf_nocounts(suf, oc), oc)
+
 VARIANTS = {
     # host = OpenCode's real body 003; one of the fork's blocks put in its place. Lines going UP
     # implicates that block.
@@ -260,6 +302,14 @@ VARIANTS = {
     "suf-nocounts":   (v_suf_nocounts, "suf"),
     "suf-noprose":    (v_suf_noprose, "suf"),
     "oc+counts":      (v_oc_counts, "oc"),
+    # The pure glob -> read path, which is where the real runs are worst and which no swap has
+    # touched: every earlier variant sat on `suf-base`, and that carries the line counts.
+    "oc+sufagents":   (v_oc_sufagents, "oc"),
+    "oc+sufprose":    (v_oc_sufprose, "oc"),
+    "pure-base":      (v_pure_base, "suf"),
+    "pure+ocprompt":  (v_pure_ocprompt, "suf"),
+    "pure+ocread":    (v_pure_ocread, "suf"),
+    "pure+octools":   (v_pure_octools, "suf"),
 }
 
 
@@ -335,16 +385,20 @@ def main():
                "limit_median": med_lim, "bounded": "%d/%d" % (len(every), len(allr)),
                "lines_per_response": round(lines), "cost": round(cost, 4)}
         summary.append(row)
-        print("  -> reads/resp median %s, limit median %s, bounded %s, lines/response %s, $%.4f" %
-              (med_reads, med_lim, row["bounded"], row["lines_per_response"], cost))
+        # The sharper question, and the one the archive answers: does this context still say 80?
+        # OpenCode's own band across six recorded runs was 40-150, centred on 80.
+        band = sum(1 for x in allr if x and 40 <= x <= 150)
+        row["in_band"] = "%d/%d" % (band, len(allr))
+        print("  -> reads/resp median %s, limit median %s, bounded %s, in 40-150 %s, lines/response %s, $%.4f" %
+              (med_reads, med_lim, row["bounded"], row["in_band"], row["lines_per_response"], cost))
         with io.open(args.out, "a", encoding="utf-8") as fh:
             fh.write(json.dumps({**row, "per_rep": per_rep}) + "\n")
         print()
 
-    print("%-16s %7s %7s %9s %12s %9s" % ("variant", "reads", "limit", "bounded", "lines/resp", "cost"))
+    print("%-16s %7s %7s %9s %10s %12s %9s" % ("variant", "reads", "limit", "bounded", "in 40-150", "lines/resp", "cost"))
     for r in summary:
-        print("%-16s %7s %7s %9s %12s %9.4f" %
-              (r["variant"], r["reads_median"], r["limit_median"], r["bounded"],
+        print("%-16s %7s %7s %9s %10s %12s %9.4f" %
+              (r["variant"], r["reads_median"], r["limit_median"], r["bounded"], r.get("in_band","-"),
                r["lines_per_response"], r["cost"]))
     return 0
 
