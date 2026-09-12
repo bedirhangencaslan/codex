@@ -17,11 +17,66 @@ fn has_parameter(tool: &ToolSpec, parameter_name: &str) -> bool {
         .is_some()
 }
 
+/// Under `approval_policy = never` the model is offered three parameters, not ten.
+///
+/// This is the shape the measurement moved: replacing the whole spec with OpenCode's
+/// three-parameter `bash` took reads from the whole file to 45% of it and the median window from
+/// 220 lines to 80, six replays across two batches at 0.39-0.45 against a base at 0.85-1.00
+/// (`_sim/probe.py`). Nothing smaller reproduced it, so the parameter list is not decoration and
+/// must not quietly grow back.
+#[test]
+fn a_non_interactive_run_is_offered_three_parameters() {
+    let tool = create_exec_command_tool_with_environment_id(
+        CommandToolOptions {
+            allow_login_shell: true,
+            exec_permission_approvals_enabled: true,
+            lean_parameters: true,
+        },
+        /*include_environment_id*/ false,
+        /*include_shell_parameter*/ true,
+        /*include_windows_shell_guidance*/ true,
+    );
+
+    for offered in ["cmd", "workdir", "timeout_ms"] {
+        assert!(has_parameter(&tool, offered), "{offered} must be offered");
+    }
+    // Every one of these still deserializes - `ExecCommandArgs` defaults them - so dropping them
+    // from the schema costs no behaviour, only the tokens and the invitation.
+    for withheld in [
+        "shell",
+        "login",
+        "tty",
+        "yield_time_ms",
+        "max_output_tokens",
+        "sandbox_permissions",
+        "additional_permissions",
+        "justification",
+        "prefix_rule",
+    ] {
+        assert!(
+            !has_parameter(&tool, withheld),
+            "{withheld} must not be offered to a run that cannot act on it"
+        );
+    }
+
+    // `one_shot_exec_command_spec` rewrites the opening sentence by matching on it.
+    let ToolSpec::Function(function) = &tool else {
+        panic!("exec_command has a function schema");
+    };
+    assert!(
+        function.description.starts_with(
+            "Runs a command in a PTY, returning output or a session ID for ongoing interaction."
+        ),
+        "the one-shot rewrite anchors on this sentence"
+    );
+}
+
 #[test]
 fn exec_command_tool_matches_expected_spec() {
     let tool = create_exec_command_tool(CommandToolOptions {
         allow_login_shell: true,
         exec_permission_approvals_enabled: false,
+        lean_parameters: false,
     });
 
     let description = if cfg!(windows) {
@@ -111,6 +166,7 @@ fn exec_command_tool_can_hide_shell_parameter() {
         CommandToolOptions {
             allow_login_shell: true,
             exec_permission_approvals_enabled: false,
+            lean_parameters: false,
         },
         /*include_environment_id*/ false,
         /*include_shell_parameter*/ false,

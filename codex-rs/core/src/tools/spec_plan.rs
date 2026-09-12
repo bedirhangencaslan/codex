@@ -82,6 +82,7 @@ use codex_protocol::openai_models::InputModality;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelMessages;
 use codex_protocol::openai_models::ToolMode;
+use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::MultiAgentVersion;
 use codex_tools::ResponsesApiNamespace;
 use codex_tools::ResponsesApiNamespaceTool;
@@ -1014,6 +1015,7 @@ fn add_core_tool_sources(context: &CoreToolPlanContext<'_>, registry: &mut ToolR
                 registry.add(ExecCommandHandler::new(ExecCommandHandlerOptions {
                     allow_login_shell: any_environment_allows_login_shell(context.environments),
                     exec_permission_approvals_enabled: false,
+                    lean_parameters: turn_context.approval_policy() == AskForApproval::Never,
                     include_environment_id,
                     include_shell_parameter: unified_exec_should_include_shell_parameter(
                         turn_context,
@@ -1102,9 +1104,15 @@ fn add_shell_tools(context: &CoreToolPlanContext<'_>, registry: &mut ToolRegistr
     let allow_login_shell = any_environment_allows_login_shell(context.environments);
     let exec_permission_approvals_enabled = features.enabled(Feature::ExecPermissionApprovals);
     let include_environment_id = matches!(environment_mode, ToolEnvironmentMode::Multiple);
+    // Under `never` there is nobody to approve an escalation, nobody to babysit a resumable
+    // session, and the environment's own shell is the only one worth launching - so seven of the
+    // ten parameters are unreachable, and advertising them is what the measurement charges us for.
+    // See `CommandToolOptions::lean_parameters`.
+    let lean_parameters = turn_context.approval_policy() == AskForApproval::Never;
     let options = ExecCommandHandlerOptions {
         allow_login_shell,
         exec_permission_approvals_enabled,
+        lean_parameters,
         include_environment_id,
         include_shell_parameter: unified_exec_should_include_shell_parameter(
             turn_context,
