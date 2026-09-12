@@ -96,7 +96,7 @@ def tools():
     return [json.loads(cap(os.path.join(d, n))) for n in sorted(os.listdir(d)) if n.endswith(".json")]
 
 
-def once(client, url, messages, specs):
+def once(client, url, messages, specs, headers=None):
     body = {
         "model": "glm-5.3-flash",
         "messages": messages,
@@ -109,7 +109,7 @@ def once(client, url, messages, specs):
         "max_tokens": 32000,
     }
     calls, usage = {}, None
-    with client.stream("POST", url, json=body) as resp:
+    with client.stream("POST", url, json=body, headers=headers or {}) as resp:
         if resp.status_code != 200:
             raise RuntimeError(f"HTTP {resp.status_code}: {resp.read()[:300]!r}")
         for line in resp.iter_lines():
@@ -143,6 +143,12 @@ def main():
                     help="send content as \"\" the way OpenCode does, instead of null")
     ap.add_argument("--no-reasoning", action="store_true",
                     help="drop `reasoning_content` from the assistant turn - mutation 2")
+    # Captured from a real run: OpenCode puts its own User-Agent and a pair of session headers on
+    # every call, and `relay.py` forwards client headers upstream substituting only Authorization -
+    # so the provider sees them from OpenCode and saw nothing from this script. With the body now
+    # proven identical, this is the layer that was never compared.
+    ap.add_argument("--session", default="", metavar="SES",
+                    help="send opencode's User-Agent plus x-session-id/x-session-affinity = SES")
     ap.add_argument("--out", default=os.path.join(HERE, "stage0.jsonl"))
     args = ap.parse_args()
 
@@ -155,11 +161,21 @@ def main():
           f"{len(specs)} tools")
     print("known answer from the real run: 13 reads, 12 at limit 80 and one at 100\n")
 
+    hdrs = None
+    if args.session:
+        hdrs = {
+            "User-Agent": "opencode/1.18.29 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
+            "x-session-id": args.session,
+            "x-session-affinity": args.session,
+        }
+        label += "+session"
+        print("headers:", json.dumps(hdrs))
+
     client = httpx.Client(timeout=httpx.Timeout(600.0, connect=30.0))
     fresh = cached = out_tok = 0
     rows = []
     for rep in range(1, args.reps + 1):
-        calls, usage = once(client, url, messages, specs)
+        calls, usage = once(client, url, messages, specs, hdrs)
         if usage:
             pt = usage.get("prompt_tokens", 0)
             ct = (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
