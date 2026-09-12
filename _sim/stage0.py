@@ -62,11 +62,19 @@ def turn_one(session="wire-stock-rep1"):
     return reasoning, call
 
 
-def build(reps_reasoning=True):
+def build(reps_reasoning=True, content=None):
+    """`content` is the assistant turn's content field.
+
+    Captured from a real run with `RELAY_DUMP_ALL`, OpenCode sends an **empty string** there, not
+    null. Everything else about the turn-two request matches this rebuild exactly - the same ten
+    tool specs byte for byte, the same seven parameters, `reasoning_content` as a sibling field, the
+    same tool-result shape. That one field is the entire structural difference, so it is the only
+    mutation left to test.
+    """
     reasoning, (call_id, tool, args, output) = turn_one()
     assistant = {
         "role": "assistant",
-        "content": None,
+        "content": content,
         "tool_calls": [{
             "id": call_id,
             "type": "function",
@@ -131,14 +139,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--reps", type=int, default=20)
     ap.add_argument("--port", type=int, default=8799)
+    ap.add_argument("--empty-content", action="store_true",
+                    help="send content as \"\" the way OpenCode does, instead of null")
     ap.add_argument("--no-reasoning", action="store_true",
                     help="drop `reasoning_content` from the assistant turn - mutation 2")
     ap.add_argument("--out", default=os.path.join(HERE, "stage0.jsonl"))
     args = ap.parse_args()
 
     url = f"http://127.0.0.1:{args.port}/api/paas/v4/chat/completions"
-    messages, specs = build(not args.no_reasoning), tools()
-    label = "no-reasoning" if args.no_reasoning else "faithful"
+    messages, specs = build(not args.no_reasoning, "" if args.empty_content else None), tools()
+    label = ("empty-content" if args.empty_content else "null-content")
+    if args.no_reasoning:
+        label += "+no-reasoning"
     print(f"{label}: {len(messages)} messages, {sum(len(m.get('content') or '') for m in messages):,} chars, "
           f"{len(specs)} tools")
     print("known answer from the real run: 13 reads, 12 at limit 80 and one at 100\n")

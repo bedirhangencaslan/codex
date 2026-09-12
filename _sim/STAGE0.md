@@ -37,6 +37,51 @@ survives holding all of them identical. Every arm measured before this one was s
 that does not contain the answer — which is why nothing separated, why `n = 3` never resolved
 anything, and why two findings had to be retracted.
 
+## Stage 1: the rebuild was right, and it changes nothing
+
+`relay_all.py` dumps every request body instead of only the first. One OpenCode run
+(`wire-stock-rep11`, 25 requests, 44/44 citations) gives the real turn-two request to diff against
+the rebuild above.
+
+The rebuild was structurally correct. Same seven parameters — `max_tokens` 32000, `tool_choice`
+auto, `stream`, `stream_options`, `thinking`, `reasoning_effort` high, `model`. The ten tool specs
+**byte for byte identical**. `reasoning_content` carried as a sibling field on the assistant turn,
+exactly as guessed. The tool result a plain string with `tool_call_id`.
+
+One field differed:
+
+```
+assistant.content    real ""   (empty string)
+                     mine null
+```
+
+Sent 20 more times with `content: ""`:
+
+| | `null` | `""` |
+|---|---|---|
+| reps where every read was bounded | 5 / 18 | **4 / 17** |
+| reads bounded overall | 53 / 108 (49%) | **35 / 86 (41%)** |
+
+No difference. Pooled, **9 of 35 responses** bound every read — 26%.
+
+### The statistic, stated correctly
+
+The unit is not a read, it is a *response*: within one reply the model almost always bounds all of
+its reads or none of them (5/5, 8/8, 13/13 against 0/5, 0/11). OpenCode's six runs produced roughly
+twenty read-carrying responses and bounded every read in all of them. At 26% a response, twenty in
+a row is 0.26²⁰ ≈ 10⁻¹².
+
+So it is settled, and no longer by inference: **a request byte-identical to OpenCode's, with
+identical parameters and identical tools, does not produce OpenCode's behaviour.** The cause is not
+in the request.
+
+### What is left
+
+The transport. `relay.py` forwards the client's own headers upstream, substituting only
+`Authorization` — so OpenCode's headers reach Z.ai and this script's do not. OpenCode calls through
+`@ai-sdk/openai-compatible`; the rebuild calls through `httpx`. Nothing else about the exchange has
+been compared, and headers are now captured alongside each body for exactly this.
+
 ## What remains
 
 Two possibilities, and they are distinguished by the same cheap measurement.
