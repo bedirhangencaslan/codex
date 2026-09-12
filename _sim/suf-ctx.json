@@ -1,0 +1,268 @@
+{
+  "label": "suffice",
+  "rows": [
+    {
+      "file": "001.json",
+      "messages": 4,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 0,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 519,
+        "tools": 14683
+      },
+      "total": 61273
+    },
+    {
+      "file": "002.json",
+      "messages": 7,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 305,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 519,
+        "tool_out": 4181,
+        "tools": 14683
+      },
+      "total": 65759
+    },
+    {
+      "file": "003.json",
+      "messages": 9,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 1075,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 519,
+        "tool_out": 6205,
+        "tools": 14683
+      },
+      "total": 68553
+    },
+    {
+      "file": "004.json",
+      "messages": 22,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 4103,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 519,
+        "tool_out": 107838,
+        "tools": 14683
+      },
+      "total": 173214
+    },
+    {
+      "file": "005.json",
+      "messages": 38,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 7931,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 519,
+        "tool_out": 220826,
+        "tools": 14683
+      },
+      "total": 290030
+    },
+    {
+      "file": "006.json",
+      "messages": 41,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 9111,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 1872,
+        "tool_out": 252396,
+        "tools": 14683
+      },
+      "total": 324133
+    },
+    {
+      "file": "007.json",
+      "messages": 7,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 194,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 7882,
+        "tools": 14683
+      },
+      "total": 68830
+    },
+    {
+      "file": "008.json",
+      "messages": 12,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 2223,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 7882,
+        "tool_out": 96392,
+        "tools": 14683
+      },
+      "total": 167251
+    },
+    {
+      "file": "009.json",
+      "messages": 17,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 4061,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 7882,
+        "tool_out": 150196,
+        "tools": 14683
+      },
+      "total": 222893
+    },
+    {
+      "file": "010.json",
+      "messages": 20,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 5202,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 7882,
+        "tool_out": 214576,
+        "tools": 14683
+      },
+      "total": 288414
+    },
+    {
+      "file": "011.json",
+      "messages": 25,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 6255,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 9235,
+        "tool_out": 248327,
+        "tools": 14683
+      },
+      "total": 324571
+    },
+    {
+      "file": "012.json",
+      "messages": 9,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 438,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tools": 14683
+      },
+      "total": 69589
+    },
+    {
+      "file": "013.json",
+      "messages": 17,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 2650,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tool_out": 31599,
+        "tools": 14683
+      },
+      "total": 103400
+    },
+    {
+      "file": "014.json",
+      "messages": 26,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 4907,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tool_out": 102670,
+        "tools": 14683
+      },
+      "total": 176728
+    },
+    {
+      "file": "015.json",
+      "messages": 30,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 5992,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tool_out": 154012,
+        "tools": 14683
+      },
+      "total": 229155
+    },
+    {
+      "file": "016.json",
+      "messages": 32,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 6317,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tool_out": 169206,
+        "tools": 14683
+      },
+      "total": 244674
+    },
+    {
+      "file": "017.json",
+      "messages": 35,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 16836,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tool_out": 169298,
+        "tools": 14683
+      },
+      "total": 255285
+    },
+    {
+      "file": "018.json",
+      "messages": 37,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 18082,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tool_out": 169803,
+        "tools": 14683
+      },
+      "total": 257036
+    },
+    {
+      "file": "019.json",
+      "messages": 40,
+      "chars": {
+        "prompt": 16521,
+        "assistant": 18564,
+        "skills": 5592,
+        "agents_md": 23958,
+        "task": 8397,
+        "tool_out": 178096,
+        "tools": 14683
+      },
+      "total": 265811
+    }
+  ]
+}
