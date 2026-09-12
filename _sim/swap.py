@@ -172,6 +172,71 @@ def v_suf_ocglob(suf, oc):
     return suf
 
 
+def line_count_turn(body):
+    """The fork's extra pre-read step: assistant call + the line-count listing it received.
+
+    Its own reasoning says why it is there - "Need know line counts ... Get lines counts" - and what
+    comes back is every file with its exact length:
+
+        codex-api\\src\\api_bridge.rs        256
+        codex-api\\src\\files.rs             719
+        codex-api\\src\\endpoint\\responses_websocket.rs   1154
+
+    A model holding that list can size `limit` to the file, which is what the fork's 190-900 windows
+    look like. OpenCode goes glob -> read with no idea how long anything is.
+    """
+    msgs = body["messages"]
+    for i, m in enumerate(msgs):
+        for tc in m.get("tool_calls") or []:
+            if tc["function"]["name"] in ("exec_command", "bash") and i + 1 < len(msgs):
+                return copy.deepcopy(m), copy.deepcopy(msgs[i + 1])
+    return None, None
+
+
+def v_suf_nocounts(suf, oc):
+    """Drop the line-count step. If the windows fall to OpenCode's, that step is the cause."""
+    call, result = line_count_turn(suf)
+    if not call:
+        return suf
+    ids = {tc["id"] for tc in call.get("tool_calls") or []}
+    suf["messages"] = [m for m in suf["messages"]
+                       if m is not call
+                       and not (m.get("role") == "assistant" and
+                                {tc["id"] for tc in m.get("tool_calls") or []} == ids)
+                       and m.get("tool_call_id") not in ids]
+    return suf
+
+
+def v_oc_counts(oc, suf):
+    """Give OpenCode the same listing, through the tool it actually has."""
+    call, result = line_count_turn(suf)
+    if not call:
+        return oc
+    cid = "call_linecounts0000000000000"
+    cmd = (call["tool_calls"][0]["function"]["arguments"])
+    oc["messages"].append({
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": call.get("reasoning_content", ""),
+        "tool_calls": [{"id": cid, "type": "function",
+                        "function": {"name": "bash", "arguments": cmd}}],
+    })
+    oc["messages"].append({
+        "role": "tool",
+        "tool_call_id": cid,
+        "content": retarget(result.get("content") or "", SUF_ROOT, OC_ROOT),
+    })
+    return oc
+
+
+def v_suf_noprose(suf, oc):
+    """Drop the assistant's opening sentence, which OpenCode's turn does not have."""
+    suf["messages"] = [m for m in suf["messages"]
+                       if not (m.get("role") == "assistant" and not m.get("tool_calls")
+                               and (m.get("content") or ""))]
+    return suf
+
+
 VARIANTS = {
     # host = OpenCode's real body 003; one of the fork's blocks put in its place. Lines going UP
     # implicates that block.
@@ -191,6 +256,10 @@ VARIANTS = {
     "suf+ocprompt":   (v_suf_ocprompt, "suf"),
     "suf-skills":     (v_suf_noskills, "suf"),
     "suf+ocglob":     (v_suf_ocglob, "suf"),
+    # Shape, not substitution: the fork's extra line-count step, and its opening sentence.
+    "suf-nocounts":   (v_suf_nocounts, "suf"),
+    "suf-noprose":    (v_suf_noprose, "suf"),
+    "oc+counts":      (v_oc_counts, "oc"),
 }
 
 

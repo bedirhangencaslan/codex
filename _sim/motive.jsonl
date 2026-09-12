@@ -1,0 +1,8 @@
+{"variant": "suf002-base", "reps": 12, "measured": 4, "read": 8, "other": 0, "firsts": {"exec_command": 4, "read": 8}}
+{"variant": "suf002+ocprompt", "reps": 12, "measured": 1, "read": 11, "other": 0, "firsts": {"read": 11, "exec_command": 1}}
+{"variant": "suf002+ocbash", "reps": 12, "measured": 2, "read": 10, "other": 0, "firsts": {"read": 10, "bash": 2}}
+{"variant": "suf002-noshell", "reps": 12, "measured": 0, "read": 12, "other": 0, "firsts": {"read": 12}}
+{"variant": "suf002-skills", "reps": 12, "measured": 5, "read": 7, "other": 0, "firsts": {"read": 7, "exec_command": 5}}
+{"variant": "suf002-agents", "reps": 12, "measured": 4, "read": 8, "other": 0, "firsts": {"read": 8, "exec_command": 4}}
+{"variant": "oc003-base", "reps": 12, "measured": 0, "read": 11, "other": 1, "firsts": {"read": 11, "task": 1}}
+{"variant": "oc003+sufprompt", "reps": 12, "measured": 0, "read": 12, "other": 0, "firsts": {"read": 12}}
