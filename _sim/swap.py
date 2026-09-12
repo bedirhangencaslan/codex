@@ -258,6 +258,20 @@ def v_oc_sufprose(oc, suf):
     return oc
 
 
+def v_suf_ocagents(suf, oc):
+    """AGENTS.md folded into the system message, the way OpenCode carries it.
+
+    The forward direction cost 52 points for moving it the other way, which makes this the reverse
+    test that matters most after the line-count step.
+    """
+    for i, m in enumerate(suf["messages"]):
+        if m.get("role") == "user" and "AGENTS.md instructions for" in (m.get("content") or ""):
+            body = suf["messages"].pop(i)["content"]
+            suf["messages"][0]["content"] = suf["messages"][0]["content"].rstrip() + "\n\n" + body
+            break
+    return suf
+
+
 def v_pure_base(suf, oc):
     """The fork with the line-count step gone - its pure glob -> read state.
 
@@ -298,6 +312,7 @@ VARIANTS = {
     "suf+ocprompt":   (v_suf_ocprompt, "suf"),
     "suf-skills":     (v_suf_noskills, "suf"),
     "suf+ocglob":     (v_suf_ocglob, "suf"),
+    "suf+ocagents":   (v_suf_ocagents, "suf"),
     # Shape, not substitution: the fork's extra line-count step, and its opening sentence.
     "suf-nocounts":   (v_suf_nocounts, "suf"),
     "suf-noprose":    (v_suf_noprose, "suf"),
@@ -353,7 +368,13 @@ def main():
     state = {n: {"fresh": 0, "cached": 0, "out": 0, "per_rep": []} for n in args.variant}
     for rep in range(1, args.reps + 1):
         for name in args.variant:
-            calls, usage = feed.send(client, url, built[name], None)
+            # One upstream timeout took a 108-request batch with it once. Record the loss and carry
+            # on: the arms are interleaved, so it costs one rep of one variant rather than the run.
+            try:
+                calls, usage = feed.send(client, url, built[name], None)
+            except Exception as exc:  # noqa: BLE001 - a transport hiccup is not a result
+                print("  rep %2d  %-16s DROPPED (%s)" % (rep, name, type(exc).__name__), flush=True)
+                continue
             s = state[name]
             if usage:
                 pt = usage.get("prompt_tokens", 0)
@@ -364,7 +385,7 @@ def main():
             lim = feed.read_limits(calls)
             s["per_rep"].append(lim)
             print("  rep %2d  %-16s %2d reads, %d bounded, %s" %
-                  (rep, name, len(lim), sum(1 for x in lim if x), [x for x in lim][:8]))
+                  (rep, name, len(lim), sum(1 for x in lim if x), [x for x in lim][:8]), flush=True)
 
     summary = []
     for name in args.variant:
