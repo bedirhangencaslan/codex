@@ -1,0 +1,20 @@
+{"rep": 1, "label": "faithful", "tools": ["read", "read", "read", "read"], "reads": 4, "limits": [null, null, null, null], "bounded": 0, "median": null}
+{"rep": 2, "label": "faithful", "tools": ["read", "read", "read", "read"], "reads": 4, "limits": [60, 80, 80, 80], "bounded": 4, "median": 80.0}
+{"rep": 1, "label": "faithful", "tools": ["read", "read", "read", "read"], "reads": 4, "limits": [null, null, null, null], "bounded": 0, "median": null}
+{"rep": 2, "label": "faithful", "tools": ["read", "read", "read", "read"], "reads": 4, "limits": [null, null, 80, 80], "bounded": 2, "median": 80.0}
+{"rep": 3, "label": "faithful", "tools": ["read", "read", "read", "read", "read"], "reads": 5, "limits": [null, null, null, null, null], "bounded": 0, "median": null}
+{"rep": 4, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read"], "reads": 8, "limits": [60, 80, 80, 80, 80, 80, 80, 100], "bounded": 8, "median": 80.0}
+{"rep": 5, "label": "faithful", "tools": ["read", "read", "read", "read", "read"], "reads": 5, "limits": [60, 80, null, 80, 80], "bounded": 4, "median": 80.0}
+{"rep": 6, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read"], "reads": 8, "limits": [60, 80, 80, 80, 80, 60, 80, null], "bounded": 7, "median": 80}
+{"rep": 7, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read"], "reads": 8, "limits": [null, null, null, null, null, null, null, null], "bounded": 0, "median": null}
+{"rep": 8, "label": "faithful", "tools": ["task", "task", "task", "task"], "reads": 0, "limits": [], "bounded": 0, "median": null}
+{"rep": 9, "label": "faithful", "tools": ["read", "read", "read", "read"], "reads": 4, "limits": [null, null, null, null], "bounded": 0, "median": null}
+{"rep": 10, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read"], "reads": 8, "limits": [60, 60, 80, null, 80, 60, 60, null], "bounded": 6, "median": 60.0}
+{"rep": 11, "label": "faithful", "tools": ["task", "task", "task", "task"], "reads": 0, "limits": [], "bounded": 0, "median": null}
+{"rep": 12, "label": "faithful", "tools": ["read", "read", "read", "read"], "reads": 4, "limits": [null, null, null, null], "bounded": 0, "median": null}
+{"rep": 13, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read", "read", "read", "read"], "reads": 11, "limits": [null, null, null, null, null, null, null, null, null, null, null], "bounded": 0, "median": null}
+{"rep": 14, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read", "read", "read"], "reads": 10, "limits": [80, 80, 80, 80, 80, 80, 80, 80, 80, 80], "bounded": 10, "median": 80.0}
+{"rep": 15, "label": "faithful", "tools": ["read", "read", "read"], "reads": 3, "limits": [80, 80, 80], "bounded": 3, "median": 80}
+{"rep": 16, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read", "read", "read", "read"], "reads": 11, "limits": [null, null, null, null, null, null, null, null, null, null, null], "bounded": 0, "median": null}
+{"rep": 17, "label": "faithful", "tools": ["read", "read", "read", "read", "read", "read", "read", "read", "read", "read", "read", "read"], "reads": 12, "limits": [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 100], "bounded": 12, "median": 80.0}
+{"rep": 18, "label": "faithful", "tools": ["read", "read", "read"], "reads": 3, "limits": [null, null, 120], "bounded": 1, "median": 120}

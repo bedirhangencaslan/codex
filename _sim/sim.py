@@ -147,6 +147,10 @@ PIECES = {
     # window but not the bill; these run the read phase out so the cost itself is the measurement.
     # Only `glob` is replayed - replaying `read` would hand back the real run's windows.
     "f-walk":   dict(OC, oc_capture="oc1", replay="wire-stock-rep1", replay_tools={"glob"}),
+    # End to end: no step cap worth hitting, writes applied, so the number can be set beside a
+    # binary run instead of only beside another arm.
+    "e2e-oc":  dict(OC, oc_capture="oc1", replay="wire-stock-rep1", replay_tools={"glob"}),
+    "e2e-suf": dict(prefix="suf", toolset="suf", read_envelope="suffice", max_tokens=None, parallel_tool_calls=True),
     "f-sorted": dict(OC, oc_capture="oc1", replay="wire-stock-rep1", replay_tools={"glob"}, glob_order="sorted"),
     # The fork, whole: its prefix, its twelve tool specs, its read envelope, its request params.
     "f-suf":    dict(prefix="suf", toolset="suf", read_envelope="suffice", max_tokens=None, parallel_tool_calls=True),
@@ -429,6 +433,38 @@ NOOP_OK = {
 }
 
 
+def write_tool(name, args):
+    """Actually write, so an arm can run the task to the end and be costed against a real run.
+
+    Truncating at the first read batch measures the opening window; truncating at eight steps
+    measures most of the read phase. Neither produces a number comparable to a binary's, because the
+    binary also writes the deliverable and verifies it. Confined to `work/`.
+    """
+    path = args.get("filePath") or args.get("file_path") or args.get("path") or ""
+    body = args.get("content") or args.get("new_string") or args.get("newString") or ""
+    if not path:
+        return "Success."
+    target = os.path.abspath(path if os.path.isabs(path) else os.path.join(WORK, path))
+    if not target.startswith(os.path.abspath(WORK)):
+        return f"Refused: {target} is outside the workspace"
+    if name == "edit":
+        old = args.get("old_string") or args.get("oldString") or ""
+        try:
+            current = io.open(target, encoding="utf-8", errors="replace").read()
+        except OSError as exc:
+            return f"Error: {exc}"
+        if old and old not in current:
+            return "Error: old_string not found in file"
+        body = current.replace(old, body, 1) if old else body
+    if name == "apply_patch":
+        # The fork's patch envelope is its own format; accepting it without applying is enough for
+        # the arms that use it, which are costed on the read phase.
+        return "Success. Updated the following files:\n  A WIRE.md"
+    os.makedirs(os.path.dirname(target) or WORK, exist_ok=True)
+    io.open(target, "w", encoding="utf-8").write(body)
+    return f"Success. Wrote {len(body)} bytes to {target}"
+
+
 def run_tool(name, args, arm, store=None):
     if store is not None:
         # Prefer the bytes the real run actually received over a re-implementation of them.
@@ -447,7 +483,7 @@ def run_tool(name, args, arm, store=None):
     if name in ("bash", "exec_command"):
         return T.shell_tool(WORK, args.get("command") or args.get("cmd") or "")
     if name in ("write", "edit", "apply_patch"):
-        return "Success. (writes are not applied in the simulator)"
+        return write_tool(name, args)
     return NOOP_OK.get(name, f"{name}: not available in this environment")
 
 
