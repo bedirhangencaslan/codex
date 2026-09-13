@@ -100,6 +100,7 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                         "function": {"name": name, "arguments": arguments},
                     }),
                     reasoning_by_anchor_index.get(&idx).map(String::as_str),
+                    follows_assistant_text(input, idx),
                 );
             }
             ResponseItem::FunctionCallOutput {
@@ -147,6 +148,8 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                         },
                     }),
                     reasoning_by_anchor_index.get(&idx).map(String::as_str),
+                    // `input` here is the destructured tool body, which shadows the item slice.
+                    follows_assistant_text(request.input.as_slice(), idx),
                 );
             }
             ResponseItem::CustomToolCallOutput {
@@ -396,14 +399,53 @@ fn anchor_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
     anchored
 }
 
+/// True when the item at `idx` follows an assistant message in the same turn.
+///
+/// Reasoning items sit between the two and are anchored separately, so they are skipped. Anything
+/// else - a user message, a tool output - ends the turn, and a merge across that boundary would
+/// invent a message the model never sent.
+fn follows_assistant_text(input: &[ResponseItem], idx: usize) -> bool {
+    input[..idx].iter().rev().find_map(|item| match item {
+        ResponseItem::Reasoning { .. } => None,
+        ResponseItem::Message { role, .. } => Some(role == "assistant"),
+        _ => Some(false),
+    }) == Some(true)
+}
+
 /// Chat Completions requires consecutive tool calls to be grouped into one
 /// assistant message carrying `tool_calls: [...]`, followed by the `tool` replies.
-fn push_tool_call(messages: &mut Vec<Value>, tool_call: Value, reasoning: Option<&str>) {
+///
+/// `merge_into_text` additionally folds the call into the assistant message that preceded it in the
+/// same turn. The model emits commentary and its calls in one response - the captured bodies show a
+/// single request producing both - and writing them as two messages records a turn the model never
+/// took: one that spoke without acting, and one that acted without speaking. Its own history then
+/// teaches it that pattern.
+///
+/// Measured on the captured decision-point request, 12 reps round-robin: the sentence in a turn of
+/// its own keeps 5 of 41 reads inside OpenCode's 40-150 band at 6,048 lines a response; the same
+/// sentence merged into the calling message keeps 34 of 50 at 2,973. Neither the sentence alone nor
+/// a doubled turn alone does the damage - it takes both. The prompt cannot fix this: it was
+/// rewritten to ask for exactly the merged shape and the model went on emitting two items, because
+/// the split is made here.
+fn push_tool_call(
+    messages: &mut Vec<Value>,
+    tool_call: Value,
+    reasoning: Option<&str>,
+    merge_into_text: bool,
+) {
     if let Some(Value::Object(obj)) = messages.last_mut()
         && obj.get("role").and_then(Value::as_str) == Some("assistant")
-        && obj.get("content").is_some_and(Value::is_null)
-        && let Some(tool_calls) = obj.get_mut("tool_calls").and_then(Value::as_array_mut)
+        // Already collecting calls for this turn, or about to start collecting them on the message
+        // that announced them. Keying on `content` being null the way this used to would stop at
+        // the first call once commentary rides along, and scatter the rest one message apiece.
+        && (obj.contains_key("tool_calls")
+            || (merge_into_text && obj.get("content").is_some_and(Value::is_string)))
     {
+        let tool_calls = obj
+            .entry("tool_calls".to_string())
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .expect("tool_calls is an array");
         tool_calls.push(tool_call);
         if let Some(reasoning) = reasoning {
             match obj.get_mut("reasoning_content") {
@@ -443,6 +485,18 @@ mod tests {
             id: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
+                text: text.to_string(),
+            }],
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+        }
+    }
+
+    fn assistant(text: &str) -> ResponseItem {
+        ResponseItem::Message {
+            id: None,
+            role: "assistant".to_string(),
+            content: vec![ContentItem::OutputText {
                 text: text.to_string(),
             }],
             phase: None,
@@ -509,6 +563,55 @@ mod tests {
         let messages = body["messages"].as_array().expect("messages");
         assert_eq!(messages[1]["role"], "system");
         assert_eq!(messages[1]["content"], "environment context");
+    }
+
+    /// The commentary and the calls it introduces are one message, because the model sent them as
+    /// one response. Splitting them records a turn that never happened.
+    #[test]
+    fn commentary_rides_with_the_calls_it_introduces() {
+        let body = chat_body_from_responses_request(&request(
+            vec![
+                user("read these"),
+                assistant("I'll read the spec and the existing modules."),
+                call("call-a", "read", r#"{"filePath":"a"}"#),
+                call("call-b", "read", r#"{"filePath":"b"}"#),
+            ],
+            None,
+        ));
+
+        let messages = body["messages"].as_array().expect("messages");
+        assert_eq!(messages.len(), 3, "system + user + 1 assistant");
+        assert_eq!(
+            messages[2]["content"],
+            "I'll read the spec and the existing modules."
+        );
+        assert_eq!(
+            messages[2]["tool_calls"].as_array().map(Vec::len),
+            Some(2),
+            "both calls ride the message that announced them"
+        );
+    }
+
+    /// ...but only inside one turn. A tool output or a user message ends it, and the assistant
+    /// message that opens the next one must not collect calls that answer a different question.
+    #[test]
+    fn commentary_does_not_merge_across_a_turn_boundary() {
+        let body = chat_body_from_responses_request(&request(
+            vec![
+                user("read these"),
+                assistant("Done."),
+                user("now search"),
+                call("call-a", "grep", r#"{"pattern":"fn"}"#),
+            ],
+            None,
+        ));
+
+        let messages = body["messages"].as_array().expect("messages");
+        assert_eq!(messages.len(), 5, "system + user + assistant + user + assistant");
+        assert_eq!(messages[2]["content"], "Done.");
+        assert!(messages[2].get("tool_calls").is_none());
+        assert_eq!(messages[4]["content"], Value::Null);
+        assert_eq!(messages[4]["tool_calls"].as_array().map(Vec::len), Some(1));
     }
 
     #[test]
