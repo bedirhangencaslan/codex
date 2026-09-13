@@ -29,6 +29,70 @@ pub use storage::rebuild_raw_memories_file_from_memories;
 pub use storage::rollout_summary_file_stem;
 pub use storage::sync_rollout_summaries_from_memories;
 
+/// The model a background memory phase should run on.
+///
+/// The order is: whatever the user configured for this phase, else the provider's own preference,
+/// else the model the session is already using.
+///
+/// That last step is the fix. `ModelProvider::memory_*_preferred_model` has a hard-coded default of
+/// `gpt-5.6-terra` / `gpt-5.6-luna`, which is right for providers that serve those slugs and is
+/// meant to be overridden by the ones that do not - Bedrock overrides it with its own model ids.
+/// A provider configured through `[model_providers.*]` in config.toml has no implementation to
+/// override it with, so it inherited the OpenAI slug and asked a third-party endpoint for a model
+/// it has never heard of. Observed on 12 of 20 runs against a Z.ai endpoint: one request per run,
+/// ~18k tokens of prompt, rejected 400. Free only because it was rejected - against an endpoint
+/// that does serve `gpt-5.6-terra`, this silently bills a model the user did not choose.
+pub(crate) fn memory_phase_model(
+    configured_for_phase: Option<&str>,
+    provider_preference: &str,
+    provider_default: &str,
+    session_model: Option<&str>,
+) -> String {
+    if let Some(explicit) = configured_for_phase {
+        return explicit.to_string();
+    }
+    if provider_preference != provider_default {
+        return provider_preference.to_string();
+    }
+    // No session model to inherit means nothing better than the old behaviour is available.
+    session_model.unwrap_or(provider_preference).to_string()
+}
+
+#[cfg(test)]
+mod memory_phase_model_tests {
+    use super::memory_phase_model;
+
+    const DEFAULT: &str = "gpt-5.6-terra";
+
+    const SESSION: Option<&str> = Some("glm-5.3-flash");
+
+    #[test]
+    fn an_explicit_choice_wins() {
+        assert_eq!(
+            memory_phase_model(Some("o-something"), "bedrock.gpt", DEFAULT, SESSION),
+            "o-something"
+        );
+    }
+
+    #[test]
+    fn a_provider_that_overrode_the_default_is_honoured() {
+        assert_eq!(
+            memory_phase_model(None, "bedrock.gpt", DEFAULT, SESSION),
+            "bedrock.gpt"
+        );
+    }
+
+    #[test]
+    fn a_provider_that_did_not_falls_back_to_the_session_model() {
+        assert_eq!(memory_phase_model(None, DEFAULT, DEFAULT, SESSION), "glm-5.3-flash");
+    }
+
+    #[test]
+    fn with_no_session_model_the_old_behaviour_stands() {
+        assert_eq!(memory_phase_model(None, DEFAULT, DEFAULT, None), DEFAULT);
+    }
+}
+
 #[cfg(test)]
 mod startup_tests;
 

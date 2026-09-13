@@ -1,4 +1,4 @@
-use crate::build_consolidation_prompt;
+﻿use crate::build_consolidation_prompt;
 use crate::memory_root;
 use crate::metrics::MEMORY_PHASE_TWO_E2E_MS;
 use crate::metrics::MEMORY_PHASE_TWO_INPUT;
@@ -357,13 +357,12 @@ mod agent {
         }
         .ok()?;
 
-        agent_config.model = Some(
-            config
-                .memories
-                .consolidation_model
-                .clone()
-                .unwrap_or_else(|| provider.memory_consolidation_preferred_model().to_string()),
-        );
+        agent_config.model = Some(crate::memory_phase_model(
+            config.memories.consolidation_model.as_deref(),
+            provider.memory_consolidation_preferred_model(),
+            codex_model_provider::DEFAULT_MEMORY_CONSOLIDATION_PREFERRED_MODEL,
+            config.model.as_deref(),
+        ));
         agent_config.model_reasoning_effort = Some(crate::stage_two::REASONING_EFFORT);
 
         Some(agent_config)
