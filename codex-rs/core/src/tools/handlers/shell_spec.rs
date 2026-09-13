@@ -230,8 +230,8 @@ IMPORTANT: This tool is for terminal operations such as `git`, `cargo`, `npm`, a
 - Prefer full cmdlet names like `Get-ChildItem`, `Set-Content`, `Remove-Item`, and `New-Item` over aliases.
 - Use `$(...)` for subexpressions. Use `@(...)` for array expressions.
 - To call a native executable whose path contains spaces, use the call operator: `& "path/to/exe" args`.
-- An argument to a native program loses its inner double quotes: `python -c 'print("hi")'` arrives as `print(hi)`. Quote it the other way round: `python -c "print('hi')"`.
-- Here-documents do not exist; `<<` is a reserved operator that was never implemented. Write the script to a file and run the file.
+- An argument to a native program loses its inner double quotes: `python -c 'print("hi")'` arrives as `print(hi)`. Quote it the other way round: `python -c "print('hi')"`. If the payload itself needs double quotes, do not escape them - `\"` ends the string here rather than escaping it - pipe the payload in instead: `@'` on its own line, the script, then `'@ | python -`.
+- `<<` here-documents do not exist; it is a reserved operator that was never implemented. The here-string `@'...'@` is a different construct, it does exist, and nothing inside it is interpreted.
 - Escape special characters with the PowerShell backtick character.
 
 Before executing the command, please follow these steps:
