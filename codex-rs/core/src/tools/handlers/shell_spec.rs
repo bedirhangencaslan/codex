@@ -253,14 +253,14 @@ Before executing the command, please follow these steps:
 Usage notes:
   - The `cmd` argument is required.
   - You can specify an optional `timeout_ms`. If not specified, commands time out after 10000 ms.
-  - Output is capped and truncated at that point, with no file written for the remainder. Do NOT pull bulk file text through here to work around it; use `read` with `offset`/`limit`, or `grep`, which return the same content in windows you choose. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
+  - Output is capped and truncated at that point, with no file written for the remainder. Whatever comes back through here stays in context for every later request, so a bulk read taken this way is paid for again on each one. For one fact out of one file, use `read` with `offset`/`limit`, or `grep`. For structured data out of many files, write a script: let it read the files, write its result straight to the file that needs it, and print only a count - what the script reads never enters this conversation.
   - Avoid using this tool with PowerShell file/content cmdlets unless explicitly instructed or when these cmdlets are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
     - File search: Use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
     - Content search: Use `grep` (NOT `Select-String`, `grep`, or `rg`)
     - Read files: Use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
     - Edit or create files: Use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)
     - Communication: Output text directly (NOT `Write-Output`/`Write-Host`)
-  - Reach for the shell on file work only for what the dedicated tools do not do, such as a count of matches, which `rg -c` gives and `grep` does not.
+  - Reach for the shell on file work for what the dedicated tools do not do: counting matches, and extracting or generating file content with a script.
   - When issuing multiple commands:
     - If the commands are independent and can run in parallel, make multiple `exec_command` calls in a single message.
     - If the commands depend on each other and must run sequentially, use `cmd1; if ($?) { cmd2 }` rather than `;` alone, because PowerShell does not stop at the first failure and reports only the last statement's exit code.
