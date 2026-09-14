@@ -364,7 +364,27 @@ pub struct GrepHandler {
 
 struct FileMatches {
     display: String,
+    /// Every match in this file, counted whether or not its line survived `MAX_GREP_MATCHES`.
+    ///
+    /// The scan already reads every line of every walked file - the cap gates the push, not the
+    /// loop - so this costs nothing to keep, and it is the only thing that makes a saturated
+    /// result usable: without it a file whose matches all landed past the cap is dropped from
+    /// `per_file` entirely and the model never learns it matched.
+    matched: usize,
     lines: Vec<(usize, String)>,
+}
+
+/// Which cap ended the result, if any. All three used to render the same sentence, which told the
+/// model that something was missing but not what, nor what to do about it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GrepLimit {
+    None,
+    /// `MAX_GREP_MATCHES`: more matches exist than the result may carry.
+    Matches,
+    /// `MAX_GREP_OUTPUT_BYTES`: the rendered lines would not fit.
+    Bytes,
+    /// The walk gave up at `MAX_WALKED_FILES`, so even the counts are partial.
+    Walk,
 }
 
 impl GrepHandler {
@@ -429,12 +449,14 @@ impl GrepHandler {
                 continue;
             }
             let text = String::from_utf8_lossy(&bytes);
+            let mut matched = 0usize;
             let mut lines = Vec::new();
             for (index, line) in text.lines().enumerate() {
                 if !regex.is_match(line) {
                     continue;
                 }
                 found += 1;
+                matched += 1;
                 if found <= MAX_GREP_MATCHES {
                     let clipped = if line.len() > MAX_MATCH_LINE_BYTES {
                         format!("{}...", clip_to_bytes(line, MAX_MATCH_LINE_BYTES))
@@ -444,8 +466,14 @@ impl GrepHandler {
                     lines.push((index + 1, clipped));
                 }
             }
-            if !lines.is_empty() {
-                per_file.push(FileMatches { display, lines });
+            // Not `!lines.is_empty()`: a file whose matches all fell past the cap has no lines to
+            // show and still belongs in the count map.
+            if matched > 0 {
+                per_file.push(FileMatches {
+                    display,
+                    matched,
+                    lines,
+                });
             }
         }
 
@@ -458,35 +486,95 @@ impl GrepHandler {
 
 /// OpenCode's own layout, down to the blank line after each match and the header that says
 /// "matches" whatever the count is.
+///
+/// Unsaturated results render exactly as they always did. A saturated one no longer returns a
+/// hundred lines and an apology: on the measured `impl2` runs every truncated grep was abandoned
+/// whole - 13 to 27 kB bought nothing and was then carried to the end of the run - because a
+/// partial line dump tells the model neither what it missed nor where. `render_map` answers both
+/// from counts the scan already had.
 fn render_grep(found: usize, per_file: &[FileMatches], walk_truncated: bool) -> String {
     if found == 0 {
         // OpenCode's empty-result sentinel says "files", not "matches". Copied as it is.
         return "No files found".to_string();
     }
     let saturated = found >= MAX_GREP_MATCHES;
-    let mut out = format!(
-        "Found {found} matches{}\n",
-        if saturated {
-            " (more matches available)"
-        } else {
-            ""
-        }
-    );
+    let mut out = format!("Found {found} matches\n");
     let mut stopped = false;
-    for file in per_file {
-        let mut block = format!("{}:\n", file.display);
-        for (line_no, text) in &file.lines {
-            block.push_str(&format!("  Line {line_no}: {text}\n\n"));
+    if !saturated {
+        for file in per_file {
+            let mut block = format!("{}:\n", file.display);
+            for (line_no, text) in &file.lines {
+                block.push_str(&format!("  Line {line_no}: {text}\n\n"));
+            }
+            if out.len() + block.len() > MAX_GREP_OUTPUT_BYTES {
+                stopped = true;
+                break;
+            }
+            out.push_str(&block);
         }
-        if out.len() + block.len() > MAX_GREP_OUTPUT_BYTES {
-            stopped = true;
-            break;
+    }
+    let limit = if walk_truncated {
+        GrepLimit::Walk
+    } else if saturated {
+        GrepLimit::Matches
+    } else if stopped {
+        GrepLimit::Bytes
+    } else {
+        GrepLimit::None
+    };
+    if limit == GrepLimit::None {
+        return out;
+    }
+    render_map(found, per_file, limit)
+}
+
+/// Entries named in the count map before it starts summarising, so one pathological pattern cannot
+/// turn the map into the dump it replaces.
+const MAX_MAP_FILES: usize = 200;
+/// Sample matches shown under the map: enough to learn the shape of a hit, not to carry the data.
+const MAP_SAMPLE_MATCHES: usize = 5;
+
+/// What was found, per file, when the lines themselves cannot all be shown.
+///
+/// Files stay in walk order rather than sorting by count: the question a truncated grep leaves
+/// open is "which files am I missing", and walk order is the order the model builds inventories in.
+fn render_map(found: usize, per_file: &[FileMatches], limit: GrepLimit) -> String {
+    let why = match limit {
+        GrepLimit::Matches => "too many to list in full",
+        GrepLimit::Bytes => "listing them in full would exceed this tool's size cap",
+        // The walk stopped before every file was searched, so the totals below are a floor.
+        GrepLimit::Walk => "the file walk stopped early, so these counts are partial",
+        GrepLimit::None => unreachable!("render_map is only reached for a capped result"),
+    };
+    let mut out = format!(
+        "Found {found} matches in {} files - {why}.\nMatches per file:\n",
+        per_file.len()
+    );
+    for file in per_file.iter().take(MAX_MAP_FILES) {
+        out.push_str(&format!("  {}: {}\n", file.display, file.matched));
+    }
+    if per_file.len() > MAX_MAP_FILES {
+        out.push_str(&format!(
+            "  ... and {} more files\n",
+            per_file.len() - MAX_MAP_FILES
+        ));
+    }
+    let samples: Vec<String> = per_file
+        .iter()
+        .flat_map(|file| {
+            file.lines
+                .iter()
+                .map(move |(line_no, text)| format!("  {}:{}: {}\n", file.display, line_no, text))
+        })
+        .take(MAP_SAMPLE_MATCHES)
+        .collect();
+    if !samples.is_empty() {
+        out.push_str(&format!("\nFirst {} matches:\n", samples.len()));
+        for sample in samples {
+            out.push_str(&sample);
         }
-        out.push_str(&block);
     }
-    if saturated || stopped || walk_truncated {
-        out.push_str("\n(Results truncated. Consider using a more specific path or pattern.)\n");
-    }
+    out.push_str("\nNarrow the pattern or the path to see the lines themselves.\n");
     out
 }
 
@@ -636,10 +724,12 @@ mod tests {
         );
     }
 
+    /// An unsaturated result is untouched by the count map, byte for byte.
     #[test]
     fn grep_uses_opencodes_layout() {
         let per_file = vec![FileMatches {
             display: "C:\\repo\\a.rs".to_string(),
+            matched: 1,
             lines: vec![(791, "    pub async fn connect(".to_string())],
         }];
         assert_eq!(
@@ -649,22 +739,45 @@ mod tests {
     }
 
     #[test]
-    fn grep_announces_saturation_the_way_opencode_does() {
+    fn a_saturated_grep_returns_counts_instead_of_a_partial_dump() {
+        let per_file = vec![
+            FileMatches {
+                display: "a.rs".to_string(),
+                matched: MAX_GREP_MATCHES,
+                lines: (0..MAX_GREP_MATCHES)
+                    .map(|n| (n + 1, "x".to_string()))
+                    .collect(),
+            },
+            // The file the old renderer dropped: every match of its own landed past the cap.
+            FileMatches {
+                display: "b.rs".to_string(),
+                matched: 76,
+                lines: Vec::new(),
+            },
+        ];
+        let out = render_grep(176, &per_file, /*walk_truncated*/ false);
+        assert!(
+            out.starts_with("Found 176 matches in 2 files - too many to list in full.\n"),
+            "{out}"
+        );
+        assert!(out.contains("\n  a.rs: 100\n"), "{out}");
+        assert!(out.contains("\n  b.rs: 76\n"), "{out}");
+        assert!(out.contains("First 5 matches:\n"), "{out}");
+        assert!(out.contains("Narrow the pattern or the path"), "{out}");
+        // The point of the map: it is a fraction of the dump it replaces.
+        assert!(out.len() < 4_000, "{}", out.len());
+    }
+
+    /// A walk that gave up has counted only what it reached, and the result has to say so.
+    #[test]
+    fn a_truncated_walk_says_its_counts_are_partial() {
         let per_file = vec![FileMatches {
             display: "a.rs".to_string(),
-            lines: (0..MAX_GREP_MATCHES)
-                .map(|n| (n + 1, "x".to_string()))
-                .collect(),
+            matched: 2,
+            lines: vec![(1, "x".to_string()), (2, "y".to_string())],
         }];
-        let out = render_grep(MAX_GREP_MATCHES, &per_file, /*walk_truncated*/ false);
-        assert!(
-            out.starts_with("Found 100 matches (more matches available)\n"),
-            "{out}"
-        );
-        assert!(
-            out.contains("(Results truncated. Consider using a more specific path or pattern.)"),
-            "{out}"
-        );
+        let out = render_grep(2, &per_file, /*walk_truncated*/ true);
+        assert!(out.contains("the file walk stopped early"), "{out}");
     }
 
     #[test]
@@ -672,6 +785,7 @@ mod tests {
         let per_file: Vec<FileMatches> = (0..40)
             .map(|file| FileMatches {
                 display: format!("C:\\repo\\f{file}.rs"),
+                matched: 20,
                 lines: (0..20)
                     .map(|line| (line + 1, "x".repeat(MAX_MATCH_LINE_BYTES)))
                     .collect(),
@@ -679,7 +793,22 @@ mod tests {
             .collect();
         let out = render_grep(800, &per_file, /*walk_truncated*/ false);
         assert!(out.len() <= MAX_GREP_OUTPUT_BYTES + 256, "{}", out.len());
-        assert!(out.contains("Results truncated"), "{out}");
+        assert!(out.contains("too many to list in full"), "{out}");
+    }
+
+    /// The map has its own cap, or one pathological pattern turns it into the dump it replaces.
+    #[test]
+    fn the_count_map_is_itself_bounded() {
+        let per_file: Vec<FileMatches> = (0..MAX_MAP_FILES + 50)
+            .map(|file| FileMatches {
+                display: format!("C:\\repo\\f{file}.rs"),
+                matched: 3,
+                lines: Vec::new(),
+            })
+            .collect();
+        let out = render_grep(3 * (MAX_MAP_FILES + 50), &per_file, /*walk_truncated*/ false);
+        assert!(out.contains("... and 50 more files"), "{out}");
+        assert!(!out.contains("f250.rs"), "{out}");
     }
 
     #[test]
