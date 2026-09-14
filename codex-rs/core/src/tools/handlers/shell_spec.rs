@@ -258,7 +258,7 @@ Usage notes:
     - File search: Use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
     - Content search: Use `grep` (NOT `Select-String`, `grep`, or `rg`)
     - Read files: Use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
-    - Edit or create files: Use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)
+    - Edit or create a file whose content you are writing yourself: Use `apply_patch` (NOT `Set-Content`, `sed`, or `awk`). A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.
     - Communication: Output text directly (NOT `Write-Output`/`Write-Host`)
   - Reach for the shell on file work for what the dedicated tools do not do: counting matches, and extracting or generating file content with a script.
   - When issuing multiple commands:
