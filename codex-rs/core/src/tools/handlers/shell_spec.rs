@@ -230,8 +230,8 @@ IMPORTANT: This tool is for terminal operations such as `git`, `cargo`, `npm`, a
 - Prefer full cmdlet names like `Get-ChildItem`, `Set-Content`, `Remove-Item`, and `New-Item` over aliases.
 - Use `$(...)` for subexpressions. Use `@(...)` for array expressions.
 - To call a native executable whose path contains spaces, use the call operator: `& "path/to/exe" args`.
-- An argument to a native program loses its inner double quotes: `python -c 'print("hi")'` arrives as `print(hi)`. Quote it the other way round: `python -c "print('hi')"`. If the payload itself needs double quotes, do not escape them - `\"` ends the string here rather than escaping it - pipe the payload in instead: `@'` on its own line, the script, then `'@ | python -`.
-- `<<` here-documents do not exist; it is a reserved operator that was never implemented. The here-string `@'...'@` is a different construct, it does exist, and nothing inside it is interpreted.
+- An argument to a native program loses its inner double quotes: `python -c 'print("hi")'` arrives as `print(hi)`. Quote it the other way round: `python -c "print('hi')"`. A payload that needs double quotes of its own cannot be escaped into one: `\"` ends the string rather than escaping the quote. Pipe it in instead: `@'` on its own line, the script, then `'@ | python -`.
+- Here-documents do not exist; `<<` is a reserved operator that was never implemented. The here-string `@'...'@` is a different construct; it does exist, and nothing inside it is interpreted.
 - Escape special characters with the PowerShell backtick character.
 
 Before executing the command, please follow these steps:
@@ -253,14 +253,14 @@ Before executing the command, please follow these steps:
 Usage notes:
   - The `cmd` argument is required.
   - You can specify an optional `timeout_ms`. If not specified, commands time out after 10000 ms.
-  - Output is capped and truncated at that point, with no file written for the remainder. Whatever comes back through here stays in context for every later request, so a bulk read taken this way is paid for again on each one. For one fact out of one file, use `read` with `offset`/`limit`, or `grep`. For structured data out of many files, write a script: let it read the files, write its result straight to the file that needs it, and print only a count - what the script reads never enters this conversation.
-  - Avoid using this tool with PowerShell file/content cmdlets unless explicitly instructed or when these cmdlets are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
+  - Output is capped and truncated at that point, with no file written for the remainder. Do NOT pull bulk file text through here to work around it; use `read` with `offset`/`limit`, or `grep`, which return the same content in windows you choose. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
+  - Avoid using this tool with the file and content commands listed below unless explicitly instructed, or when one of them is truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
     - File search: Use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
     - Content search: Use `grep` (NOT `Select-String`, `grep`, or `rg`)
     - Read files: Use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
     - Edit or create a file whose content you are writing yourself: Use `apply_patch` (NOT `Set-Content`, `sed`, or `awk`). A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.
     - Communication: Output text directly (NOT `Write-Output`/`Write-Host`)
-  - Reach for the shell on file work for what the dedicated tools do not do: counting matches, and extracting or generating file content with a script.
+  - Reach for the shell on file work only for what the dedicated tools do not do, such as a count of matches, which `rg -c` gives and `grep` does not.
   - When issuing multiple commands:
     - If the commands are independent and can run in parallel, make multiple `exec_command` calls in a single message.
     - If the commands depend on each other and must run sequentially, use `cmd1; if ($?) { cmd2 }` rather than `;` alone, because PowerShell does not stop at the first failure and reports only the last statement's exit code.
