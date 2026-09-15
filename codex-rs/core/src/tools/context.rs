@@ -1,5 +1,6 @@
 use crate::context_manager::tool_output::CondenseReport;
 use crate::context_manager::tool_output::condense_exec_output;
+use crate::context_manager::tool_output::condense_exec_output_lossless;
 use crate::original_image_detail::sanitize_original_image_detail;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
@@ -450,6 +451,12 @@ impl ToolOutput for ExecCommandToolOutput {
             output: String,
         }
 
+        // Noise only. This path used to serialize the raw bytes, so escape sequences and git's
+        // line-ending warnings reached the model here after being filtered out everywhere else.
+        // The lossy stages stay off: the caller is code the model wrote, and `harness_notice`
+        // would be a line of prose to a parser. There is therefore nothing to announce, which
+        // is why this struct has no field for it.
+        let (condensed, _report) = self.condensed_output_lossless();
         let result = UnifiedExecCodeModeResult {
             chunk_id: (!self.chunk_id.is_empty()).then(|| self.chunk_id.clone()),
             wall_time_seconds: self.wall_time.as_secs_f64(),
@@ -457,8 +464,9 @@ impl ToolOutput for ExecCommandToolOutput {
             session_id: self.process_id,
             original_token_count: self.original_token_count,
             output: match self.max_output_tokens {
-                Some(max_tokens) => self.truncated_output(max_tokens),
-                None => String::from_utf8_lossy(&self.raw_output).to_string(),
+                Some(max_tokens) => self
+                    .truncated_output_with_policy(&condensed, TruncationPolicy::Tokens(max_tokens)),
+                None => condensed,
             },
         };
 
@@ -478,6 +486,14 @@ impl ExecCommandToolOutput {
         }
     }
 
+    /// The raw output under a token budget, for tests that assert on truncation alone.
+    ///
+    /// Test-only since `code_mode_result` started condensing: both model-facing paths now go
+    /// through [`Self::condensed_output`], and nothing in the product wants the raw bytes with a
+    /// budget applied. The cfg mirrors its only callers, `unified_exec/mod_tests.rs`, which
+    /// `unified_exec/mod.rs` gates on `unix` -- without the same gate this is dead code on
+    /// Windows.
+    #[cfg(all(test, unix))]
     pub(crate) fn truncated_output(&self, max_tokens: usize) -> String {
         let text = String::from_utf8_lossy(&self.raw_output);
         self.truncated_output_with_policy(&text, TruncationPolicy::Tokens(max_tokens))
@@ -545,20 +561,37 @@ impl ExecCommandToolOutput {
         sections.join("\n")
     }
 
-    fn response_text(&self, payload: &ToolPayload) -> String {
-        // Condensing runs before truncation so that noise never spends the model's budget: a
-        // recursive listing whose dependency tree is dropped first fits whole, where the same
-        // listing truncated first loses its own files to make room for `node_modules`.
+    /// The output as the model should read it: every stage, including the ones that drop
+    /// content and say so.
+    fn condensed_output(&self, payload: &ToolPayload) -> (String, CondenseReport) {
         let raw = String::from_utf8_lossy(&self.raw_output);
         let arguments = match payload {
             ToolPayload::Function { arguments } => arguments.as_str(),
             _ => "",
         };
-        let (text, condensed) =
-            match condense_exec_output(arguments, self.exit_code, self.process_id, &raw) {
-                Some((condensed_text, report)) => (condensed_text, report),
-                None => (raw.into_owned(), CondenseReport::default()),
-            };
+        match condense_exec_output(arguments, self.exit_code, self.process_id, &raw) {
+            Some((condensed_text, report)) => (condensed_text, report),
+            None => (raw.into_owned(), CondenseReport::default()),
+        }
+    }
+
+    /// The output as a program should parse it: noise removed, nothing dropped.
+    ///
+    /// Code mode's caller is code the model wrote, which may count lines or match the text
+    /// exactly, so the lossy stages are left out even though they announce themselves.
+    fn condensed_output_lossless(&self) -> (String, CondenseReport) {
+        let raw = String::from_utf8_lossy(&self.raw_output);
+        match condense_exec_output_lossless(&raw) {
+            Some((condensed_text, report)) => (condensed_text, report),
+            None => (raw.into_owned(), CondenseReport::default()),
+        }
+    }
+
+    fn response_text(&self, payload: &ToolPayload) -> String {
+        // Condensing runs before truncation so that noise never spends the model's budget: a
+        // recursive listing whose dependency tree is dropped first fits whole, where the same
+        // listing truncated first loses its own files to make room for `node_modules`.
+        let (text, condensed) = self.condensed_output(payload);
 
         let header = self.response_header(&condensed);
         let output_budget = (self.truncation_policy * 1.2)

@@ -349,3 +349,156 @@ fn leaves_a_listing_alone_when_its_artifact_lines_are_tiny() {
     let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
     assert_eq!(report_for(&arguments, &text).artifact_lines, 0);
 }
+
+#[test]
+fn the_lossless_pass_removes_noise_and_keeps_every_other_line() {
+    // What code mode gets. `cargo build` is on the shrink allowlist and this is well over the
+    // line threshold, so the full pass would cut the middle out; the lossless one must not.
+    let mut lines = vec![
+        "warning: in the working copy of 'a.py', LF will be replaced by CRLF the next time Git touches it"
+            .to_string(),
+        "\u{1b}[32mCompiling\u{1b}[0m start".to_string(),
+    ];
+    lines.extend((0..200).map(|index| format!("   Compiling crate-{index}")));
+    let text = lines.join("\n");
+
+    let (condensed, report) =
+        condense_exec_output_lossless(&text).expect("noise is removed");
+    assert!(!condensed.contains("will be replaced by"), "{condensed}");
+    assert_eq!(report.line_ending_warnings, 1);
+    assert_eq!(report.escape_sequences, 2);
+    // Every line but the warning survives, and nothing is announced.
+    assert_eq!(condensed.lines().count(), 201);
+    assert_eq!(report.summary(), None);
+    assert_eq!(report.removed_tokens, 0);
+
+    // The same input through the full pass loses its middle, which is the difference.
+    let arguments = serde_json::json!({ "cmd": "cargo build" }).to_string();
+    assert!(was_shrunk(&condense_pair(&arguments, &text, Some(true))));
+}
+
+#[test]
+fn the_lossless_pass_leaves_clean_output_alone() {
+    // `None` means "nothing was removed", which is what lets the caller keep its own string.
+    assert_eq!(condense_exec_output_lossless("one\ntwo\nthree"), None);
+}
+
+#[test]
+fn strips_git_line_ending_warnings() {
+    // Both directions: `core.autocrlf=true` writes the first, `input` writes the second. The
+    // path is whatever lies between the quotes, so an apostrophe in a filename does not end it
+    // early -- git does not escape the inner quote.
+    let arguments = serde_json::json!({ "cmd": "git checkout main" }).to_string();
+    let text = [
+        "Switched to branch 'main'",
+        "warning: in the working copy of 'tests/test_query.py', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/app.py', CRLF will be replaced by LF the next time Git touches it",
+        "warning: in the working copy of 'don't-touch.py', LF will be replaced by CRLF the next time Git touches it",
+        "Your branch is up to date with 'origin/main'.",
+    ]
+    .join("\n");
+
+    let (condensed, report) = condense_exec_output(&arguments, Some(0), /*process_id*/ None, &text)
+        .expect("both directions of the warning are removed");
+    assert_eq!(
+        condensed,
+        "Switched to branch 'main'\nYour branch is up to date with 'origin/main'."
+    );
+    assert_eq!(report.line_ending_warnings, 3);
+}
+
+#[test]
+fn removes_a_warnings_only_output_without_announcing_it() {
+    // Counting is what makes this work at all: a stage that rewrote the text without touching
+    // the report would leave `is_empty()` true, and the caller answers an empty report by
+    // falling back to the original bytes -- warnings and all. On Windows `normalize` would have
+    // set `rewritten_lines` and hidden that bug; this fixture is deliberately LF-only, which is
+    // also what `core.autocrlf=input` produces on the platforms that use it.
+    let arguments = serde_json::json!({ "cmd": "git add -A" }).to_string();
+    let text = [
+        "warning: in the working copy of 'a.py', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'b.py', LF will be replaced by CRLF the next time Git touches it",
+    ]
+    .join("\n");
+
+    let (condensed, report) = condense_exec_output(&arguments, Some(0), /*process_id*/ None, &text)
+        .expect("a warnings-only output is still condensed");
+    // `git add` prints nothing on success, so nothing is what is left; the header still carries
+    // `Process exited with code 0`.
+    assert_eq!(condensed, "");
+    assert_eq!(report.line_ending_warnings, 2);
+    // Nothing was lost, so nothing is announced -- and the notice would read `~0 tokens` anyway,
+    // because the strip happens before the size is measured.
+    assert_eq!(report.summary(), None);
+    assert_eq!(report.removed_tokens, 0);
+}
+
+#[test]
+fn keeps_an_unrelated_warning_line() {
+    // The match is the whole sentence, not the word `warning`. A compiler diagnostic is the most
+    // valuable thing in a failing build's output and shares only its first token; the middle line
+    // here is the near miss, carrying the phrase without git's shape around it.
+    let text = [
+        "warning: unused variable: `path`",
+        "warning: in the working copy, LF will be replaced by CRLF",
+        "warning: 1 warning emitted",
+    ]
+    .join("\n");
+    assert_eq!(
+        condense_exec_output("{}", Some(0), /*process_id*/ None, &text),
+        None
+    );
+}
+
+#[test]
+fn keeps_a_line_ending_warning_the_command_went_looking_for() {
+    // Matching the line end to end is the gate, which is why there is none on the arguments. A
+    // model that searched for this text gets it back with a `path:line:` prefix, a shape git
+    // never writes, so the hit survives without anyone having to parse the command.
+    let arguments = serde_json::json!({ "cmd": "rg 'will be replaced by' notes.md" }).to_string();
+    let text = "notes.md:3:warning: in the working copy of 'a.py', LF will be replaced by CRLF the next time Git touches it";
+    assert_eq!(
+        condense_exec_output(&arguments, Some(0), /*process_id*/ None, text),
+        None
+    );
+}
+
+#[test]
+fn strips_line_ending_warnings_that_arrived_with_windows_terminators() {
+    // Runs after `normalize` for exactly this reason: on the platform that produces these
+    // warnings they arrive as `...touches it\r\n`, and the match is anchored to the end of the
+    // line. Reversing the two stages would match nothing where it matters most.
+    let text = "warning: in the working copy of 'a.py', LF will be replaced by CRLF the next time Git touches it\r\nSwitched to branch 'main'\r\n";
+    let (condensed, report) = condense_exec_output("{}", Some(0), /*process_id*/ None, text)
+        .expect("the warning is removed");
+    assert_eq!(condensed, "Switched to branch 'main'\n");
+    assert_eq!(report.line_ending_warnings, 1);
+}
+
+#[test]
+fn counts_line_ending_warnings_apart_from_what_the_notice_announces() {
+    // Stripped before the size is measured, so their tokens are never attributed to a lossy
+    // cause: `Harness trimmed 20 generated-directory lines (~T tokens)` has to mean those twenty
+    // lines, which is only true if T is the same with and without the warnings.
+    let arguments = serde_json::json!({ "cmd": "Get-ChildItem -Recurse app" }).to_string();
+    let warnings: Vec<String> = (0..4)
+        .map(|index| {
+            format!(
+                "warning: in the working copy of 'src/page-{index}.tsx', LF will be replaced by CRLF the next time Git touches it"
+            )
+        })
+        .collect();
+    let text = format!(
+        "{}\n{}",
+        warnings.join("\n"),
+        listing(/*project*/ 10, /*artifact*/ 20)
+    );
+
+    let report = report_for(&arguments, &text);
+    assert_eq!(report.line_ending_warnings, 4);
+    assert_eq!(report.artifact_lines, 20);
+    assert_eq!(
+        report.removed_tokens,
+        report_for(&arguments, &listing(/*project*/ 10, /*artifact*/ 20)).removed_tokens
+    );
+}

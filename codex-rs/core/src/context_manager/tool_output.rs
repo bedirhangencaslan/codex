@@ -5,14 +5,21 @@
 //! `Compiling ...` lines. What the model still needs is the summary at the end, plus enough
 //! of the head to recognize what ran.
 //!
-//! Three stages, cheapest and safest first:
+//! Four stages, cheapest and safest first:
 //!
 //! 1. [`normalize`] is lossless and unconditional. Escape sequences and carriage-return
 //!    overwrites carry no information a reader could act on, so there is no case in which
 //!    keeping them is right.
-//! 2. [`filter_artifact_paths`] drops listing lines that live under a build or dependency
+//! 2. [`strip_line_ending_warnings`] is lossless for the same reason: git's `core.autocrlf`
+//!    notice is addressed to whoever configured the repository, not to the command that
+//!    tripped it.
+//! 3. [`filter_artifact_paths`] drops listing lines that live under a build or dependency
 //!    directory. Lossy, so it is gated on the command not having asked for one.
-//! 3. [`shrink_text`] keeps the head and tail of output whose middle is a receipt.
+//! 4. [`shrink_text`] keeps the head and tail of output whose middle is a receipt.
+//!
+//! The first two lose nothing and are what [`condense_exec_output_lossless`] runs on its own,
+//! for code mode: its result is handed to a program the model wrote, and a stage that announces
+//! what it dropped is enough for a reader but not for a parser.
 //!
 //! All of it runs before the output is truncated to the model's budget, so noise is never
 //! what pushes real content past the limit, and before the harness header is prepended, so
@@ -72,6 +79,28 @@ const MAX_ARTIFACT_SHARE: f32 = 0.9;
 static CSI_ESCAPE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\x1b\[[0-9;?]*[ -/]*[@-~]").unwrap());
 
+/// The prefix every git line-ending warning starts with, and the cheapest way to rule one out.
+const LINE_ENDING_WARNING_PREFIX: &str = "warning: in the working copy of '";
+
+/// Recognizes git's notice that it is about to rewrite a file's line endings.
+///
+/// Matched as the whole sentence rather than on the word `warning`, because a compiler
+/// diagnostic is the most valuable thing in a failing build's output and shares only its first
+/// token. Both directions are spelled out: `core.autocrlf=true` writes the first, `input` the
+/// second, and enumerating them avoids matching `LF will be replaced by LF`, which git never
+/// prints. The path is whatever lies between, so an apostrophe in a filename does not end it
+/// early.
+fn is_line_ending_warning(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix(LINE_ENDING_WARNING_PREFIX) else {
+        return false;
+    };
+    let Some(rest) = rest.strip_suffix(" the next time Git touches it") else {
+        return false;
+    };
+    rest.ends_with("', LF will be replaced by CRLF")
+        || rest.ends_with("', CRLF will be replaced by LF")
+}
+
 /// What condensing removed, so the harness can say so in the response header.
 ///
 /// Counted rather than merely flagged: a model that is told output was altered but not how
@@ -82,6 +111,8 @@ pub(crate) struct CondenseReport {
     pub(crate) escape_sequences: usize,
     /// Lines that lost a carriage-return overwrite or a line terminator.
     pub(crate) rewritten_lines: usize,
+    /// Git line-ending warnings dropped, one per line.
+    pub(crate) line_ending_warnings: usize,
     /// Listing lines dropped for living under a build or dependency directory.
     pub(crate) artifact_lines: usize,
     /// Middle lines dropped by head/tail shrinking.
@@ -99,7 +130,7 @@ impl CondenseReport {
     ///
     /// **Lossless removals are not announced.** Nothing was lost, so there is nothing the
     /// model could do differently, and the notice would cost more than it saved: a line of
-    /// explanation on each affected output outweighs what the lossless stage removes from all
+    /// explanation on each affected output outweighs what the lossless stages remove from all
     /// of them. Announcing only the lossy stages keeps the notice on 12-25% of outputs.
     ///
     /// What it does say is short and load-bearing: a model that reads a gap, blames the
@@ -224,9 +255,9 @@ pub(crate) fn condense_exec_output(
 ) -> Option<(String, CondenseReport)> {
     let mut report = CondenseReport::default();
 
-    let normalized = normalize(text, &mut report);
-    // Measured after normalizing, so the reported size is what the model can no longer see
-    // rather than escape sequences it was never going to read.
+    let normalized = condense_losslessly(text, &mut report);
+    // Measured after the lossless stages, so the reported size is what the model can no longer
+    // see rather than escape sequences it was never going to read.
     let visible_tokens = approx_token_count(&normalized);
 
     // The lossy stages are attempted against a copy, because whether they are worth running
@@ -266,6 +297,35 @@ pub(crate) fn condense_exec_output(
         return None;
     }
     Some((current, report))
+}
+
+/// The stages that cannot lose anything, in order.
+///
+/// Factored out so [`condense_exec_output`] and [`condense_exec_output_lossless`] can never
+/// drift: the difference between them is only what runs *after* this.
+///
+/// The line-ending warnings go before the size is measured, so their tokens are never
+/// attributed to a lossy cause: the header's `Harness trimmed N generated-directory lines
+/// (~T tokens)` has to mean those lines and nothing else, and noise must not help a marginal
+/// candidate clear `MIN_LOSSY_TOKENS` and take real content with it.
+fn condense_losslessly(text: &str, report: &mut CondenseReport) -> String {
+    let normalized = normalize(text, report);
+    strip_line_ending_warnings(normalized, report)
+}
+
+/// Noise removal with nothing that drops content, for callers that must not lose any.
+///
+/// Code mode hands its result to a program the model wrote, which may count lines or match the
+/// text exactly. The lossy stages announce themselves, which is enough for a reader and not
+/// enough for a parser, so they are left out here. What goes is only what a terminal would
+/// never have shown and what git addressed to whoever configured the repository.
+pub(crate) fn condense_exec_output_lossless(text: &str) -> Option<(String, CondenseReport)> {
+    let mut report = CondenseReport::default();
+    let condensed = condense_losslessly(text, &mut report);
+    if report.is_empty() {
+        return None;
+    }
+    Some((condensed, report))
 }
 
 /// Removes what a terminal would never have shown a reader, and nothing else.
@@ -313,6 +373,41 @@ fn normalize(text: &str, report: &mut CondenseReport) -> String {
         lines.push(stripped.into_owned());
     }
     lines.join("\n")
+}
+
+/// Drops git's line-ending warnings, which say nothing about what the command did.
+///
+/// Lossless in the sense this module means: under `core.autocrlf` git prints one per file it is
+/// about to rewrite, on success, naming no error and repeating verbatim. It is addressed to
+/// whoever configured the repository. A model that does want the line-ending settings asks for
+/// them directly - `git config core.autocrlf`, `git ls-files --eol` - and those answers are a
+/// different shape that this never matches.
+///
+/// Runs after [`normalize`] rather than before it: on the platform that produces these warnings
+/// they arrive as `...touches it\r\n`, and the match is anchored to the end of the line.
+///
+/// Takes the text by value so the common case costs no copy - this is a no-op on most output,
+/// unlike [`normalize`], which always rebuilds.
+fn strip_line_ending_warnings(text: String, report: &mut CondenseReport) -> String {
+    if !text.contains(LINE_ENDING_WARNING_PREFIX) {
+        return text;
+    }
+    // Joined inside the block so the borrow of `text` ends before the early return below.
+    let (kept, dropped) = {
+        let lines: Vec<&str> = text.split('\n').collect();
+        let kept: Vec<&str> = lines
+            .iter()
+            .copied()
+            .filter(|line| !is_line_ending_warning(line))
+            .collect();
+        let dropped = lines.len() - kept.len();
+        (kept.join("\n"), dropped)
+    };
+    if dropped == 0 {
+        return text;
+    }
+    report.line_ending_warnings = dropped;
+    kept
 }
 
 /// Drops listing lines that live inside a build or dependency directory.

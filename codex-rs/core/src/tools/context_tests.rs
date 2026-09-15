@@ -543,3 +543,49 @@ fn exec_command_tool_output_preserves_omission_metadata_when_truncated() {
     assert!(text.contains("Warning: truncated output (original token count: 42000)"));
     assert_eq!(text.matches(&marker).count(), 1);
 }
+
+#[test]
+fn code_mode_result_removes_noise_but_never_drops_content() {
+    // This path used to serialize the raw bytes, so git's line-ending warnings reached the model
+    // here after being filtered out everywhere else. They go now -- but only they: code mode
+    // hands its result to a program the model wrote, which may count lines or match the text
+    // exactly, and a stage that announces what it dropped is enough for a reader and not for a
+    // parser. So the lossy stages stay off here even though the text path runs them.
+    let payload = ToolPayload::Function {
+        arguments: json!({ "cmd": "cargo build" }).to_string(),
+    };
+    let mut lines = vec![
+        "warning: in the working copy of 'a.py', LF will be replaced by CRLF the next time Git touches it"
+            .to_string(),
+    ];
+    lines.extend((0..200).map(|index| format!("   Compiling crate-{index}")));
+    lines.push("Finished dev profile".to_string());
+    let raw = lines.join("\n");
+
+    let output = ExecCommandToolOutput {
+        event_call_id: "call-7".to_string(),
+        chunk_id: String::new(),
+        wall_time: std::time::Duration::from_millis(500),
+        raw_output: raw.into_bytes(),
+        truncation_policy: TruncationPolicy::Tokens(100_000),
+        max_output_tokens: None,
+        process_id: None,
+        exit_code: Some(0),
+        original_token_count: None,
+        output_omitted_bytes: None,
+        hook_command: None,
+    };
+
+    let result = output.code_mode_result(&payload);
+    let text = result["output"].as_str().expect("output serializes as a string");
+
+    // The noise is gone.
+    assert!(!text.contains("will be replaced by"), "{text}");
+    // And nothing else is: `cargo build` is on the shrink allowlist, it exited 0, and 201 lines
+    // is far over the threshold, so the text path would have cut the middle out of this.
+    assert_eq!(text.lines().count(), 201);
+    assert!(text.contains("   Compiling crate-100"), "{text}");
+    assert!(!text.contains("lines trimmed"), "{text}");
+    // Telemetry still records what the command actually printed.
+    assert!(output.log_output().contains("will be replaced by"));
+}
