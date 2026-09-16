@@ -261,7 +261,7 @@ For casual greetings, acknowledgements, or other one-off conversational messages
 
 When using the shell, you must adhere to the following guidelines:
 
-- When searching for text or files, prefer using `rg` or `rg --files` respectively because `rg` is much faster than alternatives like `grep`. (If the `rg` command is not found, then use alternatives.)
+- When you search for files by name you use `glob`, and when you search their contents you use `grep`; both walk the workspace directly and `grep` answers with the line numbers a citation needs. It runs ripgrep underneath and opens every result with the total number of matches, so searching through the shell gains nothing.
 - Do not use python scripts to attempt to output larger chunks of a file.
 
 ## `update_plan`

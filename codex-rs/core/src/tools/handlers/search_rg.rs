@@ -36,6 +36,7 @@
 //! and a blocking read on a blocking pool is what this work actually is.
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -54,6 +55,7 @@ use crate::function_tool::FunctionCallError;
 use crate::tools::handlers::search::FileMatches;
 use crate::tools::handlers::search::MAX_GREP_MATCHES;
 use crate::tools::handlers::search::MAX_MATCH_LINE_BYTES;
+use crate::tools::handlers::search::ReadGuard;
 use crate::tools::handlers::search::clip_to_bytes;
 use crate::tools::handlers::search::display_path;
 
@@ -87,6 +89,9 @@ pub(super) struct RgRequest {
     pub(super) pattern: String,
     /// `None` when `target` is a file: a glob filters a directory walk and has nothing to filter.
     pub(super) include: Option<String>,
+    /// The turn's read policy. ripgrep is a process, so the filesystem abstraction cannot contain
+    /// it and the containment happens on the results instead - see [`Collector::accept`].
+    pub(super) read_guard: ReadGuard,
 }
 
 /// What either engine produces, before rendering.
@@ -183,7 +188,7 @@ pub(super) fn run_rg(
         String::from_utf8_lossy(&kept).into_owned()
     });
 
-    let mut collector = Collector::new(request.display_base.as_deref());
+    let mut collector = Collector::new(request.display_base.as_deref(), &request.read_guard);
     let deadline = Instant::now() + RG_TIMEOUT;
     let mut killed = false;
     if let Some(stdout) = child.stdout.take() {
@@ -263,6 +268,13 @@ fn trim_line_ending(line: &str) -> &str {
 /// Accumulates ripgrep's events. No process and no filesystem, so it tests on its own.
 struct Collector<'a> {
     cwd: Option<&'a Path>,
+    /// Consulted once per file, not once per match: the policy lookup resolves its entries every
+    /// call, and a broad pattern can bring half a million match events through here.
+    read_guard: &'a ReadGuard,
+    /// Paths the policy refused, so the answer is remembered rather than recomputed. Bounded by
+    /// the same ceiling as `files`; past it the check simply runs again, which costs time and not
+    /// correctness.
+    denied: BTreeSet<String>,
     found: usize,
     /// ripgrep's own path text to that file's match count. Its keys iterate in the same order the
     /// in-process engine's `files.sort()` produces: every path shares the target prefix, so
@@ -293,9 +305,11 @@ impl Collected {
 }
 
 impl<'a> Collector<'a> {
-    fn new(cwd: Option<&'a Path>) -> Self {
+    fn new(cwd: Option<&'a Path>, read_guard: &'a ReadGuard) -> Self {
         Self {
             cwd,
+            read_guard,
+            denied: BTreeSet::new(),
             found: 0,
             files: BTreeMap::new(),
             retained: BTreeMap::new(),
@@ -332,6 +346,12 @@ impl<'a> Collector<'a> {
             self.stopped_early = true;
             return;
         };
+        // Before `found` is touched: a file the policy refuses must be invisible, and a count that
+        // included it would describe matches the model is never given. Not `stopped_early` either -
+        // the scan was not cut short, this file was never in scope.
+        if !self.is_readable(&path) {
+            return;
+        }
         self.found += 1;
         // The ceiling only bites on a file the map has not seen yet, so an already-counted file
         // keeps counting however many files came before it.
@@ -353,9 +373,29 @@ impl<'a> Collector<'a> {
         }
     }
 
+    /// Whether the policy allows this path, answered from `denied`/`files` when it already has.
+    fn is_readable(&mut self, path: &str) -> bool {
+        if self.files.contains_key(path) {
+            return true;
+        }
+        if self.denied.contains(path) {
+            return false;
+        }
+        if self.read_guard.allows(Path::new(path)) {
+            return true;
+        }
+        if self.denied.len() < MAX_MATCHED_FILES {
+            self.denied.insert(path.to_string());
+        }
+        tracing::debug!("grep: skipping {path}, reading it is not permitted in this session");
+        false
+    }
+
     fn finish(self) -> Collected {
         let Self {
             cwd,
+            read_guard: _,
+            denied: _,
             found,
             files,
             retained,
@@ -429,7 +469,11 @@ mod tests {
     }
 
     fn collect(cwd: &Path, lines: &[String]) -> Collected {
-        let mut collector = Collector::new(Some(cwd));
+        collect_guarded(cwd, lines, &ReadGuard::Unrestricted)
+    }
+
+    fn collect_guarded(cwd: &Path, lines: &[String], read_guard: &ReadGuard) -> Collected {
+        let mut collector = Collector::new(Some(cwd), read_guard);
         for line in lines {
             collector.accept(line);
         }
@@ -567,6 +611,73 @@ mod tests {
         assert!(names.contains(&expected.as_str()), "{names:?}");
     }
 
+    /// ripgrep walks unsandboxed, so a file the turn may not read has to disappear on the way back -
+    /// and disappear completely. A result that listed it, or a `Found N` that counted it, would
+    /// describe matches the model never receives.
+    #[test]
+    fn a_file_the_policy_refuses_is_dropped_and_not_counted() {
+        let cwd = Path::new("repo");
+        let lines = [
+            match_event("repo/keep.rs", 1, "kept"),
+            match_event("repo/secret/key.rs", 1, "refused"),
+            match_event("repo/secret/key.rs", 7, "refused again"),
+        ];
+
+        let open = collect(cwd, &lines);
+        assert_eq!(open.found, 3, "with no restriction all three are counted");
+
+        let guarded = collect_guarded(
+            cwd,
+            &lines,
+            &ReadGuard::CwdOnly {
+                cwd: PathBuf::from("repo/keep.rs"),
+            },
+        );
+        assert_eq!(guarded.found, 1, "the two refused matches are not counted");
+        let names: Vec<&str> = guarded
+            .per_file
+            .iter()
+            .map(|file| file.display.as_str())
+            .collect();
+        assert_eq!(names, vec!["keep.rs"], "{names:?}");
+        assert!(
+            !guarded.stopped_early,
+            "a refused file is out of scope, not a truncated scan"
+        );
+    }
+
+    /// The guard must be invisible when it permits everything: the same events have to produce the
+    /// identical result, or every existing assertion about this collector is measuring two things.
+    #[test]
+    fn an_unrestricted_guard_changes_nothing() {
+        let cwd = Path::new("repo");
+        let lines = [
+            match_event("repo/a.rs", 3, "hit a"),
+            match_event("repo/b.rs", 1, "hit b"),
+        ];
+        let permissive = collect_guarded(
+            cwd,
+            &lines,
+            &ReadGuard::CwdOnly {
+                cwd: PathBuf::from("repo"),
+            },
+        );
+        let unrestricted = collect(cwd, &lines);
+        assert_eq!(permissive.found, unrestricted.found);
+        assert_eq!(
+            permissive
+                .per_file
+                .iter()
+                .map(|file| (file.display.clone(), file.matched))
+                .collect::<Vec<_>>(),
+            unrestricted
+                .per_file
+                .iter()
+                .map(|file| (file.display.clone(), file.matched))
+                .collect::<Vec<_>>(),
+        );
+    }
+
     #[test]
     fn the_glob_is_passed_only_when_one_was_asked_for() {
         let mut request = RgRequest {
@@ -576,6 +687,7 @@ mod tests {
             target: PathBuf::from("repo/src"),
             pattern: "-dash-leading".to_string(),
             include: None,
+            read_guard: ReadGuard::Unrestricted,
         };
         let without = rg_args(&request);
         assert!(!without.iter().any(|arg| arg == "--glob"));

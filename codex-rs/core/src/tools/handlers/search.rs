@@ -31,6 +31,8 @@ use codex_file_system::MAX_WALK_ENTRIES;
 use codex_file_system::WalkEntryKind;
 use codex_file_system::WalkOptions;
 use codex_install_context::InstallContext;
+use codex_protocol::models::PermissionProfile;
+use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_utils_path_uri::PathUri;
 use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
@@ -142,6 +144,60 @@ pub(super) fn display_path(cwd: Option<&Path>, file: &str) -> String {
 /// the shorter form is worth tokens, not a silently wrong file.
 fn display_base<'a>(options: &SearchToolOptions, cwd: &'a Path) -> Option<&'a Path> {
     (!options.include_environment_id).then_some(cwd)
+}
+
+/// The turn's read policy, asked one path at a time.
+///
+/// `read` reaches the disk through `ExecutorFileSystem`, which applies this policy on its behalf.
+/// Neither `grep` engine does: the fast one spawns ripgrep, which the filesystem abstraction has no
+/// way to contain, and the fallback calls `std::fs::read` directly (`scan_in_process`). So the
+/// policy is carried to them here instead, and a file it refuses is dropped *before* its matches
+/// are counted rather than filtered out of the rendering afterwards - `Found N matches` must not
+/// count something the model is never shown.
+///
+/// This is a guard, not a fix for a live leak. Every profile in normal use grants full-disk *read*
+/// access - `workspace-write` narrows writes, not reads - so [`Self::Unrestricted`] is the usual
+/// answer and every check is a discriminant test. It earns its place on a profile that does narrow
+/// reads, and on the day one of those becomes the default.
+#[derive(Clone)]
+pub(super) enum ReadGuard {
+    /// This profile does not narrow reads, so there is nothing to check.
+    Unrestricted,
+    /// Ask `policy`, resolving its relative entries against `cwd`.
+    Policy {
+        policy: Box<FileSystemSandboxPolicy>,
+        cwd: PathBuf,
+    },
+    /// The profile did not parse as one of this host's. Nothing outside the cwd is allowed, which
+    /// is the conservative reading: a search of the workspace still works and a search of anywhere
+    /// else is refused rather than guessed at.
+    CwdOnly { cwd: PathBuf },
+}
+
+impl ReadGuard {
+    fn new(sandbox: &FileSystemSandboxContext, cwd: &Path) -> Self {
+        let Ok(profile) = PermissionProfile::try_from(sandbox.permissions.clone()) else {
+            return Self::CwdOnly {
+                cwd: cwd.to_path_buf(),
+            };
+        };
+        let policy = profile.file_system_sandbox_policy();
+        if policy.has_full_disk_read_access() {
+            return Self::Unrestricted;
+        }
+        Self::Policy {
+            policy: Box::new(policy),
+            cwd: cwd.to_path_buf(),
+        }
+    }
+
+    pub(super) fn allows(&self, path: &Path) -> bool {
+        match self {
+            Self::Unrestricted => true,
+            Self::Policy { policy, cwd } => policy.can_read_path_with_cwd(path, cwd),
+            Self::CwdOnly { cwd } => path.starts_with(cwd),
+        }
+    }
 }
 
 /// Resolve the `path` argument against the turn's cwd, or use the cwd itself.
@@ -478,8 +534,8 @@ impl GrepHandler {
                 "grep is unavailable in this session".to_string(),
             ));
         };
-        let sandbox = turn_environment.sandbox_context(/*additional_permissions*/ None);
-        let sandbox = Some(&sandbox);
+        let sandbox_context = turn_environment.sandbox_context(/*additional_permissions*/ None);
+        let sandbox = Some(&sandbox_context);
         let filesystem = turn_environment.environment.get_filesystem();
         let filesystem = filesystem.as_ref();
 
@@ -488,6 +544,16 @@ impl GrepHandler {
         let base = display_base(&self.options, &cwd);
         let target = requested.to_path_buf();
         let single_file = single_file_target(&requested);
+
+        // Refused up front rather than per file, so a search of somewhere unreadable says so
+        // instead of returning an honest-looking `Found 0 matches`.
+        let read_guard = ReadGuard::new(&sandbox_context, &cwd);
+        if !read_guard.allows(&target) {
+            return Err(FunctionCallError::RespondToModel(format!(
+                "cannot search {}: reading it is not permitted in this session",
+                display_path(base, &target.to_string_lossy())
+            )));
+        }
 
         // ripgrep needs the files on this host: it is a process, and a remote environment reaches
         // its filesystem over `ExecutorFileSystem`, which has no way to run anything. `is_remote`
@@ -504,6 +570,8 @@ impl GrepHandler {
                 // A glob filters a directory walk, so it has nothing to filter once one file is
                 // named. The in-process branch below drops it for the same reason.
                 include: single_file.is_none().then_some(include.clone()).flatten(),
+                // ripgrep runs unsandboxed, so what it walks into is filtered on the way back.
+                read_guard: read_guard.clone(),
             };
             let cancellation = cancellation_token.clone();
             tokio::task::spawn_blocking(move || search_rg::run_rg(&request, &cancellation))
@@ -529,7 +597,7 @@ impl GrepHandler {
                         (walked.files, walked.truncated)
                     }
                 };
-                let (found, per_file) = scan_in_process(files, base, &regex);
+                let (found, per_file) = scan_in_process(files, base, &regex, &read_guard);
                 (found, per_file, truncated)
             }
         };
@@ -571,10 +639,17 @@ fn scan_in_process(
     files: Vec<String>,
     cwd: Option<&Path>,
     regex: &Regex,
+    read_guard: &ReadGuard,
 ) -> (usize, Vec<FileMatches>) {
     let mut found = 0usize;
     let mut per_file: Vec<FileMatches> = Vec::new();
     for path in files {
+        // `walk_local` is ripgrep's walker, which knows nothing about the sandbox, and the read
+        // below is a plain `std::fs::read`. Skipped the same way an unreadable file is: silently,
+        // and before anything about it is counted.
+        if !read_guard.allows(Path::new(&path)) {
+            continue;
+        }
         let Ok(bytes) = std::fs::read(&path) else {
             continue;
         };
@@ -1082,7 +1157,8 @@ mod tests {
         ];
         let regex = Regex::new("pub").expect("regex");
 
-        let (found, per_file) = scan_in_process(files, Some(temp.path()), &regex);
+        let (found, per_file) =
+            scan_in_process(files, Some(temp.path()), &regex, &ReadGuard::Unrestricted);
 
         assert_eq!(found, 2);
         let displays: Vec<String> = per_file
@@ -1135,6 +1211,7 @@ mod tests {
             target: cwd.clone(),
             pattern: pattern.to_string(),
             include: None,
+            read_guard: ReadGuard::Unrestricted,
         };
         let cancellation = tokio_util::sync::CancellationToken::new();
         let Ok(Some(scan)) = search_rg::run_rg(&request, &cancellation) else {
@@ -1143,7 +1220,8 @@ mod tests {
 
         let walked = walk_local(cwd.clone(), None, /*include_hidden*/ true).expect("walk");
         let regex = Regex::new(pattern).expect("regex");
-        let (found, per_file) = scan_in_process(walked.files, Some(&cwd), &regex);
+        let (found, per_file) =
+            scan_in_process(walked.files, Some(&cwd), &regex, &ReadGuard::Unrestricted);
 
         assert!(found > 0, "the fixture must match something");
         assert_eq!(

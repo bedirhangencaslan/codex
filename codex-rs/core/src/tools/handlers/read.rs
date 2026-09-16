@@ -41,6 +41,7 @@ use crate::tools::handlers::read_spec::READ_TOOL_NAME;
 use crate::tools::handlers::read_spec::ReadToolOptions;
 use crate::tools::handlers::read_spec::create_read_tool;
 use crate::tools::handlers::resolve_tool_environment;
+use crate::tools::handlers::search::display_path;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExecutor;
 use codex_tools::ToolName;
@@ -707,6 +708,20 @@ impl ReadHandler {
         let filesystem = turn_environment.environment.get_filesystem();
         let filesystem = filesystem.as_ref();
 
+        // What the section headers are written against. Same rule as `grep`/`glob`
+        // (`search::display_base`): a relative path is only unambiguous while there is one
+        // environment to resolve it against, so the shorter form is dropped as soon as the tools
+        // advertise `environment_id`.
+        //
+        // This is the half of the saving the model cannot make for itself. Measured over 224 real
+        // headers, a resolved absolute path runs 95 characters against 39 for the same path written
+        // against the cwd - 2,464 bytes on a 44-file task, paid again on every later request. It
+        // also closes the loop that kept the paths long: the model took its paths from `grep` and
+        // `glob`, which shortened them, then expanded them again because `read` echoed the absolute
+        // form back on every call.
+        let display_base = (!self.options.include_environment_id)
+            .then(|| turn_environment.cwd().to_path_buf());
+
         // Phase 1: resolve and dedup. Containment stays the sandbox's job, so `join` is used rather
         // than `join_descendant`: the model routinely feeds back absolute paths it got from `rg`.
         let mut items: Vec<Item> = Vec::with_capacity(targets.len());
@@ -722,8 +737,11 @@ impl ReadHandler {
                     continue;
                 }
             };
-            let display = uri.inferred_native_path_string();
-            let key = (display.clone(), target.offset, target.limit);
+            // Deduplicated on the resolved path and shown as the shortened one: the same file
+            // asked for once by a relative path and once by an absolute one is one read.
+            let resolved = uri.inferred_native_path_string();
+            let key = (resolved.clone(), target.offset, target.limit);
+            let display = display_path(display_base.as_deref(), &resolved);
             if seen.contains(&key) {
                 items.push(Item {
                     display,
@@ -790,7 +808,9 @@ impl ReadHandler {
                 // large is the expensive way to learn it.
                 Ok(metadata) if metadata.size > MAX_FILE_BYTES => {
                     item.plan = Plan::Note(format!(
-                        "file is {} bytes; too large to read. Use `rg` to find the lines you \
+                        // `grep`, not `rg`: the shell spec forbids `rg` in two places, and this
+                        // note used to send the model straight at it.
+                        "file is {} bytes; too large to read. Use `grep` to find the lines you \
                          need, then read a window.",
                         metadata.size
                     ))
@@ -1179,7 +1199,9 @@ c
 3: c
 "
         );
-        assert!(rendered.note.is_none());
+        // A complete read closes with its own length rather than saying nothing: see the `else`
+        // branch in `render_body`. This assertion predates that and asserted `None`.
+        assert_eq!(rendered.note.as_deref(), Some("end of file, 3 lines"));
     }
 
     #[test]
@@ -1191,8 +1213,10 @@ c
         let rendered = render_body(&contents, Some(3), Some(2), true, MAX_CALL_BUDGET_BYTES);
         assert_eq!(rendered.body, "3: 3\n4: 4\n");
         let note = rendered.note.expect("a partial read must say so");
-        assert!(note.contains("from line 3"), "{note}");
-        assert!(note.contains("continue with offset 5"), "{note}");
+        // The wording moved to OpenCode's - `showing lines A-B of N` - and these two assertions
+        // were left on the old phrasing.
+        assert!(note.contains("showing lines 3-4 of 10"), "{note}");
+        assert!(note.contains("use offset 5 to continue"), "{note}");
     }
 
     #[test]

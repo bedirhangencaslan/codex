@@ -28,9 +28,7 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
     let mut properties = BTreeMap::from([
         (
             "filePath".to_string(),
-            JsonSchema::string(Some(
-                "The absolute path to the file or directory to read".to_string(),
-            )),
+            JsonSchema::string(Some("File or directory to read".to_string())),
         ),
         (
             "offset".to_string(),
@@ -60,7 +58,7 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
         description: "Read one file or directory from the local filesystem. If the path does not exist, an error is returned.
 
 Usage:
-- The filePath parameter should be an absolute path.
+- Prefer a filePath relative to the working directory; absolute also works.
 - By default, this tool returns up to 2000 lines from the start of the file.
 - The offset parameter is the line number to start from (1-indexed).
 - To read later sections, call this tool again with a larger offset.
