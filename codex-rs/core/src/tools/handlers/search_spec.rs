@@ -4,14 +4,17 @@
 //! names a `Task` tool we do not expose and a `Bash` tool we call `exec_command`. Everything else
 //! is verbatim, because the wording is the thing under test.
 //!
-//! One exception, and it was measured: OpenCode's grep description ends with "If you need to
+//! One exception, and it was measured twice: OpenCode's grep description ends with "If you need to
 //! identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep)
 //! directly. Do NOT use `grep`." That is about `rg -c`, but the verb "identify" and the
 //! categorical "Do NOT use `grep`" read much wider, and this model takes the wide reading of
 //! everything - the trait that made it read whole files to satisfy the word "every". In one
 //! recorded run it reasoned "we can use rg with patterns to identify public structs/enums"
 //! and left the tool for `exec_command`, whose output then came back "truncated and
-//! disordered" and was discarded. The line is narrowed to what it actually means.
+//! disordered" and was discarded. The line was first narrowed to a count, and is now gone: the
+//! claim behind it was false. `render_grep` has always opened with `Found N matches`, and since the
+//! count map a saturated result carries the count per file too, so the sentence spent a round trip
+//! on something already in the answer - and spent it on `rg`, which the shell spec forbids.
 //!
 //! Why these exist at all: measured on a 44-file task, OpenCode's model read 71 lines per file and
 //! never continued a truncated one, then closed the remaining citations with eight `grep` calls.
@@ -118,8 +121,8 @@ pub fn create_grep_tool(options: SearchToolOptions) -> ToolSpec {
 - Filter files by pattern with the include parameter (eg. \"*.js\", \"*.{ts,tsx}\")
 - Returns file paths and line numbers with matching lines
 - Use this tool when you need to find files containing specific patterns
-- If you need the number of matches rather than the matches themselves, use `exec_command` with \
-`rg -c`."
+- Every result opens with the total number of matches, and a result too large to list in full \
+answers with the count per file instead."
             .to_string(),
         strict: false,
         defer_loading: None,

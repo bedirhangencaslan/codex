@@ -12,8 +12,10 @@
 //!    "No matches found" where OpenCode says "No files found".
 //!
 //! All three are fixed by using `ignore`, which is ripgrep's own walker, with the caller's pattern
-//! installed as an `Override` exactly as `rg --glob=` installs it. No process is spawned, so the
-//! sandbox story is unchanged.
+//! installed as an `Override` exactly as `rg --glob=` installs it.
+//!
+//! `grep` now prefers the bundled `rg` binary and keeps this walker as its fallback, so it does
+//! spawn a process - see `search_rg`. `glob` still never does.
 //!
 //! Why these tools exist at all: on a 44-file reading task the model asked itself eleven times
 //! whether search output counts as having read a file - *"tool command is not model reading? It
@@ -28,11 +30,13 @@ use codex_file_system::MAX_WALK_DIRECTORIES;
 use codex_file_system::MAX_WALK_ENTRIES;
 use codex_file_system::WalkEntryKind;
 use codex_file_system::WalkOptions;
+use codex_install_context::InstallContext;
 use codex_utils_path_uri::PathUri;
 use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
 use regex_lite::Regex;
 use serde_json::Value;
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::function_tool::FunctionCallError;
@@ -42,6 +46,7 @@ use crate::tools::context::ToolOutput;
 use crate::tools::context::ToolPayload;
 use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::resolve_tool_environment;
+use crate::tools::handlers::search_rg;
 use crate::tools::handlers::search_spec::GLOB_TOOL_NAME;
 use crate::tools::handlers::search_spec::GREP_TOOL_NAME;
 use crate::tools::handlers::search_spec::SearchToolOptions;
@@ -54,9 +59,9 @@ use codex_tools::ToolSpec;
 
 /// OpenCode's own result limits: `glob` and `grep` each stop at 100.
 const MAX_GLOB_PATHS: usize = 100;
-const MAX_GREP_MATCHES: usize = 100;
+pub(super) const MAX_GREP_MATCHES: usize = 100;
 /// OpenCode caps a matched line at 2000 characters and appends `...`.
-const MAX_MATCH_LINE_BYTES: usize = 2_000;
+pub(super) const MAX_MATCH_LINE_BYTES: usize = 2_000;
 /// Files above this are not searched. OpenCode passes no `--max-filesize`, but it also never holds
 /// a whole file: `rg` streams. This reads, so a bound is needed; 1 MiB is well past any source file
 /// and short of a bundle.
@@ -97,7 +102,7 @@ fn function_arguments(payload: ToolPayload) -> Result<String, FunctionCallError>
     }
 }
 
-fn clip_to_bytes(text: &str, max: usize) -> &str {
+pub(super) fn clip_to_bytes(text: &str, max: usize) -> &str {
     if text.len() <= max {
         return text;
     }
@@ -106,6 +111,37 @@ fn clip_to_bytes(text: &str, max: usize) -> &str {
         end -= 1;
     }
     &text[..end]
+}
+
+/// A result path as the model should see it: relative to the turn's cwd, absolute when the file
+/// lies outside it.
+///
+/// Measured over 1,490 real result paths from the recorded runs, an absolute path averages 87
+/// characters against 32 for the same path written relative to the cwd - 23,300 tokens across that
+/// corpus, paid again on every later request. Nothing is lost by shortening it: the model's own
+/// citations are already cwd-relative, and `read` resolves what it is handed against the same cwd
+/// (`read.rs`, `turn_environment.cwd().join(...)`), so a relative path can be pasted straight back.
+///
+/// Falling back to the absolute form is deliberate rather than an error case - a file above the cwd
+/// has no relative name worth printing, and a wrong short path is worse than a long right one.
+/// `None` asks for the absolute form outright; see [`display_base`].
+pub(super) fn display_path(cwd: Option<&Path>, file: &str) -> String {
+    cwd.and_then(|cwd| Path::new(file).strip_prefix(cwd).ok())
+        .map(|rest| rest.to_string_lossy().into_owned())
+        .filter(|rest| !rest.is_empty())
+        .unwrap_or_else(|| file.to_string())
+}
+
+/// What result paths are shortened against, or `None` when they have to stay absolute.
+///
+/// A relative path is only unambiguous while there is one environment to resolve it against. Once
+/// the tools advertise `environment_id`, `read` resolves what it is handed against the *primary*
+/// environment's cwd unless the model repeats the id, so a relative path that came from another
+/// environment would quietly read a different file - or the same name in the wrong tree. An
+/// absolute path resolves identically in every environment, which is why it stays in that mode:
+/// the shorter form is worth tokens, not a silently wrong file.
+fn display_base<'a>(options: &SearchToolOptions, cwd: &'a Path) -> Option<&'a Path> {
+    (!options.include_environment_id).then_some(cwd)
 }
 
 /// Resolve the `path` argument against the turn's cwd, or use the cwd itself.
@@ -296,14 +332,29 @@ impl GlobHandler {
         )
         .await?;
 
+        // `glob`'s answer is nothing but paths, so the path length *is* the result size: measured
+        // over 3,210 real result paths it averages 90 characters absolute against 36 relative, and
+        // across the recorded runs that is 605,228 of `glob`'s 1,000,532 billed tokens. Grep does
+        // the same at its own collection point.
+        let cwd = turn_environment.cwd().to_path_buf();
+        let base = display_base(&self.options, &cwd);
+        let files: Vec<String> = walked
+            .files
+            .iter()
+            .map(|file| display_path(base, file))
+            .collect();
+
         Ok(boxed_tool_output(FunctionToolOutput::from_text(
-            render_glob(&walked.files, walked.truncated),
+            render_glob(&files, walked.truncated),
             Some(true),
         )))
     }
 }
 
-/// OpenCode's layout: absolute paths, one per line, then its own truncation sentence.
+/// OpenCode's layout: one path per line, then its own truncation sentence.
+///
+/// The paths were absolute, as OpenCode's are. They are now written relative to the turn's cwd -
+/// see [`display_path`] for the measurement and [`display_base`] for when they are not.
 ///
 /// `walk_truncated` has no OpenCode counterpart - `rg` has no walk cap - but a silently short
 /// answer is worse than a small divergence, so the same sentence covers it.
@@ -362,16 +413,16 @@ pub struct GrepHandler {
     options: SearchToolOptions,
 }
 
-struct FileMatches {
-    display: String,
+pub(super) struct FileMatches {
+    pub(super) display: String,
     /// Every match in this file, counted whether or not its line survived `MAX_GREP_MATCHES`.
     ///
     /// The scan already reads every line of every walked file - the cap gates the push, not the
     /// loop - so this costs nothing to keep, and it is the only thing that makes a saturated
     /// result usable: without it a file whose matches all landed past the cap is dropped from
     /// `per_file` entirely and the model never learns it matched.
-    matched: usize,
-    lines: Vec<(usize, String)>,
+    pub(super) matched: usize,
+    pub(super) lines: Vec<(usize, String)>,
 }
 
 /// Which cap ended the result, if any. All three used to render the same sentence, which told the
@@ -383,7 +434,8 @@ enum GrepLimit {
     Matches,
     /// `MAX_GREP_OUTPUT_BYTES`: the rendered lines would not fit.
     Bytes,
-    /// The walk gave up at `MAX_WALKED_FILES`, so even the counts are partial.
+    /// The search ended before it had seen everything - the in-process walk gave up at
+    /// `MAX_WALKED_FILES`, or ripgrep was cut short - so even the counts are a floor.
     Walk,
 }
 
@@ -399,6 +451,7 @@ impl GrepHandler {
         let ToolInvocation {
             step_context,
             payload,
+            cancellation_token,
             ..
         } = invocation;
         let arguments = function_arguments(payload)?;
@@ -409,6 +462,11 @@ impl GrepHandler {
         let include = string_argument(&arguments, "include")?;
         let environment_id = string_argument(&arguments, "environment_id")?;
 
+        // Compiled even when ripgrep is going to do the matching, and the error text is still this
+        // one. ripgrep's engine accepts a larger language than `regex-lite` - `\p{Greek}`, a
+        // Unicode-aware `\w` - and letting it through would mean a pattern is valid or invalid
+        // depending on whether ripgrep happened to be reachable. Both engines accept exactly what
+        // the smaller one accepts until that is changed on purpose.
         let regex = Regex::new(&pattern).map_err(|error| {
             FunctionCallError::RespondToModel(format!("invalid regex `{pattern}`: {error}"))
         })?;
@@ -425,63 +483,133 @@ impl GrepHandler {
         let filesystem = turn_environment.environment.get_filesystem();
         let filesystem = filesystem.as_ref();
 
-        // OpenCode runs ripgrep with `cwd` = the path when it is a directory, its parent otherwise.
         let requested = search_root(turn_environment.cwd(), path.as_deref())?;
-        let root = if requested.to_path_buf().is_file() {
-            requested.parent().unwrap_or_else(|| requested.clone())
-        } else {
-            requested
-        };
-        // `--hidden` is unconditional for OpenCode's grep.
-        let walked = walk(
-            filesystem, sandbox, &root, include, /*include_hidden*/ true,
-        )
-        .await?;
-        let walk_truncated = walked.truncated;
+        let cwd = turn_environment.cwd().to_path_buf();
+        let base = display_base(&self.options, &cwd);
+        let target = requested.to_path_buf();
+        let single_file = single_file_target(&requested);
 
-        let mut found = 0usize;
-        let mut per_file: Vec<FileMatches> = Vec::new();
-        for display in walked.files {
-            let Ok(bytes) = std::fs::read(&display) else {
-                continue;
+        // ripgrep needs the files on this host: it is a process, and a remote environment reaches
+        // its filesystem over `ExecutorFileSystem`, which has no way to run anything. `is_remote`
+        // alone is not enough - a local environment can still be backed by a filesystem that is not
+        // this host's, which is what `walk` already probes for - so both have to hold.
+        let rg_reachable = !turn_environment.environment.is_remote() && target.exists();
+        let scan = if rg_reachable {
+            let request = search_rg::RgRequest {
+                program: InstallContext::current().rg_command(),
+                cwd: cwd.clone(),
+                display_base: base.map(Path::to_path_buf),
+                target: target.clone(),
+                pattern: pattern.clone(),
+                // A glob filters a directory walk, so it has nothing to filter once one file is
+                // named. The in-process branch below drops it for the same reason.
+                include: single_file.is_none().then_some(include.clone()).flatten(),
             };
-            if bytes.len() > MAX_SEARCHED_FILE_BYTES || bytes.contains(&0) {
-                continue;
+            let cancellation = cancellation_token.clone();
+            tokio::task::spawn_blocking(move || search_rg::run_rg(&request, &cancellation))
+                .await
+                .map_err(|error| {
+                    FunctionCallError::RespondToModel(format!("grep was interrupted: {error}"))
+                })??
+        } else {
+            None
+        };
+
+        let (found, per_file, stopped_early) = match scan {
+            Some(scan) => (scan.found, scan.per_file, scan.stopped_early),
+            None => {
+                let (files, truncated) = match single_file {
+                    Some(file) => (vec![file], false),
+                    None => {
+                        // `--hidden` is unconditional for OpenCode's grep.
+                        let walked = walk(
+                            filesystem, sandbox, &requested, include, /*include_hidden*/ true,
+                        )
+                        .await?;
+                        (walked.files, walked.truncated)
+                    }
+                };
+                let (found, per_file) = scan_in_process(files, base, &regex);
+                (found, per_file, truncated)
             }
-            let text = String::from_utf8_lossy(&bytes);
-            let mut matched = 0usize;
-            let mut lines = Vec::new();
-            for (index, line) in text.lines().enumerate() {
-                if !regex.is_match(line) {
-                    continue;
-                }
-                found += 1;
-                matched += 1;
-                if found <= MAX_GREP_MATCHES {
-                    let clipped = if line.len() > MAX_MATCH_LINE_BYTES {
-                        format!("{}...", clip_to_bytes(line, MAX_MATCH_LINE_BYTES))
-                    } else {
-                        line.to_string()
-                    };
-                    lines.push((index + 1, clipped));
-                }
-            }
-            // Not `!lines.is_empty()`: a file whose matches all fell past the cap has no lines to
-            // show and still belongs in the count map.
-            if matched > 0 {
-                per_file.push(FileMatches {
-                    display,
-                    matched,
-                    lines,
-                });
-            }
-        }
+        };
 
         Ok(boxed_tool_output(FunctionToolOutput::from_text(
-            render_grep(found, &per_file, walk_truncated),
+            render_grep(found, &per_file, stopped_early),
             Some(true),
         )))
     }
+}
+
+/// The one file `path` named, or `None` when it named a directory to walk.
+///
+/// A `path` that names a file means that file. It used to mean that file's parent directory: 40 of
+/// the 82 recorded `grep` calls passed a file and were answered with the whole directory it sat in,
+/// so 550 of the 857 matches that came back were from files the model had not asked about, and
+/// nothing in the result said the scope had widened. `glob` refuses a file outright rather than
+/// widening, but refusing is wrong here - a single-file grep is the call the model makes most.
+///
+/// `include` is a filter for a directory walk, so it does not apply once one file is named.
+fn single_file_target(requested: &PathUri) -> Option<String> {
+    requested
+        .to_path_buf()
+        .is_file()
+        .then(|| requested.inferred_native_path_string())
+}
+
+/// Searches `files` in this process, line by line.
+///
+/// This is the fallback engine. It reads each file whole, decodes it lossily and runs the pattern
+/// over every line, which is why it is no longer the first choice: on this repository a root-level
+/// search walks 6,881 files and 69.6 MB, serially, and `std::fs::read` blocks the runtime while it
+/// does. It stays because `rg` cannot always be reached - a remote environment has no host to spawn
+/// it on, and a source build resolves `rg` to a bare name that may not be on `PATH`.
+///
+/// The cap gates the push, not the loop: `matched` counts every hit so a file whose matches all
+/// landed past `MAX_GREP_MATCHES` still appears in the count map.
+fn scan_in_process(
+    files: Vec<String>,
+    cwd: Option<&Path>,
+    regex: &Regex,
+) -> (usize, Vec<FileMatches>) {
+    let mut found = 0usize;
+    let mut per_file: Vec<FileMatches> = Vec::new();
+    for path in files {
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        if bytes.len() > MAX_SEARCHED_FILE_BYTES || bytes.contains(&0) {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes);
+        let mut matched = 0usize;
+        let mut lines = Vec::new();
+        for (index, line) in text.lines().enumerate() {
+            if !regex.is_match(line) {
+                continue;
+            }
+            found += 1;
+            matched += 1;
+            if found <= MAX_GREP_MATCHES {
+                let clipped = if line.len() > MAX_MATCH_LINE_BYTES {
+                    format!("{}...", clip_to_bytes(line, MAX_MATCH_LINE_BYTES))
+                } else {
+                    line.to_string()
+                };
+                lines.push((index + 1, clipped));
+            }
+        }
+        // Not `!lines.is_empty()`: a file whose matches all fell past the cap has no lines to
+        // show and still belongs in the count map.
+        if matched > 0 {
+            per_file.push(FileMatches {
+                display: display_path(cwd, &path),
+                matched,
+                lines,
+            });
+        }
+    }
+    (found, per_file)
 }
 
 /// OpenCode's own layout, down to the blank line after each match and the header that says
@@ -492,7 +620,7 @@ impl GrepHandler {
 /// whole - 13 to 27 kB bought nothing and was then carried to the end of the run - because a
 /// partial line dump tells the model neither what it missed nor where. `render_map` answers both
 /// from counts the scan already had.
-fn render_grep(found: usize, per_file: &[FileMatches], walk_truncated: bool) -> String {
+fn render_grep(found: usize, per_file: &[FileMatches], stopped_early: bool) -> String {
     if found == 0 {
         // OpenCode's empty-result sentinel says "files", not "matches". Copied as it is.
         return "No files found".to_string();
@@ -513,7 +641,7 @@ fn render_grep(found: usize, per_file: &[FileMatches], walk_truncated: bool) -> 
             out.push_str(&block);
         }
     }
-    let limit = if walk_truncated {
+    let limit = if stopped_early {
         GrepLimit::Walk
     } else if saturated {
         GrepLimit::Matches
@@ -533,6 +661,21 @@ fn render_grep(found: usize, per_file: &[FileMatches], walk_truncated: bool) -> 
 const MAX_MAP_FILES: usize = 200;
 /// Sample matches shown under the map: enough to learn the shape of a hit, not to carry the data.
 const MAP_SAMPLE_MATCHES: usize = 5;
+/// Ceiling for the whole count map.
+///
+/// Not `MAX_GREP_OUTPUT_BYTES`: that is the ceiling for a result that lists lines, and a map
+/// allowed to grow to it would be four times the 11.5 KB partial dump it exists to replace, which
+/// is the opposite of the point. With paths written relative to the cwd a 200-file map lands near
+/// 9 KB, so this leaves headroom for long relative paths and still stays under the dump.
+const MAX_MAP_OUTPUT_BYTES: usize = 12_000;
+/// How much of a sampled line the map carries.
+///
+/// The sentence above was the intent from the start and the code did not enforce it: a sample
+/// arrived already clipped to `MAX_MATCH_LINE_BYTES`, so five of them could be 10 KB on their own
+/// and the map - the thing written to stop a result exploding - reached 29 KB against the 11.5 KB
+/// partial dump it replaces. A sample is there to show what a hit looks like; a line's first 200
+/// bytes do that.
+const MAP_SAMPLE_LINE_BYTES: usize = 200;
 
 /// What was found, per file, when the lines themselves cannot all be shown.
 ///
@@ -542,29 +685,45 @@ fn render_map(found: usize, per_file: &[FileMatches], limit: GrepLimit) -> Strin
     let why = match limit {
         GrepLimit::Matches => "too many to list in full",
         GrepLimit::Bytes => "listing them in full would exceed this tool's size cap",
-        // The walk stopped before every file was searched, so the totals below are a floor.
-        GrepLimit::Walk => "the file walk stopped early, so these counts are partial",
+        // The search stopped before every file was read, so the totals below are a floor.
+        GrepLimit::Walk => "the search stopped early, so these counts are partial",
         GrepLimit::None => unreachable!("render_map is only reached for a capped result"),
     };
     let mut out = format!(
         "Found {found} matches in {} files - {why}.\nMatches per file:\n",
         per_file.len()
     );
+    // `render_grep` only ever checked a byte cap on the branch that lists lines, so this branch
+    // could grow without anything noticing. Room for the samples and the closing sentence is held
+    // back before the file list starts, so a long list cannot crowd them out.
+    let reserve = MAP_SAMPLE_MATCHES.saturating_mul(MAP_SAMPLE_LINE_BYTES + 192) + 256;
+    let list_budget = MAX_MAP_OUTPUT_BYTES.saturating_sub(reserve);
+    let mut listed = 0usize;
     for file in per_file.iter().take(MAX_MAP_FILES) {
-        out.push_str(&format!("  {}: {}\n", file.display, file.matched));
+        let row = format!("  {}: {}\n", file.display, file.matched);
+        if out.len().saturating_add(row.len()) > list_budget {
+            break;
+        }
+        out.push_str(&row);
+        listed += 1;
     }
-    if per_file.len() > MAX_MAP_FILES {
+    if per_file.len() > listed {
         out.push_str(&format!(
             "  ... and {} more files\n",
-            per_file.len() - MAX_MAP_FILES
+            per_file.len() - listed
         ));
     }
     let samples: Vec<String> = per_file
         .iter()
         .flat_map(|file| {
-            file.lines
-                .iter()
-                .map(move |(line_no, text)| format!("  {}:{}: {}\n", file.display, line_no, text))
+            file.lines.iter().map(move |(line_no, text)| {
+                format!(
+                    "  {}:{}: {}\n",
+                    file.display,
+                    line_no,
+                    clip_to_bytes(text, MAP_SAMPLE_LINE_BYTES)
+                )
+            })
         })
         .take(MAP_SAMPLE_MATCHES)
         .collect();
@@ -719,7 +878,7 @@ mod tests {
     #[test]
     fn grep_says_no_files_found_when_nothing_matched() {
         assert_eq!(
-            render_grep(0, &[], /*walk_truncated*/ false),
+            render_grep(0, &[], /*stopped_early*/ false),
             "No files found"
         );
     }
@@ -733,7 +892,7 @@ mod tests {
             lines: vec![(791, "    pub async fn connect(".to_string())],
         }];
         assert_eq!(
-            render_grep(1, &per_file, /*walk_truncated*/ false),
+            render_grep(1, &per_file, /*stopped_early*/ false),
             "Found 1 matches\nC:\\repo\\a.rs:\n  Line 791:     pub async fn connect(\n\n"
         );
     }
@@ -755,7 +914,7 @@ mod tests {
                 lines: Vec::new(),
             },
         ];
-        let out = render_grep(176, &per_file, /*walk_truncated*/ false);
+        let out = render_grep(176, &per_file, /*stopped_early*/ false);
         assert!(
             out.starts_with("Found 176 matches in 2 files - too many to list in full.\n"),
             "{out}"
@@ -768,16 +927,16 @@ mod tests {
         assert!(out.len() < 4_000, "{}", out.len());
     }
 
-    /// A walk that gave up has counted only what it reached, and the result has to say so.
+    /// A search that gave up has counted only what it reached, and the result has to say so.
     #[test]
-    fn a_truncated_walk_says_its_counts_are_partial() {
+    fn a_partial_search_says_its_counts_are_partial() {
         let per_file = vec![FileMatches {
             display: "a.rs".to_string(),
             matched: 2,
             lines: vec![(1, "x".to_string()), (2, "y".to_string())],
         }];
-        let out = render_grep(2, &per_file, /*walk_truncated*/ true);
-        assert!(out.contains("the file walk stopped early"), "{out}");
+        let out = render_grep(2, &per_file, /*stopped_early*/ true);
+        assert!(out.contains("the search stopped early"), "{out}");
     }
 
     #[test]
@@ -791,9 +950,149 @@ mod tests {
                     .collect(),
             })
             .collect();
-        let out = render_grep(800, &per_file, /*walk_truncated*/ false);
-        assert!(out.len() <= MAX_GREP_OUTPUT_BYTES + 256, "{}", out.len());
+        let out = render_grep(800, &per_file, /*stopped_early*/ false);
+        // Against the map's own ceiling, not the line dump's: at `MAX_GREP_OUTPUT_BYTES + 256`
+        // this assertion passed while the map was reaching 29 KB, four times the dump it replaces.
+        assert!(out.len() <= MAX_MAP_OUTPUT_BYTES, "{}", out.len());
         assert!(out.contains("too many to list in full"), "{out}");
+    }
+
+    /// The worst shape the map can be asked for: every slot full and every path long.
+    #[test]
+    fn the_map_stays_under_its_ceiling_with_long_paths_and_long_samples() {
+        let per_file: Vec<FileMatches> = (0..MAX_MAP_FILES + 40)
+            .map(|file| FileMatches {
+                display: format!("codex-rs/core/src/tools/handlers/deeply/nested/f{file}.rs"),
+                matched: 9,
+                lines: vec![(1, "x".repeat(MAX_MATCH_LINE_BYTES))],
+            })
+            .collect();
+        let out = render_grep(
+            9 * (MAX_MAP_FILES + 40),
+            &per_file,
+            /*stopped_early*/ false,
+        );
+        assert!(out.len() <= MAX_MAP_OUTPUT_BYTES, "{}", out.len());
+        // The samples and the closing sentence survive a file list long enough to crowd them out.
+        assert!(out.contains("First 5 matches:\n"), "{out}");
+        assert!(out.contains("Narrow the pattern or the path"), "{out}");
+    }
+
+    /// A sample shows the shape of a hit; it is not a way to carry the line.
+    #[test]
+    fn a_sampled_line_is_clipped_harder_than_a_listed_one() {
+        let per_file: Vec<FileMatches> = (0..2)
+            .map(|file| FileMatches {
+                display: format!("src/f{file}.rs"),
+                matched: MAX_GREP_MATCHES,
+                lines: vec![(1, "y".repeat(MAX_MATCH_LINE_BYTES))],
+            })
+            .collect();
+        let out = render_grep(
+            2 * MAX_GREP_MATCHES,
+            &per_file,
+            /*stopped_early*/ false,
+        );
+        assert!(
+            !out.contains(&"y".repeat(MAP_SAMPLE_LINE_BYTES + 1)),
+            "a sample carried more than {MAP_SAMPLE_LINE_BYTES} bytes of its line"
+        );
+        assert!(out.contains(&"y".repeat(MAP_SAMPLE_LINE_BYTES)), "{out}");
+    }
+
+    #[test]
+    fn a_result_path_is_written_relative_to_the_cwd() {
+        // Built with `join` rather than a literal so the separators are the host's: a hard-coded
+        // `C:\repo\src\lib.rs` is a single component on Unix and would strip to nothing there.
+        let cwd = std::path::Path::new("repo");
+        let file = cwd.join("src").join("lib.rs");
+        let expected = std::path::Path::new("src").join("lib.rs");
+        assert_eq!(
+            display_path(Some(cwd), &file.to_string_lossy()),
+            expected.to_string_lossy().into_owned()
+        );
+    }
+
+    /// With several environments a relative path is ambiguous, so the tools keep the absolute one.
+    #[test]
+    fn several_environments_keep_absolute_paths() {
+        let cwd = std::path::Path::new("repo");
+        let one = SearchToolOptions {
+            include_environment_id: false,
+        };
+        let many = SearchToolOptions {
+            include_environment_id: true,
+        };
+        assert_eq!(display_base(&one, cwd), Some(cwd));
+        assert_eq!(display_base(&many, cwd), None);
+
+        let file = cwd.join("src").join("lib.rs");
+        let file = file.to_string_lossy().into_owned();
+        assert_eq!(display_path(display_base(&many, cwd), &file), file);
+    }
+
+    /// A file above the cwd has no relative name worth printing, so it keeps the absolute one.
+    #[test]
+    fn a_result_path_outside_the_cwd_stays_absolute() {
+        let cwd = std::path::Path::new("repo");
+        let outside = std::path::Path::new("elsewhere").join("lib.rs");
+        let outside = outside.to_string_lossy().into_owned();
+        assert_eq!(display_path(Some(cwd), &outside), outside);
+        // The cwd itself is not a result, but it must not render as an empty path either.
+        assert_eq!(display_path(Some(cwd), "repo"), "repo".to_string());
+    }
+
+    /// The bug: a `path` naming a file used to be answered with its whole parent directory.
+    #[test]
+    fn a_path_that_names_a_file_selects_that_file_alone() {
+        let temp = tempfile::tempdir().expect("temp");
+        seed(temp.path());
+
+        let file = PathUri::from_host_native_path(temp.path().join("src/lib.rs")).expect("uri");
+        assert_eq!(
+            single_file_target(&file),
+            Some(file.inferred_native_path_string())
+        );
+
+        let dir = PathUri::from_host_native_path(temp.path().join("src")).expect("uri");
+        assert_eq!(
+            single_file_target(&dir),
+            None,
+            "a directory is still walked"
+        );
+    }
+
+    /// The fallback engine still answers, and answers with cwd-relative paths.
+    #[test]
+    fn the_in_process_scan_shortens_its_paths_against_the_cwd() {
+        let temp = tempfile::tempdir().expect("temp");
+        seed(temp.path());
+        let files = vec![
+            temp.path()
+                .join("src")
+                .join("lib.rs")
+                .to_string_lossy()
+                .into_owned(),
+            temp.path()
+                .join("src")
+                .join("sse")
+                .join("chat.rs")
+                .to_string_lossy()
+                .into_owned(),
+        ];
+        let regex = Regex::new("pub").expect("regex");
+
+        let (found, per_file) = scan_in_process(files, Some(temp.path()), &regex);
+
+        assert_eq!(found, 2);
+        let displays: Vec<String> = per_file
+            .iter()
+            .map(|file| file.display.replace('\\', "/"))
+            .collect();
+        assert_eq!(
+            displays,
+            vec!["src/lib.rs".to_string(), "src/sse/chat.rs".to_string()]
+        );
     }
 
     /// The map has its own cap, or one pathological pattern turns it into the dump it replaces.
@@ -806,9 +1105,51 @@ mod tests {
                 lines: Vec::new(),
             })
             .collect();
-        let out = render_grep(3 * (MAX_MAP_FILES + 50), &per_file, /*walk_truncated*/ false);
+        let out = render_grep(
+            3 * (MAX_MAP_FILES + 50),
+            &per_file,
+            /*stopped_early*/ false,
+        );
         assert!(out.contains("... and 50 more files"), "{out}");
         assert!(!out.contains("f250.rs"), "{out}");
+    }
+
+    /// The load-bearing test of the engine swap: on one tree, both engines must render the same
+    /// answer, byte for byte. It covers ordering, line numbering, the `\r` trim, `.gitignore`,
+    /// hidden files and `.git` exclusion in a single assertion.
+    ///
+    /// Skipped when ripgrep cannot be run - a source build resolves it to a bare name that may not
+    /// be on `PATH`, and a sandbox without it must not fail the suite. To exercise it locally, put
+    /// `rg` on `PATH` first.
+    #[test]
+    fn both_engines_render_the_same_answer() {
+        let temp = tempfile::tempdir().expect("temp");
+        seed(temp.path());
+        let cwd = temp.path().to_path_buf();
+        let pattern = "pub fn";
+
+        let request = search_rg::RgRequest {
+            program: InstallContext::current().rg_command(),
+            cwd: cwd.clone(),
+            display_base: Some(cwd.clone()),
+            target: cwd.clone(),
+            pattern: pattern.to_string(),
+            include: None,
+        };
+        let cancellation = tokio_util::sync::CancellationToken::new();
+        let Ok(Some(scan)) = search_rg::run_rg(&request, &cancellation) else {
+            return;
+        };
+
+        let walked = walk_local(cwd.clone(), None, /*include_hidden*/ true).expect("walk");
+        let regex = Regex::new(pattern).expect("regex");
+        let (found, per_file) = scan_in_process(walked.files, Some(&cwd), &regex);
+
+        assert!(found > 0, "the fixture must match something");
+        assert_eq!(
+            render_grep(scan.found, &scan.per_file, scan.stopped_early),
+            render_grep(found, &per_file, /*stopped_early*/ false),
+        );
     }
 
     #[test]

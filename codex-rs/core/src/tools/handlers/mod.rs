@@ -21,6 +21,7 @@ pub(crate) mod plan_spec;
 mod read;
 pub(crate) mod read_spec;
 mod search;
+mod search_rg;
 pub(crate) mod search_spec;
 mod request_permissions;
 mod request_plugin_install;

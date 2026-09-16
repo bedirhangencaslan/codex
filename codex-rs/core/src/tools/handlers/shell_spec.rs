@@ -256,11 +256,11 @@ Usage notes:
   - Output is capped and truncated at that point, with no file written for the remainder. Do NOT pull bulk file text through here to work around it; use `read` with `offset`/`limit`, or `grep`, which return the same content in windows you choose. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
   - Avoid using this tool with the file and content commands listed below unless explicitly instructed, or when one of them is truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
     - File search: Use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
-    - Content search: Use `grep` (NOT `Select-String`, `grep`, or `rg`)
+    - Content search: Use `grep` (NOT `Select-String` or `rg`)
     - Read files: Use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
     - Edit or create a file whose content you are writing yourself: Use `apply_patch` (NOT `Set-Content`, `sed`, or `awk`). A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.
     - Communication: Output text directly (NOT `Write-Output`/`Write-Host`)
-  - Reach for the shell on file work only for what the dedicated tools do not do, such as a count of matches, which `rg -c` gives and `grep` does not.
+  - Reach for the shell on file work only for what the dedicated tools do not do.
   - When issuing multiple commands:
     - If the commands are independent and can run in parallel, make multiple `exec_command` calls in a single message.
     - If the commands depend on each other and must run sequentially, use `cmd1; if ($?) { cmd2 }` rather than `;` alone, because PowerShell does not stop at the first failure and reports only the last statement's exit code.
@@ -520,10 +520,10 @@ fn file_system_permissions_schema() -> JsonSchema {
 fn file_work_guidance() -> &'static str {
     r#"IMPORTANT: This tool is for terminal operations such as `git`, `cargo`, `npm`, and `docker`. Do NOT use it for file operations - reading, writing, editing, searching, or finding files. Use the dedicated tools for those instead:
 - File search: use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
-- Content search: use `grep` (NOT `Select-String`, `grep`, or `rg`)
+- Content search: use `grep` (NOT `Select-String` or `rg`)
 - Read files: use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
 - Edit or create files: use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)
-Reach for the shell on file work only for what the dedicated tools do not do, such as a count of matches, which `rg -c` gives and `grep` does not. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one."#
+Reach for the shell on file work only for what the dedicated tools do not do. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one."#
 }
 
 fn windows_shell_guidance() -> &'static str {
