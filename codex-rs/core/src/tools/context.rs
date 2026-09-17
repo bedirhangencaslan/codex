@@ -697,22 +697,24 @@ impl ExecCommandToolOutput {
         // notice-wide band just under the cap would be cut and spilled where it used to arrive
         // whole, and the model would spend a `read` recovering the tail of something it had been
         // given for free - the mechanism causing the extra request it exists to prevent.
-        let would_truncate_anyway = text.len() > bare_budget;
+        // Two reasons to write the file, not one. The budget cutting the body is the original;
+        // the other is a lossy condensing stage having dropped lines, which the budget knows
+        // nothing about. Since a stage now *selects* what matters out of a failure, what it
+        // decided against has to be recoverable, or the selection would be a guess the model
+        // cannot check.
+        let would_spill = text.len() > bare_budget || condensed.summary().is_some();
         // A path is ~115 bytes: nothing against the default budget, a large share of a small one.
         // Under a tight `max_output_tokens` the notice would buy the model a file by taking away
         // the very output it was asking about, so below this ratio there is no notice and no
         // file. Same reasoning as `MIN_LOSSY_TOKENS` in `tool_output.rs`: a line that announces
         // something costs tokens and has to earn them.
-        let candidate = self
-            .spill_path()
-            .filter(|_| would_truncate_anyway)
-            .filter(|path| {
-                Self::spill_notice(path)
-                    .len()
-                    .saturating_add(1)
-                    .saturating_mul(SPILL_NOTICE_BUDGET_RATIO)
-                    <= bare_budget
-            });
+        let candidate = self.spill_path().filter(|_| would_spill).filter(|path| {
+            Self::spill_notice(path)
+                .len()
+                .saturating_add(1)
+                .saturating_mul(SPILL_NOTICE_BUDGET_RATIO)
+                <= bare_budget
+        });
         let reserved = candidate
             .as_deref()
             .map_or(0, |path| Self::spill_notice(path).len().saturating_add(1));
@@ -732,11 +734,17 @@ impl ExecCommandToolOutput {
         // Asked of the final policy, so this is the same question `truncated_output_with_policy`
         // answered rather than a guess about the string it returned. The file is written once,
         // here, and not inside the loop above, which would have written it on every pass.
-        let spilled = (text.len() > policy.byte_budget())
+        let spilled = (text.len() > policy.byte_budget() || condensed.summary().is_some())
             .then(|| {
-                candidate
-                    .as_deref()
-                    .and_then(|path| Self::write_spill(path, &text))
+                candidate.as_deref().and_then(|path| {
+                    // The losslessly normalized output, not the condensed one. The file exists so
+                    // the model can recover what it was not shown, and after a lossy stage the
+                    // condensed text is precisely what it *was* shown. Escape sequences and
+                    // carriage-return overwrites are still stripped, because `read` refuses a file
+                    // that sniffs as binary and raw terminal bytes do.
+                    let (full, _) = self.condensed_output_lossless();
+                    Self::write_spill(path, &full)
+                })
             })
             .flatten();
         let header = match spilled.as_deref() {

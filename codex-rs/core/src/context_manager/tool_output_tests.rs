@@ -52,6 +52,12 @@ fn report_for(arguments: &str, text: &str) -> CondenseReport {
         .unwrap_or_default()
 }
 
+fn report_for_failure(arguments: &str, text: &str) -> CondenseReport {
+    condense_exec_output(arguments, Some(1), /*process_id*/ None, text)
+        .map(|(_, report)| report)
+        .unwrap_or_default()
+}
+
 fn was_shrunk(text: &str) -> bool {
     text.contains("[system] ") && text.contains(" lines trimmed")
 }
@@ -150,16 +156,96 @@ fn a_programs_own_output_is_not_mistaken_for_a_build_receipt() {
     assert!(condensed.contains("Checking mesh 39"), "{condensed}");
 }
 
+/// One `rustc` diagnostic, in the shape a real `cargo build` prints: the header at column zero
+/// and every continuation line indented.
+fn error_block(index: usize) -> String {
+    format!(
+        "error[E0308]: mismatched types\n \
+         --> src/lib.rs:{index}:22\n  \
+         |\n{index} |     let wrong: i32 = \"not a number\";\n  \
+         |                ---   ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n"
+    )
+}
+
+/// A failing build: a long receipt, `count` errors, and the tail rustc closes with.
+fn failing_build(crates: usize, errors: usize) -> String {
+    let mut out = String::new();
+    for index in 0..crates {
+        out.push_str(&format!("   Compiling crate-{index} v0.1.{index}\n"));
+    }
+    for index in 0..errors {
+        out.push_str(&error_block(index));
+        out.push('\n');
+    }
+    out.push_str("Some errors have detailed explanations: E0308.\n");
+    out.push_str(&format!(
+        "error: could not compile `probe` (lib) due to {errors} previous errors"
+    ));
+    out
+}
+
 #[test]
-fn a_failing_build_keeps_its_receipt_too() {
-    let text = build_with_buried_warnings(/*crates*/ 120);
+fn a_failing_build_loses_its_receipt_but_not_its_first_errors() {
+    let text = failing_build(/*crates*/ 120, /*errors*/ 40);
 
     let condensed = condense_pair(&cargo_arguments("cargo build"), &text, Some(false));
 
-    // Nothing at all is dropped on a failure, progress lines included: the rule this module
-    // states is that a failure keeps its output whole, and the progress filter does not get an
-    // exemption from it.
-    assert_eq!(condensed, text);
+    // The receipt is not the answer on a failure either - it is what stands between the model
+    // and the first error.
+    assert!(!condensed.contains("Compiling crate-"), "{condensed}");
+    // Every error up to the cap survives whole, header and all four continuation lines.
+    assert_eq!(condensed.matches("error[E0308]").count(), MAX_ERROR_BLOCKS);
+    assert!(
+        condensed.contains("expected `i32`, found `&str`"),
+        "{condensed}"
+    );
+    // rustc's own closing count is never a block and never capped: it is how bad it is.
+    assert!(
+        condensed.contains("error: could not compile `probe` (lib) due to 40 previous errors"),
+        "{condensed}"
+    );
+    assert!(
+        condensed.contains("Some errors have detailed explanations"),
+        "{condensed}"
+    );
+}
+
+#[test]
+fn the_header_counts_the_errors_it_did_not_carry() {
+    let report = report_for_failure(
+        &cargo_arguments("cargo build"),
+        &failing_build(/*crates*/ 120, /*errors*/ 40),
+    );
+
+    assert_eq!(report.dropped_errors, 40 - MAX_ERROR_BLOCKS);
+    let summary = report.summary().expect("a lossy stage ran");
+    assert!(summary.contains("20 further errors"), "{summary}");
+}
+
+#[test]
+fn a_diagnostic_is_carried_whole_or_not_at_all() {
+    let text = failing_build(/*crates*/ 0, /*errors*/ 40);
+
+    let condensed = condense_pair(&cargo_arguments("cargo build"), &text, Some(false));
+
+    // A block cut in half is worse than one that is absent and counted, because the model cannot
+    // tell which it is reading. So the continuation lines track the headers exactly.
+    assert_eq!(
+        condensed.matches("--> src/lib.rs:").count(),
+        condensed.matches("error[E0308]").count()
+    );
+}
+
+#[test]
+fn a_failure_with_few_errors_is_left_exactly_as_it_came() {
+    // Three errors and no receipt is all signal. Nothing is over a cap, nothing is progress, and
+    // the whole thing is well under the notice's worth - so the model gets it verbatim.
+    let text = failing_build(/*crates*/ 0, /*errors*/ 3);
+
+    assert_eq!(
+        condense_pair(&cargo_arguments("cargo build"), &text, Some(false)),
+        text
+    );
 }
 
 #[test]

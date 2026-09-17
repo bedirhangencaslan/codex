@@ -100,6 +100,19 @@ const BUILD_PROGRESS_VERBS: &[&str] = &[
 /// announcing the removal costs more than the removal saved.
 const MIN_PROGRESS_LINES: usize = 10;
 
+/// How many diagnostic blocks of each kind survive.
+///
+/// RTK's numbers and its reasoning: errors are the most actionable so they are shown the most,
+/// warnings are the same shape at a lower signal density.
+///
+/// Note what this is *not*. It does not decide which lines of a diagnostic matter - every line of
+/// an `error[E0308]` block is the compiler explaining itself, and guessing among them is how a
+/// harness drops the one that mattered. It caps how many blocks are carried, because the
+/// twentieth type error tells the model nothing the first three did not, and a workspace with a
+/// bad signature emits one per call site. The rest are in the spill file.
+const MAX_ERROR_BLOCKS: usize = 20;
+const MAX_WARNING_BLOCKS: usize = 10;
+
 /// What a lossy stage has to remove before it is worth running at all.
 ///
 /// The stages below are gated on line counts, and a line count says nothing about size: a
@@ -155,6 +168,9 @@ pub(crate) struct CondenseReport {
     pub(crate) artifact_lines: usize,
     /// Progress lines dropped from a build or test runner's output.
     pub(crate) progress_lines: usize,
+    /// Diagnostic blocks dropped past the per-kind cap.
+    pub(crate) dropped_errors: usize,
+    pub(crate) dropped_warnings: usize,
     /// Middle lines dropped by head/tail shrinking.
     pub(crate) middle_lines: usize,
     /// Approximate tokens the whole pass removed.
@@ -186,6 +202,14 @@ impl CondenseReport {
         }
         if self.progress_lines > 0 {
             causes.push(format!("{} progress lines", self.progress_lines));
+        }
+        // Named by kind rather than counted together: "8 errors" tells the model there is more of
+        // the same to fix, where "8 diagnostics" leaves it guessing whether it saw the failure.
+        if self.dropped_errors > 0 {
+            causes.push(format!("{} further errors", self.dropped_errors));
+        }
+        if self.dropped_warnings > 0 {
+            causes.push(format!("{} further warnings", self.dropped_warnings));
         }
         if causes.is_empty() {
             return None;
@@ -310,15 +334,26 @@ pub(crate) fn condense_exec_output(
     let mut candidate: Option<String> = filter_artifact_paths(arguments, &normalized, &mut lossy);
 
     let allowlisted = command_is_shrinkable(arguments);
-    // Gated on the clean exit as well as the allowlist, and not on `shrinkable` below: that also
-    // covers a poll of a live process, where the program is arbitrary and a line beginning
-    // `Compiling` is as likely to be its own output as a build's.
+    // Gated on the allowlist alone, unlike `shrinkable` below. A build receipt is not the answer
+    // whether the build passed or failed, and on a failure it is the thing standing between the
+    // model and the first error. The allowlist is still what keeps this off an arbitrary
+    // program's output, where a line beginning `Compiling` may be the answer.
     if allowlisted
-        && exit_code == Some(0)
         && let Some(filtered) =
             filter_progress_lines(candidate.as_deref().unwrap_or(&normalized), &mut lossy)
     {
         candidate = Some(filtered);
+    }
+
+    // Also on the allowlist alone, and for the same reason it exists at all: a workspace with one
+    // bad signature emits an `error[E0308]` per call site, and the failing run is exactly when
+    // that happens. What it drops is in the spill file, which is what makes capping defensible
+    // rather than a guess.
+    if allowlisted
+        && let Some(capped) =
+            cap_diagnostic_blocks(candidate.as_deref().unwrap_or(&normalized), &mut lossy)
+    {
+        candidate = Some(capped);
     }
 
     let shrinkable = match (exit_code, process_id) {
@@ -341,6 +376,8 @@ pub(crate) fn condense_exec_output(
         if removed >= MIN_LOSSY_TOKENS {
             report.artifact_lines = lossy.artifact_lines;
             report.progress_lines = lossy.progress_lines;
+            report.dropped_errors = lossy.dropped_errors;
+            report.dropped_warnings = lossy.dropped_warnings;
             report.middle_lines = lossy.middle_lines;
             report.removed_tokens = removed;
             current = condensed;
@@ -549,6 +586,108 @@ fn filter_progress_lines(text: &str, report: &mut CondenseReport) -> Option<Stri
         return None;
     }
     report.progress_lines = dropped;
+    Some(kept.join("\n"))
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DiagnosticKind {
+    Error,
+    Warning,
+}
+
+/// The kind of diagnostic a line opens, if it opens one.
+///
+/// Anchored at column zero because that is where `rustc` starts a diagnostic and nowhere else:
+/// every continuation line of a block is indented (` --> `, `  |`, `14 | ...`). Verified against
+/// real `cargo build` output rather than assumed.
+///
+/// `error: could not compile` and `error: aborting due to N previous errors` open nothing. They
+/// are the tail rustc prints after the diagnostics, they are one line each, and they are the line
+/// a reader looks at first to learn how bad it is - so they are never a block and never capped.
+fn diagnostic_kind(line: &str) -> Option<DiagnosticKind> {
+    if line.starts_with("error[") {
+        return Some(DiagnosticKind::Error);
+    }
+    if let Some(rest) = line.strip_prefix("error:") {
+        if rest.contains("could not compile") || rest.contains("aborting due to") {
+            return None;
+        }
+        return Some(DiagnosticKind::Error);
+    }
+    if line.starts_with("warning[") {
+        return Some(DiagnosticKind::Warning);
+    }
+    if let Some(rest) = line.strip_prefix("warning:") {
+        // `warning: N warnings emitted` is the same kind of tail as `could not compile`.
+        if rest.contains("generated") || rest.contains("emitted") {
+            return None;
+        }
+        return Some(DiagnosticKind::Warning);
+    }
+    None
+}
+
+/// Carries the first [`MAX_ERROR_BLOCKS`] errors and [`MAX_WARNING_BLOCKS`] warnings whole, and
+/// drops the rest.
+///
+/// Blocks are kept *whole* or not at all. A diagnostic cut in half is worse than one that is
+/// absent and counted, because the model cannot tell which it is looking at.
+///
+/// Everything that is not part of a block passes through untouched, which is what keeps rustc's
+/// closing lines - the explain hints and the `could not compile` count - in place.
+fn cap_diagnostic_blocks(text: &str, report: &mut CondenseReport) -> Option<String> {
+    let mut kept: Vec<&str> = Vec::new();
+    let mut errors = 0usize;
+    let mut warnings = 0usize;
+    let mut dropped_errors = 0usize;
+    let mut dropped_warnings = 0usize;
+    // `None` outside a block; `Some(false)` inside one being dropped.
+    let mut keeping: Option<bool> = None;
+
+    for line in text.split('\n') {
+        if let Some(kind) = diagnostic_kind(line) {
+            let keep = match kind {
+                DiagnosticKind::Error => {
+                    errors += 1;
+                    errors <= MAX_ERROR_BLOCKS
+                }
+                DiagnosticKind::Warning => {
+                    warnings += 1;
+                    warnings <= MAX_WARNING_BLOCKS
+                }
+            };
+            if !keep {
+                match kind {
+                    DiagnosticKind::Error => dropped_errors += 1,
+                    DiagnosticKind::Warning => dropped_warnings += 1,
+                }
+            }
+            keeping = Some(keep);
+            if keep {
+                kept.push(line);
+            }
+            continue;
+        }
+        // Indented or blank continues the block it follows; anything else at column zero ends it.
+        let continues = line.is_empty() || line.starts_with(char::is_whitespace);
+        match keeping {
+            Some(inside) if continues => {
+                if inside {
+                    kept.push(line);
+                }
+            }
+            _ => {
+                keeping = None;
+                kept.push(line);
+            }
+        }
+    }
+
+    if dropped_errors == 0 && dropped_warnings == 0 {
+        return None;
+    }
+    report.dropped_errors = dropped_errors;
+    report.dropped_warnings = dropped_warnings;
     Some(kept.join("\n"))
 }
 
