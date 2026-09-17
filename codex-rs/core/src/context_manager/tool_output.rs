@@ -44,6 +44,9 @@ const MIN_LINES_TO_SHRINK: usize = KEEP_HEAD_LINES + KEEP_TAIL_LINES + 10;
 /// A recursive listing of a JavaScript or Rust workspace is mostly these: one measured
 /// `Get-ChildItem -Recurse` returned 500 lines of which 82% were under `node_modules`, and the
 /// truncation that followed dropped the project's own files to make room for them.
+/// The second half of this list comes from RTK's `NOISE_DIRS`, which names twenty-five where this
+/// had twelve. Note what is *not* here, in both lists and for the same reason: `.env` is a file an
+/// agent has to be able to see.
 const ARTIFACT_DIRECTORIES: &[&str] = &[
     "node_modules",
     ".git",
@@ -57,10 +60,45 @@ const ARTIFACT_DIRECTORIES: &[&str] = &[
     ".mypy_cache",
     ".gradle",
     "vendor",
+    "venv",
+    "env",
+    ".tox",
+    ".eggs",
+    "coverage",
+    ".nyc_output",
+    ".cache",
+    ".turbo",
+    ".vercel",
+    ".idea",
+    ".vscode",
+    ".vs",
 ];
 
 /// Below this, filtering costs a line of explanation to save less than it spends.
 const MIN_ARTIFACT_LINES: usize = 10;
+
+/// Status lines a build tool prints to show it is still alive.
+///
+/// Cargo right-aligns its verb in a twelve-column field, so every one of these arrives indented,
+/// and the indent is load-bearing: it separates cargo's own `   Compiling foo v0.1.0` from a test
+/// that prints `Compiling shaders` at column zero. This stage drops lines rather than rewriting
+/// them, so a wrong match is a lost line and the narrower rule is the right one.
+///
+/// `Finished` is deliberately absent. It is one line, it carries the profile and the wall time,
+/// and it is what a reader looks for to confirm the build got to the end.
+const BUILD_PROGRESS_VERBS: &[&str] = &[
+    "Compiling",
+    "Checking",
+    "Downloading",
+    "Downloaded",
+    "Fresh",
+    "Blocking",
+    "Waiting",
+];
+
+/// Same threshold as the artifact filter, for the same reason: fewer than this and the line
+/// announcing the removal costs more than the removal saved.
+const MIN_PROGRESS_LINES: usize = 10;
 
 /// What a lossy stage has to remove before it is worth running at all.
 ///
@@ -115,6 +153,8 @@ pub(crate) struct CondenseReport {
     pub(crate) line_ending_warnings: usize,
     /// Listing lines dropped for living under a build or dependency directory.
     pub(crate) artifact_lines: usize,
+    /// Progress lines dropped from a build or test runner's output.
+    pub(crate) progress_lines: usize,
     /// Middle lines dropped by head/tail shrinking.
     pub(crate) middle_lines: usize,
     /// Approximate tokens the whole pass removed.
@@ -143,6 +183,9 @@ impl CondenseReport {
         }
         if self.artifact_lines > 0 {
             causes.push(format!("{} generated-directory lines", self.artifact_lines));
+        }
+        if self.progress_lines > 0 {
+            causes.push(format!("{} progress lines", self.progress_lines));
         }
         if causes.is_empty() {
             return None;
@@ -266,9 +309,21 @@ pub(crate) fn condense_exec_output(
     let mut lossy = CondenseReport::default();
     let mut candidate: Option<String> = filter_artifact_paths(arguments, &normalized, &mut lossy);
 
+    let allowlisted = command_is_shrinkable(arguments);
+    // Gated on the clean exit as well as the allowlist, and not on `shrinkable` below: that also
+    // covers a poll of a live process, where the program is arbitrary and a line beginning
+    // `Compiling` is as likely to be its own output as a build's.
+    if allowlisted
+        && exit_code == Some(0)
+        && let Some(filtered) =
+            filter_progress_lines(candidate.as_deref().unwrap_or(&normalized), &mut lossy)
+    {
+        candidate = Some(filtered);
+    }
+
     let shrinkable = match (exit_code, process_id) {
         // A finished command whose output is progress noise around a final summary.
-        (Some(0), _) => command_is_shrinkable(arguments),
+        (Some(0), _) => allowlisted,
         // A poll of a still-running session: unbounded log, and the tail is the answer.
         (None, Some(_)) => true,
         _ => false,
@@ -285,6 +340,7 @@ pub(crate) fn condense_exec_output(
         let removed = visible_tokens.saturating_sub(approx_token_count(&condensed));
         if removed >= MIN_LOSSY_TOKENS {
             report.artifact_lines = lossy.artifact_lines;
+            report.progress_lines = lossy.progress_lines;
             report.middle_lines = lossy.middle_lines;
             report.removed_tokens = removed;
             current = condensed;
@@ -441,6 +497,58 @@ fn filter_artifact_paths(
         return None;
     }
     report.artifact_lines = dropped;
+    Some(kept.join("\n"))
+}
+
+/// A `libtest` line that says a test ran and nothing more.
+///
+/// `... ok` and `... ignored` only. `... FAILED` stays, and so does the `test result:` line that
+/// carries the counts - dropping those would be dropping the answer. This is the shape both
+/// `cargo test` and `cargo nextest` print.
+fn is_passing_test_line(line: &str) -> bool {
+    line.starts_with("test ") && (line.ends_with(" ... ok") || line.ends_with(" ... ignored"))
+}
+
+fn is_progress_line(line: &str) -> bool {
+    if is_passing_test_line(line) {
+        return true;
+    }
+    if line.starts_with("running ") && (line.ends_with(" test") || line.ends_with(" tests")) {
+        return true;
+    }
+    // The leading space is the discriminator; see `BUILD_PROGRESS_VERBS`.
+    let Some(rest) = line.strip_prefix(' ') else {
+        return false;
+    };
+    let trimmed = rest.trim_start();
+    BUILD_PROGRESS_VERBS.iter().any(|verb| {
+        trimmed
+            .strip_prefix(verb)
+            .is_some_and(|tail| tail.starts_with(' '))
+    })
+}
+
+/// Drops the lines a build or test runner prints to show progress.
+///
+/// Lossy in the sense this module means: a crate name that scrolled past is information, even if
+/// it is not information anyone asked for. So it is gated like the other lossy stages.
+///
+/// Runs before [`shrink_text`] so that what head/tail shrinking then drops is real content rather
+/// than the receipt of a build. That ordering is the whole point: on a successful `cargo build` of
+/// a large workspace the receipt *is* most of the output, and shrinking alone keeps five lines of
+/// it while dropping the warnings underneath.
+fn filter_progress_lines(text: &str, report: &mut CondenseReport) -> Option<String> {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let kept: Vec<&str> = lines
+        .iter()
+        .copied()
+        .filter(|line| !is_progress_line(line))
+        .collect();
+    let dropped = lines.len() - kept.len();
+    if dropped < MIN_PROGRESS_LINES {
+        return None;
+    }
+    report.progress_lines = dropped;
     Some(kept.join("\n"))
 }
 

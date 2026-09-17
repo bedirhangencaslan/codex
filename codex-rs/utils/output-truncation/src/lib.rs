@@ -11,6 +11,30 @@ use codex_utils_string::truncate_middle_with_token_budget;
 
 pub use codex_protocol::protocol::TruncationPolicy;
 
+/// `filtered`, or `raw` when `filtered` would cost more tokens than it saved.
+///
+/// Truncating is not free: it drops content and adds a frame that says so. When little was
+/// dropped the frame outweighs it and the "truncated" result is *larger* than what it replaced.
+/// That is not a corner case here - the frame below is ~105 bytes, so every input between the
+/// budget and the budget plus that much grows instead of shrinking, and six of this module's own
+/// tests used to pin exactly that: 14 bytes came back as 96.
+///
+/// A budget check cannot catch this, because it asks whether the input was too big rather than
+/// whether the output is smaller. The raw text is already in hand, so asking the second question
+/// costs nothing.
+//
+// Adapted from RTK 0.49.0 (https://github.com/rtk-ai/rtk), `src/core/guard.rs`:
+// Copyright 2024 rtk-ai and rtk-ai Labs
+// Licensed under the Apache License, Version 2.0.
+// The invariant and its name are theirs; this implementation and its estimator are ours.
+pub fn never_worse<'a>(raw: &'a str, filtered: &'a str) -> &'a str {
+    if approx_token_count(filtered) > approx_token_count(raw) {
+        raw
+    } else {
+        filtered
+    }
+}
+
 pub fn formatted_truncate_text(content: &str, policy: TruncationPolicy) -> String {
     if content.len() <= policy.byte_budget() {
         return content.to_string();
@@ -19,9 +43,13 @@ pub fn formatted_truncate_text(content: &str, policy: TruncationPolicy) -> Strin
     let original_token_count = approx_token_count(content);
     let total_lines = content.lines().count();
     let result = truncate_text(content, policy);
-    format!(
+    let framed = format!(
         "Warning: truncated output (original token count: {original_token_count})\nTotal output lines: {total_lines}\n\n{result}"
-    )
+    );
+    // The budget is still exceeded when this returns `content`, but by less than the frame would
+    // have exceeded it by: the choice is between two overruns, not between an overrun and a fit.
+    // Downstream, `history.rs` applies `policy * 1.2` to the assembled response anyway.
+    never_worse(content, &framed).to_string()
 }
 
 pub fn truncate_text(content: &str, policy: TruncationPolicy) -> String {

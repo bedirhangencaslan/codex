@@ -401,11 +401,15 @@ fn exec_command_tool_output_formats_truncated_response() {
     let payload = ToolPayload::Function {
         arguments: "{}".to_string(),
     };
+    // Twenty times the phrase, not one. At one the frame costs more than the cut saves and the
+    // never-worse guard hands the text back whole, so there would be no truncation left to assert
+    // the format of - which is what this test is for.
+    let raw = "token one token two token three token four token five\n".repeat(20);
     let output = ExecCommandToolOutput {
         event_call_id: "call-42".to_string(),
         chunk_id: "abc123".to_string(),
         wall_time: std::time::Duration::from_millis(1250),
-        raw_output: b"token one token two token three token four token five".to_vec(),
+        raw_output: raw.clone().into_bytes(),
         truncation_policy: TruncationPolicy::Tokens(10_000),
         max_output_tokens: Some(4),
         process_id: None,
@@ -417,7 +421,9 @@ fn exec_command_tool_output_formats_truncated_response() {
     };
     assert_eq!(
         output.log_output(),
-        "Chunk ID: abc123\nWall time: 1.2500 seconds\nProcess exited with code 0\nOriginal token count: 10\nOutput:\ntoken one token two token three token four token five"
+        format!(
+            "Chunk ID: abc123\nWall time: 1.2500 seconds\nProcess exited with code 0\nOriginal token count: 10\nOutput:\n{raw}"
+        )
     );
     let response = output.to_response_item("call-42", &payload);
 

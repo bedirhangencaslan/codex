@@ -1,10 +1,15 @@
 use super::*;
 
 /// Output long enough to be worth shrinking, with a recognizable first and last line.
+///
+/// The filler is deliberately not a build receipt. It used to be `   Compiling crate-N`, which
+/// the progress filter now removes outright - leaving two lines, nothing for `shrink_text` to do,
+/// and these tests asserting a mechanism that no longer had to run. The subject here is head/tail
+/// shrinking, so the filler has to be content that only shrinking can remove.
 fn noisy_output() -> String {
     let mut lines = vec!["first".to_string()];
     for index in 0..200 {
-        lines.push(format!("   Compiling crate-{index}"));
+        lines.push(format!("note: detail line {index}"));
     }
     lines.push("last".to_string());
     lines.join("\n")
@@ -49,6 +54,112 @@ fn report_for(arguments: &str, text: &str) -> CondenseReport {
 
 fn was_shrunk(text: &str) -> bool {
     text.contains("[system] ") && text.contains(" lines trimmed")
+}
+
+/// A build whose warnings sit in the middle, under a long receipt.
+///
+/// This is the shape the progress filter exists for: head/tail shrinking alone keeps five lines
+/// of `Compiling` and the last thirty, and the warnings in between are what it drops.
+fn build_with_buried_warnings(crates: usize) -> String {
+    let mut lines = Vec::new();
+    for index in 0..crates {
+        lines.push(format!("   Compiling crate-{index} v0.1.{index}"));
+    }
+    for index in 0..6 {
+        lines.push(format!(
+            "warning: unused variable `value_{index}` in src/lib.rs"
+        ));
+        lines.push(format!("  --> src/lib.rs:{}:9", index + 40));
+    }
+    lines.push("    Finished `dev` profile in 12.3s".to_string());
+    lines.join("\n")
+}
+
+fn cargo_arguments(command: &str) -> String {
+    serde_json::json!({ "command": command }).to_string()
+}
+
+#[test]
+fn a_build_receipt_goes_and_the_warnings_under_it_stay() {
+    let text = build_with_buried_warnings(/*crates*/ 120);
+    let arguments = cargo_arguments("cargo build");
+
+    let condensed = condense_pair(&arguments, &text, Some(true));
+
+    assert!(!condensed.contains("Compiling crate-"), "{condensed}");
+    // Every warning survives, which head/tail shrinking on its own could not promise.
+    for index in 0..6 {
+        assert!(
+            condensed.contains(&format!("unused variable `value_{index}`")),
+            "warning {index} was dropped:\n{condensed}"
+        );
+    }
+    // The one status line worth a line: it says the build reached the end.
+    assert!(condensed.contains("Finished `dev` profile"), "{condensed}");
+    assert!(condensed.len() < text.len());
+}
+
+#[test]
+fn the_header_says_how_many_progress_lines_went() {
+    let report = report_for(
+        &cargo_arguments("cargo build"),
+        &build_with_buried_warnings(/*crates*/ 120),
+    );
+
+    assert_eq!(report.progress_lines, 120);
+    let summary = report.summary().expect("a lossy stage ran");
+    assert!(summary.contains("120 progress lines"), "{summary}");
+}
+
+#[test]
+fn a_passing_test_roll_call_goes_and_the_result_line_stays() {
+    let mut lines = vec!["running 40 tests".to_string()];
+    for index in 0..40 {
+        lines.push(format!("test suite::case_{index} ... ok"));
+    }
+    lines.push("test suite::flaky ... FAILED".to_string());
+    lines.push("test result: FAILED. 40 passed; 1 failed; 0 ignored".to_string());
+    let text = lines.join("\n");
+
+    let condensed = condense_pair(&cargo_arguments("cargo test"), &text, Some(true));
+
+    assert!(!condensed.contains("... ok"), "{condensed}");
+    assert!(!condensed.contains("running 40 tests"), "{condensed}");
+    // A failing test and the counts are the answer, not the receipt.
+    assert!(
+        condensed.contains("test suite::flaky ... FAILED"),
+        "{condensed}"
+    );
+    assert!(condensed.contains("test result: FAILED."), "{condensed}");
+}
+
+#[test]
+fn a_programs_own_output_is_not_mistaken_for_a_build_receipt() {
+    // Same verbs, column zero. Cargo's arrive indented; a test's `println!` does not, and this
+    // stage drops what it matches rather than rewriting it.
+    let mut lines = Vec::new();
+    for index in 0..40 {
+        lines.push(format!("Compiling shader pass {index}"));
+        lines.push(format!("Checking mesh {index}"));
+    }
+    let text = lines.join("\n");
+
+    let condensed = condense_pair(&cargo_arguments("cargo run"), &text, Some(true));
+
+    assert!(condensed.contains("Compiling shader pass 0"), "{condensed}");
+    assert!(condensed.contains("Checking mesh 39"), "{condensed}");
+}
+
+#[test]
+fn a_failing_build_keeps_its_receipt_too() {
+    let text = build_with_buried_warnings(/*crates*/ 120);
+
+    let condensed = condense_pair(&cargo_arguments("cargo build"), &text, Some(false));
+
+    // Nothing at all is dropped on a failure, progress lines included: the rule this module
+    // states is that a failure keeps its output whole, and the progress filter does not get an
+    // exemption from it.
+    assert_eq!(condensed, text);
 }
 
 #[test]
@@ -331,11 +442,11 @@ fn leaves_a_short_lined_output_alone_even_when_it_is_long() {
     let condensed = condense_pair(&arguments, &text, Some(true));
     assert_eq!(condensed, text);
 
-    // The same command with real output to remove is still shrunk.
+    // The same command with real output to remove is still shrunk. The lines are what `git
+    // commit` actually prints - a build receipt here would be removed by the progress filter
+    // before shrinking could be the thing under test.
     let big = (0..60)
-        .map(|index| {
-            format!("   Compiling some-fairly-long-crate-name-{index} v0.1.0 (/w/{index})")
-        })
+        .map(|index| format!("M  crates/some-fairly-long-package/src/module-{index}.rs"))
         .collect::<Vec<_>>()
         .join("\n");
     assert!(was_shrunk(&condense_pair(&arguments, &big, Some(true))));
@@ -359,11 +470,12 @@ fn the_lossless_pass_removes_noise_and_keeps_every_other_line() {
             .to_string(),
         "\u{1b}[32mCompiling\u{1b}[0m start".to_string(),
     ];
-    lines.extend((0..200).map(|index| format!("   Compiling crate-{index}")));
+    // Not a build receipt, for the reason given on `noisy_output`: the subject at the end of this
+    // test is head/tail shrinking, and the progress filter would remove a receipt before it ran.
+    lines.extend((0..200).map(|index| format!("note: detail line {index}")));
     let text = lines.join("\n");
 
-    let (condensed, report) =
-        condense_exec_output_lossless(&text).expect("noise is removed");
+    let (condensed, report) = condense_exec_output_lossless(&text).expect("noise is removed");
     assert!(!condensed.contains("will be replaced by"), "{condensed}");
     assert_eq!(report.line_ending_warnings, 1);
     assert_eq!(report.escape_sequences, 2);

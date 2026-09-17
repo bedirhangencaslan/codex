@@ -3,28 +3,34 @@ use crate::approx_token_count;
 use crate::approx_tokens_from_byte_count_i64;
 use crate::formatted_truncate_text;
 use crate::formatted_truncate_text_content_items_with_policy;
+use crate::never_worse;
 use crate::truncate_function_output_items_with_policy;
 use crate::truncate_text;
 use codex_protocol::models::DEFAULT_IMAGE_DETAIL;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use pretty_assertions::assert_eq;
 
+// A budget far under the frame is where the old behaviour was worst: fourteen bytes came back as
+// ninety-six, seven times what was asked for, to say that thirteen characters had been saved.
+// Both budgets are still exceeded by returning the content - fourteen bytes against a budget of
+// one - but by a seventh as much as announcing the cut would have.
+
 #[test]
-fn truncate_bytes_less_than_placeholder_returns_placeholder() {
+fn a_budget_under_the_frame_returns_the_content_rather_than_growing_it() {
     let content = "example output";
 
     assert_eq!(
-        "Warning: truncated output (original token count: 4)\nTotal output lines: 1\n\n…13 chars truncated…t",
+        content,
         formatted_truncate_text(content, TruncationPolicy::Bytes(1)),
     );
 }
 
 #[test]
-fn truncate_tokens_less_than_placeholder_returns_placeholder() {
+fn a_token_budget_under_the_frame_returns_the_content_rather_than_growing_it() {
     let content = "example output";
 
     assert_eq!(
-        "Warning: truncated output (original token count: 4)\nTotal output lines: 1\n\nex…3 tokens truncated…ut",
+        content,
         formatted_truncate_text(content, TruncationPolicy::Tokens(1)),
     );
 }
@@ -49,46 +55,100 @@ fn truncate_bytes_under_limit_returns_original() {
     );
 }
 
+// The content below is ten times the sentence these tests used to carry. At one sentence the
+// frame cost more than the cut saved, so the guard now returns the content and there would be
+// nothing left to assert about framing. Ten sentences is where truncating is the right answer,
+// which is the case these tests were always about.
+
 #[test]
 fn truncate_tokens_over_limit_returns_truncated() {
-    let content = "this is an example of a long output that should be truncated";
+    let content = "this is an example of a long output that should be truncated\n".repeat(10);
 
-    assert_eq!(
-        "Warning: truncated output (original token count: 15)\nTotal output lines: 1\n\nthis is an…10 tokens truncated… truncated",
-        formatted_truncate_text(content, TruncationPolicy::Tokens(5)),
+    let out = formatted_truncate_text(&content, TruncationPolicy::Tokens(5));
+
+    assert!(
+        out.starts_with("Warning: truncated output (original token count: "),
+        "{out}"
+    );
+    assert!(out.contains("tokens truncated…"), "{out}");
+    assert!(
+        out.len() < content.len(),
+        "the frame has to earn its bytes: {} against {}",
+        out.len(),
+        content.len()
     );
 }
 
 #[test]
 fn truncate_bytes_over_limit_returns_truncated() {
-    let content = "this is an example of a long output that should be truncated";
+    let content = "this is an example of a long output that should be truncated\n".repeat(10);
 
-    assert_eq!(
-        "Warning: truncated output (original token count: 15)\nTotal output lines: 1\n\nthis is an exam…30 chars truncated…ld be truncated",
-        formatted_truncate_text(content, TruncationPolicy::Bytes(30)),
+    let out = formatted_truncate_text(&content, TruncationPolicy::Bytes(30));
+
+    assert!(
+        out.starts_with("Warning: truncated output (original token count: "),
+        "{out}"
+    );
+    assert!(out.contains("chars truncated…"), "{out}");
+    assert!(
+        out.len() < content.len(),
+        "the frame has to earn its bytes: {} against {}",
+        out.len(),
+        content.len()
     );
 }
 
 #[test]
 fn truncate_bytes_reports_original_line_count_when_truncated() {
     let content =
-        "this is an example of a long output that should be truncated\nalso some other line";
+        "this is an example of a long output that should be truncated\nalso some other line\n"
+            .repeat(10);
 
-    assert_eq!(
-        "Warning: truncated output (original token count: 21)\nTotal output lines: 2\n\nthis is an exam…51 chars truncated…some other line",
-        formatted_truncate_text(content, TruncationPolicy::Bytes(30)),
-    );
+    let out = formatted_truncate_text(&content, TruncationPolicy::Bytes(30));
+
+    // Twenty, not two: the count is of the whole input, which is the point of reporting it.
+    assert!(out.contains("\nTotal output lines: 20\n\n"), "{out}");
+    assert!(out.len() < content.len(), "{out}");
 }
 
 #[test]
 fn truncate_tokens_reports_original_line_count_when_truncated() {
     let content =
-        "this is an example of a long output that should be truncated\nalso some other line";
+        "this is an example of a long output that should be truncated\nalso some other line\n"
+            .repeat(10);
 
-    assert_eq!(
-        "Warning: truncated output (original token count: 21)\nTotal output lines: 2\n\nthis is an example o…11 tokens truncated…also some other line",
-        formatted_truncate_text(content, TruncationPolicy::Tokens(10)),
-    );
+    let out = formatted_truncate_text(&content, TruncationPolicy::Tokens(10));
+
+    assert!(out.contains("\nTotal output lines: 20\n\n"), "{out}");
+    assert!(out.len() < content.len(), "{out}");
+}
+
+#[test]
+fn the_guard_keeps_whichever_rendering_is_smaller() {
+    assert_eq!(never_worse("a".repeat(400).as_str(), "ok"), "ok");
+    // A tie goes to the filtered text: it is the one the caller went to the trouble of building.
+    assert_eq!(never_worse("abcd", "wxyz"), "wxyz");
+    assert_eq!(never_worse("{}", "{\n  \"pretty\": true\n}"), "{}");
+}
+
+#[test]
+fn an_input_a_byte_over_budget_does_not_come_back_bigger() {
+    // The band the guard exists for. Without it the frame turns a 1-byte saving into a ~105-byte
+    // loss, and every budget in the corpus has such a band immediately above it.
+    for over in 1..=8 {
+        let budget = 64;
+        let content = "x".repeat(budget + over);
+
+        let out = formatted_truncate_text(&content, TruncationPolicy::Bytes(budget));
+
+        assert!(
+            out.len() <= content.len(),
+            "{} bytes over budget grew to {} from {}",
+            over,
+            out.len(),
+            content.len()
+        );
+    }
 }
 
 #[test]
@@ -237,10 +297,13 @@ fn formatted_truncate_text_content_items_with_policy_preserves_empty_leading_tex
     let (output, original_token_count) =
         formatted_truncate_text_content_items_with_policy(&items, TruncationPolicy::Bytes(0));
 
+    // The merge is what this test is about, and it is unchanged: the empty leading item
+    // contributes no separator. The text is now the merged content rather than a frame around a
+    // cut of it, because at three bytes the frame costs thirty times what it announces.
     assert_eq!(
         output,
         vec![FunctionCallOutputContentItem::InputText {
-            text: "Warning: truncated output (original token count: 1)\nTotal output lines: 1\n\n…3 chars truncated…".to_string(),
+            text: "abc".to_string(),
         }]
     );
     assert_eq!(original_token_count, Some(1));
@@ -277,8 +340,9 @@ fn formatted_truncate_text_content_items_with_policy_merges_text_and_appends_med
     assert_eq!(
         output,
         vec![
+            // Every text item merged, in order, ahead of the media that follows them.
             FunctionCallOutputContentItem::InputText {
-                text: "Warning: truncated output (original token count: 4)\nTotal output lines: 3\n\nabcd…6 chars truncated…ijkl".to_string(),
+                text: "abcd\nefgh\nijkl".to_string(),
             },
             FunctionCallOutputContentItem::InputImage {
                 image_url: "img:one".to_string(),
@@ -314,8 +378,9 @@ fn formatted_truncate_text_content_items_with_policy_preserves_encrypted_content
         output,
         vec![
             FunctionCallOutputContentItem::InputText {
-                text: "Warning: truncated output (original token count: 2)\nTotal output lines: 1\n\na…6 chars truncated…h".to_string(),
+                text: "abcdefgh".to_string(),
             },
+            // The point of the test: opaque content survives the text path untouched.
             FunctionCallOutputContentItem::EncryptedContent {
                 encrypted_content: "enc_opaque".to_string(),
             },
@@ -400,7 +465,7 @@ fn formatted_truncate_text_content_items_with_policy_merges_all_text_for_token_b
     assert_eq!(
         output,
         vec![FunctionCallOutputContentItem::InputText {
-            text: "Warning: truncated output (original token count: 5)\nTotal output lines: 2\n\nabcd…3 tokens truncated…mnop".to_string(),
+            text: "abcdefgh\nijklmnop".to_string(),
         }]
     );
     assert_eq!(original_token_count, Some(5));
