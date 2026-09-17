@@ -248,6 +248,159 @@ fn a_failure_with_few_errors_is_left_exactly_as_it_came() {
     );
 }
 
+/// One pytest failure, in the shape a real run prints: an underscore header, the frame, and the
+/// `_ _ _ _` sub-separator pytest puts *between* frames of the same traceback.
+fn pytest_failure(name: &str) -> String {
+    format!(
+        "____________________________ {name} _____________________________\n\
+         \n    def {name}():\n>       helper([\"not\", \"a\", \"dict\"])\n\n\
+         test_probe.py:22: \n\
+         _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\
+         \nvalue = ['not', 'a', 'dict']\n\n    def helper(value):\n\
+         >       return value[\"missing\"]\n\
+         E       TypeError: list indices must be integers or slices, not str\n\n\
+         test_probe.py:6: TypeError\n"
+    )
+}
+
+/// A failing pytest run: session header, the dot line, `count` failures, and the two closing
+/// sections.
+fn failing_pytest(count: usize) -> String {
+    let mut out = String::from(
+        "============================= test session starts ==============================\n",
+    );
+    out.push_str("platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0\n");
+    out.push_str("rootdir: C:\\work\\project\n");
+    out.push_str("plugins: anyio-4.15.1, typeguard-4.6.0\n");
+    out.push_str(&format!("collected {} items\n\n", count + 2));
+    out.push_str(
+        "test_probe.py ..FFF                                                      [100%]\n\n",
+    );
+    out.push_str(
+        "================================== FAILURES ===================================\n",
+    );
+    for index in 0..count {
+        out.push_str(&pytest_failure(&format!("test_case_{index}")));
+    }
+    out.push_str(
+        "=========================== short test summary info ===========================\n",
+    );
+    for index in 0..count {
+        out.push_str(&format!(
+            "FAILED test_probe.py::test_case_{index} - TypeError: list indices must b...\n"
+        ));
+    }
+    out.push_str(&format!(
+        "========================= {count} failed, 2 passed in 0.17s ========================="
+    ));
+    out
+}
+
+#[test]
+fn a_pytest_run_loses_its_session_header_and_its_dot_line() {
+    let condensed = condense_pair(
+        &cargo_arguments("python -m pytest"),
+        &failing_pytest(/*count*/ 30),
+        Some(false),
+    );
+
+    assert!(!condensed.contains("platform win32"), "{condensed}");
+    assert!(!condensed.contains("rootdir:"), "{condensed}");
+    assert!(!condensed.contains("plugins:"), "{condensed}");
+    assert!(!condensed.contains("[100%]"), "{condensed}");
+    // The denominator stays: it is what every count below it is a fraction of.
+    assert!(condensed.contains("collected 32 items"), "{condensed}");
+}
+
+#[test]
+fn a_pytest_traceback_is_not_cut_into_frames() {
+    let condensed = condense_pair(
+        &cargo_arguments("python -m pytest"),
+        &failing_pytest(/*count*/ 30),
+        Some(false),
+    );
+
+    // Three underscores is a failure header; `_ _ _ _` divides frames inside one. Matching the
+    // latter would cap a single traceback to pieces, so the frames of every carried failure are
+    // still there - and there are as many sub-separators as carried failures.
+    let carried = condensed.matches("____ test_case_").count();
+    assert_eq!(carried, MAX_ERROR_BLOCKS);
+    // Counted as lines, not as substrings: one separator line contains the pattern several times
+    // over, which is how this assertion first read 120 for twenty tracebacks.
+    let separators = condensed
+        .lines()
+        .filter(|line| line.starts_with("_ _"))
+        .count();
+    assert_eq!(separators, carried);
+    // The assertion line of every carried traceback, counted as lines rather than as substrings:
+    // the same text also appears once per failure in the summary section, carried or not, so a
+    // substring count over the whole output measures both and is fragile arithmetic.
+    let assertion_lines = condensed
+        .lines()
+        .filter(|line| line.starts_with("E "))
+        .count();
+    assert_eq!(assertion_lines, carried);
+}
+
+#[test]
+fn the_pytest_summary_survives_so_a_dropped_failure_is_still_named() {
+    let condensed = condense_pair(
+        &cargo_arguments("python -m pytest"),
+        &failing_pytest(/*count*/ 30),
+        Some(false),
+    );
+
+    // This is what makes capping cheap here: every failure, carried or not, is named with its
+    // reason in the summary section.
+    for index in 0..30 {
+        assert!(
+            condensed.contains(&format!("FAILED test_probe.py::test_case_{index}")),
+            "failure {index} is missing from the summary:\n{condensed}"
+        );
+    }
+    assert!(condensed.contains("30 failed, 2 passed"), "{condensed}");
+}
+
+#[test]
+fn a_mypy_diagnostic_keeps_the_notes_attached_to_it() {
+    let mut text = String::new();
+    for index in 0..30 {
+        text.push_str(&format!(
+            "src/app/module_{index}.py:{index}: error: Incompatible return value type (got \"int\", expected \"str\")  [return-value]\n"
+        ));
+        text.push_str(&format!(
+            "src/app/module_{index}.py:{index}: note: \"Thing\" defined here\n"
+        ));
+    }
+    text.push_str("Found 30 errors in 30 files (checked 42 source files)");
+
+    let condensed = condense_pair(&cargo_arguments("mypy src"), &text, Some(false));
+
+    let carried = condensed.matches(": error:").count();
+    assert_eq!(carried, MAX_ERROR_BLOCKS);
+    // A note belongs to the diagnostic above it, so the two counts move together.
+    assert_eq!(condensed.matches(": note:").count(), carried);
+    assert!(
+        condensed.contains("Found 30 errors in 30 files"),
+        "{condensed}"
+    );
+}
+
+#[test]
+fn an_unrecognised_dialect_is_not_capped() {
+    // `make` is on the allowlist, so its receipt can be dropped, but nothing here parses its
+    // diagnostics and a line that merely starts with `error:` is not a promise of a grammar.
+    let mut text = String::new();
+    for index in 0..40 {
+        text.push_str(&format!("error: something went wrong in step {index}\n"));
+    }
+    let text = text.trim_end().to_string();
+
+    let condensed = condense_pair(&cargo_arguments("make all"), &text, Some(false));
+
+    assert_eq!(condensed.matches("error: something went wrong").count(), 40);
+}
+
 #[test]
 fn shrinks_a_successful_allowlisted_command() {
     let arguments = serde_json::json!({ "command": "cargo build --release" }).to_string();

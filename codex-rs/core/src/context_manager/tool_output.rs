@@ -96,10 +96,6 @@ const BUILD_PROGRESS_VERBS: &[&str] = &[
     "Waiting",
 ];
 
-/// Same threshold as the artifact filter, for the same reason: fewer than this and the line
-/// announcing the removal costs more than the removal saved.
-const MIN_PROGRESS_LINES: usize = 10;
-
 /// How many diagnostic blocks of each kind survive.
 ///
 /// RTK's numbers and its reasoning: errors are the most actionable so they are shown the most,
@@ -265,6 +261,9 @@ const SHRINKABLE: &[(&str, &[&str])] = &[
     ("pytest", &[]),
     ("black", &[]),
     ("ruff", &["format", "check"]),
+    // Absent until now, and it is the type checker most likely to print hundreds of lines on a
+    // first run over an untyped codebase.
+    ("mypy", &[]),
     // Go
     ("go", &["build", "test", "install", "vet", "mod"]),
     ("gofmt", &[]),
@@ -334,24 +333,30 @@ pub(crate) fn condense_exec_output(
     let mut candidate: Option<String> = filter_artifact_paths(arguments, &normalized, &mut lossy);
 
     let allowlisted = command_is_shrinkable(arguments);
-    // Gated on the allowlist alone, unlike `shrinkable` below. A build receipt is not the answer
-    // whether the build passed or failed, and on a failure it is the thing standing between the
-    // model and the first error. The allowlist is still what keeps this off an arbitrary
-    // program's output, where a line beginning `Compiling` may be the answer.
-    if allowlisted
+    let dialect = command_dialect(arguments);
+    // Gated on the allowlist *or* a known dialect, and not on `shrinkable` below. A receipt is
+    // not the answer whether the run passed or failed, and on a failure it is the thing standing
+    // between the model and the first error. Either gate is enough to know whose output this is,
+    // and the dialect covers what the allowlist misses: `python -m pytest` and `uv run pytest`
+    // are how pytest is usually invoked and neither names an allowlisted program first.
+    if (allowlisted || dialect.is_some())
         && let Some(filtered) =
             filter_progress_lines(candidate.as_deref().unwrap_or(&normalized), &mut lossy)
     {
         candidate = Some(filtered);
     }
 
-    // Also on the allowlist alone, and for the same reason it exists at all: a workspace with one
-    // bad signature emits an `error[E0308]` per call site, and the failing run is exactly when
-    // that happens. What it drops is in the spill file, which is what makes capping defensible
-    // rather than a guess.
-    if allowlisted
-        && let Some(capped) =
-            cap_diagnostic_blocks(candidate.as_deref().unwrap_or(&normalized), &mut lossy)
+    // Gated on recognizing the dialect rather than on the allowlist, which is the stricter of the
+    // two: `make` is allowlisted and prints nothing we can parse. For the same reason it exists at
+    // all - one bad signature in a workspace emits an `error[E0308]` per call site, and the
+    // failing run is exactly when that happens. What it drops is in the spill file, which is what
+    // makes capping defensible rather than a guess.
+    if let Some(dialect) = dialect
+        && let Some(capped) = cap_diagnostic_blocks(
+            candidate.as_deref().unwrap_or(&normalized),
+            dialect,
+            &mut lossy,
+        )
     {
         candidate = Some(capped);
     }
@@ -546,8 +551,27 @@ fn is_passing_test_line(line: &str) -> bool {
     line.starts_with("test ") && (line.ends_with(" ... ok") || line.ends_with(" ... ignored"))
 }
 
+/// What `pytest` prints about the machine it is running on, and how far along it is.
+///
+/// `collected N items` is deliberately not here: it is the denominator for everything below it.
+/// The dot line (`test_probe.py ..FFF   [100%]`) goes because the `short test summary info`
+/// section names every failure again, with its reason, a few lines further down.
+fn is_pytest_session_noise(line: &str) -> bool {
+    if line.starts_with("rootdir: ")
+        || line.starts_with("plugins: ")
+        || line.starts_with("cachedir: ")
+        || line.starts_with("configfile: ")
+    {
+        return true;
+    }
+    if line.starts_with("platform ") && line.contains(" -- Python ") {
+        return true;
+    }
+    line.ends_with("%]") && line.contains(".py ")
+}
+
 fn is_progress_line(line: &str) -> bool {
-    if is_passing_test_line(line) {
+    if is_passing_test_line(line) || is_pytest_session_noise(line) {
         return true;
     }
     if line.starts_with("running ") && (line.ends_with(" test") || line.ends_with(" tests")) {
@@ -568,7 +592,14 @@ fn is_progress_line(line: &str) -> bool {
 /// Drops the lines a build or test runner prints to show progress.
 ///
 /// Lossy in the sense this module means: a crate name that scrolled past is information, even if
-/// it is not information anyone asked for. So it is gated like the other lossy stages.
+/// it is not information anyone asked for.
+///
+/// No line threshold of its own, unlike [`filter_artifact_paths`]. That one needs a count to tell
+/// "a project listing buried under its dependencies" from "the model is reading `node_modules` on
+/// purpose"; here there is no such question, because a receipt is never the answer. Whether the
+/// removal was worth announcing is left to `MIN_LOSSY_TOKENS` at the end, which measures the
+/// saving instead of guessing at it from a line count - and has to, since pytest's session noise
+/// is four lines however large the suite is, where cargo's is one per crate.
 ///
 /// Runs before [`shrink_text`] so that what head/tail shrinking then drops is real content rather
 /// than the receipt of a build. That ordering is the whole point: on a successful `cargo build` of
@@ -582,7 +613,7 @@ fn filter_progress_lines(text: &str, report: &mut CondenseReport) -> Option<Stri
         .filter(|line| !is_progress_line(line))
         .collect();
     let dropped = lines.len() - kept.len();
-    if dropped < MIN_PROGRESS_LINES {
+    if dropped == 0 {
         return None;
     }
     report.progress_lines = dropped;
@@ -593,6 +624,48 @@ fn filter_progress_lines(text: &str, report: &mut CondenseReport) -> Option<Stri
 enum DiagnosticKind {
     Error,
     Warning,
+}
+
+/// Whose diagnostics we are reading.
+///
+/// One per grammar, not one per command: `cargo build`, `cargo clippy` and `cargo nextest` all
+/// print `rustc`'s, and a dialect we do not recognize means the block capper does not run at all.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DiagnosticDialect {
+    /// `error[E0308]:` at column zero, continuation lines indented.
+    Rustc,
+    /// `____ test_name ____` headers under a `=== FAILURES ===` banner.
+    Pytest,
+    /// One `path:line: error:` per diagnostic, with `path:line: note:` attached.
+    Mypy,
+}
+
+/// The dialect a command's output will be in, if we know it.
+fn command_dialect(arguments: &str) -> Option<DiagnosticDialect> {
+    let words = command_words(arguments);
+    let mut words = words.iter().map(String::as_str).peekable();
+    if words.peek() == Some(&"env") {
+        words.next();
+    }
+    while words
+        .peek()
+        .is_some_and(|word| word.split_once('=').is_some_and(|(key, _)| !key.is_empty()))
+    {
+        words.next();
+    }
+    let program = words.next().map(program_name)?;
+    match program {
+        "cargo" | "rustc" | "cross" => Some(DiagnosticDialect::Rustc),
+        "pytest" | "py.test" => Some(DiagnosticDialect::Pytest),
+        "mypy" => Some(DiagnosticDialect::Mypy),
+        // `python -m pytest` and `python -m mypy` are how both are usually run.
+        "python" | "python3" | "py" | "uv" | "poetry" => words.find_map(|word| match word {
+            "pytest" => Some(DiagnosticDialect::Pytest),
+            "mypy" => Some(DiagnosticDialect::Mypy),
+            _ => None,
+        }),
+        _ => None,
+    }
 }
 
 /// The kind of diagnostic a line opens, if it opens one.
@@ -627,15 +700,63 @@ fn diagnostic_kind(line: &str) -> Option<DiagnosticKind> {
     None
 }
 
+/// A `pytest` failure header: `____ test_name ____`.
+///
+/// Three contiguous underscores, which is what separates the header from the `_ _ _ _ _` lines
+/// pytest uses *inside* a failure to divide its frames. Matching those would make every frame its
+/// own block and cap a single traceback to pieces. Read off real output, not assumed.
+fn is_pytest_failure_header(line: &str) -> bool {
+    line.starts_with("___") && line.ends_with("___") && line.contains(' ')
+}
+
+/// The line a dialect opens a diagnostic with, if this is one.
+fn block_start(line: &str, dialect: DiagnosticDialect) -> Option<DiagnosticKind> {
+    match dialect {
+        DiagnosticDialect::Rustc => diagnostic_kind(line),
+        // Every failure is an error; pytest has no warning shape in this section.
+        DiagnosticDialect::Pytest => {
+            is_pytest_failure_header(line).then_some(DiagnosticKind::Error)
+        }
+        DiagnosticDialect::Mypy => {
+            if line.contains(": error:") {
+                Some(DiagnosticKind::Error)
+            } else if line.contains(": warning:") {
+                Some(DiagnosticKind::Warning)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Whether `line` belongs to the block above it.
+fn continues_block(line: &str, dialect: DiagnosticDialect) -> bool {
+    match dialect {
+        // Indented or blank; anything else at column zero has ended it.
+        DiagnosticDialect::Rustc => line.is_empty() || line.starts_with(char::is_whitespace),
+        // Everything up to the next header or the next `===` banner, which is how pytest closes
+        // the failures section and opens the summary.
+        DiagnosticDialect::Pytest => !line.starts_with("==="),
+        // mypy attaches context to a diagnostic with `note:` and nothing else.
+        DiagnosticDialect::Mypy => line.contains(": note:"),
+    }
+}
+
 /// Carries the first [`MAX_ERROR_BLOCKS`] errors and [`MAX_WARNING_BLOCKS`] warnings whole, and
 /// drops the rest.
 ///
 /// Blocks are kept *whole* or not at all. A diagnostic cut in half is worse than one that is
 /// absent and counted, because the model cannot tell which it is looking at.
 ///
-/// Everything that is not part of a block passes through untouched, which is what keeps rustc's
-/// closing lines - the explain hints and the `could not compile` count - in place.
-fn cap_diagnostic_blocks(text: &str, report: &mut CondenseReport) -> Option<String> {
+/// Everything that is not part of a block passes through untouched. That is what keeps rustc's
+/// `could not compile` count, pytest's `short test summary info` - one line per failure, naming
+/// it and why - and mypy's `Found N errors` in place. For pytest in particular that summary is
+/// what makes capping cheap: a dropped block is still named and explained a few lines further on.
+fn cap_diagnostic_blocks(
+    text: &str,
+    dialect: DiagnosticDialect,
+    report: &mut CondenseReport,
+) -> Option<String> {
     let mut kept: Vec<&str> = Vec::new();
     let mut errors = 0usize;
     let mut warnings = 0usize;
@@ -645,7 +766,7 @@ fn cap_diagnostic_blocks(text: &str, report: &mut CondenseReport) -> Option<Stri
     let mut keeping: Option<bool> = None;
 
     for line in text.split('\n') {
-        if let Some(kind) = diagnostic_kind(line) {
+        if let Some(kind) = block_start(line, dialect) {
             let keep = match kind {
                 DiagnosticKind::Error => {
                     errors += 1;
@@ -668,8 +789,7 @@ fn cap_diagnostic_blocks(text: &str, report: &mut CondenseReport) -> Option<Stri
             }
             continue;
         }
-        // Indented or blank continues the block it follows; anything else at column zero ends it.
-        let continues = line.is_empty() || line.starts_with(char::is_whitespace);
+        let continues = continues_block(line, dialect);
         match keeping {
             Some(inside) if continues => {
                 if inside {
@@ -706,11 +826,20 @@ fn is_artifact_path(line: &str) -> bool {
 /// The two shell tools name the field differently: `shell` sends `command`, `exec_command` sends
 /// `cmd`. Reading only one of them silently matches nothing on a session that used the other.
 fn command_is_shrinkable(arguments: &str) -> bool {
+    program_is_shrinkable(&command_words(arguments))
+}
+
+/// The command line a tool call is asking for, split into words.
+///
+/// Empty when the arguments do not carry one, or when the line chains or redirects - see
+/// [`shell_words`], which refuses those, because the output that matters then comes from
+/// something other than the first word.
+fn command_words(arguments: &str) -> Vec<String> {
     let Ok(parsed) = serde_json::from_str::<serde_json::Value>(arguments) else {
-        return false;
+        return Vec::new();
     };
     let Some(command) = parsed.get("command").or_else(|| parsed.get("cmd")) else {
-        return false;
+        return Vec::new();
     };
     let words = match command {
         serde_json::Value::String(line) => shell_words(line),
@@ -728,9 +857,9 @@ fn command_is_shrinkable(arguments: &str) -> bool {
                 _ => argv.into_iter().map(str::to_string).collect(),
             }
         }
-        _ => return false,
+        _ => Vec::new(),
     };
-    program_is_shrinkable(&words)
+    words
 }
 
 /// Splits a shell line into words, refusing any line that chains or redirects.
@@ -813,3 +942,7 @@ fn shrink_text(text: &str) -> Option<(String, usize)> {
 #[cfg(test)]
 #[path = "tool_output_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tool_output_real_tests.rs"]
+mod real_tests;
