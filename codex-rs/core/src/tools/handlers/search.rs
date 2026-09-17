@@ -38,6 +38,8 @@ use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
 use regex_lite::Regex;
 use serde_json::Value;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -704,16 +706,34 @@ fn render_grep(found: usize, per_file: &[FileMatches], stopped_early: bool) -> S
     let mut out = format!("Found {found} matches\n");
     let mut stopped = false;
     if !saturated {
-        for file in per_file {
-            let mut block = format!("{}:\n", file.display);
-            for (line_no, text) in &file.lines {
-                block.push_str(&format!("  Line {line_no}: {text}\n\n"));
-            }
+        // Repetition is folded away first, before anything is measured, because it is the only
+        // reduction here that costs nothing: the text moves, no `file:line` is lost. A result
+        // that fits after folding never reaches the tiers below.
+        let (shared, rest) = group_shared_lines(per_file);
+        for line in &shared {
+            let block = render_shared_line(line);
             if out.len() + block.len() > MAX_GREP_OUTPUT_BYTES {
                 stopped = true;
                 break;
             }
             out.push_str(&block);
+        }
+        if !stopped {
+            for file in rest {
+                let mut block = format!("{}:\n", file.display);
+                for (line_no, text) in &file.lines {
+                    // A line already written once above is not written again here.
+                    if shared.iter().any(|line| line.text == text.as_str()) {
+                        continue;
+                    }
+                    block.push_str(&format!("  Line {line_no}: {text}\n\n"));
+                }
+                if out.len() + block.len() > MAX_GREP_OUTPUT_BYTES {
+                    stopped = true;
+                    break;
+                }
+                out.push_str(&block);
+            }
         }
     }
     let limit = if stopped_early {
@@ -728,7 +748,209 @@ fn render_grep(found: usize, per_file: &[FileMatches], stopped_early: bool) -> S
     if limit == GrepLimit::None {
         return out;
     }
+    render_capped(found, per_file, limit)
+}
+
+/// One shared line, written once with every place it was found.
+fn render_shared_line(line: &SharedLine<'_>) -> String {
+    let mut out = format!(
+        "{} files share this line:\n  {}\n  in: ",
+        line.places.len(),
+        line.text
+    );
+    let places: Vec<String> = line
+        .places
+        .iter()
+        .map(|(display, line_no)| format!("{display}:{line_no}"))
+        .collect();
+    out.push_str(&places.join(", "));
+    out.push_str("\n\n");
+    out
+}
+
+/// What a capped result returns, in the most detailed form that fits.
+///
+/// The old behaviour stepped straight from the full listing to per-file counts the moment either
+/// cap was touched, which threw away every line of text over one threshold being crossed. There
+/// is a form in between - the `file:line` coordinates without the text - and for this fork it is
+/// not a consolation prize: the model's job on the `wire` task is to write `file.rs:778`
+/// citations, so coordinates alone can be the whole answer and save the narrowing call that a
+/// count map would have cost.
+///
+/// Sized arithmetically rather than by rendering each form and measuring: `coordinate_bytes`
+/// walks the matches once and adds up what the text would be, so only the tier that wins is ever
+/// built.
+fn render_capped(found: usize, per_file: &[FileMatches], limit: GrepLimit) -> String {
+    let header = capped_header(found, per_file.len(), limit);
+    // A coordinate list with no coordinates is the count map with its own cap removed, so the
+    // tier is only worth taking when the scan actually captured some line numbers. It refuses
+    // itself here rather than degrading into a worse copy of the form below it.
+    let has_coordinates = per_file.iter().any(|file| !file.lines.is_empty());
+    if has_coordinates && header.len() + coordinate_bytes(per_file) <= MAX_MAP_OUTPUT_BYTES {
+        return render_coordinates(header, per_file, limit);
+    }
     render_map(found, per_file, limit)
+}
+
+/// The bytes `render_coordinates` would produce for the coordinate list, without producing it.
+fn coordinate_bytes(per_file: &[FileMatches]) -> usize {
+    per_file
+        .iter()
+        .map(|file| {
+            let numbers: usize = file
+                .lines
+                .iter()
+                .map(|(line_no, _)| decimal_width(*line_no) + 2)
+                .sum();
+            // `  <display>: ` plus the numbers plus a newline.
+            file.display.len() + 5 + numbers
+        })
+        .sum()
+}
+
+fn decimal_width(value: usize) -> usize {
+    let mut width = 1;
+    let mut rest = value / 10;
+    while rest > 0 {
+        width += 1;
+        rest /= 10;
+    }
+    width
+}
+
+/// Every match as a `file: line, line, line` coordinate, with no text.
+fn render_coordinates(header: String, per_file: &[FileMatches], limit: GrepLimit) -> String {
+    let mut out = header;
+    out.push_str("Lines per file:\n");
+    // The same file cap the map has, for the same reason: `MAX_MAP_OUTPUT_BYTES` bounds the size
+    // but not the shape, and twenty thousand one-line entries is a dump however many bytes it is.
+    for file in per_file.iter().take(MAX_MAP_FILES) {
+        let numbers: Vec<String> = file
+            .lines
+            .iter()
+            .map(|(line_no, _)| line_no.to_string())
+            .collect();
+        // `lines` stops at the match cap while `matched` counts every hit, so the two disagree on
+        // a file whose matches ran past it. Printing coordinates alone there would understate the
+        // file and read as complete, which is the one thing a coordinate list must not do.
+        if numbers.is_empty() {
+            out.push_str(&format!("  {}: {} matches\n", file.display, file.matched));
+        } else if numbers.len() < file.matched {
+            out.push_str(&format!(
+                "  {}: {} (of {} matches)\n",
+                file.display,
+                numbers.join(", "),
+                file.matched
+            ));
+        } else {
+            out.push_str(&format!("  {}: {}\n", file.display, numbers.join(", ")));
+        }
+    }
+    if per_file.len() > MAX_MAP_FILES {
+        out.push_str(&format!(
+            "  ... and {} more files\n",
+            per_file.len() - MAX_MAP_FILES
+        ));
+    }
+    // Coordinates say where every match is; the samples say what one looks like. Neither answers
+    // the other's question, and the samples cost five lines, so both forms carry both.
+    push_samples(&mut out, per_file);
+    out.push_str(match limit {
+        GrepLimit::Walk => "\nThe coordinates are partial. Read a line with `read` and its number.\n",
+        _ => "\nText omitted to fit. Read a line with `read` and its number, or narrow the pattern.\n",
+    });
+    out
+}
+
+/// The first few matched lines, whole enough to show what a hit looks like.
+fn push_samples(out: &mut String, per_file: &[FileMatches]) {
+    let samples: Vec<String> = per_file
+        .iter()
+        .flat_map(|file| {
+            file.lines.iter().map(move |(line_no, text)| {
+                format!(
+                    "  {}:{}: {}\n",
+                    file.display,
+                    line_no,
+                    clip_to_bytes(text, MAP_SAMPLE_LINE_BYTES)
+                )
+            })
+        })
+        .take(MAP_SAMPLE_MATCHES)
+        .collect();
+    if samples.is_empty() {
+        return;
+    }
+    out.push_str(&format!("\nFirst {} matches:\n", samples.len()));
+    for sample in samples {
+        out.push_str(&sample);
+    }
+}
+
+/// How many files have to share a matched line before it is written once instead of per file.
+///
+/// Three, not two: a pair costs about as much either way, and the collapsed form reads worse for
+/// it. Measured on a recorded call - `impl2-sufficefork-rep20` searched 88 component documents for
+/// a sentence every one of them carries, and got 93 copies of the same 140 characters across
+/// 13,138 bytes whose whole information content was one line and a file list.
+const MIN_IDENTICAL_FILES: usize = 3;
+
+/// One matched line and every place it occurs.
+struct SharedLine<'a> {
+    text: &'a str,
+    /// `(display, line_no)` for each occurrence, in walk order.
+    places: Vec<(&'a str, usize)>,
+}
+
+/// Splits matches into lines shared by several files and lines belonging to one.
+///
+/// Lossless: every `file:line` survives, and so does the text. What goes is the repetition - the
+/// text is written once rather than once per file. Grouped on the text alone and not on the line
+/// number as well, because the same declaration sits at a different line in each file as often as
+/// not, and the repetition is just as expensive either way.
+fn group_shared_lines<'a>(
+    per_file: &'a [FileMatches],
+) -> (Vec<SharedLine<'a>>, Vec<&'a FileMatches>) {
+    let mut order: Vec<&'a str> = Vec::new();
+    let mut places: HashMap<&'a str, Vec<(&'a str, usize)>> = HashMap::new();
+    for file in per_file {
+        for (line_no, text) in &file.lines {
+            let entry = places.entry(text.as_str());
+            if matches!(entry, std::collections::hash_map::Entry::Vacant(_)) {
+                order.push(text.as_str());
+            }
+            entry.or_default().push((file.display.as_str(), *line_no));
+        }
+    }
+
+    // A line is shared only when distinct *files* carry it. Three hits inside one file is
+    // repetition the model asked for by searching that file.
+    let mut shared = Vec::new();
+    let mut shared_texts: HashSet<&'a str> = HashSet::new();
+    for text in order {
+        let occurrences = places.remove(text).unwrap_or_default();
+        let mut files: Vec<&str> = occurrences.iter().map(|(display, _)| *display).collect();
+        files.sort_unstable();
+        files.dedup();
+        if files.len() >= MIN_IDENTICAL_FILES {
+            shared_texts.insert(text);
+            shared.push(SharedLine {
+                text,
+                places: occurrences,
+            });
+        }
+    }
+
+    // Files keep their place in the listing when they still have a line of their own to show.
+    let rest: Vec<&'a FileMatches> = per_file
+        .iter()
+        .filter(|file| {
+            file.lines
+                .iter()
+                .any(|(_, text)| !shared_texts.contains(text.as_str()))
+        })
+        .collect();
+    (shared, rest)
 }
 
 /// Entries named in the count map before it starts summarising, so one pathological pattern cannot
@@ -756,18 +978,24 @@ const MAP_SAMPLE_LINE_BYTES: usize = 200;
 ///
 /// Files stay in walk order rather than sorting by count: the question a truncated grep leaves
 /// open is "which files am I missing", and walk order is the order the model builds inventories in.
-fn render_map(found: usize, per_file: &[FileMatches], limit: GrepLimit) -> String {
+/// The first line every capped form opens with, naming the total and why it was capped.
+///
+/// Shared so the coordinate tier and the count map cannot drift apart on it, and kept byte for
+/// byte what the map alone used to print.
+fn capped_header(found: usize, files: usize, limit: GrepLimit) -> String {
     let why = match limit {
         GrepLimit::Matches => "too many to list in full",
         GrepLimit::Bytes => "listing them in full would exceed this tool's size cap",
         // The search stopped before every file was read, so the totals below are a floor.
         GrepLimit::Walk => "the search stopped early, so these counts are partial",
-        GrepLimit::None => unreachable!("render_map is only reached for a capped result"),
+        GrepLimit::None => unreachable!("a capped form is only reached for a capped result"),
     };
-    let mut out = format!(
-        "Found {found} matches in {} files - {why}.\nMatches per file:\n",
-        per_file.len()
-    );
+    format!("Found {found} matches in {files} files - {why}.\n")
+}
+
+fn render_map(found: usize, per_file: &[FileMatches], limit: GrepLimit) -> String {
+    let mut out = capped_header(found, per_file.len(), limit);
+    out.push_str("Matches per file:\n");
     // `render_grep` only ever checked a byte cap on the branch that lists lines, so this branch
     // could grow without anything noticing. Room for the samples and the closing sentence is held
     // back before the file list starts, so a long list cannot crowd them out.
@@ -788,26 +1016,7 @@ fn render_map(found: usize, per_file: &[FileMatches], limit: GrepLimit) -> Strin
             per_file.len() - listed
         ));
     }
-    let samples: Vec<String> = per_file
-        .iter()
-        .flat_map(|file| {
-            file.lines.iter().map(move |(line_no, text)| {
-                format!(
-                    "  {}:{}: {}\n",
-                    file.display,
-                    line_no,
-                    clip_to_bytes(text, MAP_SAMPLE_LINE_BYTES)
-                )
-            })
-        })
-        .take(MAP_SAMPLE_MATCHES)
-        .collect();
-    if !samples.is_empty() {
-        out.push_str(&format!("\nFirst {} matches:\n", samples.len()));
-        for sample in samples {
-            out.push_str(&sample);
-        }
-    }
+    push_samples(&mut out, per_file);
     out.push_str("\nNarrow the pattern or the path to see the lines themselves.\n");
     out
 }
@@ -994,11 +1203,17 @@ mod tests {
             out.starts_with("Found 176 matches in 2 files - too many to list in full.\n"),
             "{out}"
         );
-        assert!(out.contains("\n  a.rs: 100\n"), "{out}");
-        assert!(out.contains("\n  b.rs: 76\n"), "{out}");
+        // The coordinate tier, because the coordinates fit: every line number of `a.rs`, and the
+        // count for the file whose own matches all landed past the cap. Naming that file at all
+        // is what the old renderer failed to do.
+        assert!(out.contains("\n  a.rs: 1, 2, 3, "), "{out}");
+        assert!(out.contains("\n  b.rs: 76 matches\n"), "{out}");
         assert!(out.contains("First 5 matches:\n"), "{out}");
-        assert!(out.contains("Narrow the pattern or the path"), "{out}");
-        // The point of the map: it is a fraction of the dump it replaces.
+        assert!(
+            out.contains("Read a line with `read` and its number"),
+            "{out}"
+        );
+        // Still a fraction of the dump it replaces.
         assert!(out.len() < 4_000, "{}", out.len());
     }
 
@@ -1168,6 +1383,122 @@ mod tests {
         assert_eq!(
             displays,
             vec!["src/lib.rs".to_string(), "src/sse/chat.rs".to_string()]
+        );
+    }
+
+    /// The shape that motivated folding: 93 documents carrying one identical sentence.
+    ///
+    /// Taken from `impl2-sufficefork-rep20`, which searched 88 component documents for a line
+    /// every one of them has and got 13,138 bytes of the same 140 characters. Nothing was capped -
+    /// 93 matches is under `MAX_GREP_MATCHES` and 13 kB under the byte cap - so neither cap could
+    /// have helped. Folding is lossless: the text once, every `file:line` kept.
+    #[test]
+    fn one_line_shared_by_many_files_is_written_once() {
+        let sentence = "code changes its classification and is a contract violation".repeat(3);
+        let per_file: Vec<FileMatches> = (0..93)
+            .map(|file| FileMatches {
+                display: format!("docs/components/c{file}.md"),
+                matched: 1,
+                lines: vec![(67, sentence.clone())],
+            })
+            .collect();
+
+        let out = render_grep(93, &per_file, /*stopped_early*/ false);
+
+        assert_eq!(out.matches(&sentence).count(), 1, "the text was repeated");
+        assert!(out.starts_with("Found 93 matches\n"), "{out}");
+        assert!(out.contains("93 files share this line:"), "{out}");
+        // Lossless: every file and its line number is still there.
+        for file in 0..93 {
+            assert!(
+                out.contains(&format!("docs/components/c{file}.md:67")),
+                "c{file}.md lost its coordinate:\n{out}"
+            );
+        }
+        // The measured shape was 13,138 bytes for this much text.
+        assert!(out.len() < 4_500, "folded to {} bytes", out.len());
+    }
+
+    /// Two files sharing a line is not worth the folded form's own framing.
+    #[test]
+    fn a_line_shared_by_two_files_is_left_alone() {
+        let per_file: Vec<FileMatches> = (0..2)
+            .map(|file| FileMatches {
+                display: format!("src/f{file}.rs"),
+                matched: 1,
+                lines: vec![(7, "pub fn connect()".to_string())],
+            })
+            .collect();
+
+        let out = render_grep(2, &per_file, /*stopped_early*/ false);
+
+        assert!(!out.contains("share this line"), "{out}");
+        assert_eq!(out.matches("pub fn connect()").count(), 2, "{out}");
+    }
+
+    /// A file keeps its own listing for the lines that are not shared.
+    #[test]
+    fn folding_leaves_a_files_unshared_lines_in_place() {
+        let shared = "use std::fmt;".to_string();
+        let mut per_file: Vec<FileMatches> = (0..4)
+            .map(|file| FileMatches {
+                display: format!("src/f{file}.rs"),
+                matched: 1,
+                lines: vec![(1, shared.clone())],
+            })
+            .collect();
+        per_file[0].matched = 2;
+        per_file[0]
+            .lines
+            .push((42, "pub fn only_here()".to_string()));
+
+        let out = render_grep(5, &per_file, /*stopped_early*/ false);
+
+        assert_eq!(out.matches(&shared).count(), 1, "{out}");
+        assert!(out.contains("  Line 42: pub fn only_here()"), "{out}");
+        assert!(out.contains("src/f0.rs:"), "{out}");
+    }
+
+    /// The coordinate tier: too much text to carry, but every line number fits.
+    #[test]
+    fn a_capped_result_gives_coordinates_when_they_fit() {
+        let per_file: Vec<FileMatches> = (0..30)
+            .map(|file| FileMatches {
+                display: format!("src/f{file}.rs"),
+                matched: 4,
+                lines: (0..4).map(|n| (n * 17 + 3, "x".repeat(300))).collect(),
+            })
+            .collect();
+
+        let out = render_grep(120, &per_file, /*stopped_early*/ false);
+
+        // Coordinates, not counts: the model can write a citation from this without another call.
+        assert!(out.contains("Lines per file:\n"), "{out}");
+        assert!(out.contains("  src/f0.rs: 3, 20, 37, 54\n"), "{out}");
+        assert!(!out.contains("Matches per file:"), "{out}");
+        // And a taste of what matched, which coordinates alone cannot give.
+        assert!(out.contains("First 5 matches:\n"), "{out}");
+        assert!(out.len() <= MAX_MAP_OUTPUT_BYTES, "{}", out.len());
+    }
+
+    /// A file whose matches ran past the cap must not read as fully enumerated.
+    #[test]
+    fn coordinates_say_so_when_they_are_a_subset_of_a_files_matches() {
+        let per_file = vec![FileMatches {
+            display: "src/big.rs".to_string(),
+            matched: 40,
+            lines: vec![(5, "x".repeat(400)), (9, "x".repeat(400))],
+        }];
+
+        let out = render_grep(
+            MAX_GREP_MATCHES + 40,
+            &per_file,
+            /*stopped_early*/ false,
+        );
+
+        assert!(
+            out.contains("  src/big.rs: 5, 9 (of 40 matches)\n"),
+            "{out}"
         );
     }
 
