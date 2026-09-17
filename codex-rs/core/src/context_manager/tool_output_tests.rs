@@ -433,7 +433,10 @@ fn a_dotted_directory_is_not_matched_by_a_shorter_one() {
 
     let report = report_for(&arguments, &text);
 
-    assert_eq!(report.artifact_lines, 0, "naming .vscode disables the stage");
+    assert_eq!(
+        report.artifact_lines, 0,
+        "naming .vscode disables the stage"
+    );
 }
 
 #[test]
