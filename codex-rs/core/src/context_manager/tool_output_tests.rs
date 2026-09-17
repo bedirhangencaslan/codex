@@ -402,6 +402,41 @@ fn an_unrecognised_dialect_is_not_capped() {
 }
 
 #[test]
+fn a_command_merely_containing_a_directory_name_still_gets_filtered() {
+    // `printenv` contains "env" as a substring and names no directory at all. Under the substring
+    // check its listing went unfiltered, as did anything mentioning `os.environ` or passing
+    // `--environment`. `python -m venv` is *not* an example: `venv` is on the list, so that
+    // command does name one.
+    let text = listing(/*project_lines*/ 40, /*artifact_lines*/ 40);
+
+    for command in ["printenv", "python -c \"print(os.environ)\""] {
+        let arguments = serde_json::json!({ "command": command }).to_string();
+        let report = report_for(&arguments, &text);
+        assert_eq!(report.artifact_lines, 40, "{command} disabled the stage");
+    }
+}
+
+#[test]
+fn a_command_that_does_name_one_keeps_its_listing_whole() {
+    // The guard's actual job: a deliberate look inside `node_modules` is the answer, not noise.
+    let text = listing(/*project_lines*/ 40, /*artifact_lines*/ 40);
+    let arguments = serde_json::json!({ "command": "ls node_modules" }).to_string();
+
+    assert_eq!(condense_pair(&arguments, &text, Some(true)), text);
+}
+
+#[test]
+fn a_dotted_directory_is_not_matched_by_a_shorter_one() {
+    // `.vs` and `.vscode` are both on the list, and `.vs` is a prefix of the other.
+    let text = listing(/*project_lines*/ 40, /*artifact_lines*/ 40);
+    let arguments = serde_json::json!({ "command": "cat .vscode/settings.json" }).to_string();
+
+    let report = report_for(&arguments, &text);
+
+    assert_eq!(report.artifact_lines, 0, "naming .vscode disables the stage");
+}
+
+#[test]
 fn shrinks_a_successful_allowlisted_command() {
     let arguments = serde_json::json!({ "command": "cargo build --release" }).to_string();
     let shrunk = condense_pair(&arguments, &noisy_output(), Some(true));

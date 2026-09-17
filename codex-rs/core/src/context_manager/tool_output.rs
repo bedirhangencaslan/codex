@@ -522,10 +522,7 @@ fn filter_artifact_paths(
     text: &str,
     report: &mut CondenseReport,
 ) -> Option<String> {
-    if ARTIFACT_DIRECTORIES
-        .iter()
-        .any(|directory| arguments.contains(directory))
-    {
+    if arguments_name_artifact_directory(arguments) {
         return None;
     }
     let lines: Vec<&str> = text.split('\n').collect();
@@ -809,6 +806,23 @@ fn cap_diagnostic_blocks(
     report.dropped_errors = dropped_errors;
     report.dropped_warnings = dropped_warnings;
     Some(kept.join("\n"))
+}
+
+/// Whether the command itself named one of [`ARTIFACT_DIRECTORIES`], so its listing is the answer.
+///
+/// Compared token by token, not as a substring. `arguments.contains("env")` is true of
+/// `python -m venv`, of `printenv`, and of every `--environment` flag, and each of those silently
+/// turned this stage off - the shorter the name in the list, the more often. Splitting on the
+/// characters a path component cannot contain keeps `venv` and `env` apart, and `.vscode` from
+/// matching `.vs`.
+///
+/// Still imperfect, and knowingly: `build` and `target` are subcommand and flag names as well as
+/// directory names, so `cargo build` reads as naming `build`. That predates the token split and
+/// errs towards leaving output alone, which is the safe direction.
+fn arguments_name_artifact_directory(arguments: &str) -> bool {
+    arguments
+        .split(|c: char| !(c.is_alphanumeric() || c == '.' || c == '_' || c == '-'))
+        .any(|token| ARTIFACT_DIRECTORIES.contains(&token))
 }
 
 fn is_artifact_path(line: &str) -> bool {
