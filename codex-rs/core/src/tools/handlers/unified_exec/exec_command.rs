@@ -30,6 +30,7 @@ use crate::unified_exec::UnifiedExecContext;
 use crate::unified_exec::UnifiedExecError;
 use crate::unified_exec::UnifiedExecProcessManager;
 use crate::unified_exec::generate_chunk_id;
+use crate::unified_exec::tool_output_spill_dir;
 use codex_features::Feature;
 use codex_otel::SessionTelemetry;
 use codex_otel::TOOL_CALL_UNIFIED_EXEC_METRIC;
@@ -192,6 +193,17 @@ impl ExecCommandHandler {
             .map_err(|err| FunctionCallError::RespondToModel(err.to_string()))?;
         let environment = Arc::clone(&turn_environment.environment);
         let fs = environment.get_filesystem();
+
+        // Resolved here rather than in the process manager because this is the one place where
+        // the turn's environment and its read policy are both in hand. `None` - a profile that
+        // narrows reads - returns the response byte for byte to what it was before spilling
+        // existed, notice included.
+        let spill_dir = tool_output_spill_dir(
+            turn.config.codex_home.as_path(),
+            session.thread_id(),
+            &turn_environment.sandbox_context(/*additional_permissions*/ None),
+            &turn_environment.cwd().to_path_buf(),
+        );
 
         // Remote executors enforce URI-native sandbox policy themselves. Only a host-local
         // sandbox needs a native cwd for resolving paths nested in the permissions config.
@@ -390,6 +402,7 @@ impl ExecCommandHandler {
                 original_token_count: None,
                 output_omitted_bytes: None,
                 hook_command: None,
+                spill_dir: spill_dir.clone(),
             }));
         }
 
@@ -413,6 +426,7 @@ impl ExecCommandHandler {
                 .permissions_preapproved,
             justification,
             prefix_rule,
+            spill_dir: spill_dir.clone(),
         };
         let result = match completion_timeout {
             Some(timeout) => {
@@ -446,6 +460,7 @@ impl ExecCommandHandler {
                     original_token_count: Some(original_token_count),
                     output_omitted_bytes,
                     hook_command: Some(hook_command),
+                    spill_dir,
                 }))
             }
             Err(err) => Err(FunctionCallError::RespondToModel(format!(

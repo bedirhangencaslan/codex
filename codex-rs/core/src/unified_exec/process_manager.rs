@@ -791,6 +791,7 @@ impl UnifiedExecProcessManager {
             original_token_count: Some(original_token_count),
             output_omitted_bytes,
             hook_command: Some(request.hook_command.clone()),
+            spill_dir: request.spill_dir.clone(),
         };
 
         Ok(response)
@@ -1019,6 +1020,7 @@ impl UnifiedExecProcessManager {
             original_token_count: Some(original_token_count),
             output_omitted_bytes,
             hook_command: Some(hook_command),
+            spill_dir: request.spill_dir.clone(),
         };
 
         let should_emit_interaction = !request.input.is_empty() || response.process_id.is_some();

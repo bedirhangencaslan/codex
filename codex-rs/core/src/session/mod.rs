@@ -1185,7 +1185,6 @@ impl Session {
         }
     }
 
-    #[cfg(test)]
     pub(crate) async fn codex_home(&self) -> AbsolutePathBuf {
         let state = self.state.lock().await;
         state.session_configuration.codex_home().clone()

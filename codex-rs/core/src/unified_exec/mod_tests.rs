@@ -209,6 +209,7 @@ async fn exec_command_with_tty(
         original_token_count: Some(original_token_count),
         output_omitted_bytes,
         hook_command: Some(cmd.to_string()),
+        spill_dir: None,
     })
 }
 
@@ -335,6 +336,7 @@ async fn write_stdin(
                 max_output_tokens: None,
                 truncation_policy: TruncationPolicy::Tokens(10_000),
                 interaction_event: None,
+                spill_dir: None,
             },
         )
         .await

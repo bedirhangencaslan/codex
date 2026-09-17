@@ -3,6 +3,7 @@ use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
 use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::parse_arguments;
+use crate::tools::handlers::resolve_tool_environment;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::PostToolUsePayload;
 use crate::tools::registry::PreToolUsePayload;
@@ -12,6 +13,7 @@ use crate::unified_exec::UnifiedExecContext;
 use crate::unified_exec::UnifiedExecError;
 use crate::unified_exec::WriteStdinInteractionEvent;
 use crate::unified_exec::WriteStdinRequest;
+use crate::unified_exec::tool_output_spill_dir;
 use codex_tools::ToolName;
 use codex_tools::ToolSpec;
 use serde::Deserialize;
@@ -79,6 +81,19 @@ impl WriteStdinHandler {
         };
 
         let args: WriteStdinArgs = parse_arguments(&arguments)?;
+        // A poll of a live session is truncated by the same budget as the command that opened it,
+        // so it gets the same file. Resolved before `step_context` is moved into the context.
+        let spill_dir = resolve_tool_environment(&step_context.environments, None)
+            .ok()
+            .flatten()
+            .and_then(|turn_environment| {
+                tool_output_spill_dir(
+                    turn.config.codex_home.as_path(),
+                    session.thread_id(),
+                    &turn_environment.sandbox_context(/*additional_permissions*/ None),
+                    &turn_environment.cwd().to_path_buf(),
+                )
+            });
         let context =
             UnifiedExecContext::new(session.clone(), step_context, cancellation_token, call_id);
         let response = session
@@ -96,6 +111,7 @@ impl WriteStdinHandler {
                         session: &session,
                         turn: &turn,
                     }),
+                    spill_dir,
                 },
             )
             .await

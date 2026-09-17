@@ -253,7 +253,7 @@ Before executing the command, please follow these steps:
 Usage notes:
   - The `cmd` argument is required.
   - You can specify an optional `timeout_ms`. If not specified, commands time out after 10000 ms.
-  - Output is capped and truncated at that point, with no file written for the remainder. Do NOT pull bulk file text through here to work around it; use `read` with `offset`/`limit`, or `grep`, which return the same content in windows you choose. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
+  - Output is capped and truncated at that point, and the full output is written to a file whose path the response names. Use `read` with `offset`/`limit` on that path to see a section of it, or `grep` to search it; do NOT use `Select-Object -First`, `Select-Object -Last`, or other commands that trim output, because the whole of it is in that file already. Do NOT pull bulk file text through here to work around the cap either: `read` and `grep` return the same content in windows you choose. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
   - Avoid using this tool with the file and content commands listed below unless explicitly instructed, or when one of them is truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
     - File search: Use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
     - Content search: Use `grep` (NOT `Select-String` or `rg`)
@@ -523,7 +523,8 @@ fn file_work_guidance() -> &'static str {
 - Content search: use `grep` (NOT `Select-String` or `rg`)
 - Read files: use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
 - Edit or create files: use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)
-Reach for the shell on file work only for what the dedicated tools do not do. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one."#
+Reach for the shell on file work only for what the dedicated tools do not do. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
+If output is capped, the full output is written to a file and the response names its path; read a section of it with `read` and `offset`/`limit`, or search it with `grep`."#
 }
 
 fn windows_shell_guidance() -> &'static str {

@@ -197,7 +197,9 @@ async fn tool_call_output_exceeds_limit_truncated_chars_limit() -> Result<()> {
         "expected truncated shell output to be plain text"
     );
 
-    let truncated_pattern = r#"(?s)^Chunk ID: [^\n]+\nWall time: [0-9]+(?:\.[0-9]+)? seconds\nProcess exited with code 0\nOriginal token count: \d+\nOutput:\nWarning: truncated output \(original token count: \d+\)\nTotal output lines: 100000\n\n.*?…\d+ chars truncated….*$"#;
+    // `Full output saved to:` is optional because it is only printed when the body's budget is
+    // large enough to make the line worth its bytes; see `SPILL_NOTICE_BUDGET_RATIO`.
+    let truncated_pattern = r#"(?s)^Chunk ID: [^\n]+\nWall time: [0-9]+(?:\.[0-9]+)? seconds\nProcess exited with code 0\nOriginal token count: \d+\n(?:Full output saved to: [^\n]+\n)?Output:\nWarning: truncated output \(original token count: \d+\)\nTotal output lines: 100000\n\n.*?…\d+ chars truncated….*$"#;
 
     assert_regex_match(truncated_pattern, &output);
 
@@ -276,7 +278,8 @@ async fn tool_call_output_exceeds_limit_truncated_for_model() -> Result<()> {
 Wall time: [0-9]+(?:\.[0-9]+)? seconds
 Process exited with code 0
 Original token count: \d+
-Output:
+(?:Full output saved to: [^\n]+
+)?Output:
 Warning: truncated output \(original token count: \d+\)
 Total output lines: 100000
 

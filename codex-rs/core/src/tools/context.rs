@@ -27,6 +27,8 @@ use codex_utils_output_truncation::truncate_text;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::num::NonZeroUsize;
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -359,6 +361,13 @@ impl ToolOutput for AbortedToolOutput {
 /// restriction so much as the one already imposed on `read` finally reaching the other door.
 const MAX_EXEC_OUTPUT_BYTES: usize = 51_200;
 
+/// How much larger the body's budget has to be than the line naming the spill file.
+///
+/// The notice is only worth its bytes when what it points at is worth more than what it cost,
+/// and on a small budget it is not: an eighth of the model's window spent on a path is a bad
+/// trade against the output the path was meant to make recoverable.
+const SPILL_NOTICE_BUDGET_RATIO: usize = 8;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecCommandToolOutput {
     pub event_call_id: String,
@@ -374,6 +383,13 @@ pub struct ExecCommandToolOutput {
     /// Bytes omitted by the output collection cap before model-facing truncation.
     pub output_omitted_bytes: Option<NonZeroUsize>,
     pub hook_command: Option<String>,
+    /// Where to write the output the model's budget is about to cut, so it can read the rest.
+    ///
+    /// `None` disables the whole mechanism and returns the response byte for byte to what it
+    /// was before it existed. That is what makes the switch cheap to reason about: a caller
+    /// that does not opt in cannot be changed by this, and the profiles that cannot read the
+    /// file simply never get a path (see the handler).
+    pub spill_dir: Option<PathBuf>,
 }
 
 impl ToolOutput for ExecCommandToolOutput {
@@ -390,7 +406,7 @@ impl ToolOutput for ExecCommandToolOutput {
         // notice: nothing was condensed on this path.
         format!(
             "{}\n{output}",
-            self.response_header(&CondenseReport::default())
+            self.response_header(&CondenseReport::default(), None)
         )
     }
 
@@ -529,7 +545,7 @@ impl ExecCommandToolOutput {
         )
     }
 
-    fn response_header(&self, condensed: &CondenseReport) -> String {
+    fn response_header(&self, condensed: &CondenseReport, spill_path: Option<&Path>) -> String {
         let mut sections = Vec::new();
 
         if !self.chunk_id.is_empty() {
@@ -557,8 +573,82 @@ impl ExecCommandToolOutput {
             sections.push(summary);
         }
 
+        // OpenCode's sentence, and deliberately nothing but the path. What to do with the file
+        // is said once in the tool description, where the session pays for it on the first
+        // request and reads it from cache thereafter; saying it again on every truncated
+        // command would charge for the same steer once per occurrence.
+        if let Some(path) = spill_path {
+            sections.push(Self::spill_notice(path));
+        }
+
         sections.push("Output:".to_string());
         sections.join("\n")
+    }
+
+    fn spill_notice(path: &Path) -> String {
+        format!("Full output saved to: {}", path.display())
+    }
+
+    /// `policy` tightened by `bytes`, keeping the unit it was expressed in.
+    ///
+    /// The unit matters beyond arithmetic: it is what decides whether the marker left in the
+    /// text reads `tokens truncated` or `chars truncated`, so converting to bytes here would
+    /// change what the model is told about its own output.
+    fn policy_less(policy: TruncationPolicy, bytes: usize) -> TruncationPolicy {
+        match policy {
+            TruncationPolicy::Bytes(budget) => {
+                TruncationPolicy::Bytes(budget.saturating_sub(bytes))
+            }
+            TruncationPolicy::Tokens(budget) => TruncationPolicy::Tokens(
+                budget.saturating_sub(TruncationPolicy::Bytes(bytes).token_budget()),
+            ),
+        }
+    }
+
+    /// The body's share of the response, once the header has taken its own.
+    fn output_budget(truncation_policy: TruncationPolicy, header_bytes: usize) -> usize {
+        (truncation_policy * 1.2)
+            .byte_budget()
+            .min(MAX_EXEC_OUTPUT_BYTES)
+            .saturating_sub(header_bytes.saturating_add(/*rhs*/ 1))
+    }
+
+    /// Where this call's untruncated output would go, if anywhere. Writes nothing.
+    ///
+    /// Named from the call rather than the clock for two reasons: rendering the same result
+    /// twice rewrites one file instead of leaving a second copy behind, and the notice's length
+    /// is knowable before the body's budget is fixed, which is what lets the budget reserve
+    /// room for it rather than be exceeded by it.
+    fn spill_path(&self) -> Option<PathBuf> {
+        let dir = self.spill_dir.as_ref()?;
+        let stem = if self.chunk_id.is_empty() {
+            self.event_call_id.as_str()
+        } else {
+            self.chunk_id.as_str()
+        };
+        let mut name: String = stem
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if name.is_empty() {
+            name.push_str("output");
+        }
+        // `.txt` because `read` refuses the extensions it treats as binary, and this file exists
+        // only to be read back through it.
+        Some(dir.join(format!("tool_{name}.txt")))
+    }
+
+    /// Writes the untruncated output, returning the path only if the model can be told of it.
+    ///
+    /// Every failure is silent and yields `None`, which drops the notice and leaves the response
+    /// exactly as it was before this mechanism existed. A command's output must not be lost
+    /// because the copy beside it could not be saved, and a path the model cannot open is worse
+    /// than no path at all - that is the `rg -c` failure mode, where the harness advertised a
+    /// capability the environment did not have.
+    fn write_spill(path: &Path, text: &str) -> Option<PathBuf> {
+        std::fs::create_dir_all(path.parent()?).ok()?;
+        std::fs::write(path, text).ok()?;
+        Some(path.to_path_buf())
     }
 
     /// The output as the model should read it: every stage, including the ones that drop
@@ -593,29 +683,66 @@ impl ExecCommandToolOutput {
         // listing truncated first loses its own files to make room for `node_modules`.
         let (text, condensed) = self.condensed_output(payload);
 
-        let header = self.response_header(&condensed);
-        let output_budget = (self.truncation_policy * 1.2)
-            .byte_budget()
-            .min(MAX_EXEC_OUTPUT_BYTES)
-            .saturating_sub(header.len().saturating_add(/*rhs*/ 1));
-        let mut policy = self.model_output_policy();
+        let bare_header = self.response_header(&condensed, None);
+        // The notice's room is taken out of the budget before the body is measured against it,
+        // so naming the file can never be what pushes the response over. When there is no spill
+        // directory this reserves nothing and the arithmetic below is byte for byte what it was.
+        // Which of the two limits actually binds decides where the notice's bytes have to come
+        // from. `max_output_tokens` is usually the smaller one, and reserving only against the
+        // serialization budget would leave the response longer with a notice than without.
+        let bare_budget = Self::output_budget(self.truncation_policy, bare_header.len())
+            .min(self.model_output_policy().byte_budget());
+        // Asked against the budget the response would have had anyway, so that reserving room is
+        // never itself the reason a body stops fitting. Without this an output landing in the
+        // notice-wide band just under the cap would be cut and spilled where it used to arrive
+        // whole, and the model would spend a `read` recovering the tail of something it had been
+        // given for free - the mechanism causing the extra request it exists to prevent.
+        let would_truncate_anyway = text.len() > bare_budget;
+        // A path is ~115 bytes: nothing against the default budget, a large share of a small one.
+        // Under a tight `max_output_tokens` the notice would buy the model a file by taking away
+        // the very output it was asking about, so below this ratio there is no notice and no
+        // file. Same reasoning as `MIN_LOSSY_TOKENS` in `tool_output.rs`: a line that announces
+        // something costs tokens and has to earn them.
+        let candidate = self
+            .spill_path()
+            .filter(|_| would_truncate_anyway)
+            .filter(|path| {
+                Self::spill_notice(path)
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(SPILL_NOTICE_BUDGET_RATIO)
+                    <= bare_budget
+            });
+        let reserved = candidate
+            .as_deref()
+            .map_or(0, |path| Self::spill_notice(path).len().saturating_add(1));
+        let output_budget =
+            Self::output_budget(self.truncation_policy, bare_header.len() + reserved);
+        let mut policy = Self::policy_less(self.model_output_policy(), reserved);
         let mut output = self.truncated_output_with_policy(&text, policy);
 
         // History applies this same serialization budget to the complete response.
         // Reserve room for metadata, warning headers, and the truncation marker so
         // it does not truncate an already-truncated output a second time.
         while output.len() > output_budget && policy.byte_budget() > 0 {
-            let excess_bytes = output.len() - output_budget;
-            policy = match policy {
-                TruncationPolicy::Bytes(bytes) => {
-                    TruncationPolicy::Bytes(bytes.saturating_sub(excess_bytes))
-                }
-                TruncationPolicy::Tokens(tokens) => TruncationPolicy::Tokens(
-                    tokens.saturating_sub(TruncationPolicy::Bytes(excess_bytes).token_budget()),
-                ),
-            };
+            policy = Self::policy_less(policy, output.len() - output_budget);
             output = self.truncated_output_with_policy(&text, policy);
         }
+
+        // Asked of the final policy, so this is the same question `truncated_output_with_policy`
+        // answered rather than a guess about the string it returned. The file is written once,
+        // here, and not inside the loop above, which would have written it on every pass.
+        let spilled = (text.len() > policy.byte_budget())
+            .then(|| {
+                candidate
+                    .as_deref()
+                    .and_then(|path| Self::write_spill(path, &text))
+            })
+            .flatten();
+        let header = match spilled.as_deref() {
+            Some(path) => self.response_header(&condensed, Some(path)),
+            None => bare_header,
+        };
 
         format!("{header}\n{output}")
     }
