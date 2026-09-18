@@ -2,6 +2,10 @@
 
 This repository is licensed under the [Apache-2.0 License](../LICENSE).
 
+Selling this, or anything built from it, is permitted by every licence below. What that obliges,
+and the one licence here that obliges more than the others, is in
+[commercial licensing](commercial-licensing.md).
+
 ## Third-party code
 
 Borrowed code carries its upstream licence at the top of the file that holds it, and, where the
@@ -16,6 +20,7 @@ formally.
 | [path-absolutize](https://github.com/magiclen/path-absolutize) | MIT | `codex-rs/utils/absolute-path/src/absolutize.rs` | one function, adapted |
 | [bubblewrap](https://github.com/containers/bubblewrap) | LGPL-2.0+ ([copy](../codex-rs/vendor/bubblewrap/COPYING)) | `codex-rs/vendor/bubblewrap/` | the upstream tree, vendored and built |
 | [RTK](https://github.com/rtk-ai/rtk) | Apache-2.0 ([copy](../third_party/rtk/LICENSE)) | `codex-rs/utils/output-truncation/src/lib.rs` | the never-worse guard — **the invariant is theirs, the implementation is ours** |
+| [OpenCode](https://github.com/sst/opencode) | MIT ([copy](../third_party/opencode/LICENSE)) | `codex-rs/core/src/tools/` | tool descriptions, output layouts and result limits, much of it verbatim |
 
 ### On the RTK entry
 
@@ -29,11 +34,15 @@ It is recorded here anyway. Apache-2.0 asks for attribution when a work is deriv
 and an idea taken deliberately from a named project, under the name that project gave it, is
 closer to derivation than to coincidence. The cost of saying so is three lines.
 
-### Ideas credited in source only
+### On the OpenCode entry
 
-Several tool descriptions, output layouts and limits in `codex-rs/core/src/tools/` are taken from
-[OpenCode](https://github.com/sst/opencode) and credited in the comment next to the line they
-shaped — for example the 51,200-byte output cap in `tools/context.rs`, the `grep` result layout in
-`tools/handlers/search.rs`, and the `exec_command` usage notes in `tools/handlers/shell_spec.rs`.
-Those are wording and numbers rather than code, so they carry no licence header and no `NOTICE`
-entry; the comments are the record.
+This one was wrong here until it was checked, and the correction is worth keeping visible.
+
+The 52 in-source comments crediting OpenCode were treated as sufficient on the grounds that what
+was taken was wording and numbers rather than code. But `tools/handlers/search_spec.rs` opens by
+saying the search tool descriptions were *copied* from OpenCode and that everything not named in
+the exception is *verbatim* — and OpenCode is MIT, which asks for its copyright and permission
+notice in all copies, not for prose credit. So it is in `NOTICE` now, with a licence copy under
+`third_party/opencode/`, like the rest.
+
+The comments stay. They say which line came from where, which a notice file cannot.

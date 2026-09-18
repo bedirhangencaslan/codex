@@ -5,5 +5,16 @@ This project includes code derived from [Ratatui](https://github.com/ratatui/rat
 Copyright (c) 2016-2022 Florian Dehau
 Copyright (c) 2023-2025 The Ratatui Developers
 
+This project includes tool descriptions, output layouts and result limits copied from [OpenCode](https://github.com/sst/opencode), licensed under the MIT license.
+Copyright (c) 2025 opencode
+
+This project includes code copied from [WezTerm](https://github.com/wezterm/wezterm), licensed under the MIT license.
+Copyright (c) 2018-Present Wez Furlong
+
+This project includes a function adapted from [path-absolutize](https://github.com/magiclen/path-absolutize), licensed under the MIT license.
+Copyright (c) 2018 magiclen.org (Ron Li)
+
 This project adapts the never-worse output guard from [RTK](https://github.com/rtk-ai/rtk), licensed under the Apache-2.0 license.
 Copyright 2024 rtk-ai and rtk-ai Labs
+
+On Linux only, this project compiles and distributes [bubblewrap](https://github.com/containers/bubblewrap) as a separate `bwrap` executable. bubblewrap is licensed under the GNU Library General Public License, version 2 or later; see codex-rs/vendor/bubblewrap/COPYING. That licence carries obligations the permissive ones above do not - see docs/commercial-licensing.md.
