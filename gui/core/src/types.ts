@@ -39,6 +39,8 @@ export interface SkillEntry {
   /** Tokens this skill's instruction block adds to every request prompt. */
   promptTokens: number;
   pluginId: string | null;
+  /** Absolute SKILL.md path when the wire provides it; used by skills/config/write. */
+  path: string | null;
 }
 
 export interface CommandEntry {
@@ -60,8 +62,11 @@ export interface StyleCard {
   tagline: string;
 }
 
-/** Read-only data surface the screens consume. Implementations: MockProvider
- * (fixture data) and AppServerProvider (JSON-RPC to `suffice app-server`). */
+/** Data surface the screens consume. Implementations: MockProvider (fixture
+ * data) and AppServerProvider (JSON-RPC to `suffice app-server`). The two
+ * mutating members map 1:1 onto documented endpoints — `skills/config/write`
+ * and `thread/start {ephemeral:true}` + `turn/start`; the GUI never invents
+ * model-visible input beyond the user's own command text. */
 export interface DataProvider {
   readonly kind: "mock" | "app-server";
   listThreads(): Promise<ThreadSummary[]>;
@@ -70,4 +75,10 @@ export interface DataProvider {
   listSkills(cwd: string): Promise<SkillEntry[]>;
   listCommands(): Promise<CommandEntry[]>;
   listStyles(): Promise<StyleCard[]>;
+  /** Persist a skill's enabled state. Resolves false when the backing store
+   * cannot persist (mock mode keeps it in memory only). */
+  setSkillEnabled(skill: SkillEntry, enabled: boolean): Promise<boolean>;
+  /** Run one slash command in an ephemeral thread; streams agent text via
+   * onDelta and resolves when the turn completes. Never touches history. */
+  runCommandTrial(command: string, onDelta: (text: string) => void): Promise<void>;
 }
