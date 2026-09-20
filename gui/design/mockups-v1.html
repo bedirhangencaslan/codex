@@ -11,11 +11,11 @@
 
   *{box-sizing:border-box}
   body{background:var(--pg-bg);color:var(--pg-fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:0 20px 80px}
-  .wrap{max-width:1180px;margin:0 auto}
+  .wrap{max-width:1220px;margin:0 auto}
   header.page{padding:48px 0 8px}
   .kicker{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--pg-accent)}
   h1{font-size:clamp(26px,4vw,38px);line-height:1.15;margin:.4em 0 .3em;text-wrap:balance}
-  .lede{color:var(--pg-muted);max-width:64ch;margin:0 0 8px}
+  .lede{color:var(--pg-muted);max-width:66ch;margin:0 0 8px}
   .lede b{color:var(--pg-fg)}
 
   .tabs{position:sticky;top:0;z-index:50;background:var(--pg-bg);display:flex;gap:8px;padding:16px 0;border-bottom:1px solid var(--pg-line);margin-bottom:28px;flex-wrap:wrap}
@@ -31,12 +31,13 @@
   .dirhead{display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;margin:8px 0 6px}
   .dirhead h2{font-size:24px;margin:0}
   .dirtag{font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;border-radius:4px;border:1px solid var(--pg-line);color:var(--pg-muted)}
-  .thesis{color:var(--pg-muted);max-width:70ch;margin:0 0 14px}
+  .thesis{color:var(--pg-muted);max-width:72ch;margin:0 0 14px}
+  .thesis b{color:var(--pg-fg)}
   .chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px}
   .chip{display:inline-flex;align-items:center;gap:7px;font:12px/1 ui-monospace,Menlo,monospace;border:1px solid var(--pg-line);border-radius:4px;padding:6px 10px;color:var(--pg-muted)}
   .sw{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(128,128,128,.35)}
 
-  .frame{border:1px solid var(--pg-line);border-radius:10px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.14);margin-bottom:22px}
+  .frame{border:1px solid var(--pg-line);border-radius:12px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.22);margin-bottom:22px}
   .framebar{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--pg-line);background:var(--pg-panel)}
   .dot{width:10px;height:10px;border-radius:50%;background:var(--pg-line)}
   .urlbox{font:11px/1 ui-monospace,Menlo,monospace;color:var(--pg-muted);border:1px solid var(--pg-line);border-radius:5px;padding:5px 12px;margin-left:8px}
@@ -45,73 +46,125 @@
   .caplabel{font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--pg-muted);margin:0 0 8px}
 
   /* ============ mock shared bones ============ */
-  .mock{display:flex;min-height:520px;font-size:13px}
+  .mock{display:flex;min-height:560px;font-size:13px}
   .mock,.mock *{line-height:1.45}
-  .m-side{width:196px;flex:none;display:flex;flex-direction:column;padding:14px 0}
-  .m-main{flex:1;min-width:0;padding:18px 22px}
+  .m-side{width:200px;flex:none;display:flex;flex-direction:column;padding:14px 0}
+  .m-main{flex:1;min-width:0;padding:20px 24px}
   .m-nav{display:flex;align-items:center;gap:10px;padding:8px 18px;cursor:default}
-  .m-logo{font-weight:700;letter-spacing:.02em;padding:4px 18px 14px;display:flex;align-items:center;gap:8px}
-  .m-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-  .m-title{font-size:16px;font-weight:650;margin:0}
-  .m-cards{display:flex;flex-direction:column;gap:10px}
-  .card{padding:12px 14px;cursor:default}
+  .m-logo{font-weight:700;letter-spacing:.02em;padding:4px 18px 16px;display:flex;align-items:center;gap:9px}
+  .m-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .m-title{font-size:17px;font-weight:650;margin:0}
+  .m-cards{display:flex;flex-direction:column;gap:12px}
+  .card{padding:13px 15px;cursor:default}
   .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .grow{flex:1;min-width:0}
   .num{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   .mock svg{flex:none}
 
-  /* ============ A — TERMAL ENSTRÜMAN ============ */
-  .dA .mock{background:#101318;color:#e8edf4;font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
-  .dA .m-side{background:#0c0f13;border-right:1px solid #232a35}
-  .dA .m-logo{color:#e8edf4}
-  .dA .m-logo .mark{width:18px;height:18px;border-radius:4px;background:linear-gradient(135deg,#f0a050 0%,#5b8db8 100%)}
-  .dA .m-nav{color:#8a94a6;font-weight:500;border-left:2px solid transparent}
-  .dA .m-nav.on{color:#f0a050;border-left-color:#f0a050;background:rgba(240,160,80,.06)}
-  .dA .m-nav:hover{color:#e8edf4}
-  .dA .card{background:#161b22;border:1px solid #232a35;border-radius:8px;position:relative;padding-left:18px}
-  .dA .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:8px 0 0 8px}
-  .dA .card.warm::before{background:#f0a050}
-  .dA .card.mid::before{background:#a58d6f}
-  .dA .card.cold::before{background:#5b8db8}
-  .dA .card:hover{border-color:#39445666}
-  .dA .c-title{font-weight:600;color:#e8edf4}
-  .dA .c-prev{color:#8a94a6;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
-  .dA .meta{display:flex;gap:14px;color:#8a94a6;font-size:11px;margin-top:8px;flex-wrap:wrap}
-  .dA .meta .num{color:#c9d3e0}
-  .dA .warmth{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
-  .dA .warmth i{width:3px;background:#39323a;border-radius:1px;display:block}
-  .dA .warmth i.on{background:#f0a050}
-  .dA .wc i.on{background:#5b8db8}
-  .dA .badge{font:600 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.06em;padding:4px 8px;border-radius:4px}
-  .dA .badge.inst{color:#f0a050;background:rgba(240,160,80,.12)}
-  .dA .badge.cold{color:#7fa9cf;background:rgba(91,141,184,.14)}
-  .dA .badge.ok{color:#4caf7d;background:rgba(76,175,125,.12)}
-  .dA .m-title{color:#e8edf4}
-  .dA .search{border:1px solid #232a35;background:#0c0f13;color:#8a94a6;border-radius:6px;padding:7px 12px;font-size:12px;min-width:200px}
-  .dA .btn{background:#f0a050;color:#101318;border-radius:6px;padding:8px 14px;font-weight:650;font-size:12px}
-  .dA .statline{display:flex;gap:20px;border:1px solid #232a35;background:#0d1116;border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:11px;color:#8a94a6;flex-wrap:wrap}
-  .dA .statline .num{color:#e8edf4;font-size:13px}
-  .dA .statline .lbl{display:block;letter-spacing:.08em;text-transform:uppercase;font-size:9px;margin-top:2px}
-  /* skills mock A */
-  .dA .sk{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #1c222b}
+  /* ============ A — TERMAL ENSTRÜMAN PRO ============ */
+  .dA .mock{
+    color:#e9eef6;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(900px 420px at 8% -10%, rgba(240,146,60,.14), transparent 60%),
+      radial-gradient(900px 480px at 104% 112%, rgba(78,128,178,.16), transparent 62%),
+      linear-gradient(180deg,#0d1015 0%,#0a0d12 100%);
+    position:relative;
+  }
+  .dA .mock::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+    background-size:44px 44px}
+  .dA .m-side{background:rgba(9,12,16,.72);border-right:1px solid rgba(255,255,255,.06);backdrop-filter:blur(6px);position:relative;z-index:1}
+  .dA .m-logo{color:#f2f5fa;font-size:14px}
+  .dA .m-logo .mark{width:20px;height:20px;border-radius:6px;flex:none;
+    background:conic-gradient(from 220deg,#f0923c,#f5b263,#7fa9d4,#4e80b2,#f0923c);
+    box-shadow:0 0 16px rgba(240,146,60,.45), inset 0 0 4px rgba(0,0,0,.5)}
+  .dA .m-nav{color:#7f8b9d;font-weight:500;border-left:2px solid transparent;transition:color .15s}
+  .dA .m-nav.on{color:#f5b263;border-left-color:#f0923c;background:linear-gradient(90deg,rgba(240,146,60,.12),transparent 80%)}
+  .dA .m-nav:hover{color:#e9eef6}
+  .dA .m-nav svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .dA .m-main{position:relative;z-index:1}
+  .dA .m-rail{width:252px;flex:none;border-left:1px solid rgba(255,255,255,.06);background:rgba(9,12,16,.6);backdrop-filter:blur(6px);padding:18px 16px;position:relative;z-index:1}
+  @media(max-width:980px){.dA .m-rail{display:none}}
+
+  .dA .m-title{color:#f2f5fa;letter-spacing:-.01em}
+  .dA .search{border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03);color:#7f8b9d;border-radius:8px;padding:8px 13px;font-size:12px;min-width:210px}
+  .dA .btn{background:linear-gradient(180deg,#f5a75a,#ec8a2f);color:#17110a;border-radius:8px;padding:9px 16px;font-weight:700;font-size:12px;box-shadow:0 2px 10px rgba(240,146,60,.35), inset 0 1px 0 rgba(255,255,255,.35)}
+
+  .dA .statline{display:flex;gap:0;border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));backdrop-filter:blur(4px);margin-bottom:18px}
+  .dA .stat{flex:1;padding:12px 16px;border-right:1px solid rgba(255,255,255,.06)}
+  .dA .stat:last-child{border-right:0}
+  .dA .stat .num{color:#f2f5fa;font-size:17px;font-weight:600}
+  .dA .stat .lbl{display:block;letter-spacing:.1em;text-transform:uppercase;font-size:9px;color:#7f8b9d;margin-top:3px}
+  .dA .stat.hot .num{background:linear-gradient(90deg,#f5b263,#ef9440);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .dA .spark{display:block;margin-top:6px}
+  .dA .spark polyline{fill:none;stroke:#4e80b2;stroke-width:1.6;stroke-linecap:round}
+  .dA .spark .hotline{stroke:#f0923c}
+  .dA .spark circle{fill:#f5b263}
+
+  .dA .card{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.07);border-radius:12px;position:relative;padding:13px 15px 13px 16px;
+    transition:transform .15s,border-color .15s;backdrop-filter:blur(4px)}
+  .dA .card:hover{border-color:rgba(240,146,60,.35);transform:translateY(-1px)}
+  .dA .card.sel{border-color:rgba(240,146,60,.55);box-shadow:0 0 0 1px rgba(240,146,60,.25), 0 8px 28px rgba(0,0,0,.35)}
+  .dA .c-title{font-weight:600;color:#f2f5fa;font-size:13.5px}
+  .dA .c-prev{color:#7f8b9d;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  .dA .meta{display:flex;gap:16px;align-items:center;color:#7f8b9d;font-size:11px;margin-top:9px;flex-wrap:wrap}
+  .dA .meta .num{color:#cfd8e4}
+  .dA .gauge{width:34px;height:34px;flex:none}
+  .dA .gauge .track{stroke:rgba(255,255,255,.08)}
+  .dA .gauge .val{stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
+  .dA .gauge text{font:600 8.5px ui-monospace,Menlo,monospace;fill:#e9eef6}
+  .dA .gauge.warm .val{stroke:url(#gradWarm)}
+  .dA .gauge.cold .val{stroke:#4e80b2}
+  .dA .pill{font:600 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.05em;padding:4.5px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+  .dA .pill i{width:5px;height:5px;border-radius:50%;display:inline-block}
+  .dA .pill.inst{color:#f5b263;background:rgba(240,146,60,.13);box-shadow:inset 0 0 0 1px rgba(240,146,60,.25)}
+  .dA .pill.inst i{background:#f0923c;box-shadow:0 0 6px #f0923c}
+  .dA .pill.fast{color:#8fb7de;background:rgba(78,128,178,.14);box-shadow:inset 0 0 0 1px rgba(78,128,178,.3)}
+  .dA .pill.fast i{background:#7fa9d4}
+  .dA .pill.cold{color:#7f8b9d;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+  .dA .pill.cold i{background:#566275}
+  .dA .pill.ok{color:#6fd0a0;background:rgba(76,175,125,.12);box-shadow:inset 0 0 0 1px rgba(76,175,125,.25)}
+  .dA .pill.ok i{background:#4caf7d}
+
+  .dA .railh{font:600 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.13em;text-transform:uppercase;color:#7f8b9d;margin:0 0 12px}
+  .dA .bigdial{display:flex;justify-content:center;margin:4px 0 10px}
+  .dA .bigdial svg{width:132px;height:76px}
+  .dA .dialval{font:650 20px/1 ui-monospace,Menlo,monospace;fill:#f2f5fa}
+  .dA .diallbl{font:600 8px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;fill:#7f8b9d}
+  .dA .req{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px dashed rgba(255,255,255,.06);font-size:11px}
+  .dA .req:last-child{border-bottom:0}
+  .dA .req .id{color:#7f8b9d;font-family:ui-monospace,Menlo,monospace;width:26px;flex:none}
+  .dA .req .track2{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden;display:flex}
+  .dA .req .cach{height:100%;background:linear-gradient(90deg,#f5b263,#ef9440)}
+  .dA .req .fresh{height:100%;background:#4e80b2}
+  .dA .req .pc{color:#cfd8e4;font-family:ui-monospace,Menlo,monospace;width:34px;text-align:right;flex:none}
+
+  .dA .sk{display:flex;align-items:center;gap:12px;padding:11px 15px;border-bottom:1px solid rgba(255,255,255,.05)}
   .dA .sk:last-child{border-bottom:0}
-  .dA .togg{width:30px;height:17px;border-radius:9px;background:#2a323e;position:relative;flex:none}
-  .dA .togg::after{content:"";position:absolute;width:13px;height:13px;border-radius:50%;background:#66707f;top:2px;left:2px}
-  .dA .togg.on{background:#f0a05033}
-  .dA .togg.on::after{left:15px;background:#f0a050}
-  .dA .skname{font-weight:600;font-size:12px;color:#e8edf4}
-  .dA .skdesc{color:#8a94a6;font-size:11px}
-  .dA .sktok{font-size:11px;color:#8a94a6}
-  .dA .sktok b{color:#f0a050;font-weight:600}
-  .dA .budget{padding:12px 14px;border-top:1px solid #232a35;background:#0d1116}
-  .dA .bar{height:6px;border-radius:3px;background:#1c222b;overflow:hidden;margin-top:8px}
-  .dA .bar i{display:block;height:100%;width:34%;background:linear-gradient(90deg,#5b8db8,#f0a050);border-radius:3px}
-  /* commands mock A */
-  .dA .cmd{display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid #1c222b;align-items:baseline}
-  .dA .cmd:last-child{border-bottom:0}
-  .dA .cmd code{font:600 12px/1.4 ui-monospace,Menlo,monospace;color:#f0a050;background:rgba(240,160,80,.08);padding:3px 8px;border-radius:4px;flex:none}
-  .dA .cmd span{color:#8a94a6;font-size:12px}
-  .dA .cmd .try{margin-left:auto;color:#5b8db8;font-size:11px;font-weight:600;flex:none}
+  .dA .togg{width:32px;height:18px;border-radius:10px;background:rgba(255,255,255,.09);position:relative;flex:none;transition:background .15s}
+  .dA .togg::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#66707f;top:2px;left:2px;transition:left .15s}
+  .dA .togg.on{background:rgba(240,146,60,.3)}
+  .dA .togg.on::after{left:16px;background:linear-gradient(180deg,#f5b263,#ec8a2f);box-shadow:0 0 8px rgba(240,146,60,.6)}
+  .dA .skname{font-weight:600;font-size:12.5px;color:#f2f5fa}
+  .dA .skdesc{color:#7f8b9d;font-size:11px}
+  .dA .sktok{font-size:11px;color:#7f8b9d}
+  .dA .sktok b{color:#f5b263;font-weight:600}
+  .dA .budget{padding:13px 15px;border-top:1px solid rgba(255,255,255,.07);background:rgba(9,12,16,.5)}
+  .dA .bar{height:7px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden;margin-top:8px}
+  .dA .bar i{display:block;height:100%;width:13%;background:linear-gradient(90deg,#4e80b2,#f0923c);border-radius:4px;box-shadow:0 0 10px rgba(240,146,60,.4)}
+
+  .dA .cmdgrid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  @media(max-width:700px){.dA .cmdgrid{grid-template-columns:1fr}}
+  .dA .cmd{display:flex;flex-direction:column;gap:5px;padding:13px 15px;border-bottom:1px solid rgba(255,255,255,.05)}
+  .dA .cmdgrid .cmd:nth-child(odd){border-right:1px solid rgba(255,255,255,.05)}
+  .dA .cmd code{font:600 12.5px/1.4 ui-monospace,Menlo,monospace;color:#f5b263}
+  .dA .cmd span{color:#7f8b9d;font-size:11.5px}
+  .dA .cmd .try{color:#8fb7de;font-size:10.5px;font-weight:600;letter-spacing:.04em}
+
+  .dA .mockcol{min-height:0;display:block;color:#e9eef6;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(500px 200px at 0% -20%, rgba(240,146,60,.1), transparent 60%),linear-gradient(180deg,#0d1015,#0a0d12)}
 
   /* ============ B — BLUEPRINT DEFTERİ ============ */
   .dB .mock{background:#eef1f4;color:#232a33;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -148,7 +201,7 @@
   .dB .sktok b{color:#b3541e;font-weight:700}
   .dB .budget{padding:12px 14px;border-top:1.5px solid #1e3a5f;background:#e6eaef;font:11px ui-monospace,Menlo,monospace;color:#5d6a79}
   .dB .bar{height:8px;border:1px solid #1e3a5f;background:#fbfcfd;margin-top:8px}
-  .dB .bar i{display:block;height:100%;width:34%;background:repeating-linear-gradient(45deg,#1e3a5f,#1e3a5f 3px,#fbfcfd 3px,#fbfcfd 6px)}
+  .dB .bar i{display:block;height:100%;width:13%;background:repeating-linear-gradient(45deg,#1e3a5f,#1e3a5f 3px,#fbfcfd 3px,#fbfcfd 6px)}
   .dB .cmd{display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid #d4dbe3;align-items:baseline}
   .dB .cmd:last-child{border-bottom:0}
   .dB .cmd code{font:700 12px/1.4 ui-monospace,Menlo,monospace;color:#1e3a5f;border-bottom:2px solid #1e3a5f;flex:none}
@@ -193,44 +246,53 @@
   .dC .cmd span{color:#5e6a62;font-size:11.5px}
   .dC .cmd .try{margin-left:auto;color:#33d17a;font-size:11px;flex:none}
 
-  .panel{border:1px solid var(--pg-line);border-radius:10px;overflow:hidden;background:var(--pg-panel)}
-  .panel .mockpad{padding:0}
+  .panel{border:1px solid var(--pg-line);border-radius:12px;overflow:hidden;background:var(--pg-panel)}
   .panel h4{margin:0;padding:12px 14px;border-bottom:1px solid var(--pg-line);font-size:13px}
   .panel h4 small{color:var(--pg-muted);font-weight:400}
 
-  /* karşılaştırma + karar */
   table.cmp{width:100%;border-collapse:collapse;font-size:14px;margin:16px 0 8px}
   .cmp th,.cmp td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--pg-line);vertical-align:top}
   .cmp th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted)}
-  .decide{border:1px solid var(--pg-accent);border-radius:10px;padding:20px 24px;margin-top:28px;background:color-mix(in srgb,var(--pg-accent) 6%,var(--pg-panel))}
+  .decide{border:1px solid var(--pg-accent);border-radius:12px;padding:20px 24px;margin-top:28px;background:color-mix(in srgb,var(--pg-accent) 6%,var(--pg-panel))}
   .decide h3{margin:0 0 8px}
   section.meta-note{margin-top:40px;color:var(--pg-muted);font-size:13px;border-top:1px solid var(--pg-line);padding-top:16px}
 </style>
 
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="gradWarm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f5b263"/><stop offset="1" stop-color="#ec8a2f"/>
+    </linearGradient>
+    <linearGradient id="gradDial" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4e80b2"/><stop offset=".55" stop-color="#7fa9d4"/><stop offset="1" stop-color="#f0923c"/>
+    </linearGradient>
+  </defs>
+</svg>
+
 <div class="wrap">
 <header class="page">
-  <p class="kicker">Suffice GUI · Faz 0 · Tasarım Yönü Onayı</p>
+  <p class="kicker">Suffice GUI · Faz 0 · Tasarım Yönü Onayı · v2</p>
   <h1>Üç yön, tek karar: Suffice'in yüzü hangisi?</h1>
-  <p class="lede">Her yön için <b>Oturumlar</b> ana ekranı (tam mockup), <b>Skill Seçici</b> ve <b>Komut Eğitimi</b> panelleri gerçek proje verisiyle kuruldu — oturum başlıkları gerçek commit'lerden, maliyet/cache rakamları <code>_sim/FINDINGS.md</code>'deki ölçümlerden, komutlar <code>slash_command.rs</code>'den. Stil Galerisi ekranının konsepti sayfanın sonunda. İçerik İngilizce çünkü ürün dili İngilizce.</p>
+  <p class="lede">v2 revizyonu: <b>A yönü baştan işlendi</b> — düz "Linear klonu" görünümünden çıkarılıp katmanlı, ışımalı, gösterge-yoğun bir enstrüman paneline dönüştürüldü: termal ışıma zemini, dairesel cache göstergeleri, sparkline'lar ve seçili oturumun istek-zaman-çizelgesini gösteren sağ rail. Tüm veriler gerçek: başlıklar commit'lerden, rakamlar <code>_sim/FINDINGS.md</code>'den, komutlar <code>slash_command.rs</code>'den.</p>
 </header>
 
 <div class="tabs" role="tablist" aria-label="Tasarım yönleri">
-  <button class="tab" role="tab" aria-selected="true" data-dir="A">A — Termal Enstrüman</button>
+  <button class="tab" role="tab" aria-selected="true" data-dir="A">A — Termal Enstrüman Pro</button>
   <button class="tab" role="tab" aria-selected="false" data-dir="B">B — Blueprint Defteri</button>
   <button class="tab" role="tab" aria-selected="false" data-dir="C">C — Abis Terminali</button>
 </div>
 
 <!-- ========================= A ========================= -->
 <section class="dir dA active" id="dir-A" role="tabpanel">
-  <div class="dirhead"><h2>A — Termal Enstrüman</h2><span class="dirtag">Önerilen · koyu · yoğun</span></div>
-  <p class="thesis">Suffice'in kendi kimliğinden türetildi: ürünün en özgün kavramı <b>cache sıcaklığı</b> (⚡ Instant / ● Fast / ◌ Warming up). Sıcak↔soğuk termal eksen tüm arayüzün renk dili oluyor — kehribar = sıcak cache/aktif, buz mavisi = soğuk/bekliyor. Grafit zemin (saf siyah değil), incecik çizgiler, tabular rakamlar. Referanslar: Linear "midnight precision instrument" + uçak kokpit göstergeleri.</p>
+  <div class="dirhead"><h2>A — Termal Enstrüman Pro</h2><span class="dirtag">Önerilen · koyu · katmanlı ışıma</span></div>
+  <p class="thesis">Ürünün kendi kavramı olan <b>cache sıcaklığı</b> arayüzün fiziği oluyor: zeminde köşelerden sızan sıcak↔soğuk ışıma, her oturum kartında cached-oranını gösteren <b>dairesel gösterge</b>, sağ rail'de seçili oturumun istek istek <b>sıcak/soğuk şeridi</b>. Cam yüzeyler (blur + degrade), tek yerde parlayan turuncu; gerisi disiplinli gri-mavi. Linear'dan daha sıcak, daha derinlikli, daha "alet paneli".</p>
   <div class="chips">
-    <span class="chip"><i class="sw" style="background:#101318"></i>zemin #101318</span>
-    <span class="chip"><i class="sw" style="background:#161b22"></i>panel #161B22</span>
-    <span class="chip"><i class="sw" style="background:#f0a050"></i>sıcak #F0A050</span>
-    <span class="chip"><i class="sw" style="background:#5b8db8"></i>soğuk #5B8DB8</span>
+    <span class="chip"><i class="sw" style="background:#0d1015"></i>zemin #0D1015</span>
+    <span class="chip"><i class="sw" style="background:#f0923c"></i>sıcak #F0923C</span>
+    <span class="chip"><i class="sw" style="background:#4e80b2"></i>soğuk #4E80B2</span>
     <span class="chip"><i class="sw" style="background:#4caf7d"></i>başarı #4CAF7D</span>
     <span class="chip">IBM Plex Sans + JetBrains Mono</span>
+    <span class="chip">cam yüzey · blur 6px · radius 12</span>
   </div>
 
   <div class="frame">
@@ -238,48 +300,92 @@
     <div class="mock">
       <nav class="m-side">
         <div class="m-logo"><span class="mark"></span>suffice</div>
-        <div class="m-nav on">Sessions</div>
-        <div class="m-nav">Skills</div>
-        <div class="m-nav">Commands</div>
-        <div class="m-nav">Styles</div>
+        <div class="m-nav on"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Sessions</div>
+        <div class="m-nav"><svg viewBox="0 0 24 24"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg>Skills</div>
+        <div class="m-nav"><svg viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M13 17h6"/></svg>Commands</div>
+        <div class="m-nav"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>Styles</div>
         <div style="flex:1"></div>
         <div class="m-nav num" style="font-size:11px">glm-5.3-flash · zai</div>
       </nav>
       <main class="m-main">
         <div class="m-h">
-          <h3 class="m-title">Sessions <span style="color:#8a94a6;font-weight:400">· ~/codex</span></h3>
-          <div class="row"><span class="search">Search threads…</span><span class="btn">New session</span></div>
+          <h3 class="m-title">Sessions <span style="color:#7f8b9d;font-weight:400">· ~/codex</span></h3>
+          <div class="row"><span class="search">Search threads…   ⌘K</span><span class="btn">＋ New session</span></div>
         </div>
         <div class="statline">
-          <span><span class="num">$0.41</span><span class="lbl">bu hafta</span></span>
-          <span><span class="num">87%</span><span class="lbl">ort. cached</span></span>
-          <span><span class="num">312k</span><span class="lbl">fresh token</span></span>
-          <span><span class="num">14</span><span class="lbl">oturum</span></span>
-          <span style="margin-left:auto"><span class="num" style="color:#f0a050">⚡ cache warm</span><span class="lbl">şu an</span></span>
+          <div class="stat hot"><span class="num">$0.4109</span><span class="lbl">bu hafta</span>
+            <svg class="spark" width="86" height="16" viewBox="0 0 86 16"><polyline class="hotline" points="0,13 12,11 24,12 36,8 48,9 60,5 72,6 84,3"/><circle cx="84" cy="3" r="2"/></svg></div>
+          <div class="stat"><span class="num">87%</span><span class="lbl">ort. cached</span>
+            <svg class="spark" width="86" height="16" viewBox="0 0 86 16"><polyline points="0,10 12,8 24,11 36,6 48,7 60,4 72,5 84,4"/></svg></div>
+          <div class="stat"><span class="num">312k</span><span class="lbl">fresh token</span></div>
+          <div class="stat"><span class="num">14</span><span class="lbl">oturum</span></div>
+          <div class="stat"><span class="num" style="color:#f5b263">⚡ warm</span><span class="lbl">cache · 420s ttl</span></div>
         </div>
         <div class="m-cards">
-          <div class="card warm">
-            <div class="row"><span class="c-title grow">Reproduce the licences this repository actually ships</span><span class="badge inst">⚡ INSTANT</span></div>
-            <div class="c-prev">NOTICE now names OpenCode, WezTerm, path-absolutize and bubblewrap; commercial-licensing.md written…</div>
-            <div class="meta"><span class="num">$0.0311</span><span><span class="num">91%</span> cached</span><span><span class="num">27</span> req</span><span class="warmth"><i style="height:4px" class="on"></i><i style="height:7px" class="on"></i><i style="height:10px" class="on"></i><i style="height:12px" class="on"></i></span><span style="margin-left:auto">44 dk önce</span></div>
+          <div class="card sel">
+            <div class="row">
+              <svg class="gauge warm" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"/><circle class="val" cx="18" cy="18" r="15" fill="none" stroke-width="3" stroke-dasharray="85.8 94.2"/><text x="18" y="21" text-anchor="middle">91</text></svg>
+              <span class="grow"><span class="c-title">Reproduce the licences this repository actually ships</span>
+              <span class="c-prev">NOTICE now names OpenCode, WezTerm, path-absolutize and bubblewrap; commercial-licensing.md written…</span></span>
+              <span class="pill inst"><i></i>INSTANT</span>
+            </div>
+            <div class="meta"><span class="num">$0.0311</span><span><span class="num">27</span> req</span><span><span class="num">0</span> compaction</span><span style="margin-left:auto">44 dk önce</span></div>
           </div>
-          <div class="card warm">
-            <div class="row"><span class="c-title grow">wire: cite all 44 codex-api files in WIRE.md</span><span class="badge ok">44/44 CITED</span></div>
-            <div class="c-prev">rep40 — 11 requests, every read bounded, median window 37 lines, zero compactions.</div>
-            <div class="meta"><span class="num">$0.0085</span><span><span class="num">87%</span> cached</span><span><span class="num">11</span> req</span><span class="warmth"><i style="height:5px" class="on"></i><i style="height:8px" class="on"></i><i style="height:11px" class="on"></i><i style="height:12px"></i></span><span style="margin-left:auto">2 sa önce</span></div>
+          <div class="card">
+            <div class="row">
+              <svg class="gauge warm" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"/><circle class="val" cx="18" cy="18" r="15" fill="none" stroke-width="3" stroke-dasharray="82 94.2"/><text x="18" y="21" text-anchor="middle">87</text></svg>
+              <span class="grow"><span class="c-title">wire: cite all 44 codex-api files in WIRE.md</span>
+              <span class="c-prev">rep40 — 11 requests, every read bounded, median window 37 lines, zero compactions.</span></span>
+              <span class="pill ok"><i></i>44/44 CITED</span>
+            </div>
+            <div class="meta"><span class="num">$0.0085</span><span><span class="num">11</span> req</span><span><span class="num">0</span> compaction</span><span style="margin-left:auto">2 sa önce</span></div>
           </div>
-          <div class="card mid">
-            <div class="row"><span class="c-title grow">Keep the prompt cache warm while a tool call runs</span><span class="badge inst">● FAST</span></div>
-            <div class="c-prev">KeepAliveHold guard covers the whole dispatch; 420 s interval from the measured Z.ai TTL.</div>
-            <div class="meta"><span class="num">$0.0177</span><span><span class="num">64%</span> cached</span><span><span class="num">18</span> req</span><span class="warmth"><i style="height:5px" class="on"></i><i style="height:8px" class="on"></i><i style="height:11px"></i><i style="height:12px"></i></span><span style="margin-left:auto">dün</span></div>
+          <div class="card">
+            <div class="row">
+              <svg class="gauge warm" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"/><circle class="val" cx="18" cy="18" r="15" fill="none" stroke-width="3" stroke-dasharray="60.3 94.2"/><text x="18" y="21" text-anchor="middle">64</text></svg>
+              <span class="grow"><span class="c-title">Keep the prompt cache warm while a tool call runs</span>
+              <span class="c-prev">KeepAliveHold guard covers the whole dispatch; 420 s interval from the measured Z.ai TTL.</span></span>
+              <span class="pill fast"><i></i>FAST</span>
+            </div>
+            <div class="meta"><span class="num">$0.0177</span><span><span class="num">18</span> req</span><span><span class="num">1</span> compaction</span><span style="margin-left:auto">dün</span></div>
           </div>
-          <div class="card cold">
-            <div class="row"><span class="c-title grow">Route bulk extraction to a script instead of grep</span><span class="badge cold">◌ COLD</span></div>
-            <div class="c-prev">grep stops at 100 matches; 6 of 10 runs wrote the script anyway and paid twice for 352 values.</div>
-            <div class="meta"><span class="num">$0.0094</span><span><span class="num">12%</span> cached</span><span><span class="num">8</span> req</span><span class="warmth wc"><i style="height:5px" class="on"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:12px"></i></span><span style="margin-left:auto">3 gün önce</span></div>
+          <div class="card">
+            <div class="row">
+              <svg class="gauge cold" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"/><circle class="val" cx="18" cy="18" r="15" fill="none" stroke-width="3" stroke-dasharray="11.3 94.2"/><text x="18" y="21" text-anchor="middle">12</text></svg>
+              <span class="grow"><span class="c-title">Route bulk extraction to a script instead of grep</span>
+              <span class="c-prev">grep stops at 100 matches; 6 of 10 runs wrote the script anyway and paid twice for 352 values.</span></span>
+              <span class="pill cold"><i></i>COLD</span>
+            </div>
+            <div class="meta"><span class="num">$0.0094</span><span><span class="num">8</span> req</span><span><span class="num">0</span> compaction</span><span style="margin-left:auto">3 gün önce</span></div>
           </div>
         </div>
       </main>
+      <aside class="m-rail">
+        <p class="railh">Seçili Oturum · Nº 116</p>
+        <div class="bigdial">
+          <svg viewBox="0 0 132 76">
+            <path d="M12 68 A54 54 0 0 1 120 68" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round"/>
+            <path d="M12 68 A54 54 0 0 1 111 41" fill="none" stroke="url(#gradDial)" stroke-width="7" stroke-linecap="round"/>
+            <text class="dialval" x="66" y="58" text-anchor="middle">91%</text>
+            <text class="diallbl" x="66" y="72" text-anchor="middle">CACHED INPUT</text>
+          </svg>
+        </div>
+        <p class="railh" style="margin-top:14px">İstek Zaman Çizelgesi</p>
+        <div class="req"><span class="id">01</span><span class="track2"><span class="fresh" style="width:100%"></span></span><span class="pc">0%</span></div>
+        <div class="req"><span class="id">02</span><span class="track2"><span class="cach" style="width:71%"></span><span class="fresh" style="width:29%"></span></span><span class="pc">71%</span></div>
+        <div class="req"><span class="id">03</span><span class="track2"><span class="cach" style="width:84%"></span><span class="fresh" style="width:16%"></span></span><span class="pc">84%</span></div>
+        <div class="req"><span class="id">04</span><span class="track2"><span class="cach" style="width:92%"></span><span class="fresh" style="width:8%"></span></span><span class="pc">92%</span></div>
+        <div class="req"><span class="id">05</span><span class="track2"><span class="cach" style="width:95%"></span><span class="fresh" style="width:5%"></span></span><span class="pc">95%</span></div>
+        <div class="req"><span class="id">…</span><span class="track2"><span class="cach" style="width:96%"></span><span class="fresh" style="width:4%"></span></span><span class="pc">96%</span></div>
+        <div class="req"><span class="id">27</span><span class="track2"><span class="cach" style="width:97%"></span><span class="fresh" style="width:3%"></span></span><span class="pc">97%</span></div>
+        <p class="railh" style="margin-top:16px">Özet</p>
+        <div style="font-size:11px;color:#7f8b9d;display:grid;grid-template-columns:auto 1fr;gap:4px 12px">
+          <span>fresh</span><span class="num" style="color:#cfd8e4;text-align:right">21,406 tok</span>
+          <span>cached</span><span class="num" style="color:#f5b263;text-align:right">216,714 tok</span>
+          <span>output</span><span class="num" style="color:#cfd8e4;text-align:right">9,882 tok</span>
+          <span>keep-alive</span><span class="num" style="color:#cfd8e4;text-align:right">3 · $0.0004</span>
+        </div>
+      </aside>
     </div>
   </div>
 
@@ -288,27 +394,28 @@
       <p class="caplabel">Skill Seçici — proje başına, token maliyeti görünür</p>
       <div class="panel">
         <h4>Skills · ~/codex <small>— prompt'a giren her blok ölçülür</small></h4>
-        <div class="mock" style="min-height:0;display:block;background:#101318;color:#e8edf4" >
-          <div class="dAwrap">
-            <div class="sk"><span class="togg on"></span><span class="grow"><span class="skname">code-review</span><br><span class="skdesc">review a PR with verified findings</span></span><span class="sktok num">+<b>412</b> tok</span></div>
-            <div class="sk"><span class="togg on"></span><span class="grow"><span class="skname">babysit-pr</span><br><span class="skdesc">watch CI, fix failures until green</span></span><span class="sktok num">+<b>287</b> tok</span></div>
-            <div class="sk"><span class="togg"></span><span class="grow"><span class="skname">imagegen</span><br><span class="skdesc">generate images via API</span></span><span class="sktok num">+<b>1,104</b> tok</span></div>
-            <div class="sk"><span class="togg"></span><span class="grow"><span class="skname">skill-installer</span><br><span class="skdesc">install skills from a repo</span></span><span class="sktok num">+<b>934</b> tok</span></div>
-            <div class="budget"><span style="font-size:11px;color:#8a94a6">Prompt yükü: <span class="num" style="color:#e8edf4">699</span> / 5,592 token — <span style="color:#4caf7d">%87 hafifledi</span></span><div class="bar"><i></i></div></div>
-          </div>
+        <div class="mock mockcol">
+          <div class="sk"><span class="togg on"></span><span class="grow"><span class="skname">code-review</span><br><span class="skdesc">review a PR with verified findings</span></span><span class="sktok num">+<b>412</b> tok</span></div>
+          <div class="sk"><span class="togg on"></span><span class="grow"><span class="skname">babysit-pr</span><br><span class="skdesc">watch CI, fix failures until green</span></span><span class="sktok num">+<b>287</b> tok</span></div>
+          <div class="sk"><span class="togg"></span><span class="grow"><span class="skname">imagegen</span><br><span class="skdesc">generate images via API</span></span><span class="sktok num">+<b>1,104</b> tok</span></div>
+          <div class="sk"><span class="togg"></span><span class="grow"><span class="skname">skill-installer</span><br><span class="skdesc">install skills from a repo</span></span><span class="sktok num">+<b>934</b> tok</span></div>
+          <div class="budget"><span style="font-size:11px;color:#7f8b9d">Prompt yükü: <span class="num" style="color:#f2f5fa">699</span> / 5,592 token — <span style="color:#6fd0a0">%87 hafif</span></span><div class="bar"><i></i></div></div>
         </div>
       </div>
     </div>
     <div>
-      <p class="caplabel">Komut Eğitimi — gerçek /komutlar, güvenli deneme</p>
+      <p class="caplabel">Komut Eğitimi — kart ızgarası, güvenli deneme</p>
       <div class="panel">
         <h4>Commands <small>— ephemeral thread'de dene, geçmişe yazılmaz</small></h4>
-        <div class="mock" style="min-height:0;display:block;background:#101318;color:#e8edf4">
-          <div class="cmd"><code>/review</code><span>review my current changes and find issues</span><span class="try">Dene →</span></div>
-          <div class="cmd"><code>/compact</code><span>summarize conversation to prevent hitting the context limit</span><span class="try">Dene →</span></div>
-          <div class="cmd"><code>/fork</code><span>fork the current chat</span><span class="try">Dene →</span></div>
-          <div class="cmd"><code>/status</code><span>show current session configuration and token usage</span><span class="try">Dene →</span></div>
-          <div class="cmd"><code>/skills</code><span>use skills to improve how Suffice performs tasks</span><span class="try">Dene →</span></div>
+        <div class="mock mockcol">
+          <div class="cmdgrid">
+            <div class="cmd"><code>/review</code><span>review my current changes and find issues</span><span class="try">DENE ↵</span></div>
+            <div class="cmd"><code>/compact</code><span>summarize conversation to prevent context limit</span><span class="try">DENE ↵</span></div>
+            <div class="cmd"><code>/fork</code><span>fork the current chat</span><span class="try">DENE ↵</span></div>
+            <div class="cmd"><code>/status</code><span>show session configuration and token usage</span><span class="try">DENE ↵</span></div>
+            <div class="cmd"><code>/skills</code><span>use skills to improve specific tasks</span><span class="try">DENE ↵</span></div>
+            <div class="cmd"><code>/diff</code><span>show git diff (including untracked files)</span><span class="try">DENE ↵</span></div>
+          </div>
         </div>
       </div>
     </div>
@@ -318,11 +425,10 @@
 <!-- ========================= B ========================= -->
 <section class="dir dB" id="dir-B" role="tabpanel">
   <div class="dirhead"><h2>B — Blueprint Defteri</h2><span class="dirtag">Açık tema · mühendislik çizimi</span></div>
-  <p class="thesis">Karşıt sav: her AI geliştirici aracı koyu — <b>açık tema burada ayırt edici olan</b>. Teknik resim kağıdı üzerinde mühendislik defteri: milimetrik ızgara zemin, çini mavisi mürekkep, kesikli pafta çerçeveleri, damga görünümlü durum etiketleri, monospace etiketler. Ölçüm-ve-kanıt kültürünü (FINDINGS.md) "laboratuvar defteri" olarak görselleştirir. Referanslar: Dovetail "blueprint grid", Ui "clinical blueprint on frosted paper".</p>
+  <p class="thesis">Karşıt sav: her AI geliştirici aracı koyu — <b>açık tema burada ayırt edici olan</b>. Teknik resim kağıdı üzerinde mühendislik defteri: milimetrik ızgara zemin, çini mavisi mürekkep, kesikli pafta çerçeveleri, damga görünümlü durum etiketleri. Ölçüm-ve-kanıt kültürünü (FINDINGS.md) "laboratuvar defteri" olarak görselleştirir. Referanslar: Dovetail "blueprint grid", Ui "clinical blueprint on frosted paper".</p>
   <div class="chips">
     <span class="chip"><i class="sw" style="background:#eef1f4"></i>kağıt #EEF1F4</span>
     <span class="chip"><i class="sw" style="background:#1e3a5f"></i>mürekkep #1E3A5F</span>
-    <span class="chip"><i class="sw" style="background:#232a33"></i>metin #232A33</span>
     <span class="chip"><i class="sw" style="background:#b3541e"></i>kalem #B3541E</span>
     <span class="chip"><i class="sw" style="background:#2e7d4f"></i>onay #2E7D4F</span>
     <span class="chip">IBM Plex Mono + Source Sans 3</span>
@@ -402,12 +508,11 @@
 <!-- ========================= C ========================= -->
 <section class="dir dC" id="dir-C" role="tabpanel">
   <div class="dirhead"><h2>C — Abis Terminali</h2><span class="dirtag">OLED siyah · çift fosfor</span></div>
-  <p class="thesis">Terminalin doğal uzantısı: CLI kullanıcısı GUI'ye geçtiğinde yabancılık hissetmesin. Saf siyah zemin, <b>çift fosfor</b> paleti — P1 yeşili (aktif/çalışıyor) + P3 kehribarı (komutlar/vurgu) — tek-yeşil "hacker" klişesinden kaçınmak için. Tamamı monospace, köşeler sıfır, kesikli ASCII ayraçlar. Referanslar: Auros "abyssal terminal", Resend'in siyah zarafeti. Risk: üçü içinde en muhafazakâr olanı; ayırt edicilik çift fosfor disiplinine bağlı.</p>
+  <p class="thesis">Terminalin doğal uzantısı: CLI kullanıcısı GUI'ye geçtiğinde yabancılık hissetmesin. Saf siyah zemin, <b>çift fosfor</b> paleti — P1 yeşili (aktif/çalışıyor) + P3 kehribarı (komutlar/vurgu). Tamamı monospace, köşeler sıfır, kesikli ASCII ayraçlar. Referanslar: Auros "abyssal terminal". Risk: üçü içinde en muhafazakâr olan; ayırt edicilik çift fosfor disiplinine bağlı.</p>
   <div class="chips">
     <span class="chip"><i class="sw" style="background:#050607"></i>abis #050607</span>
     <span class="chip"><i class="sw" style="background:#33d17a"></i>fosfor P1 #33D17A</span>
     <span class="chip"><i class="sw" style="background:#ffb000"></i>fosfor P3 #FFB000</span>
-    <span class="chip"><i class="sw" style="background:#c8d2cc"></i>metin #C8D2CC</span>
     <span class="chip">JetBrains Mono (tek aile)</span>
   </div>
 
@@ -483,19 +588,19 @@
 <!-- ========================= ORTAK ========================= -->
 <section>
   <h2 style="margin-top:8px">Stil Galerisi ekranı nasıl çalışacak?</h2>
-  <p class="lede" style="max-width:76ch">Dördüncü ekran (Styles), refero.design tarzı bir galeri: her stil kartında canlı mini önizleme (o stilin token'larıyla render edilmiş küçük bir Sessions ekranı), altında stilin adı ve karakter cümlesi. Kaynaklar: UI-UX Pro Max'ın 79 stillik yerel veritabanı + refero profilleri. Kullanıcı bir stile tıklayınca GUI'nin design token katmanı (CSS custom properties) o stile geçer — yani bu sayfada gördüğünüz A/B/C yönleri, galerinin ilk üç kartı olur ve galeri sonradan büyür. Tema değişimi anlıktır, oturum verisine dokunmaz.</p>
+  <p class="lede" style="max-width:76ch">Dördüncü ekran (Styles), refero.design tarzı bir galeri: her stil kartında canlı mini önizleme (o stilin token'larıyla render edilmiş küçük bir Sessions ekranı), altında stilin adı ve karakter cümlesi. Kaynaklar: UI-UX Pro Max'ın 79 stillik yerel veritabanı + refero profilleri. Bir stile tıklayınca GUI'nin design-token katmanı (CSS custom properties) anlık değişir; bu sayfadaki A/B/C yönleri galerinin ilk üç kartı olur. Tema değişimi oturum verisine dokunmaz.</p>
 
   <table class="cmp">
-    <tr><th></th><th>A — Termal Enstrüman</th><th>B — Blueprint Defteri</th><th>C — Abis Terminali</th></tr>
-    <tr><td><b>Kimlik iddiası</b></td><td>Ürünün kendi kavramından (cache sıcaklığı) doğuyor — en "Suffice" olan</td><td>Tüm rakipler koyuyken açık tema; ölçüm-defteri kültürü</td><td>CLI kullanıcısına sıfır yabancılık</td></tr>
-    <tr><td><b>Risk</b></td><td>Termal renk disiplini tutarlılık ister</td><td>Koyu tema bekleyen kullanıcıyı şaşırtabilir (dark varyantı Faz 1'de eklenir)</td><td>"Terminal teması" klişesine en yakın</td></tr>
-    <tr><td><b>Yoğun veri ekranları</b></td><td>Çok iyi (tabular, metreler)</td><td>İyi (çizim çerçeveleri yer yiyor)</td><td>Çok iyi</td></tr>
+    <tr><th></th><th>A — Termal Enstrüman Pro</th><th>B — Blueprint Defteri</th><th>C — Abis Terminali</th></tr>
+    <tr><td><b>Kimlik iddiası</b></td><td>Ürünün kendi kavramından (cache sıcaklığı) doğuyor; ışıma + gösterge diliyle artık görsel olarak da iddialı</td><td>Tüm rakipler koyuyken açık tema; ölçüm-defteri kültürü</td><td>CLI kullanıcısına sıfır yabancılık</td></tr>
+    <tr><td><b>Risk</b></td><td>Işıma/blur disiplinsiz kullanılırsa yorucu olur — tek vurgu kuralıyla dizginlendi</td><td>Koyu tema bekleyen kullanıcıyı şaşırtabilir</td><td>"Terminal teması" klişesine en yakın</td></tr>
+    <tr><td><b>Yoğun veri ekranları</b></td><td>Çok iyi (göstergeler, tabular, rail)</td><td>İyi</td><td>Çok iyi</td></tr>
     <tr><td><b>VS Code webview uyumu</b></td><td>Doğal</td><td>Editör temasıyla çelişebilir</td><td>Doğal</td></tr>
   </table>
 
   <div class="decide">
     <h3>Karar bekleniyor</h3>
-    <p style="margin:0 0 6px">Önerim <b>A — Termal Enstrüman</b>: kimliği ürünün kendi ölçüm kültüründen geliyor, üç platformda da (web / Tauri / VS Code) doğal duruyor ve B ile C'nin en iyi parçaları (mono rakam disiplini, komut dili) içine taşınabilir. Ama karar sizin — bir yönü seçin, iki yönü karıştırmamı isteyin ya da değişiklik notu verin; seçilen yön Faz 1'de gerçek design-token dosyasına dönüşecek.</p>
+    <p style="margin:0 0 6px">Önerim <b>A — Termal Enstrüman Pro</b>: v2'de görsel iddia belirgin şekilde yükseltildi — katmanlı cam yüzeyler, termal ışıma, dairesel cache göstergeleri ve istek-zaman-çizelgesi raili ile artık Linear'ın yanına değil, önüne koyulacak bir kimlik. Beğendiyseniz "A onay" deyin; ışıma dozunu artır/azalt, rail'i kaldır, renkleri kaydır gibi notlarınız varsa uygularım. Seçilen yön Faz 1'de gerçek design-token dosyasına dönüşecek.</p>
   </div>
 </section>
 
