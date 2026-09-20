@@ -34,11 +34,7 @@ SOURCE: /[\s\S]+/
             image_detail_visibility,
         ),
         defer_loading: None,
-        format: FreeformToolFormat {
-            r#type: "grammar".to_string(),
-            syntax: "lark".to_string(),
-            definition: CODE_MODE_FREEFORM_GRAMMAR.to_string(),
-        },
+        format: FreeformToolFormat::lark(CODE_MODE_FREEFORM_GRAMMAR.to_string()),
     })
 }
 
@@ -79,10 +75,8 @@ mod tests {
                     ImageDetailVisibility::Visible,
                 ),
                 defer_loading: None,
-                format: FreeformToolFormat {
-                    r#type: "grammar".to_string(),
-                    syntax: "lark".to_string(),
-                    definition: r#"
+                format: FreeformToolFormat::lark(
+                    r#"
 start: pragma_source | plain_source
 pragma_source: PRAGMA_LINE NEWLINE SOURCE
 plain_source: SOURCE
@@ -92,7 +86,7 @@ NEWLINE: /\r?\n/
 SOURCE: /[\s\S]+/
 "#
                     .to_string(),
-                },
+                ),
             })
         );
     }

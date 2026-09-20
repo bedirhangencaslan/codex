@@ -305,10 +305,23 @@ pub enum ConfigShellToolType {
     Disabled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS, JsonSchema)]
+/// How a model is taught the `apply_patch` patch format.
+///
+/// The two variants are exclusive on purpose: the grammar constrains sampling so the format
+/// cannot be violated, while the prose only advises and can be ignored. Shipping both spends
+/// the same explanation twice in every request's fixed prefix, so `model_info` strips the
+/// instructions' `## apply_patch` section for `Freeform` and supplies it for `Prose`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, TS, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ApplyPatchToolType {
+    /// Custom tool carrying the Lark CFG. Requires a provider that honours grammar-constrained
+    /// decoding on the Responses API; where it is not honoured the model is left with no
+    /// description of the format at all, which is why the choice is per model.
+    #[default]
     Freeform,
+    /// Custom tool with `format: {"type": "text"}` and no grammar. For providers that accept
+    /// custom tools but ignore or reject a CFG.
+    Prose,
 }
 
 #[derive(

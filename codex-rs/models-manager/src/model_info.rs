@@ -1,5 +1,6 @@
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::ReasoningSummary;
+use codex_protocol::openai_models::ApplyPatchToolType;
 use codex_protocol::openai_models::ConfigShellToolType;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelInstructionsVariables;
@@ -21,6 +22,14 @@ const LOCAL_FRIENDLY_TEMPLATE: &str =
 const LOCAL_PRAGMATIC_TEMPLATE: &str = "You are a deeply pragmatic, effective software engineer.";
 const PERSONALITY_PLACEHOLDER: &str = "{{ personality }}";
 const PERSONALITY_SECTION_HEADER: &str = "# Personality";
+
+/// The patch format, in words, for models whose provider does not honour the Lark grammar.
+///
+/// It is held here rather than in each model's `instructions_template` so that the grammar and
+/// the prose cannot drift apart, and so that turning a model from `Prose` to `Freeform` is a
+/// one-field change in `models.json` instead of a prompt edit.
+pub const APPLY_PATCH_PROSE: &str = include_str!("../apply_patch_prose.md");
+const APPLY_PATCH_SECTION_HEADER: &str = "## apply_patch";
 
 pub fn with_config_overrides(mut model: ModelInfo, config: &ModelsManagerConfig) -> ModelInfo {
     if let Some(context_window) = config.model_context_window {
@@ -98,9 +107,89 @@ pub fn with_config_overrides(mut model: ModelInfo, config: &ModelsManagerConfig)
             }
             model_messages.instructions_variables = None;
         }
+
+        // Last, so it sees the template the other overrides settled on. Skipped entirely when
+        // the user supplied `base_instructions`: that prompt is theirs to get right.
+        let apply_patch_tool_type = model.apply_patch_tool_type;
+        if let Some(instructions_template) = model
+            .model_messages
+            .as_mut()
+            .and_then(|messages| messages.instructions_template.as_mut())
+        {
+            *instructions_template = align_apply_patch_section(
+                std::mem::take(instructions_template),
+                apply_patch_tool_type,
+            );
+        }
     }
 
     model
+}
+
+/// Make the instructions carry the patch format exactly when the grammar does not.
+///
+/// `Freeform` constrains sampling, so the prose is a second copy of the same rules riding every
+/// request's fixed prefix; it is removed. `Prose` has nothing enforcing the format, so the
+/// section is (re)inserted from `APPLY_PATCH_PROSE`. Stripping first in both cases keeps this
+/// idempotent and lets a model's own template stay authoritative about everything else.
+fn align_apply_patch_section(
+    instructions: String,
+    apply_patch_tool_type: Option<ApplyPatchToolType>,
+) -> String {
+    let Some(apply_patch_tool_type) = apply_patch_tool_type else {
+        // No `apply_patch` tool is registered at all, so the model edits through the shell.
+        // `APPLY_PATCH_PROSE` describes a tool and would be wrong here, and the shell wording
+        // lives in each such model's own template. Leave it alone.
+        return instructions;
+    };
+    let stripped = strip_apply_patch_section(instructions);
+    match apply_patch_tool_type {
+        ApplyPatchToolType::Prose => {
+            let mut out = stripped.trim_end().to_string();
+            out.push_str("\n\n");
+            out.push_str(APPLY_PATCH_PROSE.trim_end());
+            out.push('\n');
+            out
+        }
+        ApplyPatchToolType::Freeform => stripped,
+    }
+}
+
+/// Remove a `## apply_patch` section, up to the next heading of the same or higher level.
+fn strip_apply_patch_section(mut instructions: String) -> String {
+    let mut section_start = None;
+    let mut section_end = None;
+    let mut offset = 0;
+
+    for line_with_ending in instructions.split_inclusive('\n') {
+        let line = match line_with_ending.strip_suffix('\n') {
+            Some(line) => line.strip_suffix('\r').unwrap_or(line),
+            None => line_with_ending,
+        };
+        if section_start.is_some() {
+            if is_h1_heading(line) || is_h2_heading(line) {
+                section_end = Some(offset);
+                break;
+            }
+        } else if line.trim_end() == APPLY_PATCH_SECTION_HEADER {
+            section_start = Some(offset);
+        }
+        offset += line_with_ending.len();
+    }
+
+    if let Some(section_start) = section_start {
+        let section_end = section_end.unwrap_or(instructions.len());
+        instructions.replace_range(section_start..section_end, "");
+    }
+
+    instructions
+}
+
+fn is_h2_heading(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix("##") else {
+        return false;
+    };
+    !rest.starts_with('#') && (rest.is_empty() || rest.starts_with(' ') || rest.starts_with('\t'))
 }
 
 fn strip_personality_section(mut instructions: String) -> String {

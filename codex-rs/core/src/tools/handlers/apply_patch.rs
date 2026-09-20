@@ -7,6 +7,8 @@ use std::time::Duration;
 use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 
+use codex_protocol::openai_models::ApplyPatchToolType;
+
 use crate::apply_patch;
 use crate::apply_patch::convert_apply_patch_to_protocol;
 use crate::function_tool::FunctionCallError;
@@ -75,11 +77,15 @@ fn apply_patch_file_update_mode(turn: &TurnContext) -> ApplyPatchFileUpdateMode 
 #[derive(Default)]
 pub struct ApplyPatchHandler {
     multi_environment: bool,
+    tool_type: ApplyPatchToolType,
 }
 
 impl ApplyPatchHandler {
-    pub(crate) fn new(multi_environment: bool) -> Self {
-        Self { multi_environment }
+    pub(crate) fn new(multi_environment: bool, tool_type: ApplyPatchToolType) -> Self {
+        Self {
+            multi_environment,
+            tool_type,
+        }
     }
 }
 
@@ -354,7 +360,7 @@ impl ToolExecutor<ToolInvocation> for ApplyPatchHandler {
     }
 
     fn spec(&self) -> ToolSpec {
-        create_apply_patch_freeform_tool(self.multi_environment)
+        create_apply_patch_freeform_tool(self.multi_environment, self.tool_type)
     }
 
     fn handle<'a>(&'a self, invocation: ToolInvocation) -> codex_tools::ToolExecutorFuture<'a>
