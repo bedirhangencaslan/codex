@@ -1,0 +1,58 @@
+# Suffice GUI
+
+Web (and later Tauri / VS Code webview) client for Suffice, built as a thin
+consumer of the documented `suffice app-server` JSON-RPC API. No Rust code is
+patched; the GUI reads `thread/list`, `skills/list` and (next PR) starts
+ephemeral threads via `thread/start`.
+
+## Layout
+
+| Package | Contents |
+| --- | --- |
+| `gui/core` | app-server WebSocket client, shared types, design tokens (`tokens.css`), TR/EN i18n |
+| `gui/web` | Vite + React app: Sessions, Skills, Commands, Styles screens |
+| `gui/design` | Phase 0 pitch (`mockups-v1.html`) — direction "Thermal Instrument Pro" approved |
+| `gui/PROMPT-CHANGE-PROPOSALS.md` | Quarantine for anything that would touch model-visible tokens — planned, never applied |
+
+## Run
+
+```bash
+pnpm install
+pnpm --filter @suffice/gui-web dev     # http://localhost:7877 (fixture data)
+```
+
+To point at a live server:
+
+```bash
+suffice app-server --listen ws://127.0.0.1:4600
+# then open http://localhost:7877/?ws=ws://127.0.0.1:4600
+```
+
+Without `?ws=`, the GUI renders fixture data (labelled "örnek veri" in the
+sidebar) so design review needs no Rust build. Fields the live wire does not
+provide yet (cost, cached %, request timeline — they come from the
+request-stats sidecar in a later PR) render as absent, never invented.
+
+## Turkish support
+
+Turkish is a first-class locale, not a translation pass: `gui/core/src/i18n.ts`
+ships hand-written TR strings (correct dotted/dotless i), numbers and relative
+times go through `Intl` with `tr-TR`, and the UI/data font stacks (IBM Plex
+Sans / JetBrains Mono) cover latin-ext so İ ş ğ ü ö ç render natively. The
+locale toggle sits at the bottom of the sidebar; `<html lang>` follows it.
+Font files themselves are bundled in the Tauri/VS Code phase; the web dev build
+uses system fallbacks.
+
+## Design system
+
+`gui/core/tokens.css` is the single source of visual truth (direction A,
+"Thermal Instrument Pro", approved in Phase 0). Components never hardcode
+colors; the Styles screen swaps themes by replacing the custom-property layer
+only.
+
+## Prompt isolation (project rule)
+
+The GUI never constructs or alters model-visible tokens. Anything that would —
+skill instruction block shaping, "Try command" framing text — is written up in
+`PROMPT-CHANGE-PROPOSALS.md` with a measurement plan per `_sim/FINDINGS.md` §3
+and waits for explicit approval.
