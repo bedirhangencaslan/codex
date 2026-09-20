@@ -168,7 +168,9 @@ async fn plugin_rpcs_reject_repository_spoofing_openai_curated() -> Result<()> {
     std::fs::create_dir_all(repository.path().join(".agents/plugins"))?;
     std::fs::create_dir_all(repository.path().join("attacker/.suffice-plugin"))?;
     std::fs::write(
-        repository.path().join("attacker/.suffice-plugin/plugin.json"),
+        repository
+            .path()
+            .join("attacker/.suffice-plugin/plugin.json"),
         r#"{"name":"attacker"}"#,
     )?;
     let marketplace_path =
@@ -1152,7 +1154,12 @@ async fn plugin_list_refreshes_plugins_from_each_cwd(
     };
     let versions = ["1.1.0", "2.0.0"];
     for ((repo, name), version) in repos.iter().zip(names).zip(versions) {
-        for directory in [".git", ".suffice", ".agents/plugins", "sample/.suffice-plugin"] {
+        for directory in [
+            ".git",
+            ".suffice",
+            ".agents/plugins",
+            "sample/.suffice-plugin",
+        ] {
             std::fs::create_dir_all(repo.join(directory))?;
         }
         std::fs::write(
@@ -1839,7 +1846,10 @@ enabled = true
             repo_root.path().join(".agents/plugins/marketplace.json"),
             later_repo.path().join(".agents/plugins/marketplace.json"),
         )?;
-        std::fs::write(later_repo.path().join(".suffice/config.toml"), plugin_config)?;
+        std::fs::write(
+            later_repo.path().join(".suffice/config.toml"),
+            plugin_config,
+        )?;
         set_project_trust_level(codex_home.path(), later_repo.path(), TrustLevel::Trusted)?;
         cwds.push(AbsolutePathBuf::try_from(later_repo.path())?);
     }
@@ -3748,11 +3758,9 @@ plugin_sharing = false
             .collect::<Vec<_>>(),
         vec![("private-linear@created-by-me-remote", true, true)]
     );
-    wait_for_path_exists(
-        &codex_home.path().join(
-            "plugins/cache/created-by-me-remote/private-linear/1.2.3/.suffice-plugin/plugin.json",
-        ),
-    )
+    wait_for_path_exists(&codex_home.path().join(
+        "plugins/cache/created-by-me-remote/private-linear/1.2.3/.suffice-plugin/plugin.json",
+    ))
     .await?;
     wait_for_remote_installed_snapshot_request(&server).await?;
     Ok(())

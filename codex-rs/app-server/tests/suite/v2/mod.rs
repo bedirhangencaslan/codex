@@ -1,6 +1,7 @@
 mod account;
 mod account_thread_usage;
 mod analytics;
+mod analytics_thread_stats;
 mod app_installed;
 mod app_list;
 mod app_read;
