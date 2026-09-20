@@ -1,0 +1,513 @@
+<title>Suffice GUI — Faz 0 Yön Mockup'ları</title>
+<style>
+  :root{
+    --pg-bg:#f5f6f8; --pg-fg:#1c2129; --pg-muted:#5d6674; --pg-line:#dde1e7; --pg-panel:#ffffff; --pg-accent:#b3541e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --pg-bg:#14171c; --pg-fg:#e6eaf0; --pg-muted:#9aa4b2; --pg-line:#2a3038; --pg-panel:#1b1f26; --pg-accent:#e08a4e; }
+  }
+  :root[data-theme="dark"]{ --pg-bg:#14171c; --pg-fg:#e6eaf0; --pg-muted:#9aa4b2; --pg-line:#2a3038; --pg-panel:#1b1f26; --pg-accent:#e08a4e; }
+  :root[data-theme="light"]{ --pg-bg:#f5f6f8; --pg-fg:#1c2129; --pg-muted:#5d6674; --pg-line:#dde1e7; --pg-panel:#ffffff; --pg-accent:#b3541e; }
+
+  *{box-sizing:border-box}
+  body{background:var(--pg-bg);color:var(--pg-fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:0 20px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header.page{padding:48px 0 8px}
+  .kicker{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--pg-accent)}
+  h1{font-size:clamp(26px,4vw,38px);line-height:1.15;margin:.4em 0 .3em;text-wrap:balance}
+  .lede{color:var(--pg-muted);max-width:64ch;margin:0 0 8px}
+  .lede b{color:var(--pg-fg)}
+
+  .tabs{position:sticky;top:0;z-index:50;background:var(--pg-bg);display:flex;gap:8px;padding:16px 0;border-bottom:1px solid var(--pg-line);margin-bottom:28px;flex-wrap:wrap}
+  .tab{cursor:pointer;border:1px solid var(--pg-line);background:var(--pg-panel);color:var(--pg-fg);border-radius:999px;padding:9px 18px;font:600 14px/1 inherit;transition:border-color .15s,background .15s}
+  .tab:hover{border-color:var(--pg-accent)}
+  .tab[aria-selected="true"]{background:var(--pg-fg);color:var(--pg-bg);border-color:var(--pg-fg)}
+  .tab:focus-visible{outline:2px solid var(--pg-accent);outline-offset:2px}
+  .dir{display:none}
+  .dir.active{display:block;animation:fadein .25s ease}
+  @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion: reduce){ .dir.active{animation:none} }
+
+  .dirhead{display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;margin:8px 0 6px}
+  .dirhead h2{font-size:24px;margin:0}
+  .dirtag{font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;border-radius:4px;border:1px solid var(--pg-line);color:var(--pg-muted)}
+  .thesis{color:var(--pg-muted);max-width:70ch;margin:0 0 14px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font:12px/1 ui-monospace,Menlo,monospace;border:1px solid var(--pg-line);border-radius:4px;padding:6px 10px;color:var(--pg-muted)}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(128,128,128,.35)}
+
+  .frame{border:1px solid var(--pg-line);border-radius:10px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.14);margin-bottom:22px}
+  .framebar{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--pg-line);background:var(--pg-panel)}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--pg-line)}
+  .urlbox{font:11px/1 ui-monospace,Menlo,monospace;color:var(--pg-muted);border:1px solid var(--pg-line);border-radius:5px;padding:5px 12px;margin-left:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:36px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .caplabel{font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--pg-muted);margin:0 0 8px}
+
+  /* ============ mock shared bones ============ */
+  .mock{display:flex;min-height:520px;font-size:13px}
+  .mock,.mock *{line-height:1.45}
+  .m-side{width:196px;flex:none;display:flex;flex-direction:column;padding:14px 0}
+  .m-main{flex:1;min-width:0;padding:18px 22px}
+  .m-nav{display:flex;align-items:center;gap:10px;padding:8px 18px;cursor:default}
+  .m-logo{font-weight:700;letter-spacing:.02em;padding:4px 18px 14px;display:flex;align-items:center;gap:8px}
+  .m-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .m-title{font-size:16px;font-weight:650;margin:0}
+  .m-cards{display:flex;flex-direction:column;gap:10px}
+  .card{padding:12px 14px;cursor:default}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .grow{flex:1;min-width:0}
+  .num{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .mock svg{flex:none}
+
+  /* ============ A — TERMAL ENSTRÜMAN ============ */
+  .dA .mock{background:#101318;color:#e8edf4;font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
+  .dA .m-side{background:#0c0f13;border-right:1px solid #232a35}
+  .dA .m-logo{color:#e8edf4}
+  .dA .m-logo .mark{width:18px;height:18px;border-radius:4px;background:linear-gradient(135deg,#f0a050 0%,#5b8db8 100%)}
+  .dA .m-nav{color:#8a94a6;font-weight:500;border-left:2px solid transparent}
+  .dA .m-nav.on{color:#f0a050;border-left-color:#f0a050;background:rgba(240,160,80,.06)}
+  .dA .m-nav:hover{color:#e8edf4}
+  .dA .card{background:#161b22;border:1px solid #232a35;border-radius:8px;position:relative;padding-left:18px}
+  .dA .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:8px 0 0 8px}
+  .dA .card.warm::before{background:#f0a050}
+  .dA .card.mid::before{background:#a58d6f}
+  .dA .card.cold::before{background:#5b8db8}
+  .dA .card:hover{border-color:#39445666}
+  .dA .c-title{font-weight:600;color:#e8edf4}
+  .dA .c-prev{color:#8a94a6;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  .dA .meta{display:flex;gap:14px;color:#8a94a6;font-size:11px;margin-top:8px;flex-wrap:wrap}
+  .dA .meta .num{color:#c9d3e0}
+  .dA .warmth{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
+  .dA .warmth i{width:3px;background:#39323a;border-radius:1px;display:block}
+  .dA .warmth i.on{background:#f0a050}
+  .dA .wc i.on{background:#5b8db8}
+  .dA .badge{font:600 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.06em;padding:4px 8px;border-radius:4px}
+  .dA .badge.inst{color:#f0a050;background:rgba(240,160,80,.12)}
+  .dA .badge.cold{color:#7fa9cf;background:rgba(91,141,184,.14)}
+  .dA .badge.ok{color:#4caf7d;background:rgba(76,175,125,.12)}
+  .dA .m-title{color:#e8edf4}
+  .dA .search{border:1px solid #232a35;background:#0c0f13;color:#8a94a6;border-radius:6px;padding:7px 12px;font-size:12px;min-width:200px}
+  .dA .btn{background:#f0a050;color:#101318;border-radius:6px;padding:8px 14px;font-weight:650;font-size:12px}
+  .dA .statline{display:flex;gap:20px;border:1px solid #232a35;background:#0d1116;border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:11px;color:#8a94a6;flex-wrap:wrap}
+  .dA .statline .num{color:#e8edf4;font-size:13px}
+  .dA .statline .lbl{display:block;letter-spacing:.08em;text-transform:uppercase;font-size:9px;margin-top:2px}
+  /* skills mock A */
+  .dA .sk{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #1c222b}
+  .dA .sk:last-child{border-bottom:0}
+  .dA .togg{width:30px;height:17px;border-radius:9px;background:#2a323e;position:relative;flex:none}
+  .dA .togg::after{content:"";position:absolute;width:13px;height:13px;border-radius:50%;background:#66707f;top:2px;left:2px}
+  .dA .togg.on{background:#f0a05033}
+  .dA .togg.on::after{left:15px;background:#f0a050}
+  .dA .skname{font-weight:600;font-size:12px;color:#e8edf4}
+  .dA .skdesc{color:#8a94a6;font-size:11px}
+  .dA .sktok{font-size:11px;color:#8a94a6}
+  .dA .sktok b{color:#f0a050;font-weight:600}
+  .dA .budget{padding:12px 14px;border-top:1px solid #232a35;background:#0d1116}
+  .dA .bar{height:6px;border-radius:3px;background:#1c222b;overflow:hidden;margin-top:8px}
+  .dA .bar i{display:block;height:100%;width:34%;background:linear-gradient(90deg,#5b8db8,#f0a050);border-radius:3px}
+  /* commands mock A */
+  .dA .cmd{display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid #1c222b;align-items:baseline}
+  .dA .cmd:last-child{border-bottom:0}
+  .dA .cmd code{font:600 12px/1.4 ui-monospace,Menlo,monospace;color:#f0a050;background:rgba(240,160,80,.08);padding:3px 8px;border-radius:4px;flex:none}
+  .dA .cmd span{color:#8a94a6;font-size:12px}
+  .dA .cmd .try{margin-left:auto;color:#5b8db8;font-size:11px;font-weight:600;flex:none}
+
+  /* ============ B — BLUEPRINT DEFTERİ ============ */
+  .dB .mock{background:#eef1f4;color:#232a33;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    background-image:linear-gradient(#dfe5eb 1px,transparent 1px),linear-gradient(90deg,#dfe5eb 1px,transparent 1px);
+    background-size:28px 28px}
+  .dB .m-side{background:#e6eaef;border-right:1px solid #c6cfd9}
+  .dB .m-logo{color:#1e3a5f;font-family:ui-monospace,Menlo,monospace;letter-spacing:.06em}
+  .dB .m-logo .mark{width:18px;height:18px;border:2px solid #1e3a5f;border-radius:2px}
+  .dB .m-nav{color:#5d6a79;font:600 11px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}
+  .dB .m-nav.on{color:#1e3a5f}
+  .dB .m-nav.on::before{content:"▸ ";color:#1e3a5f}
+  .dB .card{background:#fbfcfd;border:1px solid #b8c3cf;position:relative}
+  .dB .card::after{content:"";position:absolute;inset:-4px;border:1px dashed #b8c3cf55;pointer-events:none}
+  .dB .card:hover{border-color:#1e3a5f}
+  .dB .c-no{position:absolute;top:-9px;left:10px;background:#eef1f4;color:#8492a3;font:600 9px/1 ui-monospace,Menlo,monospace;letter-spacing:.1em;padding:2px 7px;border:1px solid #b8c3cf}
+  .dB .c-title{font-weight:650;color:#232a33}
+  .dB .c-prev{color:#5d6a79;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  .dB .meta{display:flex;gap:16px;color:#8492a3;font:11px/1.5 ui-monospace,Menlo,monospace;margin-top:8px;flex-wrap:wrap}
+  .dB .meta .num{color:#1e3a5f;font-weight:600}
+  .dB .stamp{font:700 9px/1 ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;border:1.5px solid;padding:3px 7px;transform:rotate(-1deg)}
+  .dB .stamp.ok{color:#2e7d4f;border-color:#2e7d4f}
+  .dB .stamp.warm{color:#b3541e;border-color:#b3541e}
+  .dB .stamp.cold{color:#1e3a5f;border-color:#1e3a5f}
+  .dB .m-title{font-family:ui-monospace,Menlo,monospace;letter-spacing:.04em;color:#1e3a5f}
+  .dB .search{border:1px solid #b8c3cf;background:#fbfcfd;color:#8492a3;padding:7px 12px;font:12px ui-monospace,Menlo,monospace;min-width:200px}
+  .dB .btn{background:#1e3a5f;color:#eef1f4;padding:8px 14px;font-weight:650;font-size:12px}
+  .dB .sk{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #d4dbe3}
+  .dB .sk:last-child{border-bottom:0}
+  .dB .cb{width:15px;height:15px;border:1.5px solid #1e3a5f;flex:none;position:relative;background:#fbfcfd}
+  .dB .cb.on::after{content:"";position:absolute;inset:2px;background:#1e3a5f}
+  .dB .skname{font:650 12px/1.4 ui-monospace,Menlo,monospace;color:#232a33}
+  .dB .skdesc{color:#5d6a79;font-size:11px}
+  .dB .sktok{font:11px ui-monospace,Menlo,monospace;color:#8492a3}
+  .dB .sktok b{color:#b3541e;font-weight:700}
+  .dB .budget{padding:12px 14px;border-top:1.5px solid #1e3a5f;background:#e6eaef;font:11px ui-monospace,Menlo,monospace;color:#5d6a79}
+  .dB .bar{height:8px;border:1px solid #1e3a5f;background:#fbfcfd;margin-top:8px}
+  .dB .bar i{display:block;height:100%;width:34%;background:repeating-linear-gradient(45deg,#1e3a5f,#1e3a5f 3px,#fbfcfd 3px,#fbfcfd 6px)}
+  .dB .cmd{display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid #d4dbe3;align-items:baseline}
+  .dB .cmd:last-child{border-bottom:0}
+  .dB .cmd code{font:700 12px/1.4 ui-monospace,Menlo,monospace;color:#1e3a5f;border-bottom:2px solid #1e3a5f;flex:none}
+  .dB .cmd span{color:#5d6a79;font-size:12px}
+  .dB .cmd .try{margin-left:auto;color:#b3541e;font:600 11px ui-monospace,Menlo,monospace;flex:none}
+
+  /* ============ C — ABİS TERMİNALİ ============ */
+  .dC .mock{background:#050607;color:#c8d2cc;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  .dC .m-side{background:#050607;border-right:1px solid #1a201c}
+  .dC .m-logo{color:#33d17a;letter-spacing:.1em}
+  .dC .m-logo .mark{width:14px;height:14px;background:#33d17a;box-shadow:0 0 10px #33d17a66}
+  .dC .m-nav{color:#5e6a62}
+  .dC .m-nav::before{content:"  "}
+  .dC .m-nav.on{color:#33d17a}
+  .dC .m-nav.on::before{content:"> "}
+  .dC .card{background:#080a09;border:1px solid #1a201c;padding:12px 14px}
+  .dC .card:hover{border-color:#33d17a55}
+  .dC .c-title{color:#e2e8e4;font-weight:600}
+  .dC .c-prev{color:#5e6a62;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  .dC .meta{display:flex;gap:16px;color:#5e6a62;font-size:11px;margin-top:8px;flex-wrap:wrap}
+  .dC .meta .num{color:#c8d2cc}
+  .dC .amber{color:#ffb000!important}
+  .dC .green{color:#33d17a!important}
+  .dC .m-title{color:#e2e8e4;letter-spacing:.05em}
+  .dC .m-title::before{content:"$ ";color:#33d17a}
+  .dC .search{border:1px solid #1a201c;background:#080a09;color:#5e6a62;padding:7px 12px;font-size:11.5px;font-family:inherit;min-width:200px}
+  .dC .btn{background:transparent;color:#33d17a;border:1px solid #33d17a;padding:7px 14px;font-weight:600;font-size:11.5px}
+  .dC .hr{border:0;border-top:1px dashed #1a201c;margin:0 0 12px}
+  .dC .sk{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px dashed #1a201c}
+  .dC .sk:last-child{border-bottom:0}
+  .dC .braket{color:#33d17a;flex:none;font-weight:700}
+  .dC .braket.off{color:#3a453e}
+  .dC .skname{color:#e2e8e4;font-weight:600;font-size:12px}
+  .dC .skdesc{color:#5e6a62;font-size:11px}
+  .dC .sktok{font-size:11px;color:#5e6a62}
+  .dC .sktok b{color:#ffb000;font-weight:600}
+  .dC .budget{padding:12px 14px;border-top:1px solid #1a201c;color:#5e6a62;font-size:11px}
+  .dC .bar{height:10px;margin-top:6px;letter-spacing:1px;font-size:10px;color:#33d17a}
+  .dC .cmd{display:flex;gap:12px;padding:11px 14px;border-bottom:1px dashed #1a201c;align-items:baseline}
+  .dC .cmd:last-child{border-bottom:0}
+  .dC .cmd code{color:#ffb000;font-weight:700;font-size:12px;flex:none}
+  .dC .cmd span{color:#5e6a62;font-size:11.5px}
+  .dC .cmd .try{margin-left:auto;color:#33d17a;font-size:11px;flex:none}
+
+  .panel{border:1px solid var(--pg-line);border-radius:10px;overflow:hidden;background:var(--pg-panel)}
+  .panel .mockpad{padding:0}
+  .panel h4{margin:0;padding:12px 14px;border-bottom:1px solid var(--pg-line);font-size:13px}
+  .panel h4 small{color:var(--pg-muted);font-weight:400}
+
+  /* karşılaştırma + karar */
+  table.cmp{width:100%;border-collapse:collapse;font-size:14px;margin:16px 0 8px}
+  .cmp th,.cmp td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--pg-line);vertical-align:top}
+  .cmp th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pg-muted)}
+  .decide{border:1px solid var(--pg-accent);border-radius:10px;padding:20px 24px;margin-top:28px;background:color-mix(in srgb,var(--pg-accent) 6%,var(--pg-panel))}
+  .decide h3{margin:0 0 8px}
+  section.meta-note{margin-top:40px;color:var(--pg-muted);font-size:13px;border-top:1px solid var(--pg-line);padding-top:16px}
+</style>
+
+<div class="wrap">
+<header class="page">
+  <p class="kicker">Suffice GUI · Faz 0 · Tasarım Yönü Onayı</p>
+  <h1>Üç yön, tek karar: Suffice'in yüzü hangisi?</h1>
+  <p class="lede">Her yön için <b>Oturumlar</b> ana ekranı (tam mockup), <b>Skill Seçici</b> ve <b>Komut Eğitimi</b> panelleri gerçek proje verisiyle kuruldu — oturum başlıkları gerçek commit'lerden, maliyet/cache rakamları <code>_sim/FINDINGS.md</code>'deki ölçümlerden, komutlar <code>slash_command.rs</code>'den. Stil Galerisi ekranının konsepti sayfanın sonunda. İçerik İngilizce çünkü ürün dili İngilizce.</p>
+</header>
+
+<div class="tabs" role="tablist" aria-label="Tasarım yönleri">
+  <button class="tab" role="tab" aria-selected="true" data-dir="A">A — Termal Enstrüman</button>
+  <button class="tab" role="tab" aria-selected="false" data-dir="B">B — Blueprint Defteri</button>
+  <button class="tab" role="tab" aria-selected="false" data-dir="C">C — Abis Terminali</button>
+</div>
+
+<!-- ========================= A ========================= -->
+<section class="dir dA active" id="dir-A" role="tabpanel">
+  <div class="dirhead"><h2>A — Termal Enstrüman</h2><span class="dirtag">Önerilen · koyu · yoğun</span></div>
+  <p class="thesis">Suffice'in kendi kimliğinden türetildi: ürünün en özgün kavramı <b>cache sıcaklığı</b> (⚡ Instant / ● Fast / ◌ Warming up). Sıcak↔soğuk termal eksen tüm arayüzün renk dili oluyor — kehribar = sıcak cache/aktif, buz mavisi = soğuk/bekliyor. Grafit zemin (saf siyah değil), incecik çizgiler, tabular rakamlar. Referanslar: Linear "midnight precision instrument" + uçak kokpit göstergeleri.</p>
+  <div class="chips">
+    <span class="chip"><i class="sw" style="background:#101318"></i>zemin #101318</span>
+    <span class="chip"><i class="sw" style="background:#161b22"></i>panel #161B22</span>
+    <span class="chip"><i class="sw" style="background:#f0a050"></i>sıcak #F0A050</span>
+    <span class="chip"><i class="sw" style="background:#5b8db8"></i>soğuk #5B8DB8</span>
+    <span class="chip"><i class="sw" style="background:#4caf7d"></i>başarı #4CAF7D</span>
+    <span class="chip">IBM Plex Sans + JetBrains Mono</span>
+  </div>
+
+  <div class="frame">
+    <div class="framebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbox">suffice gui · localhost:7877</span></div>
+    <div class="mock">
+      <nav class="m-side">
+        <div class="m-logo"><span class="mark"></span>suffice</div>
+        <div class="m-nav on">Sessions</div>
+        <div class="m-nav">Skills</div>
+        <div class="m-nav">Commands</div>
+        <div class="m-nav">Styles</div>
+        <div style="flex:1"></div>
+        <div class="m-nav num" style="font-size:11px">glm-5.3-flash · zai</div>
+      </nav>
+      <main class="m-main">
+        <div class="m-h">
+          <h3 class="m-title">Sessions <span style="color:#8a94a6;font-weight:400">· ~/codex</span></h3>
+          <div class="row"><span class="search">Search threads…</span><span class="btn">New session</span></div>
+        </div>
+        <div class="statline">
+          <span><span class="num">$0.41</span><span class="lbl">bu hafta</span></span>
+          <span><span class="num">87%</span><span class="lbl">ort. cached</span></span>
+          <span><span class="num">312k</span><span class="lbl">fresh token</span></span>
+          <span><span class="num">14</span><span class="lbl">oturum</span></span>
+          <span style="margin-left:auto"><span class="num" style="color:#f0a050">⚡ cache warm</span><span class="lbl">şu an</span></span>
+        </div>
+        <div class="m-cards">
+          <div class="card warm">
+            <div class="row"><span class="c-title grow">Reproduce the licences this repository actually ships</span><span class="badge inst">⚡ INSTANT</span></div>
+            <div class="c-prev">NOTICE now names OpenCode, WezTerm, path-absolutize and bubblewrap; commercial-licensing.md written…</div>
+            <div class="meta"><span class="num">$0.0311</span><span><span class="num">91%</span> cached</span><span><span class="num">27</span> req</span><span class="warmth"><i style="height:4px" class="on"></i><i style="height:7px" class="on"></i><i style="height:10px" class="on"></i><i style="height:12px" class="on"></i></span><span style="margin-left:auto">44 dk önce</span></div>
+          </div>
+          <div class="card warm">
+            <div class="row"><span class="c-title grow">wire: cite all 44 codex-api files in WIRE.md</span><span class="badge ok">44/44 CITED</span></div>
+            <div class="c-prev">rep40 — 11 requests, every read bounded, median window 37 lines, zero compactions.</div>
+            <div class="meta"><span class="num">$0.0085</span><span><span class="num">87%</span> cached</span><span><span class="num">11</span> req</span><span class="warmth"><i style="height:5px" class="on"></i><i style="height:8px" class="on"></i><i style="height:11px" class="on"></i><i style="height:12px"></i></span><span style="margin-left:auto">2 sa önce</span></div>
+          </div>
+          <div class="card mid">
+            <div class="row"><span class="c-title grow">Keep the prompt cache warm while a tool call runs</span><span class="badge inst">● FAST</span></div>
+            <div class="c-prev">KeepAliveHold guard covers the whole dispatch; 420 s interval from the measured Z.ai TTL.</div>
+            <div class="meta"><span class="num">$0.0177</span><span><span class="num">64%</span> cached</span><span><span class="num">18</span> req</span><span class="warmth"><i style="height:5px" class="on"></i><i style="height:8px" class="on"></i><i style="height:11px"></i><i style="height:12px"></i></span><span style="margin-left:auto">dün</span></div>
+          </div>
+          <div class="card cold">
+            <div class="row"><span class="c-title grow">Route bulk extraction to a script instead of grep</span><span class="badge cold">◌ COLD</span></div>
+            <div class="c-prev">grep stops at 100 matches; 6 of 10 runs wrote the script anyway and paid twice for 352 values.</div>
+            <div class="meta"><span class="num">$0.0094</span><span><span class="num">12%</span> cached</span><span><span class="num">8</span> req</span><span class="warmth wc"><i style="height:5px" class="on"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:12px"></i></span><span style="margin-left:auto">3 gün önce</span></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <p class="caplabel">Skill Seçici — proje başına, token maliyeti görünür</p>
+      <div class="panel">
+        <h4>Skills · ~/codex <small>— prompt'a giren her blok ölçülür</small></h4>
+        <div class="mock" style="min-height:0;display:block;background:#101318;color:#e8edf4" >
+          <div class="dAwrap">
+            <div class="sk"><span class="togg on"></span><span class="grow"><span class="skname">code-review</span><br><span class="skdesc">review a PR with verified findings</span></span><span class="sktok num">+<b>412</b> tok</span></div>
+            <div class="sk"><span class="togg on"></span><span class="grow"><span class="skname">babysit-pr</span><br><span class="skdesc">watch CI, fix failures until green</span></span><span class="sktok num">+<b>287</b> tok</span></div>
+            <div class="sk"><span class="togg"></span><span class="grow"><span class="skname">imagegen</span><br><span class="skdesc">generate images via API</span></span><span class="sktok num">+<b>1,104</b> tok</span></div>
+            <div class="sk"><span class="togg"></span><span class="grow"><span class="skname">skill-installer</span><br><span class="skdesc">install skills from a repo</span></span><span class="sktok num">+<b>934</b> tok</span></div>
+            <div class="budget"><span style="font-size:11px;color:#8a94a6">Prompt yükü: <span class="num" style="color:#e8edf4">699</span> / 5,592 token — <span style="color:#4caf7d">%87 hafifledi</span></span><div class="bar"><i></i></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="caplabel">Komut Eğitimi — gerçek /komutlar, güvenli deneme</p>
+      <div class="panel">
+        <h4>Commands <small>— ephemeral thread'de dene, geçmişe yazılmaz</small></h4>
+        <div class="mock" style="min-height:0;display:block;background:#101318;color:#e8edf4">
+          <div class="cmd"><code>/review</code><span>review my current changes and find issues</span><span class="try">Dene →</span></div>
+          <div class="cmd"><code>/compact</code><span>summarize conversation to prevent hitting the context limit</span><span class="try">Dene →</span></div>
+          <div class="cmd"><code>/fork</code><span>fork the current chat</span><span class="try">Dene →</span></div>
+          <div class="cmd"><code>/status</code><span>show current session configuration and token usage</span><span class="try">Dene →</span></div>
+          <div class="cmd"><code>/skills</code><span>use skills to improve how Suffice performs tasks</span><span class="try">Dene →</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= B ========================= -->
+<section class="dir dB" id="dir-B" role="tabpanel">
+  <div class="dirhead"><h2>B — Blueprint Defteri</h2><span class="dirtag">Açık tema · mühendislik çizimi</span></div>
+  <p class="thesis">Karşıt sav: her AI geliştirici aracı koyu — <b>açık tema burada ayırt edici olan</b>. Teknik resim kağıdı üzerinde mühendislik defteri: milimetrik ızgara zemin, çini mavisi mürekkep, kesikli pafta çerçeveleri, damga görünümlü durum etiketleri, monospace etiketler. Ölçüm-ve-kanıt kültürünü (FINDINGS.md) "laboratuvar defteri" olarak görselleştirir. Referanslar: Dovetail "blueprint grid", Ui "clinical blueprint on frosted paper".</p>
+  <div class="chips">
+    <span class="chip"><i class="sw" style="background:#eef1f4"></i>kağıt #EEF1F4</span>
+    <span class="chip"><i class="sw" style="background:#1e3a5f"></i>mürekkep #1E3A5F</span>
+    <span class="chip"><i class="sw" style="background:#232a33"></i>metin #232A33</span>
+    <span class="chip"><i class="sw" style="background:#b3541e"></i>kalem #B3541E</span>
+    <span class="chip"><i class="sw" style="background:#2e7d4f"></i>onay #2E7D4F</span>
+    <span class="chip">IBM Plex Mono + Source Sans 3</span>
+  </div>
+
+  <div class="frame">
+    <div class="framebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbox">suffice gui · localhost:7877</span></div>
+    <div class="mock">
+      <nav class="m-side">
+        <div class="m-logo"><span class="mark"></span>SUFFICE</div>
+        <div class="m-nav on">Sessions</div>
+        <div class="m-nav">Skills</div>
+        <div class="m-nav">Commands</div>
+        <div class="m-nav">Styles</div>
+        <div style="flex:1"></div>
+        <div class="m-nav" style="font-size:10px">GLM-5.3-FLASH / ZAI</div>
+      </nav>
+      <main class="m-main">
+        <div class="m-h">
+          <h3 class="m-title">SESSION LOG — ~/codex</h3>
+          <div class="row"><span class="search">search…</span><span class="btn">+ NEW SESSION</span></div>
+        </div>
+        <div class="m-cards" style="gap:16px">
+          <div class="card">
+            <span class="c-no">Nº 116</span>
+            <div class="row"><span class="c-title grow">Reproduce the licences this repository actually ships</span><span class="stamp ok">VERIFIED</span></div>
+            <div class="c-prev">NOTICE now names OpenCode, WezTerm, path-absolutize and bubblewrap; commercial-licensing.md written…</div>
+            <div class="meta"><span>cost <span class="num">$0.0311</span></span><span>cached <span class="num">91%</span></span><span>req <span class="num">27</span></span><span style="margin-left:auto">2026-09-18 · 10:08</span></div>
+          </div>
+          <div class="card">
+            <span class="c-no">Nº 115</span>
+            <div class="row"><span class="c-title grow">wire: cite all 44 codex-api files in WIRE.md</span><span class="stamp warm">REP 40 · BEST</span></div>
+            <div class="c-prev">11 requests, every read bounded, median window 37 lines, zero compactions.</div>
+            <div class="meta"><span>cost <span class="num">$0.0085</span></span><span>cached <span class="num">87%</span></span><span>req <span class="num">11</span></span><span style="margin-left:auto">2026-09-17 · 22:41</span></div>
+          </div>
+          <div class="card">
+            <span class="c-no">Nº 114</span>
+            <div class="row"><span class="c-title grow">Route bulk extraction to a script instead of grep</span><span class="stamp cold">EXPERIMENT</span></div>
+            <div class="c-prev">grep stops at 100 matches; 6 of 10 runs wrote the script anyway and paid twice for 352 values.</div>
+            <div class="meta"><span>cost <span class="num">$0.0094</span></span><span>cached <span class="num">12%</span></span><span>req <span class="num">8</span></span><span style="margin-left:auto">2026-09-15 · 14:02</span></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <p class="caplabel">Skill Seçici — mühendis onay listesi gibi</p>
+      <div class="panel">
+        <h4>SKILL MANIFEST · ~/codex</h4>
+        <div class="mock" style="min-height:0;display:block;background:#eef1f4;color:#232a33">
+          <div class="sk"><span class="cb on"></span><span class="grow"><span class="skname">code-review</span><br><span class="skdesc">review a PR with verified findings</span></span><span class="sktok">+<b>412</b> tok</span></div>
+          <div class="sk"><span class="cb on"></span><span class="grow"><span class="skname">babysit-pr</span><br><span class="skdesc">watch CI, fix failures until green</span></span><span class="sktok">+<b>287</b> tok</span></div>
+          <div class="sk"><span class="cb"></span><span class="grow"><span class="skname">imagegen</span><br><span class="skdesc">generate images via API</span></span><span class="sktok">+<b>1,104</b> tok</span></div>
+          <div class="sk"><span class="cb"></span><span class="grow"><span class="skname">skill-installer</span><br><span class="skdesc">install skills from a repo</span></span><span class="sktok">+<b>934</b> tok</span></div>
+          <div class="budget">PROMPT LOAD: 699 / 5,592 tok — 87% LIGHTER<div class="bar"><i></i></div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="caplabel">Komut Eğitimi — sözlük sayfası düzeni</p>
+      <div class="panel">
+        <h4>COMMAND REFERENCE</h4>
+        <div class="mock" style="min-height:0;display:block;background:#eef1f4;color:#232a33">
+          <div class="cmd"><code>/review</code><span>review my current changes and find issues</span><span class="try">[TRY]</span></div>
+          <div class="cmd"><code>/compact</code><span>summarize conversation to prevent hitting the context limit</span><span class="try">[TRY]</span></div>
+          <div class="cmd"><code>/fork</code><span>fork the current chat</span><span class="try">[TRY]</span></div>
+          <div class="cmd"><code>/status</code><span>show current session configuration and token usage</span><span class="try">[TRY]</span></div>
+          <div class="cmd"><code>/skills</code><span>use skills to improve how Suffice performs tasks</span><span class="try">[TRY]</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= C ========================= -->
+<section class="dir dC" id="dir-C" role="tabpanel">
+  <div class="dirhead"><h2>C — Abis Terminali</h2><span class="dirtag">OLED siyah · çift fosfor</span></div>
+  <p class="thesis">Terminalin doğal uzantısı: CLI kullanıcısı GUI'ye geçtiğinde yabancılık hissetmesin. Saf siyah zemin, <b>çift fosfor</b> paleti — P1 yeşili (aktif/çalışıyor) + P3 kehribarı (komutlar/vurgu) — tek-yeşil "hacker" klişesinden kaçınmak için. Tamamı monospace, köşeler sıfır, kesikli ASCII ayraçlar. Referanslar: Auros "abyssal terminal", Resend'in siyah zarafeti. Risk: üçü içinde en muhafazakâr olanı; ayırt edicilik çift fosfor disiplinine bağlı.</p>
+  <div class="chips">
+    <span class="chip"><i class="sw" style="background:#050607"></i>abis #050607</span>
+    <span class="chip"><i class="sw" style="background:#33d17a"></i>fosfor P1 #33D17A</span>
+    <span class="chip"><i class="sw" style="background:#ffb000"></i>fosfor P3 #FFB000</span>
+    <span class="chip"><i class="sw" style="background:#c8d2cc"></i>metin #C8D2CC</span>
+    <span class="chip">JetBrains Mono (tek aile)</span>
+  </div>
+
+  <div class="frame">
+    <div class="framebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbox">suffice gui · localhost:7877</span></div>
+    <div class="mock">
+      <nav class="m-side">
+        <div class="m-logo"><span class="mark"></span>SUFFICE</div>
+        <div class="m-nav on">sessions</div>
+        <div class="m-nav">skills</div>
+        <div class="m-nav">commands</div>
+        <div class="m-nav">styles</div>
+        <div style="flex:1"></div>
+        <div class="m-nav" style="font-size:10px">glm-5.3-flash@zai</div>
+      </nav>
+      <main class="m-main">
+        <div class="m-h">
+          <h3 class="m-title">sessions --cwd ~/codex</h3>
+          <div class="row"><span class="search">/ to search</span><span class="btn">new --session</span></div>
+        </div>
+        <hr class="hr">
+        <div class="m-cards">
+          <div class="card">
+            <div class="row"><span class="c-title grow">Reproduce the licences this repository actually ships</span><span class="green">⚡ instant</span></div>
+            <div class="c-prev">NOTICE now names OpenCode, WezTerm, path-absolutize and bubblewrap…</div>
+            <div class="meta"><span class="num amber">$0.0311</span><span>cached <span class="num green">91%</span></span><span>req <span class="num">27</span></span><span style="margin-left:auto">-44m</span></div>
+          </div>
+          <div class="card">
+            <div class="row"><span class="c-title grow">wire: cite all 44 codex-api files in WIRE.md</span><span class="green">44/44 ok</span></div>
+            <div class="c-prev">rep40 — 11 requests, every read bounded, median window 37 lines, zero compactions.</div>
+            <div class="meta"><span class="num amber">$0.0085</span><span>cached <span class="num green">87%</span></span><span>req <span class="num">11</span></span><span style="margin-left:auto">-2h</span></div>
+          </div>
+          <div class="card">
+            <div class="row"><span class="c-title grow">Route bulk extraction to a script instead of grep</span><span style="color:#5e6a62">◌ cold</span></div>
+            <div class="c-prev">grep stops at 100 matches; 6 of 10 runs wrote the script anyway…</div>
+            <div class="meta"><span class="num amber">$0.0094</span><span>cached <span class="num">12%</span></span><span>req <span class="num">8</span></span><span style="margin-left:auto">-3d</span></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <p class="caplabel">Skill Seçici — checkbox yerine [x] parantezleri</p>
+      <div class="panel">
+        <h4>skills --project ~/codex</h4>
+        <div class="mock" style="min-height:0;display:block;background:#050607;color:#c8d2cc">
+          <div class="sk"><span class="braket">[x]</span><span class="grow"><span class="skname">code-review</span> <span class="skdesc">— review a PR with verified findings</span></span><span class="sktok num">+<b>412</b></span></div>
+          <div class="sk"><span class="braket">[x]</span><span class="grow"><span class="skname">babysit-pr</span> <span class="skdesc">— watch CI, fix failures until green</span></span><span class="sktok num">+<b>287</b></span></div>
+          <div class="sk"><span class="braket off">[ ]</span><span class="grow"><span class="skname">imagegen</span> <span class="skdesc">— generate images via API</span></span><span class="sktok num">+<b>1,104</b></span></div>
+          <div class="sk"><span class="braket off">[ ]</span><span class="grow"><span class="skname">skill-installer</span> <span class="skdesc">— install skills from a repo</span></span><span class="sktok num">+<b>934</b></span></div>
+          <div class="budget">prompt load: 699/5592 tok<div class="bar">█████░░░░░░░░░░ 12%</div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="caplabel">Komut Eğitimi — man-page havası</p>
+      <div class="panel">
+        <h4>commands --learn</h4>
+        <div class="mock" style="min-height:0;display:block;background:#050607;color:#c8d2cc">
+          <div class="cmd"><code>/review</code><span>review my current changes and find issues</span><span class="try">try↵</span></div>
+          <div class="cmd"><code>/compact</code><span>summarize conversation to prevent context limit</span><span class="try">try↵</span></div>
+          <div class="cmd"><code>/fork</code><span>fork the current chat</span><span class="try">try↵</span></div>
+          <div class="cmd"><code>/status</code><span>show session configuration and token usage</span><span class="try">try↵</span></div>
+          <div class="cmd"><code>/skills</code><span>use skills to improve how Suffice performs tasks</span><span class="try">try↵</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= ORTAK ========================= -->
+<section>
+  <h2 style="margin-top:8px">Stil Galerisi ekranı nasıl çalışacak?</h2>
+  <p class="lede" style="max-width:76ch">Dördüncü ekran (Styles), refero.design tarzı bir galeri: her stil kartında canlı mini önizleme (o stilin token'larıyla render edilmiş küçük bir Sessions ekranı), altında stilin adı ve karakter cümlesi. Kaynaklar: UI-UX Pro Max'ın 79 stillik yerel veritabanı + refero profilleri. Kullanıcı bir stile tıklayınca GUI'nin design token katmanı (CSS custom properties) o stile geçer — yani bu sayfada gördüğünüz A/B/C yönleri, galerinin ilk üç kartı olur ve galeri sonradan büyür. Tema değişimi anlıktır, oturum verisine dokunmaz.</p>
+
+  <table class="cmp">
+    <tr><th></th><th>A — Termal Enstrüman</th><th>B — Blueprint Defteri</th><th>C — Abis Terminali</th></tr>
+    <tr><td><b>Kimlik iddiası</b></td><td>Ürünün kendi kavramından (cache sıcaklığı) doğuyor — en "Suffice" olan</td><td>Tüm rakipler koyuyken açık tema; ölçüm-defteri kültürü</td><td>CLI kullanıcısına sıfır yabancılık</td></tr>
+    <tr><td><b>Risk</b></td><td>Termal renk disiplini tutarlılık ister</td><td>Koyu tema bekleyen kullanıcıyı şaşırtabilir (dark varyantı Faz 1'de eklenir)</td><td>"Terminal teması" klişesine en yakın</td></tr>
+    <tr><td><b>Yoğun veri ekranları</b></td><td>Çok iyi (tabular, metreler)</td><td>İyi (çizim çerçeveleri yer yiyor)</td><td>Çok iyi</td></tr>
+    <tr><td><b>VS Code webview uyumu</b></td><td>Doğal</td><td>Editör temasıyla çelişebilir</td><td>Doğal</td></tr>
+  </table>
+
+  <div class="decide">
+    <h3>Karar bekleniyor</h3>
+    <p style="margin:0 0 6px">Önerim <b>A — Termal Enstrüman</b>: kimliği ürünün kendi ölçüm kültüründen geliyor, üç platformda da (web / Tauri / VS Code) doğal duruyor ve B ile C'nin en iyi parçaları (mono rakam disiplini, komut dili) içine taşınabilir. Ama karar sizin — bir yönü seçin, iki yönü karıştırmamı isteyin ya da değişiklik notu verin; seçilen yön Faz 1'de gerçek design-token dosyasına dönüşecek.</p>
+  </div>
+</section>
+
+<section class="meta-note">
+  <p><b>Not — prompt izolasyonu:</b> Bu sayfa ve Faz 1'de üretilecek GUI kodu, modele giden hiçbir token'a dokunmaz. GUI yalnızca app-server'ın mevcut API'lerini çağırır (<code>thread/list</code>, <code>skills/list</code>, <code>turn/start</code>). Skill toggle'ının prompt üzerindeki etkisi zaten var olan <code>include_skill_instructions</code> mekanizmasıdır. Prompt'ta değişiklik gerektirecek her fikir <code>gui/PROMPT-CHANGE-PROPOSALS.md</code>'ye yazılacak, koda uygulanmayacak.</p>
+</section>
+</div>
+
+<script>
+  const tabs=document.querySelectorAll('.tab'),dirs=document.querySelectorAll('.dir');
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+    dirs.forEach(d=>d.classList.toggle('active',d.id==='dir-'+t.dataset.dir));
+  }));
+</script>
