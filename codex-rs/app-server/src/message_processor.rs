@@ -1350,6 +1350,9 @@ impl MessageProcessor {
             ClientRequest::GetConversationSummary { params, .. } => {
                 self.thread_processor.conversation_summary(params).await
             }
+            ClientRequest::AnalyticsThreadStats { params, .. } => {
+                self.catalog_processor.analytics_thread_stats(params).await
+            }
             ClientRequest::SkillsList { params, .. } => {
                 self.catalog_processor.skills_list(params).await
             }

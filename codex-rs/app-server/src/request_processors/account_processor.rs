@@ -584,9 +584,9 @@ impl AccountRequestProcessor {
                 && let Ok(open_app_url) = std::env::var(LOGIN_OPEN_APP_URL_OVERRIDE_ENV_VAR)
                 && !open_app_url.trim().is_empty()
             {
-                *url = open_app_url
-                    .parse()
-                    .map_err(|err| internal_error(format!("invalid Suffice open app URL: {err}")))?;
+                *url = open_app_url.parse().map_err(|err| {
+                    internal_error(format!("invalid Suffice open app URL: {err}"))
+                })?;
             }
             opts
         };

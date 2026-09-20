@@ -746,7 +746,10 @@ fn write_local_marketplace(
     )?;
 
     for plugin in plugins {
-        let plugin_manifest = root.join("plugins").join(plugin.name).join(".suffice-plugin");
+        let plugin_manifest = root
+            .join("plugins")
+            .join(plugin.name)
+            .join(".suffice-plugin");
         std::fs::create_dir_all(&plugin_manifest)?;
         std::fs::write(
             plugin_manifest.join("plugin.json"),

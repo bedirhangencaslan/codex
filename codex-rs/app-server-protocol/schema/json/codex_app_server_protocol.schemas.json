@@ -908,6 +908,30 @@
             },
             "method": {
               "enum": [
+                "analytics/threadStats"
+              ],
+              "title": "Analytics/threadStatsRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/AnalyticsThreadStatsParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Analytics/threadStatsRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/v2/RequestId"
+            },
+            "method": {
+              "enum": [
                 "skills/list"
               ],
               "title": "Skills/listRequestMethod",
@@ -6893,6 +6917,67 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "AnalyticsRequestPoint": {
+        "description": "One request's billed shape, in file order.",
+        "properties": {
+          "cachedInputTokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inputTokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "invisible": {
+            "type": "boolean"
+          },
+          "sequence": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cachedInputTokens",
+          "inputTokens",
+          "invisible",
+          "sequence"
+        ],
+        "type": "object"
+      },
+      "AnalyticsThreadStatsParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "threadIds": {
+            "description": "Thread ids to look up. Ids with no sidecar file are omitted from the response rather than reported as zeros.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "threadIds"
+        ],
+        "title": "AnalyticsThreadStatsParams",
+        "type": "object"
+      },
+      "AnalyticsThreadStatsResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadAnalytics"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AnalyticsThreadStatsResponse",
         "type": "object"
       },
       "AppBranding": {
@@ -13798,7 +13883,7 @@
       },
       "LoginAppBrand": {
         "enum": [
-          "codex",
+          "suffice",
           "chatgpt"
         ],
         "type": "string"
@@ -20164,6 +20249,86 @@
           "waitingOnUserInput"
         ],
         "type": "string"
+      },
+      "ThreadAnalytics": {
+        "properties": {
+          "cachedInputTokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inputTokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "invisibleRequests": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "lastTimestamp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "description": "From the sidecar header; `None` when the header line was unreadable.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outputTokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasoningOutputTokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requests": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/definitions/v2/AnalyticsRequestPoint"
+            },
+            "type": "array"
+          },
+          "timelineTruncated": {
+            "description": "True when the timeline was capped; the token sums above still cover every request in the file.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cachedInputTokens",
+          "inputTokens",
+          "invisibleRequests",
+          "outputTokens",
+          "reasoningOutputTokens",
+          "requests",
+          "threadId",
+          "timeline",
+          "timelineTruncated"
+        ],
+        "type": "object"
       },
       "ThreadApproveGuardianDeniedActionParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",

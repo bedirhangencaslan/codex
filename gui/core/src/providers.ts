@@ -6,6 +6,7 @@ import type {
   StyleCard,
   ThreadDetail,
   ThreadSummary,
+  Warmth,
   WeekStats,
 } from "./types";
 
@@ -160,6 +161,59 @@ interface WireThread {
   updatedAt?: string;
 }
 
+interface WireAnalyticsPoint {
+  sequence: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  invisible: boolean;
+}
+
+interface WireThreadAnalytics {
+  threadId: string;
+  model: string | null;
+  provider: string | null;
+  startedAt: string | null;
+  lastTimestamp: string | null;
+  requests: number;
+  invisibleRequests: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningOutputTokens: number;
+  timeline: WireAnalyticsPoint[];
+  timelineTruncated: boolean;
+}
+
+/** Z.ai list prices per million tokens for glm-5.3-flash, as measured and
+ * documented in _sim/FINDINGS.md §1 and reasoning_retention.rs. Cost is only
+ * computed when the sidecar header names this provider; anything else renders
+ * token counts without a currency figure. */
+const ZAI_USD_PER_M = { fresh: 0.075, cached: 0.015, output: 0.25 };
+
+function isZai(provider: string | null): boolean {
+  return provider != null && provider.toLowerCase().includes("z.ai");
+}
+
+function analyticsCostUsd(a: WireThreadAnalytics): number | null {
+  if (!isZai(a.provider)) return null;
+  const fresh = Math.max(0, a.inputTokens - a.cachedInputTokens);
+  return (fresh * ZAI_USD_PER_M.fresh + a.cachedInputTokens * ZAI_USD_PER_M.cached + a.outputTokens * ZAI_USD_PER_M.output) / 1e6;
+}
+
+function cachedPercent(a: WireThreadAnalytics): number | null {
+  if (a.inputTokens <= 0) return null;
+  return Math.round((a.cachedInputTokens / a.inputTokens) * 100);
+}
+
+/** Same thresholds as the TUI's response-speed indicator, applied to the
+ * latest visible request's cached share. */
+function warmthOf(a: WireThreadAnalytics): Warmth | null {
+  const last = [...a.timeline].reverse().find((p) => !p.invisible) ?? a.timeline.at(-1);
+  if (!last || last.inputTokens <= 0) return null;
+  const share = last.cachedInputTokens / last.inputTokens;
+  return share >= 0.8 ? "instant" : share >= 0.4 ? "fast" : "cold";
+}
+
 interface WireSkill {
   name: string;
   description?: string | null;
@@ -174,6 +228,8 @@ interface WireSkill {
  * the screens render them as "—" rather than inventing numbers. */
 export class AppServerProvider implements DataProvider {
   readonly kind = "app-server" as const;
+  private analytics = new Map<string, WireThreadAnalytics>();
+
   private constructor(
     private client: AppServerClient,
     private cwd: string,
@@ -190,26 +246,72 @@ export class AppServerProvider implements DataProvider {
       cwd: this.cwd,
     });
     const rows = res.data ?? res.threads ?? [];
-    return rows.map((t) => ({
-      id: t.id ?? t.threadId ?? "",
-      title: t.title ?? "(adsız oturum)",
-      preview: t.preview ?? "",
-      updatedAt: t.updatedAt ?? "",
-      costUsd: null,
-      cachedPercent: null,
-      requests: null,
-      compactions: null,
-      warmth: null,
-    }));
+    const ids = rows.map((t) => t.id ?? t.threadId ?? "").filter(Boolean);
+    await this.loadAnalytics(ids);
+    return rows.map((t) => {
+      const id = t.id ?? t.threadId ?? "";
+      const a = this.analytics.get(id);
+      return {
+        id,
+        title: t.title ?? "(adsız oturum)",
+        preview: t.preview ?? "",
+        updatedAt: t.updatedAt ?? a?.lastTimestamp ?? "",
+        costUsd: a ? analyticsCostUsd(a) : null,
+        cachedPercent: a ? cachedPercent(a) : null,
+        requests: a ? a.requests : null,
+        compactions: null,
+        warmth: a ? warmthOf(a) : null,
+      };
+    });
   }
 
-  async threadDetail(): Promise<ThreadDetail | null> {
-    return null;
+  private async loadAnalytics(ids: string[]): Promise<void> {
+    const missing = ids.filter((id) => !this.analytics.has(id));
+    if (missing.length === 0) return;
+    try {
+      const res = await this.client.request<{ data?: WireThreadAnalytics[] }>("analytics/threadStats", {
+        threadIds: missing,
+      });
+      for (const a of res.data ?? []) this.analytics.set(a.threadId, a);
+    } catch (err) {
+      // Older servers without the endpoint: keep the fields absent.
+      console.warn("analytics/threadStats kullanılamadı:", err);
+    }
+  }
+
+  async threadDetail(id: string): Promise<ThreadDetail | null> {
+    await this.loadAnalytics([id]);
+    const a = this.analytics.get(id);
+    if (!a) return null;
+    const fresh = Math.max(0, a.inputTokens - a.cachedInputTokens);
+    return {
+      id,
+      cachedPercent: cachedPercent(a) ?? 0,
+      freshTokens: fresh,
+      cachedTokens: a.cachedInputTokens,
+      outputTokens: a.outputTokens,
+      keepAlives: a.invisibleRequests,
+      keepAliveCostUsd: 0,
+      timeline: a.timeline
+        .filter((p) => !p.invisible && p.inputTokens > 0)
+        .map((p) => ({ index: p.sequence, cachedShare: p.cachedInputTokens / p.inputTokens })),
+    };
   }
 
   async weekStats(): Promise<WeekStats> {
     const threads = await this.listThreads();
-    return { costUsd: 0, avgCachedPercent: 0, freshTokens: 0, sessionCount: threads.length, cacheState: "cold" };
+    const all = [...this.analytics.values()];
+    const input = all.reduce((s, a) => s + a.inputTokens, 0);
+    const cached = all.reduce((s, a) => s + a.cachedInputTokens, 0);
+    const cost = all.reduce((s, a) => s + (analyticsCostUsd(a) ?? 0), 0);
+    const cacheStates = threads.map((t) => t.warmth).filter((w): w is Warmth => w != null);
+    return {
+      costUsd: cost,
+      avgCachedPercent: input > 0 ? Math.round((cached / input) * 100) : 0,
+      freshTokens: Math.max(0, input - cached),
+      sessionCount: threads.length,
+      cacheState: cacheStates[0] ?? "cold",
+    };
   }
 
   async listSkills(cwd: string): Promise<SkillEntry[]> {

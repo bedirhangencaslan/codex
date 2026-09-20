@@ -31,9 +31,14 @@ suffice app-server --listen ws://127.0.0.1:4600
 ```
 
 Without `?ws=`, the GUI renders fixture data (labelled "örnek veri" in the
-sidebar) so design review needs no Rust build. Fields the live wire does not
-provide yet (cost, cached %, request timeline — they come from the
-request-stats sidecar in a later PR) render as absent, never invented.
+sidebar) so design review needs no Rust build. In live mode the cost/cache
+fields come from the read-only `analytics/threadStats` endpoint, which
+aggregates the request-stats sidecar (`<codex_home>/analytics/<thread>.jsonl`,
+written when `[features] request_stats` is on). Sessions without a sidecar
+render those fields as absent, never invented. A currency figure is shown
+only when the sidecar header names Z.ai — the prices are the measured ones
+from `_sim/FINDINGS.md` §1 ($0.075/M fresh, $0.015/M cached, $0.25/M out);
+other providers get token counts without money.
 
 Live mode wires two write paths, both documented endpoints: skill toggles call
 `skills/config/write`, and the Commands screen's "Try" runs the clicked

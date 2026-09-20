@@ -3,7 +3,7 @@
   "definitions": {
     "LoginAppBrand": {
       "enum": [
-        "codex",
+        "suffice",
         "chatgpt"
       ],
       "type": "string"
