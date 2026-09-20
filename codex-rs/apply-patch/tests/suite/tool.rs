@@ -99,7 +99,9 @@ fn test_apply_patch_cli_rejects_overlapping_end_of_file_chunks() -> anyhow::Resu
     run_apply_patch_in_dir(tmp.path(), patch)?
         .failure()
         .stderr(format!(
-            "Failed to find expected lines in {}:\none\n",
+            "Failed to find expected lines in {}:\none\nThese lines appear at line 1, before the \
+             point an earlier hunk in this patch already advanced past. Hunks must be ordered as \
+             they appear in the file.\n",
             expected_target_path.display()
         ));
 
@@ -267,7 +269,8 @@ fn test_apply_patch_cli_reports_missing_context() -> anyhow::Result<()> {
         .assert()
         .failure()
         .stderr(format!(
-            "Failed to find expected lines in {}:\nmissing\n",
+            "Failed to find expected lines in {}:\nmissing\nNo line of this hunk appears in the \
+             file, which now has 2 lines.\n",
             expected_target_path.display()
         ));
     assert_eq!(fs::read_to_string(&target_path)?, "line1\nline2\n");

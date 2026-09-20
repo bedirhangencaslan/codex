@@ -207,17 +207,129 @@ fn compute_replacements(
             }
             line_index = start_idx + pattern.len();
         } else {
-            return Err(ApplyPatchError::ComputeReplacements(format!(
-                "Failed to find expected lines in {}:\n{}",
+            return Err(missing_lines_error(
                 path,
-                chunk.old_lines.join("\n"),
-            )));
+                original_lines,
+                pattern,
+                line_index,
+            ));
         }
     }
 
     replacements.sort_by_key(|(index, _, _)| *index);
 
     Ok(replacements)
+}
+
+/// How much of the file to quote back when a hunk fails to apply.
+///
+/// This message used to echo `chunk.old_lines` — the sender's own patch text — straight back at
+/// them, which tells them nothing they did not just write. What they cannot know is the file's
+/// current text where the hunk was meant to land, and its current line numbers, which shift under
+/// every hunk applied before it. These bounds keep that quote from dominating the result when a
+/// hunk fails inside a long function body.
+const FAILURE_CONTEXT_LINES: usize = 20;
+const FAILURE_CONTEXT_BYTES: usize = 800;
+
+/// Cap on how many pattern lines are scored per candidate offset, so that a pathologically long
+/// hunk cannot make this error path quadratic over a large file.
+const FAILURE_PROBE_LINES: usize = 64;
+
+/// Best-effort anchor for a hunk that did not match: the offset at or after `start` where the
+/// greatest number of `pattern` lines line up, comparing trimmed text so that a pure
+/// indentation drift still anchors. Returns the offset and how many lines matched there, or
+/// `None` when nothing lines up at all.
+fn best_partial_match(lines: &[String], pattern: &[String], start: usize) -> Option<(usize, usize)> {
+    let probe = pattern.len().min(FAILURE_PROBE_LINES);
+    if probe == 0 || start >= lines.len() {
+        return None;
+    }
+
+    let mut best_offset = 0usize;
+    let mut best_score = 0usize;
+    for offset in start..lines.len() {
+        let mut score = 0usize;
+        for (index, expected) in pattern.iter().take(probe).enumerate() {
+            match lines.get(offset + index) {
+                Some(actual) if actual.trim() == expected.trim() => score += 1,
+                _ => {}
+            }
+        }
+        if score > best_score {
+            best_score = score;
+            best_offset = offset;
+        }
+    }
+
+    if best_score == 0 {
+        None
+    } else {
+        Some((best_offset, best_score))
+    }
+}
+
+/// Quote the file as it currently stands, starting at `anchor`, with 1-based line numbers and
+/// bounded by `FAILURE_CONTEXT_LINES` / `FAILURE_CONTEXT_BYTES`.
+fn quote_current_lines(lines: &[String], anchor: usize) -> Vec<String> {
+    let mut quoted = Vec::new();
+    let mut budget = FAILURE_CONTEXT_BYTES;
+    for (offset, text) in lines
+        .iter()
+        .enumerate()
+        .skip(anchor)
+        .take(FAILURE_CONTEXT_LINES)
+    {
+        let rendered = format!("{}: {text}", offset + 1);
+        if rendered.len() > budget {
+            quoted.push("...".to_string());
+            break;
+        }
+        budget -= rendered.len();
+        quoted.push(rendered);
+    }
+    quoted
+}
+
+/// Build the failure for a hunk whose `old_lines` could not be located.
+///
+/// Keeps only the hunk's first line — enough to identify *which* hunk failed, and all that is
+/// needed when a patch carries several — and spends the rest of the message on the one thing the
+/// sender cannot recover without re-reading the file.
+fn missing_lines_error(
+    path: &str,
+    original_lines: &[String],
+    pattern: &[String],
+    line_index: usize,
+) -> ApplyPatchError {
+    let mut message = vec![format!("Failed to find expected lines in {path}:")];
+    message.push(pattern.first().cloned().unwrap_or_default());
+    if pattern.len() > 1 {
+        message.push(format!("({} more lines in this hunk)", pattern.len() - 1));
+    }
+
+    if let Some((anchor, score)) = best_partial_match(original_lines, pattern, line_index) {
+        message.push(format!(
+            "Closest match is at line {} ({score} of {} lines match). The file now reads:",
+            anchor + 1,
+            pattern.len(),
+        ));
+        message.extend(quote_current_lines(original_lines, anchor));
+    } else if let Some((anchor, _)) = best_partial_match(original_lines, pattern, 0) {
+        // Searching resumes after the previous hunk, so a match that only exists before
+        // `line_index` means the hunks are not in file order rather than that the text is gone.
+        message.push(format!(
+            "These lines appear at line {}, before the point an earlier hunk in this patch \
+             already advanced past. Hunks must be ordered as they appear in the file.",
+            anchor + 1,
+        ));
+    } else {
+        message.push(format!(
+            "No line of this hunk appears in the file, which now has {} lines.",
+            original_lines.len(),
+        ));
+    }
+
+    ApplyPatchError::ComputeReplacements(message.join("\n"))
 }
 
 /// Apply the `(start_index, old_len, new_lines)` replacements to `original_lines`,
