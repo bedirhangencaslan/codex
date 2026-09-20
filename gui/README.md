@@ -11,6 +11,8 @@ ephemeral threads via `thread/start`.
 | --- | --- |
 | `gui/core` | app-server WebSocket client, shared types, design tokens (`tokens.css`), TR/EN i18n |
 | `gui/web` | Vite + React app: Sessions, Skills, Commands, Styles screens |
+| `gui/desktop` | Tauri shell around the same web bundle (standalone Cargo project, `bundle.active` off until icons land) |
+| `gui/vscode` | VS Code extension: `Suffice: Open GUI` opens the bundle in a webview (`pnpm --filter suffice-gui build`) |
 | `gui/design` | Phase 0 pitch (`mockups-v1.html`) — direction "Thermal Instrument Pro" approved |
 | `gui/PROMPT-CHANGE-PROPOSALS.md` | Quarantine for anything that would touch model-visible tokens — planned, never applied |
 
@@ -32,6 +34,16 @@ Without `?ws=`, the GUI renders fixture data (labelled "örnek veri" in the
 sidebar) so design review needs no Rust build. Fields the live wire does not
 provide yet (cost, cached %, request timeline — they come from the
 request-stats sidecar in a later PR) render as absent, never invented.
+
+Live mode wires two write paths, both documented endpoints: skill toggles call
+`skills/config/write`, and the Commands screen's "Try" runs the clicked
+command in an ephemeral thread (`thread/start {ephemeral:true}` →
+`turn/start`), streaming agent deltas into the trial pane. The text sent is
+exactly the command string — the same bytes a TUI user typing it produces.
+
+Shells: `gui/desktop` (Tauri, see its README) and `gui/vscode`
+(`pnpm --filter suffice-gui build`, then F5 / "Suffice: Open GUI") wrap the
+identical bundle and add no data paths of their own.
 
 ## Turkish support
 

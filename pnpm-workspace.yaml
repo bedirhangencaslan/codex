@@ -4,6 +4,7 @@ packages:
   - sdk/typescript
   - gui/core
   - gui/web
+  - gui/vscode
 
 ignoredBuiltDependencies:
   - esbuild

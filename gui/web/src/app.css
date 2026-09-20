@@ -189,6 +189,13 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 .bar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); overflow: hidden; margin-top: 8px; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--sf-cold), var(--sf-warm)); border-radius: 4px; box-shadow: 0 0 10px rgba(240, 146, 60, 0.4); }
 
+.cmdlayout { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--sf-sp-4); align-items: start; max-width: 1080px; }
+@media (max-width: 900px) { .cmdlayout { grid-template-columns: 1fr; } }
+.trial header code { color: var(--sf-warm-hi); font-size: 12.5px; }
+.trialout {
+  margin: 0; padding: 14px 15px; min-height: 260px; max-height: 420px; overflow: auto;
+  font-size: 12px; line-height: 1.6; color: var(--sf-fg-data); white-space: pre-wrap; word-break: break-word;
+}
 .cmdgrid { display: grid; grid-template-columns: 1fr 1fr; }
 @media (max-width: 700px) { .cmdgrid { grid-template-columns: 1fr; } }
 .cmdcard { display: flex; flex-direction: column; gap: 5px; padding: 13px 15px; border-bottom: 1px solid var(--sf-line-soft); text-align: left; }

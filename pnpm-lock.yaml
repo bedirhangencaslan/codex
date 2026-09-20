@@ -40,6 +40,15 @@ importers:
         specifier: ^5.6.3
         version: 5.9.2
 
+  gui/vscode:
+    devDependencies:
+      '@types/vscode':
+        specifier: ^1.90.0
+        version: 1.137.0
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.2
+
   gui/web:
     dependencies:
       '@suffice/gui-core':
@@ -626,7 +635,7 @@ packages:
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
   '@modelcontextprotocol/conformance@https://codeload.github.com/modelcontextprotocol/conformance/tar.gz/49103de6ed70804e940637bf3e9e29e4a3f54e64':
-    resolution: {gitHosted: true, integrity: sha512-zzqxa/sCnMMhlE69TqfWx4vTZ9eMHHwF/gKjcJtAbeYWtYi4UuSQfPWCwiP5bnHPF0ZyGfvuWvYx1W1hJppI4w==, tarball: https://codeload.github.com/modelcontextprotocol/conformance/tar.gz/49103de6ed70804e940637bf3e9e29e4a3f54e64}
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/modelcontextprotocol/conformance/tar.gz/49103de6ed70804e940637bf3e9e29e4a3f54e64}
     version: 0.2.0-alpha.10
     hasBin: true
 
@@ -919,6 +928,9 @@ packages:
 
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
+
+  '@types/vscode@1.137.0':
+    resolution: {integrity: sha512-0dc/BBWxkyUsJzXIZ7PkKSalThmS4xiBT+8YEDiWdCefRKHGVV5ZNkM5NB5ULYamallYJujIfncNoXWFlyzL8A==}
 
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
@@ -3622,6 +3634,8 @@ snapshots:
       csstype: 3.2.3
 
   '@types/stack-utils@2.0.3': {}
+
+  '@types/vscode@1.137.0': {}
 
   '@types/yargs-parser@21.0.3': {}
 

@@ -17,8 +17,19 @@ export function Skills({ provider, locale }: { provider: DataProvider; locale: L
     };
   }, [provider]);
 
-  const toggle = (name: string) =>
-    setSkills((cur) => cur && cur.map((s) => (s.name === name ? { ...s, enabled: !s.enabled } : s)));
+  const toggle = (name: string) => {
+    setSkills((cur) => {
+      if (!cur) return cur;
+      const target = cur.find((s) => s.name === name);
+      if (target) {
+        // optimistic; on failure the effect below reverts by reloading
+        provider.setSkillEnabled(target, !target.enabled).catch(() => {
+          provider.listSkills("~/codex").then(setSkills);
+        });
+      }
+      return cur.map((s) => (s.name === name ? { ...s, enabled: !s.enabled } : s));
+    });
+  };
 
   const total = (skills ?? []).reduce((a, s) => a + s.promptTokens, 0);
   const active = (skills ?? []).filter((s) => s.enabled).reduce((a, s) => a + s.promptTokens, 0);

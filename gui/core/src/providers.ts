@@ -83,13 +83,19 @@ const DETAILS: Record<string, ThreadDetail> = {
 };
 
 const SKILLS: SkillEntry[] = [
-  { name: "code-review", description: "review a PR with verified findings", enabled: true, promptTokens: 412, pluginId: null },
-  { name: "babysit-pr", description: "watch CI, fix failures until green", enabled: true, promptTokens: 287, pluginId: null },
-  { name: "codex-pr-body", description: "write a PR body in this repo's voice", enabled: false, promptTokens: 198, pluginId: null },
-  { name: "imagegen", description: "generate images via API", enabled: false, promptTokens: 1104, pluginId: null },
-  { name: "skill-creator", description: "create or update a Suffice skill", enabled: false, promptTokens: 866, pluginId: null },
-  { name: "skill-installer", description: "install skills from a repo", enabled: false, promptTokens: 934, pluginId: null },
+  { name: "code-review", description: "review a PR with verified findings", enabled: true, promptTokens: 412, pluginId: null, path: null },
+  { name: "babysit-pr", description: "watch CI, fix failures until green", enabled: true, promptTokens: 287, pluginId: null, path: null },
+  { name: "codex-pr-body", description: "write a PR body in this repo's voice", enabled: false, promptTokens: 198, pluginId: null, path: null },
+  { name: "imagegen", description: "generate images via API", enabled: false, promptTokens: 1104, pluginId: null, path: null },
+  { name: "skill-creator", description: "create or update a Suffice skill", enabled: false, promptTokens: 866, pluginId: null, path: null },
+  { name: "skill-installer", description: "install skills from a repo", enabled: false, promptTokens: 934, pluginId: null, path: null },
 ];
+
+const TRIAL_OUTPUTS: Record<string, string> = {
+  "/status": "workdir: ~/codex\nmodel: glm-5.3-flash (zai) · effort high\ncache: warm ⚡ · 420 s TTL · 3 keep-alives this session\ntokens: 21,406 fresh · 216,714 cached · 9,882 out\n",
+  "/diff": "gui/web/src/App.tsx        | 12 ++++++-----\ngui/core/src/providers.ts  | 48 ++++++++++++++++++++++++++\n2 files changed, 55 insertions(+), 5 deletions(-)\n",
+  "/skills": "enabled for ~/codex: code-review, babysit-pr\navailable: codex-pr-body, imagegen, skill-creator, skill-installer\n",
+};
 
 const COMMANDS: CommandEntry[] = [
   { name: "/review", description: "review my current changes and find issues" },
@@ -128,6 +134,20 @@ export class MockProvider implements DataProvider {
   async listStyles(): Promise<StyleCard[]> {
     return STYLES;
   }
+  async setSkillEnabled(skill: SkillEntry, enabled: boolean): Promise<boolean> {
+    const row = SKILLS.find((s) => s.name === skill.name);
+    if (row) row.enabled = enabled;
+    return false; // in-memory only; nothing persisted
+  }
+  async runCommandTrial(command: string, onDelta: (text: string) => void): Promise<void> {
+    const body =
+      TRIAL_OUTPUTS[command.trim()] ??
+      `(örnek çıktı) ${command} geçici oturumda çalıştırıldı; canlı app-server bağlıyken gerçek yanıt burada akar.\n`;
+    for (const chunk of body.match(/.{1,18}/gs) ?? []) {
+      await new Promise((r) => setTimeout(r, 24));
+      onDelta(chunk);
+    }
+  }
 }
 
 /* ------------------------------------------------------------ app-server */
@@ -145,6 +165,7 @@ interface WireSkill {
   description?: string | null;
   enabled?: boolean;
   pluginId?: string | null;
+  path?: string | null;
 }
 
 /** Real data source. Phase 1 wires the endpoints that exist today
@@ -202,6 +223,7 @@ export class AppServerProvider implements DataProvider {
       enabled: s.enabled ?? true,
       promptTokens: 0,
       pluginId: s.pluginId ?? null,
+      path: s.path ?? null,
     }));
   }
 
@@ -211,5 +233,51 @@ export class AppServerProvider implements DataProvider {
 
   async listStyles(): Promise<StyleCard[]> {
     return new MockProvider().listStyles();
+  }
+
+  /** Documented `skills/config/write` — by path when known, else by name. */
+  async setSkillEnabled(skill: SkillEntry, enabled: boolean): Promise<boolean> {
+    await this.client.request("skills/config/write", {
+      path: skill.path,
+      name: skill.path ? null : skill.name,
+      enabled,
+    });
+    return true;
+  }
+
+  /** `thread/start {ephemeral:true}` + `turn/start` with exactly the user's
+   * command text — the same bytes a TUI user typing the command produces
+   * (PROMPT-CHANGE-PROPOSALS.md, Proposal 2's approved-by-construction
+   * default). Deltas stream in via notifications until the turn ends. */
+  async runCommandTrial(command: string, onDelta: (text: string) => void): Promise<void> {
+    const started = await this.client.request<{ thread?: { id?: string }; threadId?: string }>("thread/start", {
+      cwd: this.cwd,
+      ephemeral: true,
+    });
+    const threadId = started.thread?.id ?? started.threadId;
+    if (!threadId) throw new Error("thread/start kimlik döndürmedi");
+
+    await new Promise<void>((resolve, reject) => {
+      const unsub = this.client.onNotification((method, params) => {
+        const p = params as { threadId?: string; delta?: unknown; text?: unknown } | undefined;
+        if (p?.threadId != null && p.threadId !== threadId) return;
+        if (method.includes("agentMessage") && method.endsWith("delta")) {
+          const chunk = typeof p?.delta === "string" ? p.delta : typeof p?.text === "string" ? p.text : "";
+          if (chunk) onDelta(chunk);
+        } else if (method === "turn/completed") {
+          unsub();
+          resolve();
+        } else if (method === "turn/failed" || method === "turn/aborted") {
+          unsub();
+          reject(new Error("tur tamamlanamadı"));
+        }
+      });
+      this.client
+        .request("turn/start", { threadId, input: [{ type: "text", text: command }] })
+        .catch((e) => {
+          unsub();
+          reject(e instanceof Error ? e : new Error(String(e)));
+        });
+    });
   }
 }
