@@ -276,3 +276,129 @@ g
 "#
     );
 }
+
+fn to_lines(text: &str) -> Vec<String> {
+    text.lines().map(str::to_string).collect()
+}
+
+#[test]
+fn stale_hunk_quotes_current_text_instead_of_the_senders_own_lines() {
+    // The file moved on; the hunk still carries the sender's older memory of it.
+    let original = to_lines("def parse(sql):\n    tokens = _lex(sql)\n    return _build(tokens, strict=True)");
+    let pattern = to_lines("def parse(sql):\n    tokens = _lex(sql)\n    return _build(tokens)");
+
+    let message = missing_lines_error("demo.py", &original, &pattern, 0).to_string();
+
+    // The one thing the sender cannot know: what is there now, and at which line.
+    assert!(
+        message.contains("1: def parse(sql):"),
+        "expected numbered current text: {message}"
+    );
+    assert!(
+        message.contains("3:     return _build(tokens, strict=True)"),
+        "expected the file's current third line: {message}"
+    );
+    // The stale line the sender just wrote is not echoed back at it.
+    assert!(
+        !message.contains("return _build(tokens)\n"),
+        "hunk body should not be echoed: {message}"
+    );
+    assert!(message.contains("(2 more lines in this hunk)"), "{message}");
+}
+
+#[test]
+fn quoted_context_stays_within_its_line_and_byte_bounds() {
+    let original: Vec<String> = (1..=500).map(|n| format!("line {n}")).collect();
+    // Matches at the top, then diverges, so a quote block is produced.
+    let mut pattern = original[..50].to_vec();
+    pattern.push("a line that is not in the file".to_string());
+
+    let message = missing_lines_error("big.rs", &original, &pattern, 0).to_string();
+
+    let quoted = message.lines().filter(|l| l.starts_with("1: ") || l.contains(": line ")).count();
+    assert!(
+        quoted <= FAILURE_CONTEXT_LINES,
+        "quoted {quoted} lines, cap is {FAILURE_CONTEXT_LINES}: {message}"
+    );
+    assert!(
+        message.len() < FAILURE_CONTEXT_BYTES + 400,
+        "message grew to {} bytes: {message}",
+        message.len()
+    );
+}
+
+#[test]
+fn large_stale_hunk_costs_less_than_echoing_it_back() {
+    // The design is a swap, not an addition: what used to be spent echoing the hunk is spent on
+    // the file's current text instead, under a fixed cap.
+    let original: Vec<String> = (1..=500)
+        .map(|n| format!("    let value_{n} = compute_something_reasonably_long({n});"))
+        .collect();
+    let mut pattern = original[..50].to_vec();
+    pattern.push("    let missing = not_in_the_file();".to_string());
+
+    let previous_behaviour = format!(
+        "Failed to find expected lines in big.rs:\n{}",
+        pattern.join("\n")
+    );
+    let message = missing_lines_error("big.rs", &original, &pattern, 0).to_string();
+
+    assert!(
+        message.len() < previous_behaviour.len(),
+        "new message is {} bytes against the old {}",
+        message.len(),
+        previous_behaviour.len()
+    );
+}
+
+#[test]
+fn hunk_matching_only_before_the_cursor_is_reported_as_out_of_order() {
+    let original = to_lines("alpha\nbeta\ngamma");
+    let pattern = to_lines("alpha");
+
+    // An earlier hunk already advanced past line 1.
+    let message = missing_lines_error("ordered.txt", &original, &pattern, 2).to_string();
+
+    assert!(
+        message.contains("These lines appear at line 1"),
+        "expected an ordering diagnostic: {message}"
+    );
+}
+
+#[test]
+fn hunk_absent_from_the_file_says_so_with_the_current_length() {
+    let original = to_lines("alpha\nbeta");
+    let pattern = to_lines("nowhere to be found");
+
+    let message = missing_lines_error("absent.txt", &original, &pattern, 0).to_string();
+
+    assert!(
+        message.contains("No line of this hunk appears in the file, which now has 2 lines."),
+        "{message}"
+    );
+}
+
+#[test]
+fn best_partial_match_prefers_the_densest_overlap() {
+    let lines = to_lines("a\nb\nc\na\nb\nz");
+    let pattern = to_lines("a\nb\nz");
+
+    // Offset 0 matches two of three lines; offset 3 matches all three.
+    assert_eq!(best_partial_match(&lines, &pattern, 0), Some((3, 3)));
+    // Nothing lines up once the cursor is past the dense match.
+    assert_eq!(best_partial_match(&lines, &pattern, 4), None);
+    // A start at or beyond the end of the file has nowhere to look.
+    assert_eq!(best_partial_match(&lines, &pattern, 6), None);
+
+    // A partial overlap is still an anchor when no full match exists anywhere.
+    let truncated = to_lines("a\nb\nc");
+    assert_eq!(best_partial_match(&truncated, &pattern, 0), Some((0, 2)));
+}
+
+#[test]
+fn best_partial_match_ignores_indentation_drift() {
+    let lines = to_lines("        return value");
+    let pattern = to_lines("    return value");
+
+    assert_eq!(best_partial_match(&lines, &pattern, 0), Some((0, 1)));
+}

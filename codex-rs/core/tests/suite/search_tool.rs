@@ -956,11 +956,7 @@ impl<'call> ToolExecutor<ToolCall<'call>> for DeferredCustomTool {
             name: "custom_echo".to_string(),
             description: "Echo a custom payload.".to_string(),
             defer_loading: None,
-            format: FreeformToolFormat {
-                r#type: "grammar".to_string(),
-                syntax: "lark".to_string(),
-                definition: "start: /.+/".to_string(),
-            },
+            format: FreeformToolFormat::lark("start: /.+/".to_string()),
         })
     }
 

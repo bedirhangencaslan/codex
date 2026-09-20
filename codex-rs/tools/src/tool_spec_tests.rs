@@ -76,11 +76,7 @@ fn tool_spec_name_covers_all_variants() {
             name: "exec".to_string(),
             description: "Run a command".to_string(),
             defer_loading: None,
-            format: FreeformToolFormat {
-                r#type: "grammar".to_string(),
-                syntax: "lark".to_string(),
-                definition: "start: \"exec\"".to_string(),
-            },
+            format: FreeformToolFormat::lark("start: \"exec\"".to_string()),
         })
         .name(),
         "exec"
@@ -185,11 +181,7 @@ fn responses_lite_groups_default_function_and_custom_tools() {
             name: "exec".to_string(),
             description: "Run code".to_string(),
             defer_loading: None,
-            format: FreeformToolFormat {
-                r#type: "grammar".to_string(),
-                syntax: "lark".to_string(),
-                definition: "start: /.+/".to_string(),
-            },
+            format: FreeformToolFormat::lark("start: /.+/".to_string()),
         }),
         ToolSpec::Namespace(ResponsesApiNamespace {
             name: "functions".to_string(),
@@ -296,11 +288,7 @@ fn namespace_tool_spec_serializes_expected_wire_shape() {
                     name: "apply_patch".to_string(),
                     description: "Apply a patch".to_string(),
                     defer_loading: None,
-                    format: FreeformToolFormat {
-                        r#type: "grammar".to_string(),
-                        syntax: "lark".to_string(),
-                        definition: "start: \"patch\"".to_string(),
-                    },
+                    format: FreeformToolFormat::lark("start: \"patch\"".to_string()),
                 }),
             ],
         }))

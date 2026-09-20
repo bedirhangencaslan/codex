@@ -328,11 +328,7 @@ fn responses_lite_prefix_ids_track_thread_and_payload() -> anyhow::Result<()> {
         name: "exec".to_string(),
         description: "Execute JavaScript.".to_string(),
         defer_loading: None,
-        format: codex_tools::FreeformToolFormat {
-            r#type: "grammar".to_string(),
-            syntax: "lark".to_string(),
-            definition: "start: /.+/".to_string(),
-        },
+        format: codex_tools::FreeformToolFormat::lark("start: /.+/".to_string()),
     })]
     .into();
     let changed_tools = build(&client, &prompt)?;

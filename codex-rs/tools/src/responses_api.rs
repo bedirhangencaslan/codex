@@ -21,11 +21,36 @@ pub struct FreeformTool {
     pub format: FreeformToolFormat,
 }
 
+/// The `format` of a custom tool. Either `{"type": "text"}`, which takes the model's output
+/// verbatim, or `{"type": "grammar", ...}`, which constrains sampling to `definition`.
+/// `syntax` and `definition` belong to the grammar form only and are omitted for text.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FreeformToolFormat {
     pub r#type: String,
-    pub syntax: String,
-    pub definition: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub syntax: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition: Option<String>,
+}
+
+impl FreeformToolFormat {
+    /// `{"type": "text"}` — no grammar, so nothing constrains what the model emits.
+    pub fn text() -> Self {
+        Self {
+            r#type: "text".to_string(),
+            syntax: None,
+            definition: None,
+        }
+    }
+
+    /// `{"type": "grammar", "syntax": "lark", "definition": ...}`.
+    pub fn lark(definition: String) -> Self {
+        Self {
+            r#type: "grammar".to_string(),
+            syntax: Some("lark".to_string()),
+            definition: Some(definition),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

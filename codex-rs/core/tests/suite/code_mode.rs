@@ -5004,11 +5004,7 @@ impl<'call> ToolExecutor<ToolCall<'call>> for NamespacedCustomTool {
                 name: "apply_patch".to_string(),
                 description: format!("Apply a raw editor patch (step {}).", self.generation),
                 defer_loading: None,
-                format: FreeformToolFormat {
-                    r#type: "grammar".to_string(),
-                    syntax: "lark".to_string(),
-                    definition: "start: /.+/".to_string(),
-                },
+                format: FreeformToolFormat::lark("start: /.+/".to_string()),
             })],
         })
     }

@@ -45,11 +45,7 @@ fn top_level_custom_tools_are_searchable() {
         name: "apply_patch".to_string(),
         description: "Apply a patch".to_string(),
         defer_loading: None,
-        format: crate::FreeformToolFormat {
-            r#type: "grammar".to_string(),
-            syntax: "lark".to_string(),
-            definition: "start: \"patch\"".to_string(),
-        },
+        format: crate::FreeformToolFormat::lark("start: \"patch\"".to_string()),
     };
     let search_info = ToolSearchInfo::from_tool_spec(
         ToolSpec::Freeform(custom_tool.clone()),
@@ -136,11 +132,7 @@ fn mixed_namespaced_function_and_custom_tools_are_searchable() {
         name: "apply_patch".to_string(),
         description: "Apply a patch".to_string(),
         defer_loading: None,
-        format: crate::FreeformToolFormat {
-            r#type: "grammar".to_string(),
-            syntax: "lark".to_string(),
-            definition: "start: \"patch\"".to_string(),
-        },
+        format: crate::FreeformToolFormat::lark("start: \"patch\"".to_string()),
     };
     let spec = ToolSpec::Namespace(crate::ResponsesApiNamespace {
         name: "editor".to_string(),

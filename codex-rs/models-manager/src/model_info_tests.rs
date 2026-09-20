@@ -348,3 +348,128 @@ fn model_context_window_uses_model_value_without_override() {
 
     assert_eq!(updated, model);
 }
+
+fn model_with_template(template: &str, tool_type: Option<ApplyPatchToolType>) -> ModelInfo {
+    let mut model = model_info_from_slug("unknown-model");
+    model.apply_patch_tool_type = tool_type;
+    if let Some(messages) = model.model_messages.as_mut() {
+        messages.instructions_template = Some(template.to_string());
+        messages.instructions_variables = None;
+    }
+    model
+}
+
+fn template_of(model: &ModelInfo) -> String {
+    model
+        .model_messages
+        .as_ref()
+        .and_then(|messages| messages.instructions_template.clone())
+        .unwrap_or_default()
+}
+
+const TEMPLATE_WITH_SECTION: &str = "\
+# General
+
+Be careful.
+
+## apply_patch
+
+Some older wording about *** Begin Patch that has since drifted.
+
+## Something else
+
+Keep me.
+";
+
+#[test]
+fn grammar_models_do_not_also_carry_the_prose() {
+    let model = model_with_template(
+        TEMPLATE_WITH_SECTION,
+        Some(ApplyPatchToolType::Freeform),
+    );
+
+    let updated = with_config_overrides(model, &ModelsManagerConfig::default());
+    let template = template_of(&updated);
+
+    assert!(
+        !template.contains("## apply_patch"),
+        "the grammar already constrains the format: {template}"
+    );
+    assert!(
+        !template.contains("*** Begin Patch"),
+        "stale prose survived: {template}"
+    );
+    // Everything the model's own template said stays put.
+    assert!(template.contains("## Something else"), "{template}");
+    assert!(template.contains("Keep me."), "{template}");
+    assert!(template.contains("Be careful."), "{template}");
+}
+
+#[test]
+fn prose_models_get_the_canonical_block_exactly_once() {
+    let model = model_with_template(TEMPLATE_WITH_SECTION, Some(ApplyPatchToolType::Prose));
+
+    let updated = with_config_overrides(model, &ModelsManagerConfig::default());
+    let template = template_of(&updated);
+
+    assert_eq!(
+        template.matches("## apply_patch").count(),
+        1,
+        "expected exactly one section: {template}"
+    );
+    // The model's own drifted copy is replaced by the canonical text, not appended to.
+    assert!(!template.contains("has since drifted"), "{template}");
+    assert!(
+        template.contains("an empty line without its `+` is read as a header"),
+        "the measured blank-line rule must survive: {template}"
+    );
+    assert!(template.contains("## Something else"), "{template}");
+}
+
+#[test]
+fn prose_is_added_when_the_template_never_had_a_section() {
+    let model = model_with_template("# General\n\nBe careful.\n", Some(ApplyPatchToolType::Prose));
+
+    let updated = with_config_overrides(model, &ModelsManagerConfig::default());
+    let template = template_of(&updated);
+
+    assert_eq!(template.matches("## apply_patch").count(), 1, "{template}");
+    assert!(template.contains("Be careful."), "{template}");
+}
+
+#[test]
+fn models_without_the_tool_keep_their_own_template() {
+    // `apply_patch_tool_type: None` removes the tool entirely, so the model patches through the
+    // shell. `APPLY_PATCH_PROSE` describes a *tool*, so injecting it here would be wrong; such a
+    // model's template is left exactly as the catalog wrote it.
+    let model = model_with_template(TEMPLATE_WITH_SECTION, /*tool_type*/ None);
+
+    let updated = with_config_overrides(model.clone(), &ModelsManagerConfig::default());
+
+    assert_eq!(template_of(&updated), TEMPLATE_WITH_SECTION);
+    assert_eq!(updated, model);
+}
+
+#[test]
+fn aligning_the_section_is_idempotent() {
+    let once = with_config_overrides(
+        model_with_template(TEMPLATE_WITH_SECTION, Some(ApplyPatchToolType::Prose)),
+        &ModelsManagerConfig::default(),
+    );
+    let twice = with_config_overrides(once.clone(), &ModelsManagerConfig::default());
+
+    assert_eq!(template_of(&once), template_of(&twice));
+}
+
+#[test]
+fn a_user_supplied_prompt_is_left_alone() {
+    let model = model_with_template("# Mine\n", Some(ApplyPatchToolType::Prose));
+    let config = ModelsManagerConfig {
+        base_instructions: Some("only what I wrote".to_string()),
+        ..Default::default()
+    };
+
+    let updated = with_config_overrides(model, &config);
+
+    assert_eq!(template_of(&updated), "only what I wrote");
+}
