@@ -187,6 +187,59 @@ upstream, which removed the animation files along with the module.
 
 ---
 
+## The 36 files that will conflict again
+
+Measured, not guessed: the same 1,050 commits were re-merged on a throwaway branch with
+`scripts/merge/` installed. 256 conflicts became 64 - 36 content, 28 modify/delete - and these
+are the 36. They are what is left after the rename noise is gone, which is why almost all of
+them are on a cost mechanism.
+
+This is the list to open first next time. `git show 658ddfd66 -- <path>` shows what each side
+had last time; the column below says what to protect.
+
+| file | what is ours in it | when it conflicts |
+|---|---|---|
+| `core/src/compact.rs` | `tools: Arc::clone(&tools)` | keep it. Refuse `attach_to_compaction_prompt` |
+| `core/src/context_manager/history.rs` | `dropped_reason`, `DropReason::Invisible`, reasoning = 0 | keep the two-stage decision; see above |
+| `core/src/context_manager/history_tests.rs` | the tests that pin it | follow whatever `history.rs` settled on |
+| `history/src/lib.rs` | four metadata fields | append ours after upstream's; watch for a duplicate limit field |
+| `history/src/tests.rs` | test setup for those fields | prefer upstream's `..Default::default()` shape |
+| `core/src/tools/context.rs` | the spill mechanism, 5 functions | keep all five; upstream's budget helper composes |
+| `utils/output-truncation/src/lib.rs` | `never_worse` | keep beside `with_serialization_allowance` |
+| `core/src/tools/spec_plan.rs` | `lean_parameters`, read/grep registration, apply_patch type | check git already moved them; usually only a duplicate call site |
+| `models-manager/models.json` | `glm-5.3-flash`, the glob/grep line, per-model apply_patch type | merge field by field; template and variables move together |
+| `models-manager/src/model_info.rs` | `align_apply_patch_section` | keep the call; personality follows upstream |
+| `codex-api/src/endpoint/responses.rs` | `WireApi::Chat` arm, `ResponsesEndpoint` | keep both; without them the fork cannot reach its provider |
+| `core/src/client.rs` | `prompt_cache_keep_alive_enabled` | keep the flag threading |
+| `core/src/session/session.rs` | `with_prompt_cache_keep_alive` | keep the wiring |
+| `core/src/session/turn.rs` | `freeze_reasoning_retention`, `request_stats.record_prompt` | the verdict must stay frozen once per turn |
+| `core/src/session/mod.rs` | `prompt_input_for_step`, the metadata writers | check the beta-features header did not change meaning |
+| `tui/src/history_cell/messages.rs` | `invisible` field, its style branch and tag | keep; upstream's styling is the base |
+| `tui/src/chatwidget/constructor.rs` | `invisible_mode: false` | keep, beside upstream's settings source |
+| `tui/src/chatwidget/input_submission.rs` | `self.invisible_mode` as the 5th argument | keep; take upstream's `personality` argument |
+| `tui/src/slash_command.rs` | `Invisible` variant and its description | keep; drop anything naming a variant upstream removed |
+| `tui/src/chatwidget/streaming.rs` | `stream_plaintext_reasoning_status()` | keep - GLM's thinking is invisible without it |
+| `tui/src/bottom_pane/footer.rs` | `context_window_line`'s `breakdown` parameter | keep the parameter, take upstream's styling |
+| `tui/src/bottom_pane/chat_composer.rs` | `set_response_speed`, `set_personality_command_enabled` | additive; keep both sides |
+| `tui/src/bottom_pane/mod.rs` | the same two setters | additive; keep both sides |
+| `app-server-protocol/src/protocol/v2/mod.rs` | `mod analytics` (the request-stats sidecar) | additive; keep both modules |
+| `app-server/src/request_processors/account_processor.rs` | the sidecar's endpoint | the login-override region is upstream's, not ours |
+| `core/src/config/config_tests.rs` | `.suffice` path assertions | follow upstream's API names, restore `.suffice` |
+| `core/tests/suite/personality.rs` | nothing functional | follow upstream |
+| `tui/src/chatwidget/settings_popups.rs` | nothing functional | follow upstream; personality is theirs now |
+| `tui/src/chatwidget/tests/permissions.rs` | `2950aa15a` assertions | follow upstream; the default itself lives in `config/mod.rs` |
+| `tui/src/chatwidget/windows_sandbox_prompts.rs` | a "do not ask under full access" shortcut | cosmetic; no token cost either way |
+| `tui/src/chatwidget/turn_runtime.rs` | nothing functional | follow upstream |
+| `tui/src/thread_transcript.rs` | one `..Default::default()` | re-add it to upstream's `UserHistoryCell` literal |
+| `tui/src/pager_overlay/scrolling_tests.rs` | one `..Default::default()` | do **not** re-add; the literal it served was deleted |
+| `tui/src/app/tests/session_lifecycle_requests.rs` | nothing functional | follow upstream |
+| `memories/write/src/phase2.rs` | two `use` lines | additive; keep ours |
+| `codex-cli/bin/suffice.js` | `@suffice/cli` | keep the package name, take upstream's structure |
+
+Sixteen of the thirty-six carry nothing functional. They are on the list because the rename
+driver leaves a file alone when both sides changed the same logic, even when that logic is
+upstream's on both counts.
+
 ## What is still unverified
 
 **Nothing here has been compiled.** Every resolution above is static inspection plus
