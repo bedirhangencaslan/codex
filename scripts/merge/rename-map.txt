@@ -1,0 +1,47 @@
+# Renames this fork must keep when a merge would otherwise revert them.
+#
+# The rename commit (f06d1e476) changed two different kinds of thing under one heading.
+# Only one of them belongs here.
+#
+#   the product name      prose, comments, messages, anything a person reads.
+#                         Reverting it costs nothing, so it is NOT listed here and the
+#                         merge driver lets it follow upstream. That is deliberate: the
+#                         name is what made ~90% of the 2026-09-20 merge's 256 conflicts,
+#                         and letting it follow upstream is what makes them stop.
+#
+#   the runtime identity  names the running program reads: an environment variable it
+#                         looks up, a directory it opens, an enum variant or class the
+#                         compiler resolves. Reverting one of these does not produce a
+#                         differently-worded message, it produces a program that looks in
+#                         the wrong place or does not build.
+#
+# Format, one per line:   <upstream form> => <our form> [| <path prefix>]
+# The optional path prefix limits the rule to files under it.
+# Lines starting with `#` are comments. Order matters: longest match first.
+#
+# Verify with: python scripts/merge/verify-map.py
+# That script reads the tree and fails if a load-bearing rename is missing here.
+
+# --- environment and on-disk layout -----------------------------------------
+# `utils/home-dir` reads this name and no other; there is no CODEX_HOME fallback.
+CODEX_HOME => SUFFICE_HOME
+
+# The plugin manifest directory `core-plugins` looks for. Must precede `.codex`.
+.codex-plugin => .suffice-plugin
+
+# The project config directory `config/src/loader` looks for, and the directory
+# `protocol/src/permissions.rs` keeps the sandbox out of.
+.codex => .suffice
+
+# --- identifiers: reverting these does not compile ---------------------------
+ToolError::Codex => ToolError::Suffice
+Product::Codex => Product::Suffice
+LoginAppBrand::Codex => LoginAppBrand::Suffice
+LoginSuccessPageBrand::Codex => LoginSuccessPageBrand::Suffice
+
+# The Python SDK exports `Suffice` beside `AsyncCodex`, `CodexError` and `CodexRpcError`,
+# which kept their names. Scoped to the SDK so a bare `Codex` elsewhere is left alone.
+Codex => Suffice | sdk/python/
+
+# --- the package and binary the user installs --------------------------------
+@openai/codex => @suffice/cli | codex-cli/

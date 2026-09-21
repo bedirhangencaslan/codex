@@ -1,3 +1,85 @@
+# Existing rules, kept.
 codex-rs/app-server-protocol/schema/** linguist-generated
 codex-rs/hooks/schema/generated/** linguist-generated
+third_party/voice/sources.json text eol=lf
+
+# ============================================================================
+# Merge behaviour for this fork.
+#
+# Two kinds of file made almost every conflict in the 2026-09-20 merge of 1,050
+# upstream commits, and neither was a disagreement about behaviour:
+#
+#   the rename   our product-name change meets upstream's edit on the same line.
+#                Roughly nine of every ten conflicts. Handled by `rename` below.
+#   generated    snapshots and schemas are outputs. Resolving one by hand is
+#                wasted work: regenerating overwrites whatever was decided.
+#
+# Drivers must be registered once per clone. Git will not run a driver it has
+# not been told about; it falls back to the ordinary merge without saying so:
+#
+#     pwsh scripts/merge/install.ps1        (or: sh scripts/merge/install.sh)
+#
+# To check a driver still does what it claims, replayed against the 2026-09-20
+# merge's real conflicts:
+#
+#     python scripts/merge/test-driver.py
+#
+# Git applies the LAST matching line, so the broad rules come first here and the
+# generated-output overrides come last.
+#
+# THIS FILE MUST NEVER CONFLICT. A `.gitattributes` with conflict markers in it is
+# not a valid attributes file, so git stops applying every rule in it - silently,
+# with only `... is not a valid attribute name` on stderr - and the merge falls
+# back to the ordinary one. Found the hard way: a trial merge with the drivers
+# supposedly enabled produced 611 conflicts instead of 256, because this file had
+# conflicted first and disabled them. Hence the `merge=ours` on the line below.
+# ============================================================================
+.gitattributes  merge=ours
+
+# ---------------------------------------------------------------- the rename
+# Speaks our side back in upstream's words, merges, then restores only the names
+# the running program reads (scripts/merge/rename-map.txt): SUFFICE_HOME, the
+# .suffice directories, the renamed enum variants and the SDK's class.
+#
+# The product name is left as upstream writes it. That is deliberate - it costs
+# nothing, and it is what the conflicts were made of. A file that passes through
+# this driver therefore stops carrying the cosmetic rename, and the tree
+# converges on upstream's wording while keeping this fork's identity on disk.
+#
+# A real disagreement - both sides changing the same logic - still conflicts,
+# with markers. This removes noise, not decisions.
+*.rs      merge=rename
+*.py      merge=rename
+*.ts      merge=rename
+*.tsx     merge=rename
+*.js      merge=rename
+*.md      merge=rename
+*.toml    merge=rename
+*.json    merge=rename
+*.sh      merge=rename
+*.ps1     merge=rename
+*.txt     merge=rename
+*.lark    merge=rename
+
+# ---------------------------------------------------------------- generated
+# Keeps our copy and reports no conflict. The copy is stale either way until it
+# is regenerated, so the merge should not stop to ask which stale copy is
+# preferred.
+#
+# REGENERATING IS NOT OPTIONAL. After a merge that touches these, run the
+# generators. Until then the snapshot tests fail, which is the reminder:
+#
+#     cargo insta accept
+#     cargo run -p codex-config-schema
+*.snap                                  merge=generated
+codex-rs/core/config.schema.json        merge=generated
+codex-rs/app-server-protocol/schema/**  linguist-generated merge=generated
+codex-rs/hooks/schema/generated/**      linguist-generated merge=generated
+codex-rs/protocol/schema/**             merge=generated
+
+# `.zst` is binary; without an explicit driver git refuses to merge it and
+# leaves the conflict for a person who cannot read it either.
+*.zst                                   binary merge=generated
+
+# Keep the existing line-ending rule last so nothing above overrides it.
 third_party/voice/sources.json text eol=lf
