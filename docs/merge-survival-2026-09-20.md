@@ -139,7 +139,10 @@ one-line template inside `models.json`, so only the last version survives to our
 tip and the earlier commits have nothing of their own left to check. The rest are merge
 commits, generated output, or formatting.
 
-All 87 missing lines were read. Only `8b5b39d51`'s 17 are a loss:
+All 87 missing lines were read. Only `8b5b39d51`'s 17 are a loss — and 4 of the 87 turn
+out not to be ours at all, which is a limit of the attribution worth stating: a commit
+that *moves* existing code puts those lines on the `+` side of its own diff, so they are
+credited to us. Check a surprising attribution against the base tree before believing it.
 
 | commit | missing | what it is |
 |---|---|---|
@@ -149,7 +152,7 @@ All 87 missing lines were read. Only `8b5b39d51`'s 17 are a loss:
 | `a65e71ff7` | 1 `lean_parameters:` | the *duplicate*; the real one branches inside `add_shell_tools()` |
 | `87ad58278`, `ca5e2954f`, `722afda33` | 2 each in `history/src/tests.rs` | struct-literal initialisers in tests. All four `CodexHarnessMetadata` fields are intact at `history/src/lib.rs:92,100,112,120` |
 | `1315edcd1` | 2 in `compact.rs` | restructured; `get_last_assistant_message_from_turn` is present three times, more than before |
-| `04290217d` | 4 in `agents_md_manager.rs` | a cache-reset sequence; the fields it resets are still there |
+| `04290217d` | 4 in `agents_md_manager.rs` | **not ours.** Those lines are in the base tree; `04290217d` only moved them, and attribution counts a moved line as an added one. Upstream then rewrote the file — `AgentsMdCache` is gone, replaced by a semaphore-serialised `AgentsMdState` |
 | `2950aa15a`, `66c356eeb`, `af298167b`, `d4e2cb67f`, `6a5e29fa1` | 1–22 each | permission test assertions, TUI footer rendering, and the two files upstream deleted |
 
 ## Per-commit result
