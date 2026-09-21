@@ -8,9 +8,32 @@ use codex_protocol::mcp::OPENAI_STANDARD_FORM_INPUT_EXTENSION_ID;
 use serde_json::Map;
 use serde_json::Value;
 
-/// Selects the MCP extensions Suffice supports from those declared by the app-server host.
+/// Restricts verification to the host-owned plugin service, even when another server uses its name.
+pub(crate) fn server_mcp_extensions(
+    extensions: &ClientMcpExtensions,
+    server_name: &str,
+    server: Option<&crate::catalog::ResolvedMcpServer>,
+) -> ClientMcpExtensions {
+    let plugin_service = server.is_some_and(|server| {
+        server
+            .source()
+            .is_host_owned_apps(server_name, server.config())
+    });
+    ClientMcpExtensions::new(extensions.iter().map(|(id, settings)| {
+        let mut settings = settings.clone();
+        if !plugin_service
+            && id == OPENAI_ELICITATION_EXTENSION_ID
+            && let Some(settings) = settings.as_object_mut()
+        {
+            settings.remove("userVerification");
+        }
+        (id.to_string(), settings)
+    }))
+}
+
+/// Selects the MCP extensions Codex supports from those declared by the app-server host.
 ///
-/// App-server clients may declare unrelated extensions. Suffice retains only the
+/// App-server clients may declare unrelated extensions. Codex retains only the
 /// trusted extension namespaces it knows how to project downstream. The
 /// legacy form capability is normalized into the same extension map.
 pub fn client_mcp_extensions(

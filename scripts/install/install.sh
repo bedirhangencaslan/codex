@@ -4,6 +4,7 @@ set -eu
 
 RELEASE="${CODEX_RELEASE:-latest}"
 NON_INTERACTIVE="${CODEX_NON_INTERACTIVE:-false}"
+DAEMON_ONLY="${CODEX_INSTALL_DAEMON_ONLY:-0}"
 DEFAULT_PREFER_RELEASES_OPENAI_COM="true"
 PREFER_RELEASES_OPENAI_COM="${CODEX_INSTALLER_USE_RELEASES_OPENAI_COM:-$DEFAULT_PREFER_RELEASES_OPENAI_COM}"
 RELEASES_BASE_URL="https://releases.openai.com/codex"
@@ -15,10 +16,21 @@ release_source="github"
 BIN_DIR="${CODEX_INSTALL_DIR:-$HOME/.local/bin}"
 BIN_PATH="$BIN_DIR/codex"
 CODE_MODE_HOST_BIN_PATH="$BIN_DIR/codex-code-mode-host"
-CODEX_HOME_DIR="${SUFFICE_HOME:-$HOME/.suffice}"
+CODEX_HOME_DIR="${SUFFICE_HOME:-$HOME/.codex}"
 STANDALONE_ROOT="$CODEX_HOME_DIR/packages/standalone"
+if [ "$DAEMON_ONLY" = "1" ]; then
+  STANDALONE_ROOT="$CODEX_HOME_DIR/packages/app-server-daemon"
+fi
 RELEASES_DIR="$STANDALONE_ROOT/releases"
 CURRENT_LINK="$STANDALONE_ROOT/current"
+if [ "${CODEX_INSTALL_DEFER_SELECTION:-0}" = "1" ]; then
+  if [ "$DAEMON_ONLY" != "1" ]; then
+    echo "Deferred selection requires a daemon-only installation." >&2
+    exit 1
+  fi
+  CURRENT_LINK="$STANDALONE_ROOT/.migration-current"
+fi
+AUTO_UPDATE_VERSION="$STANDALONE_ROOT/auto-update-version"
 LOCK_FILE="$STANDALONE_ROOT/install.lock"
 LOCK_DIR="$STANDALONE_ROOT/install.lock.d"
 LOCK_STALE_AFTER_SECS=600
@@ -63,7 +75,7 @@ validate_version() {
   fi
 
   if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-alpha(\.[0-9]+){0,2}|-beta(\.[0-9]+)?)?$'; then
-    echo "Invalid Suffice release version: $version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]." >&2
+    echo "Invalid Codex release version: $version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]." >&2
     return 1
   fi
 }
@@ -128,7 +140,7 @@ download_file() {
     return
   fi
 
-  echo "curl or wget is required to install Suffice." >&2
+  echo "curl or wget is required to install Codex." >&2
   exit 1
 }
 
@@ -159,7 +171,7 @@ download_text() {
     return
   fi
 
-  echo "curl or wget is required to install Suffice." >&2
+  echo "curl or wget is required to install Codex." >&2
   exit 1
 }
 
@@ -327,7 +339,7 @@ parse_downloaded_release_metadata() {
   requested_release="$1"
   source_name="$2"
   if ! release_metadata="$(printf '%s\n' "$release_json" | parse_release_metadata)"; then
-    echo "Could not parse $source_name release metadata for Suffice $requested_release." >&2
+    echo "Could not parse $source_name release metadata for Codex $requested_release." >&2
     return 1
   fi
 }
@@ -339,7 +351,7 @@ resolve_metadata_version() {
     *) metadata_version="" ;;
   esac
   if [ -z "$metadata_version" ]; then
-    echo "Failed to resolve the latest Suffice release version." >&2
+    echo "Failed to resolve the latest Codex release version." >&2
     return 1
   fi
   validate_version "$metadata_version"
@@ -357,7 +369,7 @@ resolve_release_from_github() {
   fi
 
   if ! release_json="$(download_text "$metadata_url")"; then
-    echo "Could not fetch GitHub release metadata for Suffice $requested_release. GitHub API may be unavailable or rate limited." >&2
+    echo "Could not fetch GitHub release metadata for Codex $requested_release. GitHub API may be unavailable or rate limited." >&2
     exit 1
   fi
 
@@ -393,7 +405,7 @@ resolve_release_from_releases() {
     return 1
   fi
   if [ "$normalized_version" != "latest" ] && [ "$metadata_version" != "$normalized_version" ]; then
-    echo "Release metadata version did not match requested Suffice version $normalized_version." >&2
+    echo "Release metadata version did not match requested Codex version $normalized_version." >&2
     return 1
   fi
   resolved_version="$metadata_version"
@@ -474,7 +486,7 @@ select_release_assets() {
     install_layout="legacy-platform-npm"
     asset="codex-npm-$npm_tag-$resolved_version.tgz"
   else
-    echo "Could not find Suffice package or platform npm release assets for Suffice $resolved_version." >&2
+    echo "Could not find Codex package or platform npm release assets for Codex $resolved_version." >&2
     return 1
   fi
 
@@ -536,7 +548,7 @@ file_sha256() {
     return
   fi
 
-  echo "sha256sum, shasum, or openssl is required to verify the Suffice download." >&2
+  echo "sha256sum, shasum, or openssl is required to verify the Codex download." >&2
   exit 1
 }
 
@@ -546,7 +558,7 @@ verify_archive_digest() {
   actual_digest="$(file_sha256 "$archive_path")"
 
   if [ "$actual_digest" != "$expected_digest" ]; then
-    echo "Downloaded Suffice archive checksum did not match expected digest." >&2
+    echo "Downloaded Codex archive checksum did not match expected digest." >&2
     echo "expected: $expected_digest" >&2
     echo "actual:   $actual_digest" >&2
     return 1
@@ -555,7 +567,7 @@ verify_archive_digest() {
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    echo "$1 is required to install Suffice." >&2
+    echo "$1 is required to install Codex." >&2
     exit 1
   fi
 }
@@ -596,8 +608,8 @@ add_to_path() {
 
   profile="$(pick_profile)"
   path_profile="$profile"
-  begin_marker="# >>> Suffice installer >>>"
-  end_marker="# <<< Suffice installer <<<"
+  begin_marker="# >>> Codex installer >>>"
+  end_marker="# <<< Codex installer <<<"
   path_line="export PATH=\"$BIN_DIR:\$PATH\""
 
   if [ -f "$profile" ] && grep -F "$begin_marker" "$profile" >/dev/null 2>&1; then
@@ -741,8 +753,8 @@ cleanup_stale_install_artifacts() {
   find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -name '.staging.*' -exec rm -rf {} +
   find "$STANDALONE_ROOT" -mindepth 1 -maxdepth 1 -name '.current.*' -exec rm -f {} +
 
-  if [ -d "$BIN_DIR" ]; then
-    find "$BIN_DIR" -mindepth 1 -maxdepth 1 -name '.suffice.*' -exec rm -f {} +
+  if [ "$DAEMON_ONLY" != "1" ] && [ -d "$BIN_DIR" ]; then
+    find "$BIN_DIR" -mindepth 1 -maxdepth 1 -name '.codex.*' -exec rm -f {} +
   fi
 }
 
@@ -885,8 +897,8 @@ print_launch_instructions() {
 }
 
 maybe_launch_codex_now() {
-  if prompt_yes_no "Start Suffice now?"; then
-    step "Launching Suffice"
+  if prompt_yes_no "Start Codex now?"; then
+    step "Launching Codex"
     "$BIN_PATH"
   fi
 }
@@ -901,8 +913,8 @@ detect_conflicting_install() {
 
   conflict_manager="$manager"
   conflict_path="$existing_path"
-  step "Detected existing $manager-managed Suffice at $existing_path"
-  warn "Multiple managed Suffice installs can be ambiguous because PATH order decides which one runs."
+  step "Detected existing $manager-managed Codex at $existing_path"
+  warn "Multiple managed Codex installs can be ambiguous because PATH order decides which one runs."
 }
 
 handle_conflicting_install() {
@@ -922,13 +934,13 @@ handle_conflicting_install() {
       ;;
   esac
 
-  if prompt_yes_no "Uninstall the existing $conflict_manager-managed Suffice now?"; then
+  if prompt_yes_no "Uninstall the existing $conflict_manager-managed Codex now?"; then
     step "Running: $uninstall_cmd"
     if ! sh -c "$uninstall_cmd"; then
-      warn "Failed to uninstall the existing $conflict_manager-managed Suffice. Continuing with the standalone install."
+      warn "Failed to uninstall the existing $conflict_manager-managed Codex. Continuing with the standalone install."
     fi
   else
-    warn "Leaving the existing $conflict_manager-managed Suffice installed. PATH order will determine which codex runs."
+    warn "Leaving the existing $conflict_manager-managed Codex installed. PATH order will determine which codex runs."
   fi
 }
 
@@ -1042,7 +1054,7 @@ release_codex_relative_path() {
 update_visible_command() {
   release_dir="$1"
   mkdir -p "$BIN_DIR"
-  tmp_link="$BIN_DIR/.suffice.$$"
+  tmp_link="$BIN_DIR/.codex.$$"
   codex_relative_path="$(release_codex_relative_path "$release_dir")"
 
   replace_path_with_symlink "$BIN_PATH" "$CURRENT_LINK/$codex_relative_path" "$tmp_link"
@@ -1130,16 +1142,18 @@ release_dir="$RELEASES_DIR/$release_name"
 current_version="$(current_installed_version)"
 
 if [ -n "$current_version" ] && [ "$current_version" != "$resolved_version" ]; then
-  step "Updating Suffice CLI from $current_version to $resolved_version"
+  step "Updating Codex CLI from $current_version to $resolved_version"
 elif [ -n "$current_version" ]; then
-  step "Updating Suffice CLI"
+  step "Updating Codex CLI"
 else
-  step "Installing Suffice CLI"
+  step "Installing Codex CLI"
 fi
 step "Detected platform: $platform_label"
 step "Resolved version: $resolved_version"
 
-detect_conflicting_install
+if [ "$DAEMON_ONLY" != "1" ]; then
+  detect_conflicting_install
+fi
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
@@ -1148,20 +1162,82 @@ cleanup() {
     rm -rf "$tmp_dir"
   fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 acquire_install_lock
+if [ "${CODEX_INSTALL_DEFER_SELECTION:-0}" = "1" ] &&
+  { [ -e "$STANDALONE_ROOT/current" ] || [ -L "$STANDALONE_ROOT/current" ]; }; then
+  echo "A dedicated daemon is already selected; retry the update." >&2
+  exit 1
+fi
+updater_record="$CODEX_HOME_DIR/app-server-daemon/app-server-updater.pid"
+if [ "$DAEMON_ONLY" = "1" ]; then
+  updater_record="$CODEX_HOME_DIR/app-server-daemon/daemon-updater.pid"
+fi
+old_updater_parent="false"
+if [ "${CODEX_INSTALL_IF_LATEST:-}" != "1" ] && [ "${CODEX_INSTALL_IF_CURRENT:-}" != "1" ] && [ -f "$updater_record" ]; then
+  updater_pid="$(sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$updater_record" | head -n 1)"
+  recorded_start="$(sed -n 's/.*"processStartTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$updater_record" | head -n 1)"
+  if [ -r "/proc/$$/stat" ]; then
+    parent_pid="$(sed 's/^.*) //' "/proc/$$/stat" | awk '{ print $2 }')"
+  else
+    parent_pid="$(ps -p "$$" -o ppid= 2>/dev/null)" || parent_pid=""
+    parent_pid="$(printf '%s' "$parent_pid" | tr -d ' ')"
+  fi
+  if [ -n "$updater_pid" ] && [ "$updater_pid" = "$parent_pid" ]; then
+    actual_details="$(ps -p "$updater_pid" -o stat= -o lstart= 2>/dev/null)" || actual_details=""
+    actual_start="$(printf '%s' "$actual_details" | sed 's/^[^[:space:]]*[[:space:]]*//; s/[[:space:]]*$//')"
+    if [ -n "$recorded_start" ] && [ "$recorded_start" = "$actual_start" ]; then
+      old_updater_parent="true"
+    fi
+  fi
+  if [ "$RELEASE" = "latest" ] && [ -n "$updater_pid" ] &&
+    { [ -z "$parent_pid" ] || { [ "$updater_pid" = "$parent_pid" ] &&
+      { [ -z "$recorded_start" ] || [ -z "$actual_start" ]; }; }; } &&
+    kill -0 "$updater_pid" 2>/dev/null; then
+    warn "Cannot verify whether an older updater launched this installer; skipping latest update."
+    exit 0
+  fi
+fi
+if [ "${CODEX_INSTALL_IF_LATEST:-}" = "1" ] || [ "${CODEX_INSTALL_IF_CURRENT:-}" = "1" ] || [ "$old_updater_parent" = "true" ]; then
+  guarded_release="${CODEX_UPDATE_FROM_RELEASE:-}"
+  if [ "$old_updater_parent" = "true" ]; then
+    guarded_release="$(cat "$AUTO_UPDATE_VERSION" 2>/dev/null || true)"
+  fi
+  current_release_dir="$(cd -P "$CURRENT_LINK" 2>/dev/null && pwd)" || exit 0
+  releases_dir="$(cd -P "$RELEASES_DIR" 2>/dev/null && pwd)" || exit 0
+  if [ "$RELEASE" != "latest" ] || [ -z "$guarded_release" ] ||
+    [ "$current_release_dir" != "$releases_dir/$guarded_release" ]; then
+    if [ "${CODEX_INSTALL_IF_CURRENT:-}" = "1" ]; then
+      echo "Daemon selection changed; retry the update." >&2
+      exit 1
+    fi
+    exit 0
+  fi
+  # An explicit daemon update may leave a local or pinned release. Scheduled
+  # updates still require the selected release to follow the latest channel.
+  if [ "${CODEX_INSTALL_IF_CURRENT:-}" != "1" ] &&
+    [ "$(cat "$AUTO_UPDATE_VERSION" 2>/dev/null || true)" != "$guarded_release" ]; then
+    exit 0
+  fi
+fi
 cleanup_stale_install_artifacts
 
 if ! release_dir_is_complete "$release_dir" "$resolved_version" "$vendor_target" "$install_layout"; then
   if [ -e "$release_dir" ] || [ -L "$release_dir" ]; then
+    if [ "$DAEMON_ONLY" = "1" ]; then
+      echo "Refusing to overwrite existing daemon release $release_dir." >&2
+      exit 1
+    fi
     warn "Found incomplete existing release at $release_dir; reinstalling."
   fi
 
   archive_path="$tmp_dir/$asset"
   checksum_path="$tmp_dir/$checksum_asset"
 
-  step "Downloading Suffice CLI"
+  step "Downloading Codex CLI"
   if [ "$install_layout" = "package" ]; then
     checksum_digest="$(release_asset_digest "$checksum_asset")"
     download_file_with_fallback "$checksum_url" "$checksum_fallback_url" "$checksum_path" "$checksum_digest" "$checksum_asset" "$asset"
@@ -1179,10 +1255,30 @@ if ! release_dir_is_complete "$release_dir" "$resolved_version" "$vendor_target"
   fi
 fi
 if ! release_dir_is_complete "$release_dir" "$resolved_version" "$vendor_target" "$install_layout"; then
-  echo "Installed Suffice command did not report expected version $resolved_version." >&2
+  echo "Installed Codex command did not report expected version $resolved_version." >&2
   exit 1
 fi
+if [ "$DAEMON_ONLY" = "1" ] && [ "${CODEX_INSTALL_DEFER_SELECTION:-0}" != "1" ]; then
+  installed_codex="$release_dir/codex"
+  if [ "$install_layout" = "package" ]; then
+    installed_codex="$release_dir/bin/codex"
+  fi
+  if ! "$installed_codex" app-server daemon pid-update-loop --check-package-ownership >/dev/null 2>&1; then
+    echo "The production release does not support daemon-owned packages; the current selection was left unchanged." >&2
+    exit 1
+  fi
+fi
 update_current_link "$release_dir"
+if [ "$RELEASE" = "latest" ]; then
+  printf '%s' "$release_name" > "$AUTO_UPDATE_VERSION.tmp.$$"
+  mv -f "$AUTO_UPDATE_VERSION.tmp.$$" "$AUTO_UPDATE_VERSION"
+else
+  rm -f "$AUTO_UPDATE_VERSION"
+fi
+if [ "$DAEMON_ONLY" = "1" ]; then
+  release_install_lock
+  exit 0
+fi
 update_visible_command "$release_dir"
 add_to_path
 verify_visible_command
@@ -1205,5 +1301,5 @@ case "$path_action" in
     ;;
 esac
 
-printf 'Suffice CLI %s installed successfully.\n' "$resolved_version"
+printf 'Codex CLI %s installed successfully.\n' "$resolved_version"
 maybe_launch_codex_now

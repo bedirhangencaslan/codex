@@ -96,6 +96,7 @@ impl Provider {
             body: None,
             compression: RequestCompression::None,
             timeout: None,
+            response_body_limit_bytes: None,
         }
     }
 

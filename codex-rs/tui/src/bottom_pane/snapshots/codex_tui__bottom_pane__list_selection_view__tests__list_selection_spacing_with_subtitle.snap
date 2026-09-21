@@ -1,8 +1,8 @@
 ---
 source: tui/src/bottom_pane/list_selection_view.rs
+assertion_line: 1887
 expression: render_lines(&view)
 ---
-                                                
   Select Approval Mode                          
   Switch between Suffice approval presets       
                                                 

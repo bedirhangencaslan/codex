@@ -11,6 +11,9 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
+#[path = "marketplace_policy/curated_tests.rs"]
+mod curated;
+
 fn config_layer_stack(requirements_toml: &str) -> ConfigLayerStack {
     config_layer_stack_with_user_config(requirements_toml, /*user_config*/ None)
 }
@@ -221,7 +224,7 @@ restrict_to_allowed_sources = {restricted}
 
 #[test]
 fn system_marketplace_discovery_and_install_validate_source_and_root() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let configured_root = TempDir::new().expect("create configured marketplace");
     let other_root = TempDir::new().expect("create other marketplace");
     let configured_root = configured_root
@@ -304,7 +307,7 @@ source = {configured_root:?}
 
 #[test]
 fn blocked_configured_source_is_not_installable() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let config_file = AbsolutePathBuf::try_from(codex_home.path().join("config.toml"))
         .expect("absolute config path");
     let stack = config_layer_stack_with_user_config(
@@ -356,11 +359,14 @@ source = "marketplaces/company"
 
 #[test]
 fn curated_marketplace_requires_its_expected_name() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let stack = config_layer_stack(
         r#"
 [marketplaces]
 restrict_to_allowed_sources = true
+[marketplaces.allowed_sources.curated]
+source = "git"
+url = "https://github.com/openai/plugins.git"
 "#,
     );
     let marketplace_path = AbsolutePathBuf::try_from(
@@ -422,7 +428,7 @@ restrict_to_allowed_sources = true
 #[cfg(unix)]
 #[test]
 fn symlinked_marketplaces_cannot_borrow_managed_provenance() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let official_root = curated_plugins_repo_path(codex_home.path());
     let manifest = official_root.join(".agents/plugins/marketplace.json");
     fs::create_dir_all(manifest.parent().expect("manifest directory"))
@@ -467,7 +473,7 @@ fn symlinked_marketplaces_cannot_borrow_managed_provenance() {
 
 #[test]
 fn managed_bundled_source_is_bound_to_its_expected_name() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let bundled_root = codex_home
         .path()
         .join(".tmp/bundled-marketplaces")
@@ -496,7 +502,7 @@ restrict_to_allowed_sources = true
 
 #[test]
 fn projected_user_config_removes_blocked_marketplaces_and_plugins() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let config_file = AbsolutePathBuf::try_from(codex_home.path().join("config.toml"))
         .expect("absolute config path");
     let stack = config_layer_stack_with_user_config(
@@ -553,7 +559,7 @@ enabled = true
 
 #[test]
 fn managed_bundled_config_is_retained_only_at_its_owned_path() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let bundled_root = codex_home
         .path()
         .join(".tmp/bundled-marketplaces")
@@ -619,7 +625,7 @@ enabled = true
 
 #[test]
 fn allowlisted_sources_cannot_claim_reserved_marketplace_names() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let source_root = TempDir::new().expect("create marketplace root");
     let source_root = source_root
         .path()
@@ -684,7 +690,9 @@ enabled = true
 
 #[test]
 fn blocked_or_reserved_upgrade_is_rejected_before_marketplace_installation() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let reload_config: crate::ConfigLayerReload =
+        std::sync::Arc::new(|| panic!("blocked or reserved marketplace must not reload config"));
+    let codex_home = TempDir::new().expect("create Codex home");
     let config_file = AbsolutePathBuf::try_from(codex_home.path().join("config.toml"))
         .expect("absolute config path");
     let stack = config_layer_stack_with_user_config(
@@ -702,7 +710,12 @@ source = "https://github.com/example/blocked.git"
         )),
     );
 
-    let outcome = upgrade_configured_git_marketplaces(codex_home.path(), &stack, Some("debug"));
+    let outcome = upgrade_configured_git_marketplaces(
+        codex_home.path(),
+        &stack,
+        Some("debug"),
+        &reload_config,
+    );
 
     assert_eq!(outcome.selected_marketplaces, vec!["debug".to_string()]);
     assert_eq!(outcome.upgraded_roots, Vec::new());
@@ -725,6 +738,7 @@ source = "https://github.com/example/blocked.git"
         codex_home.path(),
         &stack,
         Some(crate::OPENAI_BUNDLED_MARKETPLACE_NAME),
+        &reload_config,
     );
     assert!(outcome.errors[0].message.contains("is reserved"));
     assert!(!marketplace_install_root(codex_home.path()).exists());

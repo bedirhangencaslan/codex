@@ -36,6 +36,7 @@ use codex_tools::ToolName;
 use codex_tools::ToolOutput;
 use codex_tools::ToolPayload;
 use codex_tools::ToolSpec;
+use codex_utils_path_uri::LegacyAppPathString;
 use core_test_support::apps_test_server::AppsTestServer;
 use core_test_support::apps_test_server::AppsTestToolLoading;
 use core_test_support::apps_test_server::CALENDAR_CREATE_EVENT_MCP_APP_RESOURCE_URI;
@@ -701,7 +702,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
         apps_tool_call
             .pointer("/params/_meta/x-codex-turn-metadata/model")
             .and_then(Value::as_str),
-        Some("gpt-5.4")
+        Some("gpt-5.5")
     );
     let first_request_reasoning_effort = first_request_body
         .pointer("/reasoning/effort")
@@ -1316,7 +1317,7 @@ async fn tool_search_indexes_only_enabled_non_app_mcp_tools() -> Result<()> {
                         args: Vec::new(),
                         env: None,
                         env_vars: Vec::new(),
-                        cwd: None,
+                        cwd: Some(LegacyAppPathString::from_path(config.cwd.as_path())),
                     },
                     environment_id,
                     enabled: true,
@@ -1449,7 +1450,7 @@ async fn tool_search_surfaced_mcp_tool_errors_are_returned_to_model() -> Result<
                         args: Vec::new(),
                         env: None,
                         env_vars: Vec::new(),
-                        cwd: None,
+                        cwd: Some(LegacyAppPathString::from_path(config.cwd.as_path())),
                     },
                     environment_id,
                     enabled: true,
@@ -1598,7 +1599,7 @@ async fn tool_search_uses_non_app_mcp_server_instructions_as_namespace_descripti
                         args: Vec::new(),
                         env: None,
                         env_vars: Vec::new(),
-                        cwd: None,
+                        cwd: Some(LegacyAppPathString::from_path(config.cwd.as_path())),
                     },
                     environment_id,
                     enabled: true,

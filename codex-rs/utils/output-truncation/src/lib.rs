@@ -11,6 +11,12 @@ use codex_utils_string::truncate_middle_with_token_budget;
 
 pub use codex_protocol::protocol::TruncationPolicy;
 
+/// Adds the existing 20% allowance for serialization and headers.
+/// Saved history budgets already include this allowance.
+pub fn with_serialization_allowance(policy: TruncationPolicy) -> TruncationPolicy {
+    policy * 1.2
+}
+
 /// `filtered`, or `raw` when `filtered` would cost more tokens than it saved.
 ///
 /// Truncating is not free: it drops content and adds a frame that says so. When little was
@@ -112,9 +118,9 @@ pub fn formatted_truncate_text_content_items_with_policy(
         text: formatted_truncate_text(&combined, policy),
     }];
     out.extend(items.iter().filter_map(|item| match item {
-        FunctionCallOutputContentItem::InputImage { image_url, detail } => {
+        FunctionCallOutputContentItem::InputImage { image, detail } => {
             Some(FunctionCallOutputContentItem::InputImage {
-                image_url: image_url.clone(),
+                image: image.clone(),
                 detail: *detail,
             })
         }
@@ -181,9 +187,9 @@ pub fn truncate_function_output_items_with_policy(
                     remaining_budget = 0;
                 }
             }
-            FunctionCallOutputContentItem::InputImage { image_url, detail } => {
+            FunctionCallOutputContentItem::InputImage { image, detail } => {
                 out.push(FunctionCallOutputContentItem::InputImage {
-                    image_url: image_url.clone(),
+                    image: image.clone(),
                     detail: *detail,
                 });
             }

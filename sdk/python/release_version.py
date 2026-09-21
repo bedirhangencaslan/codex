@@ -14,14 +14,16 @@ _NORMALIZED_CODEX_VERSION_PATTERN = re.compile(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Resolve a Python runtime package version to its Suffice release tag."
+        description="Resolve a Python runtime version or Codex release tag to both versions."
     )
     parser.add_argument("python_version")
     parser.add_argument("--github-output", type=Path, required=True)
     args = parser.parse_args(argv)
 
     try:
-        python_version, release_tag = resolve_python_runtime_release(args.python_version)
+        python_version, release_tag = resolve_python_runtime_release(
+            normalize_codex_version(args.python_version)
+        )
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -78,7 +80,7 @@ def normalize_codex_version(version: str) -> str:
     normalized = re.sub(r"-rc\.?([0-9]+)$", r"rc\1", normalized)
 
     if _NORMALIZED_CODEX_VERSION_PATTERN.fullmatch(normalized) is None:
-        raise RuntimeError(f"Could not normalize Suffice version {version!r} to a PEP 440 version")
+        raise RuntimeError(f"Could not normalize Codex version {version!r} to a PEP 440 version")
     return normalized
 
 

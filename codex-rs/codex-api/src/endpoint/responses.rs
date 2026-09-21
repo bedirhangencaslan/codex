@@ -53,7 +53,6 @@ impl ResponsesEndpoint {
 pub struct ResponsesClient<T: HttpTransport> {
     session: EndpointSession<T>,
     sse_telemetry: Option<Arc<dyn SseTelemetry>>,
-    endpoint: ResponsesEndpoint,
 }
 
 #[derive(Default)]
@@ -78,14 +77,7 @@ impl<T: HttpTransport> ResponsesClient<T> {
         Self {
             session: EndpointSession::new(transport, provider, auth),
             sse_telemetry: None,
-            endpoint: ResponsesEndpoint::Responses,
         }
-    }
-
-    /// Selects a Responses-compatible backend route for subsequent requests.
-    pub fn with_endpoint(mut self, endpoint: ResponsesEndpoint) -> Self {
-        self.endpoint = endpoint;
-        self
     }
 
     pub fn with_telemetry(
@@ -96,7 +88,6 @@ impl<T: HttpTransport> ResponsesClient<T> {
         Self {
             session: self.session.with_request_telemetry(request),
             sse_telemetry: sse,
-            endpoint: self.endpoint,
         }
     }
 
@@ -107,7 +98,7 @@ impl<T: HttpTransport> ResponsesClient<T> {
         fields(
             transport = "responses_http",
             http.method = "POST",
-            api.path = self.endpoint.path()
+            api.path = "/responses"
         )
     )]
     pub async fn stream_request(
@@ -167,7 +158,7 @@ impl<T: HttpTransport> ResponsesClient<T> {
         fields(
             transport = "responses_http",
             http.method = "POST",
-            api.path = self.endpoint.path(),
+            api.path = "/responses",
             turn.has_state = turn_state.is_some()
         )
     )]
@@ -207,6 +198,8 @@ impl<T: HttpTransport> ResponsesClient<T> {
 
         let stream_response = self
             .session
+            // `path`, not a literal `/responses`: the route depends on the wire and on which
+            // inference surface this client was built for (`ResponsesEndpoint`).
             .stream_encoded_json_with(Method::POST, path, extra_headers, Some(body), |req| {
                 req.headers.insert(
                     http::header::ACCEPT,

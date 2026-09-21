@@ -1,0 +1,26 @@
+---
+source: tui/src/app/agent_center_tests.rs
+expression: "screen(&view, 160, 22)"
+---
+  Agent command center  Group: Project  g
+   All 6   Needs you 2   Working 1   Ready 2   Inactive 1                                                                                 tab/shift+tab filter
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Search tasks · f                                                                                                    │ Task details
+      Tasks                                                                                   Status         Updated  │
+  /tmp/project  6                                                                                                     │ Current task
+  › ○ Current task                                                                  current   Ready              now  │ ○ Ready
+    ○ A longer task title that uses the available column                                      Ready           5m ago  │
+    ! Failed task                                                                             Error           1h ago  │ Project
+    ● Needs an answer                                                                         Needs input     2h ago  │ /tmp/project
+    ● Working task                                                                            Working         1d ago  │ Model: Unknown
+    ○ Unloaded task                                                                           Inactive        2d ago  │
+                                                                                                                      │ Prompt
+                                                                                                                      │ Current task
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+  ? help  esc back  enter open  n new  w new worktree

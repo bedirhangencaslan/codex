@@ -14,7 +14,6 @@ from openai_codex import (
     Suffice,
 )
 from openai_codex.types import (
-    Personality,
     ReasoningSummary,
 )
 
@@ -44,7 +43,6 @@ with Suffice(config=runtime_config()) as codex:
     turn = thread.turn(
         PROMPT,
         output_schema=OUTPUT_SCHEMA,
-        personality=Personality.pragmatic,
         summary=SUMMARY,
     )
     result = turn.run()
