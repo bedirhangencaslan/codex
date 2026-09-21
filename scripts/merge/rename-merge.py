@@ -48,12 +48,21 @@ def load_map():
     if not os.path.exists(MAP):
         return rules
     for line in io.open(MAP, encoding="utf-8"):
-        line = line.strip()
-        if not line or line.startswith("#") or "=>" not in line:
+        line = line.rstrip("\r\n")
+        # A comment is `#` followed by space or end of line. Not just `#`: a rule may have
+        # to start with one, because `#[serde(alias = "CODEX")]` is the anchor that makes a
+        # bare `Codex,` identifiable.
+        stripped = line.strip()
+        if not stripped or stripped == "#" or stripped.startswith("# ") or "=>" not in stripped:
             continue
+        line = stripped
         body, _, scope = line.partition("|")
         old, _, new = body.partition("=>")
         old, new, scope = old.strip(), new.strip(), scope.strip()
+        # `\n` so a rule can anchor on the line above. An enum's declaration is just
+        # `Codex,`, which is too generic to replace on its own even inside one file;
+        # with the attribute above it, it is exactly one place.
+        old, new = old.replace("\\n", "\n"), new.replace("\\n", "\n")
         if old and new:
             rules.append((old, new, scope or None))
     return sorted(rules, key=lambda r: -len(r[0]))

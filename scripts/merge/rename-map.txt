@@ -34,10 +34,23 @@ CODEX_HOME => SUFFICE_HOME
 .codex => .suffice
 
 # --- identifiers: reverting these does not compile ---------------------------
+#
+# An identifier needs TWO rules, and forgetting the second is silent. The uses below are
+# qualified (`ToolError::Codex`) and easy to match anywhere; the declaration is a bare
+# `Codex,` inside an enum and matches far too much, so it is anchored - by the file it
+# lives in, and by the line above it where that is still not enough.
+#
+# This was found by a trial merge: the uses came back as `Suffice`, the declarations
+# stayed `Codex`, and nothing said so. It would have failed at the compiler, but only
+# after everything else looked finished.
 ToolError::Codex => ToolError::Suffice
 Product::Codex => Product::Suffice
 LoginAppBrand::Codex => LoginAppBrand::Suffice
 LoginSuccessPageBrand::Codex => LoginSuccessPageBrand::Suffice
+
+# ...and their declarations.
+Codex(CodexErr) => Suffice(CodexErr) | codex-rs/core/src/tools/sandboxing.rs
+#[serde(alias = "CODEX")]\n    Codex, => #[serde(alias = "CODEX")]\n    Suffice, | codex-rs/protocol/src/protocol.rs
 
 # The Python SDK exports `Suffice` beside `AsyncCodex`, `CodexError` and `CodexRpcError`,
 # which kept their names. Scoped to the SDK so a bare `Codex` elsewhere is left alone.
