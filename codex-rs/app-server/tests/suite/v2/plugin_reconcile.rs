@@ -89,7 +89,7 @@ async fn plugin_reconcile_syncs_bundles_and_reports_changes(
         ("2.0.0", true, &first, vec![updated], 1),
     ] {
         let mut files = vec![(
-            ".codex-plugin/plugin.json",
+            ".suffice-plugin/plugin.json",
             json!({"name": "linear"}).to_string(),
         )];
         if capabilities.has_mcps {

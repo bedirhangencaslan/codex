@@ -259,7 +259,7 @@ async fn reasoning_effort_override_recovery_reuses_trusted_tail_update() -> anyh
     };
     let test = builder().build_with_auto_env(&server).await?;
     let submission = test
-        .codex
+        .suffice
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
             text: "recover this turn".to_string(),
             text_elements: Vec::new(),
@@ -301,12 +301,12 @@ async fn reasoning_effort_override_recovery_reuses_trusted_tail_update() -> anyh
         .resume(&recovery_server, Arc::clone(&test.home), rollout_path)
         .await?;
     resumed
-        .codex
+        .suffice
         .restore_thread_settings(thread_settings)
         .await?;
     assert_eq!(
         resumed
-            .codex
+            .suffice
             .recover_turn_if_idle(RecoverTurnRequest {
                 turn_id: turn_id.clone(),
                 thread_settings: Default::default(),
@@ -943,7 +943,7 @@ async fn reasoning_effort_override_unavailable_recovers_saved_history(
         "content": [{"type": "input_text", "text": "The worker has finished."}],
     }))?;
     let submission = initial
-        .codex
+        .suffice
         .start_turn_if_idle(TurnInputRequest::new(TurnInput::ResponseItem(
             agent_message,
         )))
@@ -967,7 +967,7 @@ async fn reasoning_effort_override_unavailable_recovers_saved_history(
     let resumed = builder.restart(&server, &initial).await?;
     resumed.submit_text_turn("after resume").await?;
     let saved_updates = resumed
-        .codex
+        .suffice
         .load_history(/*include_archived*/ false)
         .await?
         .items
@@ -1204,7 +1204,7 @@ async fn reasoning_effort_override_unsupported_model_round_trip() -> anyhow::Res
     }
     test.codex.shutdown_and_wait().await?;
     let saved_updates = test
-        .codex
+        .suffice
         .load_history(/*include_archived*/ false)
         .await?
         .items

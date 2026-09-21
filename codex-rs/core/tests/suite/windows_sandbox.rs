@@ -246,7 +246,7 @@ fn windows_sandbox_cli_preserves_managed_deny_reads_across_launches() -> anyhow:
     for launch in 1..=2 {
         let output = Command::new(&codex)
             .current_dir(&work)
-            .env("CODEX_HOME", codex_home.path())
+            .env("SUFFICE_HOME", codex_home.path())
             .env("CODEX_WINDOWS_ALLOWED_TEXT", &allowed_text)
             .env("CODEX_WINDOWS_DENIED_TEXT", &denied_text)
             .env("CODEX_WINDOWS_ALLOWED_MODULE", &allowed_module)

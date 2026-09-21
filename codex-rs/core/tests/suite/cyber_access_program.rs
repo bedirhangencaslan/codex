@@ -39,7 +39,7 @@ async fn recover_turn_restores_cyber_access_program_without_making_it_sticky() -
     let mut builder = test_codex().with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing());
     let initial = builder.build_with_streaming_server(&initial_server).await?;
     let TurnInputSubmission::Started { turn_id } = initial
-        .codex
+        .suffice
         .start_or_steer_turn(
             TurnInputRequest::user_input(vec![UserInput::Text {
                 text: "recover this turn".to_owned(),
@@ -68,7 +68,7 @@ async fn recover_turn_restores_cyber_access_program_without_making_it_sticky() -
     let test = builder.restart(&server, &initial).await?;
     let (rollout, _, _) = RolloutRecorder::load_rollout_items(
         &test
-            .codex
+            .suffice
             .rollout_path()
             .expect("recovered turn rollout path"),
     )
@@ -93,7 +93,7 @@ async fn recover_turn_restores_cyber_access_program_without_making_it_sticky() -
     let response_mock =
         responses::mount_sse_once(&server, responses::sse_completed("resp-1")).await;
     let submission = test
-        .codex
+        .suffice
         .recover_turn_if_idle(RecoverTurnRequest {
             turn_id: turn_id.clone(),
             thread_settings: Default::default(),
@@ -133,7 +133,7 @@ async fn recover_turn_restores_cyber_access_program_without_making_it_sticky() -
     let TurnInputSubmission::Started {
         turn_id: next_turn_id,
     } = test
-        .codex
+        .suffice
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
             text: "start a new turn".to_owned(),
             text_elements: Vec::new(),

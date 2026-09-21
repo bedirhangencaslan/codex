@@ -53,9 +53,9 @@ trust_level = "trusted"
             ),
         )?;
         // Cloud authentication must use the project selected by --cd.
-        std::fs::create_dir(workspace.path().join(".codex"))?;
+        std::fs::create_dir(workspace.path().join(".suffice"))?;
         std::fs::write(
-            workspace.path().join(".codex/config.toml"),
+            workspace.path().join(".suffice/config.toml"),
             "cli_auth_credentials_store = \"file\"\n",
         )?;
         write_chatgpt_auth(
@@ -84,7 +84,7 @@ trust_level = "trusted"
 
         let output = Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
             .current_dir(codex_home.path())
-            .env("CODEX_HOME", codex_home.path())
+            .env("SUFFICE_HOME", codex_home.path())
             .env("NO_PROXY", "127.0.0.1,localhost")
             .env("no_proxy", "127.0.0.1,localhost")
             .env_remove("CODEX_ACCESS_TOKEN")

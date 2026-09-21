@@ -4491,7 +4491,7 @@ async fn local_bundled_cleanup_hook_runs_without_saved_trust(
     let plugin_root = home
         .path()
         .join(format!("plugins/cache/openai-bundled/{plugin_name}/local"));
-    fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     let hooks = serde_json::json!({ "hooks": { "Stop": [{ "hooks": [{
         "type": "mcp_tool",
         "server": mcp_server_name,
@@ -4514,7 +4514,7 @@ async fn local_bundled_cleanup_hook_runs_without_saved_trust(
         }
     };
     fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         serde_json::to_vec(&serde_json::json!({
             "name": plugin_name,
             "hooks": manifest_hooks,

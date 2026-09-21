@@ -166,9 +166,9 @@ async fn command_center_new_reads_server_defaults_for_actual_destination() -> Re
                 }
             ),
         )?;
-        std::fs::create_dir(destination.path().join(".codex"))?;
+        std::fs::create_dir(destination.path().join(".suffice"))?;
         std::fs::write(
-            destination.path().join(".codex/config.toml"),
+            destination.path().join(".suffice/config.toml"),
             "model = \"destination-model\"\nservice_tier = \"flex\"\n",
         )?;
         for home in [client_home.path(), server_home.path()] {

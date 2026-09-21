@@ -632,11 +632,11 @@ fn auto_daemon_start_failure_exits_with_manual_fallback_hint() -> Result<()> {
                         .canonicalize()?
                         .to_string_lossy()
                         .as_ref(),
-                    "[CODEX_HOME]",
+                    "[SUFFICE_HOME]",
                 )
                 .replace(
                     terminal._codex_home.path().to_string_lossy().as_ref(),
-                    "[CODEX_HOME]",
+                    "[SUFFICE_HOME]",
                 )
                 .replace('\r', "");
             insta::assert_snapshot!("daemon_auto_start_failure", failure.trim());

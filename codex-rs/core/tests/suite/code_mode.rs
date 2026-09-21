@@ -2173,7 +2173,7 @@ async fn code_mode_result_metadata_follows_runtime_recording_enablement() -> Res
             // Runtime recording changes without updating the session's execution features.
             assert!(
                 !test
-                    .codex
+                    .suffice
                     .config()
                     .await
                     .features
@@ -5975,7 +5975,7 @@ async fn code_mode_node_repl_screenshots_can_be_captured_without_guardian_transc
     let test = builder.build_with_auto_env(&server).await?;
     core_test_support::wait_for_mcp_server(&test.codex, repl_server).await?;
     let evidence = test
-        .codex
+        .suffice
         .thread_extension_data()
         .get_or_init(NodeReplReviewEvidence::default);
     evidence.enable_image_capture();

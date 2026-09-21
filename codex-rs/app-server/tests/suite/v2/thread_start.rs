@@ -1719,7 +1719,7 @@ async fn thread_start_projectless_does_not_preapprove_later_project_config() -> 
     );
     assert_eq!(std::fs::read_to_string(&config_path)?, config_before);
 
-    let project_config_dir = workspace.path().join(".codex");
+    let project_config_dir = workspace.path().join(".suffice");
     std::fs::create_dir(&project_config_dir)?;
     std::fs::write(
         project_config_dir.join("config.toml"),
@@ -1745,7 +1745,7 @@ async fn thread_start_with_read_only_sandbox_does_not_persist_project_trust() ->
     create_config_toml_without_approval_policy(codex_home.path(), &server.uri())?;
 
     let workspace = TempDir::new()?;
-    std::fs::create_dir(workspace.path().join(".codex"))?;
+    std::fs::create_dir(workspace.path().join(".suffice"))?;
 
     let mut mcp = TestAppServer::builder()
         .with_codex_home(codex_home.path())
@@ -1773,7 +1773,7 @@ async fn thread_start_preserves_untrusted_project_trust() -> Result<()> {
     create_config_toml_without_approval_policy(codex_home.path(), &server.uri())?;
 
     let workspace = TempDir::new()?;
-    std::fs::create_dir(workspace.path().join(".codex"))?;
+    std::fs::create_dir(workspace.path().join(".suffice"))?;
     let config_path = codex_home.path().join("config.toml");
     let workspace_key = workspace.path().display().to_string();
     let mut config_toml =

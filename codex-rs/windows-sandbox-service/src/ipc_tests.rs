@@ -99,7 +99,7 @@ fn provisioning_request_rejects_malformed_registered_flag() {
             "version": PROVISIONING_PROTOCOL_VERSION,
             "type": "provision_sandbox_request",
             "payload": {
-                "codex_home": "C:\\Users\\owner\\.codex",
+                "codex_home": "C:\\Users\\owner\\.suffice",
                 "registered_core": registered_core,
                 "settings": WindowsSandboxProvisioningSettings::default(),
                 "listeners": WindowsSandboxProxyListeners::default(),
@@ -115,7 +115,7 @@ fn provisioning_request_rejects_malformed_registered_flag() {
 #[test]
 fn runtime_registration_is_an_explicit_wire_opt_in() {
     let request = SandboxProvisioningRequest {
-        codex_home: r"C:\Users\owner\.codex".to_string(),
+        codex_home: r"C:\Users\owner\.suffice".to_string(),
         registered_core: false,
         refresh_only: false,
         settings: WindowsSandboxProvisioningSettings::default(),
@@ -157,7 +157,7 @@ fn runtime_registration_is_an_explicit_wire_opt_in() {
 #[test]
 fn registration_refresh_is_explicit_and_requires_registered_core() {
     let mut request = SandboxProvisioningRequest {
-        codex_home: r"C:\Users\owner\.codex".to_string(),
+        codex_home: r"C:\Users\owner\.suffice".to_string(),
         registered_core: false,
         refresh_only: true,
         settings: WindowsSandboxProvisioningSettings::default(),
@@ -267,7 +267,7 @@ fn config_parse_errors_are_distinguished_from_policy_and_io_failures() {
 #[test]
 fn provisioning_request_preserves_home_spaces_and_unicode() {
     let request = framed_request(SandboxProvisioningRequest {
-        codex_home: "D:\\Codex Homes\\Jos\u{00e9}\\.codex".to_string(),
+        codex_home: "D:\\Codex Homes\\Jos\u{00e9}\\.suffice".to_string(),
         registered_core: false,
         refresh_only: false,
         settings: WindowsSandboxProvisioningSettings::default(),
@@ -276,7 +276,7 @@ fn provisioning_request_preserves_home_spaces_and_unicode() {
     assert_eq!(
         validate_request(&request).unwrap(),
         ServiceRequest::ProvisionSandbox(ProvisioningRequest {
-            codex_home: PathBuf::from("D:\\Codex Homes\\Jos\u{00e9}\\.codex"),
+            codex_home: PathBuf::from("D:\\Codex Homes\\Jos\u{00e9}\\.suffice"),
             registered_core: false,
             refresh_only: false,
             listeners: WindowsSandboxProxyListeners::default(),
@@ -291,7 +291,7 @@ fn structured_provisioning_request_carries_normalized_proxy_settings() {
         [(8081, 3128, vec![3128, 8081]), (8081, 8081, vec![8081])]
     {
         let request = framed_request(SandboxProvisioningRequest {
-            codex_home: "D:\\Codex Homes\\Jos\u{00e9}\\.codex".to_string(),
+            codex_home: "D:\\Codex Homes\\Jos\u{00e9}\\.suffice".to_string(),
             registered_core: false,
             refresh_only: false,
             settings: WindowsSandboxProvisioningSettings {
@@ -306,7 +306,7 @@ fn structured_provisioning_request_carries_normalized_proxy_settings() {
         assert_eq!(
             validate_request(&request).unwrap(),
             ServiceRequest::ProvisionSandbox(ProvisioningRequest {
-                codex_home: PathBuf::from("D:\\Codex Homes\\Jos\u{00e9}\\.codex"),
+                codex_home: PathBuf::from("D:\\Codex Homes\\Jos\u{00e9}\\.suffice"),
                 registered_core: false,
                 refresh_only: false,
                 listeners: WindowsSandboxProxyListeners {
@@ -338,7 +338,7 @@ fn structured_provisioning_request_accepts_independent_and_additional_proxy_port
             socks_ports,
         };
         let request = framed_request(SandboxProvisioningRequest {
-            codex_home: r"C:\Users\alice\.codex".to_string(),
+            codex_home: r"C:\Users\alice\.suffice".to_string(),
             registered_core: false,
             refresh_only: false,
             settings: settings.clone(),
@@ -347,7 +347,7 @@ fn structured_provisioning_request_accepts_independent_and_additional_proxy_port
         assert_eq!(
             validate_request(&request).unwrap(),
             ServiceRequest::ProvisionSandbox(ProvisioningRequest {
-                codex_home: PathBuf::from(r"C:\Users\alice\.codex"),
+                codex_home: PathBuf::from(r"C:\Users\alice\.suffice"),
                 registered_core: false,
                 refresh_only: false,
                 settings,
@@ -360,7 +360,7 @@ fn structured_provisioning_request_accepts_independent_and_additional_proxy_port
 #[test]
 fn structured_provisioning_request_accepts_disabled_listeners() {
     let request = framed_request(SandboxProvisioningRequest {
-        codex_home: r"C:\Users\alice\.codex".to_string(),
+        codex_home: r"C:\Users\alice\.suffice".to_string(),
         registered_core: false,
         refresh_only: false,
         settings: WindowsSandboxProvisioningSettings::default(),
@@ -369,7 +369,7 @@ fn structured_provisioning_request_accepts_disabled_listeners() {
     assert_eq!(
         validate_request(&request).unwrap(),
         ServiceRequest::ProvisionSandbox(ProvisioningRequest {
-            codex_home: PathBuf::from(r"C:\Users\alice\.codex"),
+            codex_home: PathBuf::from(r"C:\Users\alice\.suffice"),
             registered_core: false,
             refresh_only: false,
             listeners: WindowsSandboxProxyListeners::default(),
@@ -381,7 +381,7 @@ fn structured_provisioning_request_accepts_disabled_listeners() {
 #[test]
 fn structured_provisioning_request_requires_exact_version_fields_and_framing() {
     let valid = SandboxProvisioningRequest {
-        codex_home: r"C:\Users\alice\.codex".to_string(),
+        codex_home: r"C:\Users\alice\.suffice".to_string(),
         registered_core: false,
         refresh_only: false,
         settings: WindowsSandboxProvisioningSettings::default(),
@@ -429,7 +429,7 @@ fn structured_provisioning_request_rejects_invalid_or_inconsistent_ports() {
         (vec![3128], vec![3128], vec![8081]),
     ] {
         let request = framed_request(SandboxProvisioningRequest {
-            codex_home: r"C:\Users\alice\.codex".to_string(),
+            codex_home: r"C:\Users\alice\.suffice".to_string(),
             registered_core: false,
             refresh_only: false,
             settings: WindowsSandboxProvisioningSettings {
@@ -459,7 +459,7 @@ fn provisioning_request_rejects_empty_control_characters_and_invalid_utf8() {
     }
 
     let mut invalid_utf8 = framed_request(SandboxProvisioningRequest {
-        codex_home: r"C:\Users\alice\.codex".to_string(),
+        codex_home: r"C:\Users\alice\.suffice".to_string(),
         registered_core: false,
         refresh_only: false,
         settings: WindowsSandboxProvisioningSettings::default(),
@@ -689,7 +689,7 @@ fn registered_home_preparation_does_not_touch_the_legacy_bin() -> anyhow::Result
     ));
     std::fs::create_dir(&root)?;
     let result = (|| -> anyhow::Result<()> {
-        let home = root.join(".codex");
+        let home = root.join(".suffice");
         std::fs::create_dir(&home)?;
         let bin = home.join(".sandbox-bin");
         let marker = b"legacy bin is deliberately not a directory";
@@ -754,7 +754,7 @@ fn installation_registration_requires_no_sandbox_settings() {
         &FramedProvisioningMessage {
             version: PROVISIONING_PROTOCOL_VERSION,
             message: ProvisioningMessage::RegisterInstallationRequest {
-                codex_home: r"C:\Users\alice\.codex".to_string(),
+                codex_home: r"C:\Users\alice\.suffice".to_string(),
             },
         },
     )
@@ -762,7 +762,7 @@ fn installation_registration_requires_no_sandbox_settings() {
     assert_eq!(
         validate_request(&frame).unwrap(),
         ServiceRequest::RegisterInstallation {
-            codex_home: PathBuf::from(r"C:\Users\alice\.codex")
+            codex_home: PathBuf::from(r"C:\Users\alice\.suffice")
         },
     );
 }

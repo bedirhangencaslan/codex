@@ -267,7 +267,7 @@ approvals_reviewer = "user"
     );
 
     let submitted = test
-        .codex
+        .suffice
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
             text: "Use [$calendar](app://calendar) to create a calendar event.".to_string(),
             text_elements: Vec::new(),

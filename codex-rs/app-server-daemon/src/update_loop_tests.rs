@@ -129,7 +129,7 @@ test "$CODEX_INSTALL_DEFER_SELECTION" = 1
 test "$CODEX_INSTALL_IF_CURRENT" = 0
 test "$CODEX_INSTALL_DAEMON_ONLY" = 1
 test "$CODEX_INSTALL_IF_LATEST" = 0
-root="$CODEX_HOME/packages/app-server-daemon"
+root="$SUFFICE_HOME/packages/app-server-daemon"
 mkdir -p "$root/releases/{release}/bin"
 printf '#!/bin/sh\nif [ "$1" = --version ]; then echo codex 1.0.0; else exit 2; fi\n' > "$root/releases/{release}/bin/codex"
 chmod +x "$root/releases/{release}/bin/codex"

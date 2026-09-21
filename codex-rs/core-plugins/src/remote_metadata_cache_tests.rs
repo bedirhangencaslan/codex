@@ -24,7 +24,7 @@ enabled = true
     let config = load_config(codex_home.path(), codex_home.path()).await;
     let manager = test_plugins_manager_with_options(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     let mut remote = remote_installed_plugin("sample");

@@ -155,7 +155,7 @@ async fn tool_call_preserves_challenge_only_after_silent_refresh_fails() -> anyh
                 "--ignored",
                 "--nocapture",
             ])
-            .env("CODEX_HOME", codex_home.path())
+            .env("SUFFICE_HOME", codex_home.path())
             .env(CHILD_SERVER_URL_ENV, server_url)
             .env(CHILD_REFRESH_SUCCEEDS_ENV, refresh_succeeds.to_string())
             .status()

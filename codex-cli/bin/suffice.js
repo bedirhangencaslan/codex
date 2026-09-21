@@ -141,17 +141,17 @@ function isVitePlusOwnedCodexInstall(packagesDir) {
     const metadata = JSON.parse(
       readFileSync(path.join(packagesDir, "@openai", "codex.json"), "utf8"),
     );
-    if (metadata.name !== "@openai/codex") {
+    if (metadata.name !== "@suffice/cli") {
       return false;
     }
 
-    // Vite+ records the active global installation in packages/@openai/codex.json.
+    // Vite+ records the active global installation in packages/@suffice/cli.json.
     // Older installs have no ID or append a #-prefixed ID to the package name;
     // newer installs put the ID in a subdirectory of the package prefix.
     const installId = metadata.installId || "";
     const installDir = installId.startsWith("#")
-      ? path.join(packagesDir, `@openai/codex${installId}`)
-      : path.join(packagesDir, "@openai/codex", installId);
+      ? path.join(packagesDir, `@suffice/cli${installId}`)
+      : path.join(packagesDir, "@suffice/cli", installId);
     for (const nodeModulesDir of [
       path.join(installDir, "lib", "node_modules"),
       path.join(installDir, "node_modules"),

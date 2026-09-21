@@ -672,7 +672,7 @@ async fn environment_permissions_follow_configuration_ownership() -> Result<()> 
         "read-only attachment unexpectedly wrote {FILE_NAME}"
     );
     let turn_context = test
-        .codex
+        .suffice
         .load_history(/*include_archived*/ false)
         .await?
         .items
@@ -779,7 +779,7 @@ async fn executor_profile_roots_survive_settings_restore_and_turn_recording() ->
     response_mock.single_request();
     test.codex.flush_rollout().await?;
     let context = test
-        .codex
+        .suffice
         .load_history(/*include_archived*/ false)
         .await?
         .items
@@ -931,7 +931,7 @@ async fn settings_update_does_not_retarget_active_turn_environment() -> Result<(
     );
 
     let preview = test
-        .codex
+        .suffice
         .preview_thread_settings_overrides(CodexThreadSettingsOverrides {
             environments: Some(next_environments.clone()),
             ..Default::default()
@@ -1117,7 +1117,7 @@ async fn deferred_executor_promotes_primary_environment_when_startup_completes()
     .await;
 
     let active_environments = test
-        .codex
+        .suffice
         .active_turn_environment_selections()
         .await
         .context("active turn environments")?;
@@ -1465,7 +1465,7 @@ async fn shared_executor_keeps_ready_capability_roots_scoped_to_each_attachment(
     let mut builder = test_codex().with_extensions(Arc::new(extensions.build()));
     let test = builder.build_with_auto_env(&server).await?;
     let selection = test
-        .codex
+        .suffice
         .environment_selections()
         .await
         .into_iter()
@@ -1503,7 +1503,7 @@ async fn shared_executor_keeps_ready_capability_roots_scoped_to_each_attachment(
             ..selection.clone()
         };
         let preview = test
-            .codex
+            .suffice
             .preview_thread_settings_overrides(CodexThreadSettingsOverrides {
                 environments: Some(TurnEnvironmentSelections::new(
                     test.config.cwd.clone(),
@@ -1706,7 +1706,7 @@ async fn owner_network_policy_rejects_unsupported_environment_authority() -> Res
         selected_capability_roots: Vec::new(),
     };
     let preview_error = test
-        .codex
+        .suffice
         .preview_thread_settings_overrides(CodexThreadSettingsOverrides {
             environments: Some(TurnEnvironmentSelections::new(
                 test.config.cwd.clone(),
@@ -1721,7 +1721,7 @@ async fn owner_network_policy_rejects_unsupported_environment_authority() -> Res
         .err()
         .context("preview must not accept an unsupported environment policy")?;
     let ready_error = test
-        .codex
+        .suffice
         .environment_ready(selection, owner_config)
         .await
         .expect_err("readiness must not accept an unsupported environment policy");
@@ -1760,7 +1760,7 @@ async fn pending_attachment_installs_configuration_before_waiting_turn_resumes()
         });
     let test = builder.build_with_auto_env(&server).await?;
     let selection = test
-        .codex
+        .suffice
         .environment_selections()
         .await
         .into_iter()

@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from app_server_harness import AppServerHarness
 
 import openai_codex
-from openai_codex import Codex
+from openai_codex import Suffice
 
 
 def main() -> None:
@@ -20,7 +20,7 @@ def main() -> None:
     with TemporaryDirectory() as directory, AppServerHarness(Path(directory)) as harness:
         harness.responses.enqueue_assistant_message("Installed SDK works")
         config = replace(harness.app_server_config(), codex_bin=None)
-        with Codex(config=config) as codex:
+        with Suffice(config=config) as codex:
             thread = codex.thread_start()
             result = thread.run(
                 "Check the installed SDK", turn_service_tier="default", source="automation"

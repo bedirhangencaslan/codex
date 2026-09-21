@@ -60,7 +60,7 @@ async fn ema_policy_overlays_native_and_agent_plugins_without_changing_endpoints
     for (name, manifest_path, manifest, mcp_path, mcp) in [
         (
             "native",
-            ".codex-plugin/plugin.json",
+            ".suffice-plugin/plugin.json",
             r#"{"name":"native"}"#,
             ".mcp.json",
             r#"{"mcpServers":{"example":{"url":"https://resource.example/mcp"}}}"#,

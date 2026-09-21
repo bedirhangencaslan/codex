@@ -3101,7 +3101,7 @@ async fn connector_snapshot_combines_plugin_exclusions_with_current_account_owne
     let auth_manager = test_auth_manager(Some(AuthMode::Chatgpt));
     let manager = test_plugins_manager_with_auth_manager(
         codex_home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Arc::clone(&auth_manager),
     );
     let sources = [PluginConnectorSource::from_connector_ids(

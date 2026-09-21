@@ -1134,7 +1134,7 @@ fn sample_remote_plugin_bundle() -> Result<Vec<u8>> {
     let mut archive = tar::Builder::new(GzEncoder::new(Vec::new(), Compression::default()));
     for (path, contents) in [
         (
-            ".codex-plugin/plugin.json",
+            ".suffice-plugin/plugin.json",
             r#"{"name":"sample","version":"1.2.3"}"#,
         ),
         (
@@ -1234,7 +1234,7 @@ impl RemoteMarketplaceFixture {
     async fn run(&self, args: &[&str]) -> Result<Output> {
         Ok(Command::new(codex_utils_cargo_bin::cargo_bin("codex")?)
             .current_dir(self.home.path())
-            .env("CODEX_HOME", self.home.path())
+            .env("SUFFICE_HOME", self.home.path())
             .env("HOME", self.home.path())
             .env_remove("OPENAI_API_KEY")
             .env_remove("CODEX_API_KEY")
@@ -1379,7 +1379,7 @@ async fn remote_plugin_add_list_and_remove() -> Result<()> {
         .join(MARKETPLACE)
         .join("sample")
         .join("1.2.3");
-    let manifest = installed_root.join(".codex-plugin/plugin.json");
+    let manifest = installed_root.join(".suffice-plugin/plugin.json");
     let installed_for_add = Arc::clone(&installed);
     Mock::given(method("POST"))
         .and(path(format!("/backend-api/ps/plugins/{REMOTE_ID}/install")))

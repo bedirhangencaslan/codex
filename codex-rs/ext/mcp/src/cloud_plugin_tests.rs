@@ -430,7 +430,7 @@ async fn run_cloud_catalog_refresh_lifecycle() -> anyhow::Result<()> {
                     if resources.auth_cache_key_for_server(codex_mcp::CODEX_APPS_MCP_SERVER_NAME)
                         != previous_auth
                         && test
-                            .codex
+                            .suffice
                             .thread_extension_data()
                             .get::<SelectedPluginSnapshot>()
                             .is_some_and(|snapshot| snapshot.plugins.is_empty())
@@ -505,7 +505,7 @@ async fn run_cloud_catalog_refresh_lifecycle() -> anyhow::Result<()> {
             .await??;
             // The old request must not republish its catalog after credentials change.
             let state = test
-                .codex
+                .suffice
                 .thread_extension_data()
                 .get::<PluginsThreadState>()
                 .context("plugin state missing")?;

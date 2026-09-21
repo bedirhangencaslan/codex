@@ -162,9 +162,9 @@ async fn worktree_start_and_fork(backend: &str) -> anyhow::Result<()> {
         fs::create_dir(path)?;
     }
     // Forking without --cd must select the daemon using the resolved project, not this launcher.
-    fs::create_dir(launcher.join(".codex"))?;
+    fs::create_dir(launcher.join(".suffice"))?;
     fs::write(
-        launcher.join(".codex/config.toml"),
+        launcher.join(".suffice/config.toml"),
         "features.auth_elicitation = false\n",
     )?;
     fs::write(
@@ -172,9 +172,9 @@ async fn worktree_start_and_fork(backend: &str) -> anyhow::Result<()> {
         "committed destination instructions",
     )?;
     let server = MockServer::start().await;
-    fs::create_dir(source.join(".codex"))?;
+    fs::create_dir(source.join(".suffice"))?;
     fs::write(
-        source.join(".codex/config.toml"),
+        source.join(".suffice/config.toml"),
         "model = \"destination-model\"\nanalytics.enabled = false\ncli_auth_credentials_store = \"file\"\n",
     )?;
     git(&source, &["init", "--quiet"])?;
@@ -221,7 +221,7 @@ trust_level = "trusted"
         "uncommitted launcher instructions",
     )?;
     fs::write(
-        source.join(".codex/config.toml"),
+        source.join(".suffice/config.toml"),
         "model = \"source-model\"\nanalytics.enabled = true\n",
     )?;
     app_test_support::write_chatgpt_auth(
@@ -235,7 +235,7 @@ trust_level = "trusted"
     )?;
     let program = codex_utils_cargo_bin::cargo_bin("codex")?;
     let mut env: HashMap<String, String> = std::env::vars().collect();
-    env.insert("CODEX_HOME".into(), home.display().to_string());
+    env.insert("SUFFICE_HOME".into(), home.display().to_string());
     env.insert("CODEX_SQLITE_HOME".into(), home.display().to_string());
     env.insert("NO_PROXY".into(), "127.0.0.1,localhost".into());
     env.insert("no_proxy".into(), "127.0.0.1,localhost".into());
@@ -302,7 +302,7 @@ trust_level = "trusted"
     ] {
         if auth_failure {
             fs::write(
-                source.join(".codex/config.toml"),
+                source.join(".suffice/config.toml"),
                 "forced_login_method = \"api\"\n",
             )?;
             git(
@@ -315,7 +315,7 @@ trust_level = "trusted"
                     "require API login",
                 ],
             )?;
-            fs::write(source.join(".codex/config.toml"), "")?;
+            fs::write(source.join(".suffice/config.toml"), "")?;
         }
         let (metric_tx, mut metric_rx) = tokio::sync::mpsc::unbounded_channel();
         Mock::given(wiremock::matchers::path("/metrics"))
@@ -388,7 +388,7 @@ trust_level = "trusted"
             args.extend(["--cd".into(), source.display().to_string()]);
         }
         if explicit_cd {
-            args.extend(["--cd".into(), source.join(".codex").display().to_string()]);
+            args.extend(["--cd".into(), source.join(".suffice").display().to_string()]);
         }
         if analytics {
             args.extend(["-c".into(), "analytics.enabled=true".into()]);
@@ -681,7 +681,7 @@ trust_level = "trusted"
             .collect::<Vec<_>>()
             .join("\n");
         if explicit_cd {
-            let expected = format!("{checkout}/.codex").replace('\\', "/");
+            let expected = format!("{checkout}/.suffice").replace('\\', "/");
             assert!(context.replace('\\', "/").contains(&expected), "{context}");
         }
         assert!(
@@ -766,7 +766,7 @@ trust_level = "trusted"
             Mock::given(wiremock::matchers::path("/source/backend-api/wham/config/bundle"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "config_toml": {"enterprise_managed": [{"id":"distrust-source", "name":"distrust-source",
-                        "contents": format!("[projects.{}]\ntrust_level = \"untrusted\"\n", serde_json::to_string(&codex_config::loader::project_trust_key(&source.join(".codex")))?)}]}
+                        "contents": format!("[projects.{}]\ntrust_level = \"untrusted\"\n", serde_json::to_string(&codex_config::loader::project_trust_key(&source.join(".suffice")))?)}]}
                 }))).mount(&server).await;
             let output = rejected_start(
                 &program,
@@ -776,7 +776,7 @@ trust_level = "trusted"
                     "worktrees".into(),
                     "--no-alt-screen".into(),
                     "--cd".into(),
-                    source.join(".codex").display().to_string(),
+                    source.join(".suffice").display().to_string(),
                 ],
                 &launcher,
                 &env,
@@ -818,7 +818,7 @@ trust_level = "trusted"
         server.reset().await;
     }
     // Source loads its healthy uncommitted config, but the new checkout loads malformed HEAD.
-    fs::write(source.join(".codex/config.toml"), "not = [valid toml")?;
+    fs::write(source.join(".suffice/config.toml"), "not = [valid toml")?;
     git(
         &source,
         &[
@@ -829,7 +829,7 @@ trust_level = "trusted"
             "invalid destination",
         ],
     )?;
-    fs::write(source.join(".codex/config.toml"), "")?;
+    fs::write(source.join(".suffice/config.toml"), "")?;
     let before = git(&source, &["worktree", "list", "--porcelain"])?;
     let output = rejected_start(
         &program,

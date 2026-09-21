@@ -41,7 +41,7 @@ async fn uninstall_serializes_backend_mutations_and_preserves_cache_on_failure()
         .unwrap();
         let cache = manager.store.plugin_base_root(&plugin_id);
         write_file(
-            cache.join("1.0.0/.codex-plugin/plugin.json").as_path(),
+            cache.join("1.0.0/.suffice-plugin/plugin.json").as_path(),
             r#"{"name":"sample","version":"1.0.0"}"#,
         );
         Mock::given(method("GET"))

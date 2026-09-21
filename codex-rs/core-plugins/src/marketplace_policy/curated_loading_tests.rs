@@ -48,7 +48,7 @@ host_pattern = '^github[.]com$'
         );
         let manager = Arc::new(test_plugins_manager_with_options(
             home.path().to_path_buf(),
-            Some(Product::Codex),
+            Some(Product::Suffice),
             Some(auth),
         ));
         let manifest = if name == OPENAI_CURATED_MARKETPLACE_NAME {
@@ -101,7 +101,7 @@ async fn blocking_curated_git_does_not_block_remote_installed_plugins() {
     write_cached_plugin(home.path(), REMOTE_GLOBAL_MARKETPLACE_NAME, "linear");
     let manager = test_plugins_manager_with_options(
         home.path().to_path_buf(),
-        Some(Product::Codex),
+        Some(Product::Suffice),
         Some(AuthMode::Chatgpt),
     );
     manager.write_remote_installed_plugins_cache(vec![remote_installed_plugin("linear")]);

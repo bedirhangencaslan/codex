@@ -965,7 +965,7 @@ async fn resume_replays_collaboration_instructions() -> Result<()> {
     .await?;
 
     initial
-        .codex
+        .suffice
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
             text: "hello".into(),
             text_elements: Vec::new(),
@@ -976,7 +976,7 @@ async fn resume_replays_collaboration_instructions() -> Result<()> {
     let resumed = builder.restart(&server, &initial).await?;
     assert_eq!(
         resumed
-            .codex
+            .suffice
             .config_snapshot()
             .await
             .collaboration_mode
@@ -984,7 +984,7 @@ async fn resume_replays_collaboration_instructions() -> Result<()> {
         ModeKind::Plan
     );
     resumed
-        .codex
+        .suffice
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
             text: "after resume".into(),
             text_elements: Vec::new(),

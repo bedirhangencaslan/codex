@@ -55,7 +55,7 @@ def test_sync_thread_run_uses_mock_responses(
 def test_checkout_supports_new_options_and_history_selection(tmp_path) -> None:
     with AppServerHarness(tmp_path) as harness:
         harness.responses.enqueue_assistant_message("Options supported")
-        with Codex(config=harness.app_server_config()) as codex:
+        with Suffice(config=harness.app_server_config()) as codex:
             thread = codex.thread_start()
             result = thread.run("hello", turn_service_tier="default", source="automation")
             resumed = codex.thread_resume(thread.id, include_turns=False)

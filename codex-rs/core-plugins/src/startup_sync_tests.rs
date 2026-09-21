@@ -114,7 +114,7 @@ fn pretrust_startup_sync_uses_installed_git_with_hostile_path() {
         for plugin in plugins {
             assert!(
                 curated_plugins_repo_path(&home)
-                    .join(format!("plugins/{plugin}/.codex-plugin/plugin.json"))
+                    .join(format!("plugins/{plugin}/.suffice-plugin/plugin.json"))
                     .is_file()
             );
         }

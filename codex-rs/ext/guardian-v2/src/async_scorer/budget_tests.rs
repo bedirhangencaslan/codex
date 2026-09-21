@@ -170,7 +170,7 @@ async fn assert_catalog_budget(evidence: BudgetEvidence) -> Result<()> {
         }));
         fixture
             .test
-            .codex
+            .suffice
             .inject_response_items(history.clone())
             .await?;
         let history: Arc<dyn ConversationHistorySnapshot> = match evidence {

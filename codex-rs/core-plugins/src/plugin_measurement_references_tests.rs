@@ -79,7 +79,7 @@ fn archive(plugin_name: &str) -> Result<Vec<u8>> {
     let mut archive = tar::Builder::new(GzEncoder::new(Vec::new(), Compression::default()));
     let manifest = json!({"name": plugin_name, "version": "1.0.0"}).to_string();
     for (name, bytes) in [
-        (".codex-plugin/plugin.json", manifest.as_str()),
+        (".suffice-plugin/plugin.json", manifest.as_str()),
         ("scripts/install.mjs", SCRIPT),
         ("analytics.yaml", ANALYTICS),
         // Invalid capability files must not be parsed by measurement preparation.

@@ -3202,7 +3202,7 @@ async fn managed_worktree_transitions_bind_owner_and_preserve_only_fork_history(
     let source = dunce::canonicalize(root.path())?.join("source");
     let project_pool = dunce::canonicalize(root.path())?.join("project-pool");
     fs::create_dir_all(&home)?;
-    fs::create_dir_all(source.join(".codex"))?;
+    fs::create_dir_all(source.join(".suffice"))?;
     fs::write(home.join("config.toml"), "[features]\nworktrees = true\n")?;
     crate::legacy_core::config::set_project_trust_level(
         &home,
@@ -3219,7 +3219,7 @@ git-worktree-root = {}
 "#,
         toml::Value::String(project_pool.display().to_string()),
     );
-    fs::write(source.join(".codex/config.toml"), destination)?;
+    fs::write(source.join(".suffice/config.toml"), destination)?;
     fs::write(source.join("AGENTS.md"), "committed worktree instructions")?;
     for args in [
         vec!["init", "--quiet"],
@@ -3243,7 +3243,7 @@ git-worktree-root = {}
         );
     }
     fs::write(
-        source.join(".codex/config.toml"),
+        source.join(".suffice/config.toml"),
         r#"developer_instructions = "dirty policy"
 model = "gpt-5.4"
 model_reasoning_effort = "low"
@@ -3362,7 +3362,7 @@ model_reasoning_effort = "low"
     );
     assert!(retained.contains("git worktree remove <checkout-path>"));
     fs::write(
-        source.join(".codex/config.toml"),
+        source.join(".suffice/config.toml"),
         r#"developer_instructions = "committed policy"
 [features]
 terminal_visualization_instructions = true

@@ -97,7 +97,7 @@ def test_new_options_reject_unsupported_runtime_before_sending(
 ) -> None:
     client, requests = _initialized_client(monkeypatch, {"userAgent": f"codex-cli/{version}"})
 
-    with pytest.raises(CodexError, match=r"Codex CLI 0\.151\.0 or newer"):
+    with pytest.raises(CodexError, match=r"Suffice CLI 0\.151\.0 or newer"):
         client.request(method, params, response_model=InitializeResponse)
 
     assert requests == []

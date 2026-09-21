@@ -39,7 +39,7 @@ async fn signed_image_renewal_preserves_live_mcp_and_skills() -> Result<()> {
     header.set_size(manifest.len() as u64);
     header.set_mode(/*mode*/ 0o644);
     header.set_cksum();
-    archive.append_data(&mut header, ".codex-plugin/plugin.json", &manifest[..])?;
+    archive.append_data(&mut header, ".suffice-plugin/plugin.json", &manifest[..])?;
     let bundle = archive.into_inner()?.finish()?;
 
     let calls = Arc::new(ResourceAppsMcpCalls::default());

@@ -98,7 +98,7 @@ select a style; model instructions define the tone.
 
 Python `None` or omitting the option leaves it unset. Explicit `Personality.none`
 (wire value `"none"`) strips the literal `# Personality` section the next time
-Codex prepares instructions from the model catalog, such as when starting a
+Suffice prepares instructions from the model catalog, such as when starting a
 thread or switching models. It does not change explicitly supplied base
 instructions or rewrite an existing thread's instructions when resuming or
 starting a turn. Either legacy value can replace a previous `Personality.none`
@@ -229,7 +229,7 @@ These options have the same behavior on sync and async `run(...)` and `turn(...)
 | `source: str | None = None` | Labels the caller that initiated a new turn, such as `"review_ui"`. This is metadata; it does not schedule work or grant authority. Ignored when input joins an active turn. |
 
 `ExternalMessage`, `turn_service_tier`, `source`, and explicit `include_turns`
-on resume/fork require Codex CLI 0.151.0 or newer. The SDK raises `CodexError`
+on resume/fork require Suffice CLI 0.151.0 or newer. The SDK raises `CodexError`
 before sending these options to an older runtime, which would otherwise ignore
 them. Published SDK releases install a matching runtime automatically; when
 using `CodexConfig.codex_bin`, choose a compatible executable. Unversioned local

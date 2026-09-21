@@ -937,10 +937,10 @@ async fn skills_list_refreshes_externally_updated_plugin_versions() -> Result<()
     let codex_home = TempDir::new()?;
     let cwd = TempDir::new()?;
     let source = TempDir::new()?;
-    std::fs::create_dir_all(source.path().join(".codex-plugin"))?;
+    std::fs::create_dir_all(source.path().join(".suffice-plugin"))?;
     std::fs::create_dir_all(source.path().join("skills"))?;
     std::fs::write(
-        source.path().join(".codex-plugin/plugin.json"),
+        source.path().join(".suffice-plugin/plugin.json"),
         r#"{"name":"sample"}"#,
     )?;
     std::fs::write(

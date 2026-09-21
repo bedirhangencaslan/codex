@@ -82,7 +82,7 @@ async fn plugin_read_selects_local_onboarding_skill(
         "demo-plugin",
         "./demo-plugin",
     )?;
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     let mut manifest = json!({ "name": "demo-plugin" });
     if let Some(onboarding_path) = onboarding_path {
         manifest["extensions"] = json!({
@@ -90,7 +90,7 @@ async fn plugin_read_selects_local_onboarding_skill(
         });
     }
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         serde_json::to_vec(&manifest)?,
     )?;
     for name in ["other", "setup"] {

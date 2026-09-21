@@ -75,7 +75,7 @@ async fn daemon_startup(command: &str) -> Result<()> {
     ] {
         env.remove(key);
     }
-    env.insert("CODEX_HOME".into(), home.path().display().to_string());
+    env.insert("SUFFICE_HOME".into(), home.path().display().to_string());
     env.insert(
         "CODEX_SQLITE_HOME".into(),
         home.path().display().to_string(),

@@ -151,7 +151,7 @@ impl PidBackend {
             use windows_sys::Win32::System::Threading::DETACHED_PROCESS;
             // Preserve process-scoped paths before changing cwd; CA names match CUSTOM_CA_ENV_KEYS.
             for name in [
-                "CODEX_HOME",
+                "SUFFICE_HOME",
                 "CODEX_SQLITE_HOME",
                 "CODEX_CA_CERTIFICATE",
                 "SSL_CERT_FILE",

@@ -1733,7 +1733,7 @@ fn bundled_cleanup_source(plugin_id: &str, server: &str, event: &str) -> PluginH
     PluginHookSource {
         plugin_id: PluginId::parse(plugin_id).expect("plugin ID"),
         plugin_data_root: plugin_root.join("data"),
-        source_path: plugin_root.join(".codex-plugin/plugin.json"),
+        source_path: plugin_root.join(".suffice-plugin/plugin.json"),
         source_relative_path: "plugin.json#hooks[0]".to_string(),
         plugin_root,
         hooks: serde_json::from_value(serde_json::json!({

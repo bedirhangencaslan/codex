@@ -662,7 +662,7 @@ async fn resumed_history_only_emits_resize_notices_for_new_images() -> anyhow::R
     )
     .await;
     resumed
-        .codex
+        .suffice
         .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Image {
             image: ImageReference::Inline {
                 image_url: original_image_url.clone(),
@@ -796,7 +796,7 @@ async fn resumed_history_only_emits_resize_notices_for_new_images() -> anyhow::R
         .await?;
     let existing_rollout_lines = fs::read_to_string(&rollout_path)?.lines().count();
     replayed
-        .codex
+        .suffice
         .inject_response_items(vec![
             ResponseInputItem::Message {
                 role: "user".to_string(),

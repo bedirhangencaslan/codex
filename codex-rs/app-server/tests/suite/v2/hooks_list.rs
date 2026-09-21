@@ -930,10 +930,10 @@ async fn hooks_list_hides_builtin_cleanup_and_preserves_other_plugin_hooks(
     let plugin_root = codex_home
         .path()
         .join(format!("plugins/cache/openai-bundled/{plugin_name}/local"));
-    std::fs::create_dir_all(plugin_root.join(".codex-plugin"))?;
+    std::fs::create_dir_all(plugin_root.join(".suffice-plugin"))?;
     std::fs::create_dir_all(plugin_root.join("hooks"))?;
     std::fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
+        plugin_root.join(".suffice-plugin/plugin.json"),
         serde_json::to_vec(&serde_json::json!({ "name": plugin_name }))?,
     )?;
     let ordinary_command = "echo ordinary plugin hook";

@@ -562,7 +562,7 @@ async fn run_cloud_plugin_projection_scenarios() -> anyhow::Result<()> {
         let test = builder.build(&server).await?;
         if installed {
             let selection = test
-                .codex
+                .suffice
                 .environment_selections()
                 .await
                 .into_iter()
@@ -570,8 +570,8 @@ async fn run_cloud_plugin_projection_scenarios() -> anyhow::Result<()> {
                 .context("selected environment missing")?;
             let root = selection.cwd.join("notes")?;
             let root_path = root.to_abs_path()?;
-            fs::create_dir_all(root_path.join(".codex-plugin"))?;
-            fs::write(root_path.join(".codex-plugin/plugin.json"), json!({
+            fs::create_dir_all(root_path.join(".suffice-plugin"))?;
+            fs::write(root_path.join(".suffice-plugin/plugin.json"), json!({
                 "name": "notes", "version": "1", "interface": {"displayName": "Installed Notes"},
                 "mcpServers": "./.mcp.json"
             }).to_string())?;
@@ -673,7 +673,7 @@ async fn run_cloud_plugin_projection_scenarios() -> anyhow::Result<()> {
             "{case}"
         );
         let state = test
-            .codex
+            .suffice
             .thread_extension_data()
             .get::<PluginsThreadState>()
             .context("plugin state missing")?;

@@ -154,7 +154,7 @@ fn discovers_unified_computer_use_cleanup_hooks() {
     let snapshot = snapshot_for_manifest(
         "unified-computer-use@openai-bundled",
         "executor-a",
-        "file:///plugins/computer-use/.codex-plugin/plugin.json",
+        "file:///plugins/computer-use/.suffice-plugin/plugin.json",
         manifest,
     );
     let mut expected = expected_source(/*index*/ 0);

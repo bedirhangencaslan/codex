@@ -65,9 +65,9 @@ async fn canonical_plugin_disable_overrides_shared_connector_and_can_be_cleared(
         let root = home
             .path()
             .join(format!("plugins/cache/{marketplace}/{name}/local"));
-        std::fs::create_dir_all(root.join(".codex-plugin"))?;
+        std::fs::create_dir_all(root.join(".suffice-plugin"))?;
         std::fs::write(
-            root.join(".codex-plugin/plugin.json"),
+            root.join(".suffice-plugin/plugin.json"),
             format!(r#"{{"name":"{name}"}}"#),
         )?;
         std::fs::write(
