@@ -87,7 +87,10 @@ pub(crate) async fn finalize(
     let model = &step.settings.model_info;
     let history = session.clone_history().await;
     let prompt = build_prompt(
-        history.for_prompt(&model.input_modalities),
+        // `None`: this fork scopes retained reasoning to the turn that produced it
+        // (`ca5e2954f`), and a guardian review is built outside any turn of its own - the
+        // same reason `compact.rs` passes `None` here.
+        history.for_prompt(&model.input_modalities, /*active_turn_id*/ None),
         step,
         session.get_prompt_base_instructions().await,
     );

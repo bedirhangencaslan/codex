@@ -206,7 +206,7 @@ fn lean_exec_command_tool(
             Some(vec!["cmd".to_string()]),
             Some(false.into()),
         ),
-        output_schema: Some(unified_exec_output_schema()),
+        output_schema: Some(unified_exec_output_schema().into()),
     })
 }
 

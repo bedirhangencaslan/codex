@@ -609,6 +609,9 @@ other non-default provider fields are not supported"
         ModelProviderInfo {
             name: ZAI_PROVIDER_NAME.into(),
             base_url: Some(ZAI_DEFAULT_BASE_URL.to_string()),
+            // Z.ai publishes no catalog endpoint and uses a plain API key, so neither of
+            // upstream's two discovery mechanisms applies here.
+            model_catalog_url: None,
             env_key: Some(ZAI_API_KEY_ENV_VAR.to_string()),
             env_key_instructions: Some(
                 "Create an API key at https://z.ai/manage-apikey/apikey-list and export it as ZAI_API_KEY."
@@ -616,6 +619,7 @@ other non-default provider fields are not supported"
             ),
             experimental_bearer_token: None,
             auth: None,
+            gateway_oauth: None,
             aws: None,
             wire_api: WireApi::Chat,
             query_params: None,

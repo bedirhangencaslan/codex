@@ -108,7 +108,7 @@ pub(crate) fn tool_output_spill_dir(
     let dir = root.join(thread_id.to_string());
     let profile = PermissionProfile::try_from(sandbox.permissions.clone()).ok()?;
     let policy = profile.file_system_sandbox_policy();
-    (policy.has_full_disk_read_access() || policy.can_read_path_with_cwd(&dir, cwd)).then_some(dir)
+    (policy.has_full_disk_read_access() || policy.can_read_local_path_with_cwd(&dir, cwd)).then_some(dir)
 }
 
 /// Removes spill directories left behind by sessions that are no longer running.

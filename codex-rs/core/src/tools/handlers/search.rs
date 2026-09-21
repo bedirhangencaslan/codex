@@ -178,11 +178,11 @@ pub(super) enum ReadGuard {
 
 impl ReadGuard {
     fn new(sandbox: &FileSystemSandboxContext, cwd: &Path) -> Self {
-        let Ok(profile) = PermissionProfile::try_from(sandbox.permissions.clone()) else {
-            return Self::CwdOnly {
-                cwd: cwd.to_path_buf(),
-            };
-        };
+        // This used to be a `try_from` with a `CwdOnly` fallback for a profile that did not
+        // parse. Upstream made the conversion infallible, so that arm is now unreachable
+        // from here - kept on the enum because it is still the right answer for a caller
+        // that cannot resolve a profile at all.
+        let profile = PermissionProfile::from(sandbox.permissions.clone());
         let policy = profile.file_system_sandbox_policy();
         if policy.has_full_disk_read_access() {
             return Self::Unrestricted;
@@ -196,7 +196,7 @@ impl ReadGuard {
     pub(super) fn allows(&self, path: &Path) -> bool {
         match self {
             Self::Unrestricted => true,
-            Self::Policy { policy, cwd } => policy.can_read_path_with_cwd(path, cwd),
+            Self::Policy { policy, cwd } => policy.can_read_local_path_with_cwd(path, cwd),
             Self::CwdOnly { cwd } => path.starts_with(cwd),
         }
     }

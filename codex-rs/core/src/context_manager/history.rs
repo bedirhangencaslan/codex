@@ -1312,11 +1312,10 @@ fn estimate_response_item_model_visible_bytes(item: &ResponseItem) -> i64 {
             encrypted_content: None,
             ..
         } => 0,
-        // Plaintext reasoning is excluded from replay accounting.
-        ResponseItem::Reasoning {
-            encrypted_content: None,
-            ..
-        } => 0,
+        // Upstream's narrower `Reasoning { encrypted_content: None }` arm used to sit here.
+        // It is unreachable: this fork's arm above answers 0 for every reasoning item, not
+        // just the plaintext ones, which is the decision recorded in CLAUDE.md. Leaving a
+        // dead duplicate suggests upstream's estimate applies. It does not.
         ResponseItem::ConfigurationUpdate { .. }
         | ResponseItem::CompactionTrigger { .. }
         | ResponseItem::Other => 0,

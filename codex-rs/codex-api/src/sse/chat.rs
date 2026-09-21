@@ -99,7 +99,11 @@ pub(crate) async fn process_chat_sse<S>(
         freeform_tools,
         ..Default::default()
     };
-    let _ = tx_event.send(Ok(ResponseEvent::Created)).await;
+    // Chat Completions carries its id on each chunk rather than announcing one before the
+    // stream starts, so there is nothing to report here.
+    let _ = tx_event
+        .send(Ok(ResponseEvent::Created { response_id: None }))
+        .await;
 
     loop {
         let start = Instant::now();

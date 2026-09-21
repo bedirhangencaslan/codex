@@ -1713,7 +1713,10 @@ impl Session {
                     config.http_client_factory(),
                     config.workspace_routing_context(),
                 )
-                .with_free_guardian_enabled(config.free_guardian_enabled())
+                // `with_free_guardian_enabled` is gone: upstream replaced the separate
+                // `/guardian` route with a header on `/responses`, so `ModelClient`'s
+                // `free_guardian_enabled` field has no reader left. Setting it here would
+                // only write to something nothing consults.
                 .with_prompt_cache_keep_alive(config.features.enabled(Feature::PromptCacheKeepAlive))
                 .with_restored_history(matches!(
                     &initial_history,
