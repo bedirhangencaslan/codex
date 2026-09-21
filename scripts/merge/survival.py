@@ -357,7 +357,7 @@ def main():
     sys.stderr.write("bloblar: %d adet, %.1fs\n"
                      % (len(blobs), __import__("time").time() - t0))
 
-    findings = []
+    findings, suppressed = [], []
     for idx, p in enumerate(todo):
         sys.stderr.write("\r  %d/%d %-50s" % (idx + 1, len(todo), p[-50:]))
         sys.stderr.flush()
@@ -384,6 +384,15 @@ def main():
             for k, n in table.items():
                 usable, weak = evidentiary(k, B, U)
                 if not usable:
+                    # A discrepancy we cannot settle from text: the line is trivial, or so
+                    # common that finding it elsewhere proves nothing. Recorded rather
+                    # than dropped, so "no finding" is never confused with "nothing to
+                    # look at" - see UNVERIFIABLE-BY-TEXT in the report.
+                    suppressed.append({
+                        "file": p, "canon": k, "count": n, "kind": kind,
+                        "commits": sorted(intro.get((p, k))
+                                          or removed_by.get((p, k)) or set()),
+                    })
                     continue
                 # No located span means we cannot say upstream left it alone, so treat it
                 # as contested. Erring the other way would manufacture false defects.
@@ -415,6 +424,7 @@ def main():
     print("    SUPERSEDED (upstream karari)   : %d" % (len(findings) - len(silent)))
     print("    LOST-SILENTLY                  : %d  (guclu kanit: %d)"
           % (len(silent), len(strong)))
+    print("  metinden hukum verilemeyen       : %d" % len(suppressed))
     print("")
 
     by_commit = collections.defaultdict(list)
@@ -436,6 +446,7 @@ def main():
         "revs": {"base": BASE, "ours": OURS, "up": UP, "head": HEAD},
         "buckets": {k: v for k, v in buckets.items()},
         "findings": findings,
+        "suppressed": suppressed,
         "by_commit": {c: len(v) for c, v in by_commit.items()},
     }
     if args.json:

@@ -118,6 +118,40 @@ compiled, and it should go in with the build rather than ahead of it.
 
 ---
 
+## Positive confirmation — the number to quote
+
+The three methods above all report *discrepancies*, so "no finding" means "nothing went
+wrong that they can see". That is a weaker claim than "this commit's work is there", and
+reading the first as the second overstates the result. `scripts/merge/confirm.py` asks the
+other question directly: of the lines each commit added and our branch tip still had, how
+many are in the merged tree?
+
+```
+29,083 evidence lines  ->  28,996 present  (99.70%)
+
+  91 commits   every evidence line confirmed present
+  13 commits   partly confirmed
+  24 commits   nothing of their own left to confirm
+```
+
+The 24 are honest, not a gap: fourteen of them are prompt tweaks that rewrite the same
+one-line template inside `models.json`, so only the last version survives to our branch
+tip and the earlier commits have nothing of their own left to check. The rest are merge
+commits, generated output, or formatting.
+
+All 87 missing lines were read. Only `8b5b39d51`'s 17 are a loss:
+
+| commit | missing | what it is |
+|---|---|---|
+| `8b5b39d51` | 17 in `session/handlers.rs` | **the defect** (below) |
+| `8b5b39d51` | `(truncation_policy * 1.2)` | replaced by upstream's `with_serialization_allowance`, present and used |
+| `256cf5c9c` | 11 `base_instructions` in `models.json` | the field the deserializer ignores whenever a template exists — which is every model here |
+| `a65e71ff7` | 1 `lean_parameters:` | the *duplicate*; the real one branches inside `add_shell_tools()` |
+| `87ad58278`, `ca5e2954f`, `722afda33` | 2 each in `history/src/tests.rs` | struct-literal initialisers in tests. All four `CodexHarnessMetadata` fields are intact at `history/src/lib.rs:92,100,112,120` |
+| `1315edcd1` | 2 in `compact.rs` | restructured; `get_last_assistant_message_from_turn` is present three times, more than before |
+| `04290217d` | 4 in `agents_md_manager.rs` | a cache-reset sequence; the fields it resets are still there |
+| `2950aa15a`, `66c356eeb`, `af298167b`, `d4e2cb67f`, `6a5e29fa1` | 1–22 each | permission test assertions, TUI footer rendering, and the two files upstream deleted |
+
 ## Per-commit result
 
 | | commits |
@@ -180,11 +214,14 @@ rather than `LOST-SILENTLY`, because upstream had rewritten that region too. So:
 ## Running it again
 
 ```
+python scripts/merge/confirm.py                    # are our lines there? (the headline)
 python scripts/merge/survival.py --json out.json   # 0 unless something was lost silently
 python scripts/merge/assertions.py                 # 0 unless a named mechanism moved
 python scripts/merge/reachability.py               # review tier, always 0
 python scripts/merge/verify-names.py               # 0 unless a name is half-changed
 ```
+
+`confirm.py --detail <sha>` prints the exact lines a partly-confirmed commit is missing.
 
 `survival.py --head <rev>` judges any merged revision, which is how the negative control
 above was run, and how the next merge should be checked before it is trusted.
