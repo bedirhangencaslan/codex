@@ -214,6 +214,89 @@ rather than `LOST-SILENTLY`, because upstream had rewritten that region too. So:
 
 ---
 
+## Open verification queue
+
+Everything above reads source. These are the claims it cannot make, each with the way to
+settle it and what a pass looks like. Ordered by how much they would change the answer.
+
+### 1. It has never been compiled
+
+Settles: signature drift, cross-file invariants (a `use` that survived without its `mod`),
+and most dead-code questions in one run.
+
+```
+cargo fetch                      # once, with network - upstream added a git dep (h3)
+cargo check --workspace          # then offline
+```
+
+Known in advance: upstream's `new_spoken_user_prompt` calls `new_user_prompt` with four
+arguments against this fork's five. `_labs/merge-2026-09-20/scripts/check_arity.py` finds
+that class early. Expect the 44 generated files' snapshot tests to fail until step 4.
+
+### 2. The first request body has not been measured
+
+**This is the one that actually answers "are the cost mechanisms intact".** Cost is decided
+by what goes over the wire, and every check so far read the source that builds it. A tree
+that compiles can still have moved the fixed prefix.
+
+Run `_labs/sim` against the pre-merge tree and the merged tree, diff the first request
+body byte for byte. What to look at, in order:
+
+- the tool list, and `exec_command`'s parameter count — three under `approval_policy ==
+  Never` (`cmd`, `workdir`, `timeout_ms`), not ten
+- `apply_patch`: the Lark grammar **or** the prose section, never both. Both together was
+  460 tokens of the fixed prefix saying one thing twice
+- the measured `glob`/`grep` sentence, and the absence of upstream's "prefer `rg`" line
+- the GLM template, 16,166 characters
+
+### 3. Ordering was never verified
+
+`align_apply_patch_section` is correct only because it runs **last** in the `else` branch of
+`with_config_overrides` (`models-manager/src/model_info.rs`), so it sees the template the
+personality override settled on. Multiset accounting is order-blind by construction, so
+nothing here checked it. Read the function, or pin it with a test that applies a personality
+override and the apply_patch alignment together.
+
+### 4. The generated files still carry stale content
+
+44 files. Until these run, their tests failing is expected and is not a regression.
+
+```
+cargo insta accept
+cargo run -p codex-config-schema
+```
+
+Plus the two `.zst` schema exports and `ClientRequest.ts`, which was spliced by hand and
+should be regenerated rather than left spliced.
+
+### 5. `include_shell_parameter` is silently overridden under lean
+
+`create_exec_command_tool_with_environment_id` takes upstream's new `include_shell_parameter`
+but does not pass it to `lean_exec_command_tool`, so under `approval_policy == Never` the
+`shell` parameter is never advertised whatever the caller asked. That is consistent with the
+three-parameter design, but it overrides a new upstream knob without saying so. Decide
+whether it is intended and write the decision down either way.
+
+### 6. The two deleted files were not audited line by line
+
+`compact_remote.rs` and `compact_remote_request.rs` were deleted by upstream. Our one
+contribution to the first (`active_context_tokens_before`) was confirmed to live on at
+`compact_remote_v2.rs:148`. `6a5e29fa1`'s contribution to the second was read as
+rename-only but not checked line by line.
+
+### 7. The known defect is unfixed
+
+`8b5b39d51`'s `remove_session_tool_output` and its call in `shutdown_session_runtime`.
+Three lines plus a `use`. Restore it with the build, not before.
+
+### A standing caveat
+
+The negative control proved that a loss inside a region upstream also edited is reported as
+`SUPERSEDED`, not `LOST-SILENTLY`. Every such finding in a cost-critical file was read by
+hand once, which mitigates it but does not remove it. **When a cost mechanism is added,
+add it to `assertions.py`** — that list is the only check that does not depend on upstream
+having left the surrounding code alone.
+
 ## Running it again
 
 ```
