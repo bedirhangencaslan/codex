@@ -160,6 +160,25 @@ def catalog():
     out.append(("her sablon OURS ile birebir", "T1",
                 "farkli: %s" % (", ".join(drift) or "yok"), not drift))
 
+    out.append(("hicbir modelimiz kaybolmadi", "T1",
+                "%d -> %d" % (len(ia), len(ib)),
+                not [s for s in ia if s not in ib]))
+
+    # A field can survive as a line and still carry upstream's value, so compare the
+    # catalog as data. `base_instructions` is excluded on purpose: the deserializer
+    # ignores it whenever a template exists, which is true of every model here, and
+    # upstream dropping it is what saved 100 KB. `priority` is upstream's own ordering.
+    dead = {"base_instructions", "priority"}
+    for slug in sorted(ia):
+        if slug not in ib:
+            continue
+        d = sorted(k for k in set(ia[slug]) | set(ib[slug])
+                   if k not in dead and ia[slug].get(k) != ib[slug].get(k))
+        tier = "T1" if slug == "glm-5.3-flash" else "T2"
+        # Only the model this fork runs is a hard failure; the hidden ones are upstream's.
+        out.append(("%s alanlari" % slug, tier, ", ".join(d)[:22] or "ayni",
+                    not d or slug != "glm-5.3-flash"))
+
     g = ib.get("glm-5.3-flash")
     out.append(("glm-5.3-flash var", "T1", "-", g is not None))
     if g:
