@@ -27,9 +27,22 @@ pub trait TimeProvider: Send + Sync {
 
 pub(crate) struct SystemTimeProvider;
 
+/// EXPERIMENT (exp/restore-input): pin the clock so a measurement run can reproduce an
+/// older run's prompt exactly. The environment context carries `<current_date>`, so two
+/// runs on different days never see the same bytes no matter what else is held equal.
+/// Set `SUFFICE_FAKE_DATE=YYYY-MM-DD` to fix it. Unset, nothing changes.
+pub(crate) fn faked_now() -> Option<chrono::DateTime<Utc>> {
+    let raw = std::env::var("SUFFICE_FAKE_DATE").ok()?;
+    let date = chrono::NaiveDate::parse_from_str(raw.trim(), "%Y-%m-%d").ok()?;
+    Some(chrono::DateTime::from_naive_utc_and_offset(
+        date.and_hms_opt(12, 0, 0)?,
+        Utc,
+    ))
+}
+
 impl TimeProvider for SystemTimeProvider {
     fn current_time(&self, _thread_id: ThreadId) -> TimeFuture<'_> {
-        Box::pin(async { Ok(Utc::now()) })
+        Box::pin(async { Ok(faked_now().unwrap_or_else(Utc::now)) })
     }
 
     fn sleep(&self, _thread_id: ThreadId, duration: Duration) -> SleepFuture<'_> {
