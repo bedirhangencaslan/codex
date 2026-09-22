@@ -836,6 +836,12 @@ impl TurnContext {
 }
 
 fn local_time_context() -> (String, String) {
+    // See `current_time::faked_now`. Both date sources have to honour the pin, or the two
+    // halves of the prompt disagree about what day it is.
+    if let Some(fixed) = crate::current_time::faked_now() {
+        let timezone = iana_time_zone::get_timezone().unwrap_or_else(|_| "Etc/UTC".to_string());
+        return (fixed.format("%Y-%m-%d").to_string(), timezone);
+    }
     match iana_time_zone::get_timezone() {
         Ok(timezone) => (Local::now().format("%Y-%m-%d").to_string(), timezone),
         Err(_) => (
