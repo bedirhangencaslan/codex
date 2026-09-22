@@ -101,21 +101,40 @@ fn align_apply_patch_section(
         // lives in each such model's own template. Leave it alone.
         return instructions;
     };
-    let stripped = strip_apply_patch_section(instructions);
+    let (mut stripped, was_at) = strip_apply_patch_section(instructions);
     match apply_patch_tool_type {
         ApplyPatchToolType::Prose => {
-            let mut out = stripped.trim_end().to_string();
-            out.push_str("\n\n");
-            out.push_str(APPLY_PATCH_PROSE.trim_end());
-            out.push('\n');
-            out
+            // EXPERIMENT (exp/restore-input): put the section back where the template had
+            // it, and normalise line endings. `a71c1231a` appended instead, which moved the
+            // block roughly 4,000 characters later in the prompt, and a Windows checkout of
+            // `apply_patch_prose.md` turns every newline in it into CRLF. Neither was
+            // measured. This build exists to find out whether either changed behaviour.
+            let prose = APPLY_PATCH_PROSE.replace("\r\n", "\n");
+            match was_at {
+                Some(at) => {
+                    let mut block = prose.trim_end().to_string();
+                    block.push_str("\n\n");
+                    stripped.insert_str(at, &block);
+                    stripped
+                }
+                None => {
+                    let mut out = stripped.trim_end().to_string();
+                    out.push_str("\n\n");
+                    out.push_str(prose.trim_end());
+                    out.push('\n');
+                    out
+                }
+            }
         }
         ApplyPatchToolType::Freeform => stripped,
     }
 }
 
 /// Remove a `## apply_patch` section, up to the next heading of the same or higher level.
-fn strip_apply_patch_section(mut instructions: String) -> String {
+///
+/// Returns where the section started, so a caller that means to replace it can put the new
+/// one in the same place rather than at the end.
+fn strip_apply_patch_section(mut instructions: String) -> (String, Option<usize>) {
     let mut section_start = None;
     let mut section_end = None;
     let mut offset = 0;
@@ -141,7 +160,7 @@ fn strip_apply_patch_section(mut instructions: String) -> String {
         instructions.replace_range(section_start..section_end, "");
     }
 
-    instructions
+    (instructions, section_start)
 }
 
 fn is_h2_heading(line: &str) -> bool {

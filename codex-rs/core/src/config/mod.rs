@@ -2678,7 +2678,11 @@ fn resolve_update_plan_enabled(config_toml: &ConfigToml) -> bool {
         .tools
         .as_ref()
         .and_then(|tools| tools.update_plan.as_ref())
-        .is_some_and(|config| config.enabled)
+        // EXPERIMENT (exp/restore-input): upstream flipped this to `is_some_and` during the
+        // 2026-09-20 merge, so the planning tool is now off unless a config asks for it, and
+        // it left the model-visible tool list. Restored to the pre-merge default to measure
+        // whether losing it is what sent the model to ad-hoc shell verification.
+        .is_none_or(|config| config.enabled)
 }
 
 fn resolve_orchestrator_feature_enabled(
