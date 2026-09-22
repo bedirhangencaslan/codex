@@ -983,6 +983,31 @@ fn esc_hint_line(esc_backtrack_hint: bool) -> Line<'static> {
     }
 }
 
+/// Live context accounting rendered beside the remaining-context percentage.
+///
+/// Every figure describes the most recent request: how large the context it
+/// carried was, and how that request's input split between freshly billed and
+/// cache-served tokens. The next request replays the same prefix, so the split
+/// also predicts what the next one will send and what it will cost.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ContextTokenBreakdown {
+    pub(crate) context_tokens: i64,
+    pub(crate) new_input_tokens: i64,
+    pub(crate) cached_input_tokens: i64,
+}
+
+impl ContextTokenBreakdown {
+    fn cached_percent(&self) -> i64 {
+        let input = self
+            .new_input_tokens
+            .saturating_add(self.cached_input_tokens);
+        if input <= 0 {
+            return 0;
+        }
+        ((self.cached_input_tokens as f64 / input as f64) * 100.0).round() as i64
+    }
+}
+
 pub(crate) fn context_window_line(
     percent: Option<i64>,
     used_tokens: Option<i64>,

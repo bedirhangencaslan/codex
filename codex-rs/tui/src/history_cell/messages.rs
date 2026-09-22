@@ -441,7 +441,12 @@ impl HistoryCell for ReasoningSummaryCell {
 
     fn display_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
         if self.transcript_only {
+            // `collapsed_lines` predates upstream's `HyperlinkLine`; a collapsed summary
+            // carries no links, so the plain conversion is the whole of it.
             self.collapsed_lines()
+                .into_iter()
+                .map(HyperlinkLine::from)
+                .collect()
         } else {
             self.lines(width)
         }

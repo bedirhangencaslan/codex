@@ -97,9 +97,12 @@ fn read_rollout(path: &Path) -> Result<Vec<RolloutLine>> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read rollout {}", path.display()))?;
     // A rollout is appended to live, so a truncated final line is normal rather than an error.
+    // `RolloutLine` deliberately has no `Deserialize`: the flattened envelope loses nested
+    // decimal values unless it goes through the canonical parser. Upstream dropped the
+    // derive to force that, so this reads through `codex_rollout` rather than serde.
     Ok(text
         .lines()
-        .filter_map(|line| serde_json::from_str::<RolloutLine>(line).ok())
+        .filter_map(|line| codex_rollout::parse_rollout_line(line).ok())
         .collect())
 }
 
