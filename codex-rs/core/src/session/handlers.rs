@@ -13,6 +13,7 @@ use tracing::info_span;
 use crate::session::session::Session;
 use crate::session::thread_settings;
 use crate::session::turn_input;
+use crate::unified_exec::TOOL_OUTPUT_SUBDIR;
 
 use crate::config::Config;
 use crate::context::ContextualUserFragment;
@@ -283,6 +284,20 @@ pub async fn set_thread_memory_mode(sess: &Arc<Session>, sub_id: String, mode: T
     }
 }
 
+/// Deletes this session's spilled tool output, if it wrote any.
+///
+/// Resolved from the same two pieces the writer used, rather than remembered: the writer runs per
+/// command and may never run at all, so there is nothing to remember in the common case.
+async fn remove_session_tool_output(sess: &Arc<Session>) {
+    let codex_home = sess.codex_home().await;
+    let dir = codex_home
+        .as_path()
+        .join("tmp")
+        .join(TOOL_OUTPUT_SUBDIR)
+        .join(sess.thread_id().to_string());
+    let _ = tokio::fs::remove_dir_all(dir).await;
+}
+
 pub(super) async fn shutdown_session_runtime(sess: &Arc<Session>) {
     if let Some(startup_prewarm) = sess.take_session_startup_prewarm().await {
         startup_prewarm.abort().await;
@@ -301,6 +316,11 @@ pub(super) async fn shutdown_session_runtime(sess: &Arc<Session>) {
         .unified_exec_manager
         .terminate_all_processes()
         .await;
+    // The output this session spilled for its own model to read back is of no use to anyone now.
+    // Best effort: a session that crashes never reaches here, which is why the startup sweep is
+    // the mechanism that actually bounds the directory and this is only what keeps it empty in
+    // the ordinary case.
+    remove_session_tool_output(sess).await;
     if let Err(err) = sess.services.code_mode_service.shutdown().await {
         warn!("failed to shutdown code mode session: {err}");
     }
