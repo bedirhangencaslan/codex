@@ -1,7 +1,38 @@
 # Existing rules, kept.
 codex-rs/app-server-protocol/schema/** linguist-generated
 codex-rs/hooks/schema/generated/** linguist-generated
-third_party/voice/sources.json text eol=lf
+
+# ============================================================================
+# Line endings. THE PROMPT IS A MEASURED SURFACE, SO IT CANNOT DEPEND ON THE
+# MACHINE THAT BUILT IT.
+#
+# `include_str!` copies a file from the working tree into the binary verbatim.
+# With `core.autocrlf=true` - the Windows default, and what this fork's main
+# checkout uses - every one of those files arrives CRLF while its blob is LF.
+# Measured on 2026-09-22: of the 95 text assets embedded this way, 93 differed
+# from the repository, 10,264 bytes in total. Among them are `models.json`
+# (1,464 lines), `prompt.md` (275), `apply_patch_prose.md`, `apply_patch.lark`
+# and all of `prompts/templates/**` - that is, most of what the model reads.
+#
+# JSON string literals are immune, because their newlines are `\n` escapes;
+# Markdown, Lark and plain text are not. So the damage is invisible in a diff
+# and shows up only as two builds of one commit sending different bytes.
+#
+# `eol=lf` fixes it at the source: the checkout is LF on every platform,
+# regardless of anyone's `core.autocrlf`. It applies at checkout time, so a
+# clone that predates this line keeps its CRLF until the tree is renormalised:
+#
+#     git add --renormalize .        (then re-checkout, see scripts/merge/install)
+#
+# `text=auto` leaves binaries alone - git detects them - and the explicit
+# `binary` rules below say so anyway for the ones worth being sure about.
+# ============================================================================
+*         text=auto eol=lf
+
+# Windows batch is the one format that genuinely wants CRLF: `cmd.exe` can
+# mis-parse a label or a line continuation without it.
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
 
 # ============================================================================
 # Merge behaviour for this fork.
@@ -48,6 +79,12 @@ third_party/voice/sources.json text eol=lf
 #
 # A real disagreement - both sides changing the same logic - still conflicts,
 # with markers. This removes noise, not decisions.
+#
+# The list below is not a guess. Of the 879 files both sides changed in the
+# 2026-09-20 merge, 592 carried the product name; every extension among them is
+# covered here or by `generated` below, and the second group exists because it
+# was not: `.html`, `.bazel` and `.ipynb` each had a file that carried the name
+# and had to be resolved by hand.
 *.rs      merge=rename
 *.py      merge=rename
 *.ts      merge=rename
@@ -61,10 +98,29 @@ third_party/voice/sources.json text eol=lf
 *.txt     merge=rename
 *.lark    merge=rename
 
+# Missed by the list above in the 2026-09-20 merge, plus their near neighbours.
+*.html    merge=rename
+*.css     merge=rename
+*.xml     merge=rename
+*.yml     merge=rename
+*.yaml    merge=rename
+*.ipynb   merge=rename
+*.sbpl    merge=rename
+*.bazel   merge=rename
+*.bzl     merge=rename
+BUILD     merge=rename
+*.mjs     merge=rename
+*.cjs     merge=rename
+*.jsx     merge=rename
+*.mts     merge=rename
+*.cts     merge=rename
+*.proto   merge=rename
+
 # ---------------------------------------------------------------- generated
 # Keeps our copy and reports no conflict. The copy is stale either way until it
 # is regenerated, so the merge should not stop to ask which stale copy is
-# preferred.
+# preferred. This is what absorbed 103 of the 108 name-carrying conflicts the
+# rename list does not reach - almost all of them `.snap`.
 #
 # REGENERATING IS NOT OPTIONAL. After a merge that touches these, run the
 # generators. Until then the snapshot tests fail, which is the reminder:
@@ -81,5 +137,11 @@ codex-rs/protocol/schema/**             merge=generated
 # leaves the conflict for a person who cannot read it either.
 *.zst                                   binary merge=generated
 
-# Keep the existing line-ending rule last so nothing above overrides it.
-third_party/voice/sources.json text eol=lf
+# A lock file is an output of the manifests, which have already been merged by
+# the time this is consulted, so keeping ours and rebuilding is the answer a
+# person would reach anyway - and a three-way merge of one is famously bad.
+#
+# REGENERATE, and expect it to be wrong until you do: if upstream added a
+# dependency, `cargo build --offline` fails on the kept lock file until a
+# `cargo fetch` with network resolves it. That failure is the reminder.
+Cargo.lock                              merge=generated
