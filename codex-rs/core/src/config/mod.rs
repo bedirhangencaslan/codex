@@ -2678,7 +2678,12 @@ fn resolve_update_plan_enabled(config_toml: &ConfigToml) -> bool {
         .tools
         .as_ref()
         .and_then(|tools| tools.update_plan.as_ref())
-        .is_some_and(|config| config.enabled)
+        // On unless a config turns it off, like every other tool resolved here. The
+        // 2026-09-20 merge took upstream's `is_some_and`, which silently dropped the
+        // planning tool from the model-visible list; measured against the merge, the
+        // difference in cost is nil, so this is back on the fork's own default rather
+        // than on a measurement.
+        .is_none_or(|config| config.enabled)
 }
 
 fn resolve_orchestrator_feature_enabled(
