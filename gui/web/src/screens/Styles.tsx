@@ -34,6 +34,13 @@ export function Styles({ provider, locale }: { provider: DataProvider; locale: L
     };
   }, [provider]);
 
+  // Known style ids localize from the dictionary; anything the wire adds
+  // later falls back to the name it carries.
+  const KNOWN = new Set(["thermal", "blueprint", "abyss"]);
+  const styleName = (s: StyleCard) => (KNOWN.has(s.id) ? t(`styles.${s.id}.name` as Parameters<typeof t>[0]) : s.name);
+  const styleTagline = (s: StyleCard) =>
+    KNOWN.has(s.id) ? t(`styles.${s.id}.tagline` as Parameters<typeof t>[0]) : s.tagline;
+
   return (
     <>
       <div className="pagehead">
@@ -49,8 +56,8 @@ export function Styles({ provider, locale }: { provider: DataProvider; locale: L
               <div className="thumb" style={THUMBS[s.id]} aria-hidden="true" />
               <div className="info">
                 <span className="grow">
-                  <b>{s.name}</b>
-                  <span>{s.tagline}</span>
+                  <b>{styleName(s)}</b>
+                  <span>{styleTagline(s)}</span>
                 </span>
                 <span className="state">{i === 0 ? t("styles.active") : t("styles.apply")}</span>
               </div>
@@ -61,3 +68,4 @@ export function Styles({ provider, locale }: { provider: DataProvider; locale: L
     </>
   );
 }
+

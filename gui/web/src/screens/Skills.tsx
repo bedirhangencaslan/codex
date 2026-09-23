@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fmtNumber, makeT, type DataProvider, type Locale, type SkillEntry } from "@suffice/gui-core";
+import { fmtNumber, fmtPercent, makeT, type DataProvider, type Locale, type SkillEntry } from "@suffice/gui-core";
 
 /** Per-project skill selection. Toggles are local state in Phase 1; writing
  * them back to project config lands with the `skills/…` write endpoint in a
@@ -58,7 +58,7 @@ export function Skills({ provider, locale }: { provider: DataProvider; locale: L
                   className="togg"
                   role="switch"
                   aria-checked={s.enabled}
-                  aria-label={`${s.name} ${s.enabled ? "açık" : "kapalı"}`}
+                  aria-label={`${s.name} ${s.enabled ? t("skills.on") : t("skills.off")}`}
                   onClick={() => toggle(s.name)}
                 />
                 <span className="grow">
@@ -79,7 +79,7 @@ export function Skills({ provider, locale }: { provider: DataProvider; locale: L
               {lighterPct > 0 && (
                 <>
                   {" "}
-                  — <span className="lighter">%{lighterPct} {t("skills.lighter")}</span>
+                  — <span className="lighter">{fmtPercent(locale, lighterPct)} {t("skills.lighter")}</span>
                 </>
               )}
               <div className="bar">

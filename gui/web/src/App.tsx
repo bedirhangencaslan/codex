@@ -2,21 +2,31 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AppServerProvider,
   MockProvider,
+  availableLocales,
+  detectLocale,
   makeT,
+  persistLocale,
   type DataProvider,
   type Locale,
 } from "@suffice/gui-core";
 import { Commands } from "./screens/Commands";
+import { Learn } from "./screens/Learn";
 import { Sessions } from "./screens/Sessions";
 import { Skills } from "./screens/Skills";
 import { Styles } from "./screens/Styles";
 
-type Screen = "sessions" | "skills" | "commands" | "styles";
+type Screen = "sessions" | "learn" | "skills" | "commands" | "styles";
 
 const ICONS: Record<Screen, JSX.Element> = {
   sessions: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 6h16M4 12h16M4 18h10" />
+    </svg>
+  ),
+  learn: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 4L3 8.5l9 4.5 9-4.5z" />
+      <path d="M7 11v5c0 1.5 2.2 3 5 3s5-1.5 5-3v-5" />
     </svg>
   ),
   skills: (
@@ -55,7 +65,7 @@ function useProvider(): { provider: DataProvider; ready: boolean } {
       .then((p) => {
         if (!cancelled) setProvider(p);
       })
-      .catch((err) => console.warn("app-server bağlantısı başarısız, örnek veriye düşüldü:", err))
+      .catch((err) => console.warn("app-server connection failed, falling back to fixtures:", err))
       .finally(() => {
         if (!cancelled) setReady(true);
       });
@@ -68,16 +78,18 @@ function useProvider(): { provider: DataProvider; ready: boolean } {
 
 export function App() {
   const [screen, setScreen] = useState<Screen>("sessions");
-  const [locale, setLocale] = useState<Locale>("tr");
+  const [locale, setLocale] = useState<Locale>(() => detectLocale());
   const { provider, ready } = useProvider();
   const t = useMemo(() => makeT(locale), [locale]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    persistLocale(locale);
   }, [locale]);
 
   const NAV: Array<{ id: Screen; label: string }> = [
     { id: "sessions", label: t("nav.sessions") },
+    { id: "learn", label: t("nav.learn") },
     { id: "skills", label: t("nav.skills") },
     { id: "commands", label: t("nav.commands") },
     { id: "styles", label: t("nav.styles") },
@@ -85,7 +97,7 @@ export function App() {
 
   return (
     <div className="app">
-      <nav className="side" aria-label="Ana gezinme">
+      <nav className="side" aria-label={t("nav.aria")}>
         <div className="logo">
           <span className="mark" aria-hidden="true" />
           suffice
@@ -102,14 +114,16 @@ export function App() {
           </button>
         ))}
         <div className="foot">
-          <button
-            className="nav"
-            style={{ padding: "4px 0" }}
-            onClick={() => setLocale(locale === "tr" ? "en" : "tr")}
-            aria-label={locale === "tr" ? "Switch to English" : "Türkçe'ye geç"}
-          >
-            {locale === "tr" ? "TR → EN" : "EN → TR"}
-          </button>
+          <label className="langpick">
+            <span className="visually-hidden">{t("nav.language")}</span>
+            <select value={locale} onChange={(e) => setLocale(e.target.value as Locale)} aria-label={t("nav.language")}>
+              {availableLocales().map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
           <span className="num">glm-5.3-flash · zai</span>
           <br />
           <span className="badge-src">{provider.kind === "mock" ? t("common.mockBadge") : t("common.liveBadge")}</span>
@@ -120,6 +134,8 @@ export function App() {
           <p className="loading">{t("common.loading")}</p>
         ) : screen === "sessions" ? (
           <Sessions provider={provider} locale={locale} />
+        ) : screen === "learn" ? (
+          <Learn provider={provider} locale={locale} />
         ) : screen === "skills" ? (
           <Skills provider={provider} locale={locale} />
         ) : screen === "commands" ? (

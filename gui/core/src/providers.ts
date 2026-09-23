@@ -96,6 +96,8 @@ const TRIAL_OUTPUTS: Record<string, string> = {
   "/status": "workdir: ~/codex\nmodel: glm-5.3-flash (zai) · effort high\ncache: warm ⚡ · 420 s TTL · 3 keep-alives this session\ntokens: 21,406 fresh · 216,714 cached · 9,882 out\n",
   "/diff": "gui/web/src/App.tsx        | 12 ++++++-----\ngui/core/src/providers.ts  | 48 ++++++++++++++++++++++++++\n2 files changed, 55 insertions(+), 5 deletions(-)\n",
   "/skills": "enabled for ~/codex: code-review, babysit-pr\navailable: codex-pr-body, imagegen, skill-creator, skill-installer\n",
+  "/recap": "Recap — current session\n- goal: wire the analytics endpoint into the session cards\n- done: endpoint merged (PR #4), gauges live\n- open: real icon set for the desktop bundle\nHistory unchanged; nothing was deleted.\n",
+  "/fork": "Forked into new thread t-fork-01 (history copied, 27 items).\nYou are now on the fork; the original session is untouched.\n",
 };
 
 const COMMANDS: CommandEntry[] = [
@@ -109,10 +111,11 @@ const COMMANDS: CommandEntry[] = [
   { name: "/init", description: "create an AGENTS.md file with instructions for Suffice" },
 ];
 
+// Canonical English; the UI overrides known ids from the locale dictionary.
 const STYLES: StyleCard[] = [
-  { id: "thermal", name: "Termal Enstrüman Pro", tagline: "cache sıcaklığı arayüzün fiziği" },
-  { id: "blueprint", name: "Blueprint Defteri", tagline: "milimetrik kağıt üstünde ölçüm günlüğü" },
-  { id: "abyss", name: "Abis Terminali", tagline: "çift fosforlu OLED terminal" },
+  { id: "thermal", name: "Thermal Instrument Pro", tagline: "cache warmth as the interface's physics" },
+  { id: "blueprint", name: "Blueprint Notebook", tagline: "a measurement log on millimeter paper" },
+  { id: "abyss", name: "Abyssal Terminal", tagline: "dual-phosphor OLED terminal" },
 ];
 
 export class MockProvider implements DataProvider {
@@ -143,7 +146,7 @@ export class MockProvider implements DataProvider {
   async runCommandTrial(command: string, onDelta: (text: string) => void): Promise<void> {
     const body =
       TRIAL_OUTPUTS[command.trim()] ??
-      `(örnek çıktı) ${command} geçici oturumda çalıştırıldı; canlı app-server bağlıyken gerçek yanıt burada akar.\n`;
+      `${command}: ok (sample output — with a live app-server the real response streams here)\n`;
     for (const chunk of body.match(/.{1,18}/gs) ?? []) {
       await new Promise((r) => setTimeout(r, 24));
       onDelta(chunk);
@@ -253,7 +256,7 @@ export class AppServerProvider implements DataProvider {
       const a = this.analytics.get(id);
       return {
         id,
-        title: t.title ?? "(adsız oturum)",
+        title: t.title ?? "",
         preview: t.preview ?? "",
         updatedAt: t.updatedAt ?? a?.lastTimestamp ?? "",
         costUsd: a ? analyticsCostUsd(a) : null,
@@ -275,7 +278,7 @@ export class AppServerProvider implements DataProvider {
       for (const a of res.data ?? []) this.analytics.set(a.threadId, a);
     } catch (err) {
       // Older servers without the endpoint: keep the fields absent.
-      console.warn("analytics/threadStats kullanılamadı:", err);
+      console.warn("analytics/threadStats unavailable:", err);
     }
   }
 
@@ -357,7 +360,7 @@ export class AppServerProvider implements DataProvider {
       ephemeral: true,
     });
     const threadId = started.thread?.id ?? started.threadId;
-    if (!threadId) throw new Error("thread/start kimlik döndürmedi");
+    if (!threadId) throw new Error("thread/start returned no thread id");
 
     await new Promise<void>((resolve, reject) => {
       const unsub = this.client.onNotification((method, params) => {
@@ -371,7 +374,7 @@ export class AppServerProvider implements DataProvider {
           resolve();
         } else if (method === "turn/failed" || method === "turn/aborted") {
           unsub();
-          reject(new Error("tur tamamlanamadı"));
+          reject(new Error("the turn did not complete"));
         }
       });
       this.client

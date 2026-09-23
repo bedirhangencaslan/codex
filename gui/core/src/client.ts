@@ -32,10 +32,10 @@ export class AppServerClient {
         this.ws = ws;
         resolve();
       };
-      ws.onerror = () => reject(new Error(`app-server bağlantısı kurulamadı: ${this.url}`));
+      ws.onerror = () => reject(new Error(`could not connect to app-server at ${this.url}`));
       ws.onclose = () => {
         this.ws = null;
-        const err = new Error("app-server bağlantısı kapandı");
+        const err = new Error("app-server connection closed");
         for (const p of this.pending.values()) p.reject(err);
         this.pending.clear();
       };
@@ -53,7 +53,7 @@ export class AppServerClient {
 
   request<T = unknown>(method: string, params: unknown): Promise<T> {
     const ws = this.ws;
-    if (!ws) return Promise.reject(new Error("bağlantı yok"));
+    if (!ws) return Promise.reject(new Error("not connected"));
     const id = this.nextId++;
     const promise = new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
@@ -77,7 +77,7 @@ export class AppServerClient {
       const p = this.pending.get(msg.id);
       if (!p) return;
       this.pending.delete(msg.id);
-      if (msg.error) p.reject(new Error(msg.error.message ?? "app-server hatası"));
+      if (msg.error) p.reject(new Error(msg.error.message ?? "app-server error"));
       else p.resolve(msg.result);
       return;
     }

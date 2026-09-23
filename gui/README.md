@@ -50,6 +50,28 @@ Shells: `gui/desktop` (Tauri, see its README) and `gui/vscode`
 (`pnpm --filter suffice-gui build`, then F5 / "Suffice: Open GUI") wrap the
 identical bundle and add no data paths of their own.
 
+## Learn (education) modules
+
+The Learn screen renders a curriculum defined in `gui/core/src/learn.ts`:
+modules → lessons, where a lesson carries **only dictionary keys** (title,
+body, tip) plus an optional `tryCommand` that runs in an ephemeral thread.
+Adding a training ("skills", "cache", …) = one `LEARN_MODULES` entry + its
+keys in every locale file — a missing translation fails compilation. Progress
+is stored per module in `localStorage` (`suffice.learn.<moduleId>`).
+
+## Adding a language
+
+No UI string is hardcoded; everything flows through the locale dictionaries
+in `gui/core/src/i18n/`:
+
+1. Copy `en.ts` to `<code>.ts` and translate — the type
+   `Record<MessageKey, string>` is checked against the Turkish reference
+   dictionary, so a missing or extra key is a compile error.
+2. Register it in `i18n/index.ts`: add to `LOCALES` and give `INTL_TAGS` its
+   BCP-47 tag (drives number/percent/date formatting, e.g. "%17" vs "17%").
+3. Done — the sidebar language picker lists every registered locale
+   automatically, and the choice persists in `localStorage`.
+
 ## Turkish support
 
 Turkish is a first-class locale, not a translation pass: `gui/core/src/i18n.ts`

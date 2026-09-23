@@ -214,3 +214,60 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 .stylecard .state { font: 600 10px var(--sf-font-data); color: var(--sf-warm-hi); flex: none; }
 
 .loading, .empty { color: var(--sf-muted); padding: var(--sf-sp-5); text-align: center; }
+
+/* ---- learn ---- */
+.modulegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sf-sp-4); max-width: 980px; }
+.modulecard {
+  display: flex; flex-direction: column; gap: 8px; text-align: left;
+  background: var(--sf-surface); border: 1px solid var(--sf-line); border-radius: var(--sf-radius);
+  padding: 16px; backdrop-filter: blur(4px);
+  transition: transform var(--sf-t-fast), border-color var(--sf-t-fast);
+}
+.modulecard:hover { border-color: rgba(240, 146, 60, 0.35); transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .modulecard, .modulecard:hover { transition: none; transform: none; } }
+.modulecard b { color: var(--sf-fg); font-size: 14px; }
+.modulecard > span { color: var(--sf-muted); font-size: 12px; }
+.moduleprog { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.moduleprog .bar { height: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.moduleprog .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--sf-cold), var(--sf-warm)); border-radius: 4px; }
+.moduleprog .num { color: var(--sf-muted); font-size: 10.5px; }
+
+.lessonwrap { display: grid; grid-template-columns: 250px 1fr; gap: var(--sf-sp-4); align-items: start; max-width: 1020px; }
+@media (max-width: 900px) { .lessonwrap { grid-template-columns: 1fr; } }
+.lessonlist { border: 1px solid var(--sf-line); border-radius: var(--sf-radius); background: var(--sf-surface-raised); overflow: hidden; }
+.lessonitem {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 11px 14px; color: var(--sf-muted); font-size: 12.5px;
+  border-left: 2px solid transparent; border-bottom: 1px solid var(--sf-line-soft);
+}
+.lessonitem:hover { color: var(--sf-fg-soft); }
+.lessonitem.on { color: var(--sf-warm-hi); border-left-color: var(--sf-warm); background: linear-gradient(90deg, rgba(240, 146, 60, 0.1), transparent 80%); }
+.tick {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 10px var(--sf-font-data); color: var(--sf-muted);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+}
+.tick.done { color: #17110a; background: linear-gradient(180deg, var(--sf-warm-hi), var(--sf-warm-deep)); box-shadow: none; }
+.lessonbody header h2 { font-size: 15px; }
+.lessonprose { padding: 16px; max-width: 68ch; }
+.lessonprose p { margin: 0 0 14px; line-height: 1.7; color: var(--sf-fg-soft); }
+.lessontip { border-left: 2px solid var(--sf-cold); padding: 8px 12px; color: var(--sf-muted); background: rgba(78, 128, 178, 0.07); border-radius: 0 var(--sf-radius-sm) var(--sf-radius-sm) 0; }
+.lessontip b { color: var(--sf-cold-hi); }
+.lessontry { margin-top: 4px; display: flex; flex-direction: column; gap: 10px; }
+.lessontry .btn-primary code { font-family: var(--sf-font-data); background: none; color: inherit; }
+.lessontry .btn-primary:disabled { opacity: 0.5; cursor: default; }
+.lessontry .trialout { min-height: 0; max-height: 260px; border: 1px solid var(--sf-line-soft); border-radius: var(--sf-radius-sm); background: rgba(9, 12, 16, 0.5); }
+.lessonnav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--sf-line-soft); }
+.ghost { color: var(--sf-cold-hi); font-weight: 600; font-size: 12px; padding: 7px 10px; border-radius: var(--sf-radius-sm); }
+.ghost:hover { background: rgba(78, 128, 178, 0.1); }
+.ghost:disabled { color: var(--sf-muted); opacity: 0.45; cursor: default; background: none; }
+
+/* ---- language picker ---- */
+.langpick { display: block; margin-bottom: 6px; }
+.langpick select {
+  background: rgba(255, 255, 255, 0.04); color: var(--sf-fg-soft);
+  border: 1px solid var(--sf-line); border-radius: 6px; padding: 5px 8px;
+  font: 12px var(--sf-font-ui); margin-bottom: 8px; cursor: pointer;
+}
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
