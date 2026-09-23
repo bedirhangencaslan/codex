@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   fmtNumber,
+  fmtPercent,
+  intlTag,
   makeT,
   type DataProvider,
   type Locale,
@@ -29,7 +31,7 @@ function relTime(iso: string, locale: Locale): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return iso;
   const mins = Math.round((Date.now() - then) / 60_000);
-  const rtf = new Intl.RelativeTimeFormat(locale === "tr" ? "tr-TR" : "en-US", { numeric: "auto" });
+  const rtf = new Intl.RelativeTimeFormat(intlTag(locale), { numeric: "auto" });
   if (mins < 60) return rtf.format(-mins, "minute");
   if (mins < 60 * 24) return rtf.format(-Math.round(mins / 60), "hour");
   return rtf.format(-Math.round(mins / (60 * 24)), "day");
@@ -100,7 +102,7 @@ export function Sessions({ provider, locale }: { provider: DataProvider; locale:
             <span className="l">{t("sessions.week")}</span>
           </div>
           <div className="stat">
-            <span className="v num">%{stats.avgCachedPercent}</span>
+            <span className="v num">{fmtPercent(locale, stats.avgCachedPercent)}</span>
             <span className="l">{t("sessions.avgCached")}</span>
           </div>
           <div className="stat">
@@ -135,9 +137,9 @@ export function Sessions({ provider, locale }: { provider: DataProvider; locale:
                 aria-pressed={selected === th.id}
               >
                 <span className="toprow">
-                  {th.cachedPercent != null && <Gauge percent={th.cachedPercent} />}
+                  {th.cachedPercent != null && <Gauge percent={th.cachedPercent} label={t("gauge.cachedInput")} />}
                   <span className="grow">
-                    <span className="c-title">{th.title}</span>
+                    <span className="c-title">{th.title || t("sessions.untitled")}</span>
                     <span className="c-prev">{th.preview}</span>
                   </span>
                   <WarmthPill warmth={th.warmth} badge={th.badge} t={t} />
@@ -182,7 +184,7 @@ export function Sessions({ provider, locale }: { provider: DataProvider; locale:
                   </linearGradient>
                 </defs>
                 <text className="dialval" x="66" y="58" textAnchor="middle">
-                  %{detail.cachedPercent}
+                  {fmtPercent(locale, detail.cachedPercent)}
                 </text>
                 <text className="diallbl" x="66" y="72" textAnchor="middle">
                   {t("rail.cachedInput")}
@@ -197,7 +199,7 @@ export function Sessions({ provider, locale }: { provider: DataProvider; locale:
                   <span className="cach" style={{ width: `${r.cachedShare * 100}%` }} />
                   <span className="fresh" style={{ width: `${(1 - r.cachedShare) * 100}%` }} />
                 </span>
-                <span className="pc">%{Math.round(r.cachedShare * 100)}</span>
+                <span className="pc">{fmtPercent(locale, Math.round(r.cachedShare * 100))}</span>
               </div>
             ))}
             <p className="railh" style={{ marginTop: 16 }}>
