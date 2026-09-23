@@ -66,6 +66,8 @@ pub(crate) struct ExecCommandHandlerOptions {
     pub(crate) include_shell_parameter: bool,
     pub(crate) include_windows_shell_guidance: bool,
     pub(crate) lean_parameters: bool,
+    /// See `CommandToolOptions::code_mode_offered`.
+    pub(crate) code_mode_offered: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -91,6 +93,7 @@ impl Default for ExecCommandHandler {
                 include_shell_parameter: true,
                 include_windows_shell_guidance: cfg!(windows),
                 lean_parameters: false,
+                code_mode_offered: false,
             },
         }
     }
@@ -123,6 +126,7 @@ impl ToolExecutor<ToolInvocation> for ExecCommandHandler {
                 allow_login_shell: self.options.allow_login_shell,
                 exec_permission_approvals_enabled: self.options.exec_permission_approvals_enabled,
                 lean_parameters: self.options.lean_parameters,
+                code_mode_offered: self.options.code_mode_offered,
             },
             self.options.include_environment_id,
             self.options.include_shell_parameter,

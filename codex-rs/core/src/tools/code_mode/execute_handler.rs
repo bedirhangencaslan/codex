@@ -9,6 +9,7 @@ use codex_tools::ToolSpec;
 use std::sync::Arc;
 
 use super::ExecContext;
+use super::OutputShaping;
 use super::PUBLIC_TOOL_NAME;
 use super::handle_runtime_response;
 use super::is_exec_tool_name;
@@ -146,12 +147,14 @@ impl CodeModeExecuteHandler {
         let wall_time = response
             .code_mode_host_duration()
             .unwrap_or_else(|| started_at.elapsed());
+        let shaping = OutputShaping::for_response(&exec.session, &step_context, &response, &call_id);
         Ok(handle_runtime_response(
             &step_context.settings.model_info,
             response,
             args.max_output_tokens,
             wall_time,
             exec.turn.config.code_mode.experimental_show_cell_overhead,
+            shaping,
         ))
     }
 }

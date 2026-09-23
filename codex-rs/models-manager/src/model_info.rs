@@ -5,6 +5,7 @@ use codex_protocol::openai_models::ConfigShellToolType;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelMessages;
 use codex_protocol::openai_models::ModelVisibility;
+use codex_protocol::openai_models::ToolMode;
 use codex_protocol::openai_models::TruncationMode;
 use codex_protocol::openai_models::TruncationPolicyConfig;
 use codex_protocol::openai_models::WebSearchToolType;
@@ -80,9 +81,73 @@ pub fn with_config_overrides(mut model: ModelInfo, config: &ModelsManagerConfig)
                 apply_patch_tool_type,
             );
         }
+
+        // The mode the model asks for, resolved as core's `requested_tool_mode` does: the
+        // catalog entry first, configuration only when the entry leaves it unset. Code mode is
+        // only real when its host is installed, so nothing changes without it.
+        let tool_mode = model.tool_mode.or(config.config_tool_mode);
+        if config.code_mode_host_available
+            && let Some(tool_mode) = tool_mode
+            && let Some(instructions_template) = model
+                .model_messages
+                .as_mut()
+                .and_then(|messages| messages.instructions_template.as_mut())
+        {
+            *instructions_template =
+                align_code_mode_lines(std::mem::take(instructions_template), tool_mode);
+        }
     }
 
     model
+}
+
+/// This fork's own steer toward doing bulk work in a shell script (`1d2c1a5f9`, OpenCode's
+/// wording). It was added because nothing else could do that work in one step; `exec` can, so it
+/// leaves the instructions whenever `exec` is offered and the prompt reads as it did before it.
+const SHELL_SCRIPT_STEER: &str = "- You reach for `exec_command` with a short read-only inline script when the job is local parsing, arithmetic, templating, or a tabular rollup, and you print a short result rather than the data it read.\n";
+
+/// The bullet the `exec` guidance follows. Where it is missing the guidance is not added: a
+/// bullet stranded in some other section would read as belonging to it.
+const PARALLEL_CALLS_BULLET_PREFIX: &str = "- You issue several tool calls in a single response";
+
+/// gpt-6-astra's two `exec` bullets, with `functions.exec` written as `exec`: that prefix is how
+/// OpenAI's own format names tools, and on the Chat Completions wire the tool is called `exec`.
+/// Only for `code_mode_only`, where `exec` is the one way to reach any other tool. In hybrid mode
+/// the direct tools are still offered and the parallel-calls bullet already covers batching them.
+const CODE_MODE_ONLY_EXEC_BULLETS: &str = "- Batch independent searches and reads in one exec using await Promise.allSettled([...]); inspect every result. Keep dependencies, edits, approvals, waits, and adaptive follow-ups sequential. Avoid unnecessary output.\n- When calling `exec`, parallelize independent tool calls by awaiting Promises. Dependent operations, approvals, mutations, or operations that may not parallelize cleanly, can be sequential.\n";
+
+fn align_code_mode_lines(template: String, tool_mode: ToolMode) -> String {
+    match tool_mode {
+        ToolMode::Direct => template,
+        ToolMode::CodeMode => template.replacen(SHELL_SCRIPT_STEER, "", 1),
+        ToolMode::CodeModeOnly => insert_after_line(
+            template.replacen(SHELL_SCRIPT_STEER, "", 1),
+            PARALLEL_CALLS_BULLET_PREFIX,
+            CODE_MODE_ONLY_EXEC_BULLETS,
+        ),
+    }
+}
+
+/// Inserts `text` after the first line starting with `prefix`, or returns `template` unchanged.
+fn insert_after_line(template: String, prefix: &str, text: &str) -> String {
+    let Some(line_start) = template
+        .match_indices(prefix)
+        .map(|(index, _)| index)
+        .find(|&index| index == 0 || template[..index].ends_with('\n'))
+    else {
+        return template;
+    };
+    let insert_at = template[line_start..]
+        .find('\n')
+        .map_or(template.len(), |offset| line_start + offset + 1);
+    let mut aligned = template;
+    if !aligned[..insert_at].ends_with('\n') {
+        aligned.insert(insert_at, '\n');
+        aligned.insert_str(insert_at + 1, text.trim_end_matches('\n'));
+        return aligned;
+    }
+    aligned.insert_str(insert_at, text);
+    aligned
 }
 
 /// Make the instructions carry the patch format exactly when the grammar does not.

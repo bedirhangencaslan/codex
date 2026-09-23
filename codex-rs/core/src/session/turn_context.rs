@@ -1323,7 +1323,17 @@ impl Session {
             .await;
         }
 
+        // A model whose metadata asks for hybrid code mode is using it opportunistically: without
+        // the host it falls back to the direct tools it would have had anyway, and nothing is lost.
+        // That fallback is the expected state on an install without V8, so it is not announced on
+        // every session. A configuration that enables code mode explicitly, or a model that needs
+        // it (`code_mode_only`, which fails closed), still gets the warning.
+        let silent_fallback = tc.model_info().tool_mode
+            == Some(codex_protocol::openai_models::ToolMode::CodeMode)
+            && crate::tools::effective_tool_mode(tc, tc.model_info())
+                == codex_protocol::openai_models::ToolMode::Direct;
         if !tc.code_mode_available
+            && !silent_fallback
             && matches!(
                 crate::tools::requested_tool_mode(tc, tc.model_info()),
                 codex_protocol::openai_models::ToolMode::CodeMode

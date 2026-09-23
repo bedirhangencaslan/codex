@@ -14,6 +14,7 @@ use codex_tools::ToolSpec;
 
 use super::DEFAULT_WAIT_YIELD_TIME_MS;
 use super::ExecContext;
+use super::OutputShaping;
 use super::WAIT_TOOL_NAME;
 use super::handle_runtime_response;
 use super::telemetry::CodeModeToolCallGuard;
@@ -178,12 +179,16 @@ impl CodeModeWaitHandler {
                 let wall_time = wait_response
                     .code_mode_host_duration()
                     .unwrap_or_else(|| started_at.elapsed());
+                let response: codex_code_mode::RuntimeResponse = wait_response.into();
+                let shaping =
+                    OutputShaping::for_response(&exec.session, &step_context, &response, &call_id);
                 Ok(boxed_tool_output(handle_runtime_response(
                     &step_context.settings.model_info,
-                    wait_response.into(),
+                    response,
                     args.max_tokens,
                     wall_time,
                     exec.turn.config.code_mode.experimental_show_cell_overhead,
+                    shaping,
                 )))
             }
             _ => Err(FunctionCallError::RespondToModel(format!(

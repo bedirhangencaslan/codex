@@ -3563,7 +3563,7 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
         Some(BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS)
     );
     assert!(
-        policy.can_write_path_with_cwd(cwd.path(), cwd.path()),
+        policy.can_write_local_path_with_cwd(cwd.path(), cwd.path()),
         "expected trusted project fallback to use :danger-full-access, policy: {policy:?}"
     );
     assert_eq!(

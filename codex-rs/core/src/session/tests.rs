@@ -3836,7 +3836,7 @@ async fn fork_startup_context_then_first_turn_diff_snapshot() -> anyhow::Result<
         .expect("rollout path");
 
     initial
-        .suffice
+        .codex
         .start_or_steer_turn(ExternalTurnInputRequest::user_input(vec![
             UserInput::Text {
                 text: "fork seed".into(),
@@ -3849,7 +3849,7 @@ async fn fork_startup_context_then_first_turn_diff_snapshot() -> anyhow::Result<
     // before snapshotting from it.
     initial.codex.ensure_rollout_materialized().await;
     initial
-        .suffice
+        .codex
         .flush_rollout()
         .await
         .expect("source rollout should flush before fork");

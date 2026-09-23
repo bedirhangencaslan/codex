@@ -17,7 +17,7 @@
         "limit": 25000
       },
       "supports_parallel_tool_calls": true,
-      "tool_mode": null,
+      "tool_mode": "code_mode",
       "multi_agent_version": null,
       "use_responses_lite": false,
       "include_skills_usage_instructions": true,
