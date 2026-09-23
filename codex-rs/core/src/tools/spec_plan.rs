@@ -578,7 +578,14 @@ fn spec_for_model_request(
     spec: ToolSpec,
 ) -> ToolSpec {
     let tool_mode = effective_tool_mode(turn_context, model_info);
+    // A model whose catalog entry asks for hybrid code mode takes it as an add-on: `exec` and
+    // `wait` join the tool list and every other tool goes out exactly as it does in direct mode.
+    // Upstream appends a TypeScript declaration to each direct tool's description, which repeats
+    // a schema the model already has - measured on glm-5.3-flash, 3.5 KB of the 8.8 KB code mode
+    // added to every request. Hybrid mode turned on through `features.code_mode` is unchanged.
+    let add_on_only = model_info.tool_mode == Some(ToolMode::CodeMode);
     if matches!(tool_mode, ToolMode::CodeMode | ToolMode::CodeModeOnly)
+        && !add_on_only
         && exposure.is_available_in_code_mode()
         && !is_excluded_from_code_mode(turn_context, tool_name)
         && codex_code_mode::is_code_mode_nested_tool(spec.name())
@@ -1059,11 +1066,17 @@ fn add_shell_tools(context: &CoreToolPlanContext<'_>, registry: &mut ToolRegistr
     // ten parameters are unreachable, and advertising them is what the measurement charges us for.
     // See `CommandToolOptions::lean_parameters`.
     let lean_parameters = turn_context.approval_policy() == AskForApproval::Never;
+    // The same test that decides whether `exec` joins the tool list.
+    let code_mode_offered = matches!(
+        effective_tool_mode(turn_context, context.model_info),
+        ToolMode::CodeMode | ToolMode::CodeModeOnly
+    );
     let options = ExecCommandHandlerOptions {
         allow_login_shell,
         allow_tty: features.enabled(Feature::UnifiedExecTty),
         exec_permission_approvals_enabled,
         lean_parameters,
+        code_mode_offered,
         include_environment_id,
         include_shell_parameter: unified_exec_should_include_shell_parameter(
             turn_context,

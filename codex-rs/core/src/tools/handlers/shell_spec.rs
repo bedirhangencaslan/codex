@@ -24,6 +24,9 @@ pub struct CommandToolOptions {
     /// `#[serde(default)]` (`unified_exec.rs:30-53`), so a parameter left out of the schema simply
     /// takes its default, and the handler is untouched.
     pub lean_parameters: bool,
+    /// Code mode's `exec` is in the tool list. Scripted work then belongs to `exec`, so the lean
+    /// description drops this fork's steer toward shell scripts and reads as it did before it.
+    pub code_mode_offered: bool,
 }
 
 #[cfg(test)]
@@ -43,7 +46,11 @@ pub(crate) fn create_exec_command_tool_with_environment_id(
     include_windows_shell_guidance: bool,
 ) -> ToolSpec {
     if options.lean_parameters {
-        return lean_exec_command_tool(include_environment_id, include_windows_shell_guidance);
+        return lean_exec_command_tool(
+            include_environment_id,
+            include_windows_shell_guidance,
+            options.code_mode_offered,
+        );
     }
 
     let yield_time_ms_description = if cfg!(windows) {
@@ -154,6 +161,7 @@ pub(crate) fn create_exec_command_tool_with_environment_id(
 fn lean_exec_command_tool(
     include_environment_id: bool,
     include_windows_shell_guidance: bool,
+    code_mode_offered: bool,
 ) -> ToolSpec {
     let mut properties = BTreeMap::from([
         (
@@ -183,16 +191,20 @@ fn lean_exec_command_tool(
         );
     }
 
+    let usage_guidance = if code_mode_offered {
+        lean_usage_guidance().replacen(EDIT_LINE_WITH_SCRIPT_STEER, EDIT_LINE, 1)
+    } else {
+        lean_usage_guidance().to_string()
+    };
     let description = if include_windows_shell_guidance {
         format!(
             "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}\n\n{}",
-            lean_usage_guidance(),
+            usage_guidance,
             windows_shell_guidance()
         )
     } else {
         format!(
-            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}",
-            lean_usage_guidance()
+            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{usage_guidance}"
         )
     };
 
@@ -209,6 +221,15 @@ fn lean_exec_command_tool(
         output_schema: Some(unified_exec_output_schema().into()),
     })
 }
+
+/// The file-editing line as `ce2f24aae` left it: it lets a script write the file it computed,
+/// which was the only way to do generated work in one step before code mode.
+const EDIT_LINE_WITH_SCRIPT_STEER: &str = "- Edit or create a file whose content you are writing yourself: Use `apply_patch` (NOT `Set-Content`, `sed`, or `awk`). A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.";
+
+/// The same line before that commit, used whenever `exec` is offered: generated content then goes
+/// through `tools.apply_patch` inside `exec`, and nothing needs the shell to write a file.
+const EDIT_LINE: &str =
+    "- Edit or create files: Use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)";
 
 /// OpenCode's `bash` description, section for section, with our tool names and our shell.
 ///

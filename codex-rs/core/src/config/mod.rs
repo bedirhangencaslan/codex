@@ -118,6 +118,7 @@ use codex_protocol::models::ProfileWorkspaceRoot;
 use codex_protocol::models::SandboxEnforcement;
 use codex_protocol::openai_models::ModelsResponse;
 use codex_protocol::openai_models::ReasoningEffort;
+use codex_protocol::openai_models::ToolMode;
 use codex_protocol::permissions::DenyReadValidator;
 use codex_protocol::permissions::DenyReadViolation;
 use codex_protocol::permissions::FileSystemPath;
@@ -1650,7 +1651,28 @@ impl Config {
             }),
             personality: self.personality,
             model_catalog: self.model_catalog.clone(),
+            code_mode_host_available: self.code_mode_host_available(),
+            // Same precedence as `tools::requested_tool_mode`.
+            config_tool_mode: if self.features.enabled(Feature::CodeModeOnly) {
+                Some(ToolMode::CodeModeOnly)
+            } else if self.features.enabled(Feature::CodeMode) {
+                Some(ToolMode::CodeMode)
+            } else {
+                None
+            },
         }
+    }
+
+    /// Whether the code-mode host `ThreadManager` would start is installed.
+    ///
+    /// Mirrors the provider choice in `ThreadManager::new`: the process-owned host when
+    /// `features.code_mode_host` is on or the in-process fallback is disabled, none otherwise.
+    fn code_mode_host_available(&self) -> bool {
+        use codex_code_mode::CodeModeSessionProvider as _;
+        (self.features.enabled(Feature::CodeModeHost) || self.code_mode.disable_in_process_fallback)
+            && codex_code_mode::ProcessOwnedCodeModeSessionProvider::default()
+                .availability()
+                .is_ok()
     }
 
     /// Returns auth routing resolved from the effective feature configuration.

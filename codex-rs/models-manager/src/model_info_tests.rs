@@ -398,3 +398,118 @@ fn a_user_supplied_prompt_is_left_alone() {
 
     assert_eq!(template_of(&updated), "only what I wrote");
 }
+
+fn glm_from_catalog() -> ModelInfo {
+    crate::bundled_models_response()
+        .expect("bundled catalog parses")
+        .models
+        .into_iter()
+        .find(|model| model.slug == "glm-5.3-flash")
+        .expect("glm-5.3-flash is in the bundled catalog")
+}
+
+#[test]
+fn the_shell_script_steer_is_in_the_glm_prompt_verbatim() {
+    // The steer is removed by exact match; if its wording drifts, code mode would keep it.
+    assert!(template_of(&glm_from_catalog()).contains(SHELL_SCRIPT_STEER));
+}
+
+#[test]
+fn the_shell_script_steer_leaves_only_when_exec_is_offered() {
+    let mut glm = glm_from_catalog();
+    glm.tool_mode = Some(ToolMode::CodeMode);
+    let direct = template_of(&with_config_overrides(glm.clone(), &ModelsManagerConfig::default()));
+
+    let host_missing = ModelsManagerConfig {
+        code_mode_host_available: false,
+        ..Default::default()
+    };
+    assert_eq!(template_of(&with_config_overrides(glm.clone(), &host_missing)), direct);
+
+    let host_installed = ModelsManagerConfig {
+        code_mode_host_available: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        template_of(&with_config_overrides(glm.clone(), &host_installed)),
+        direct.replacen(SHELL_SCRIPT_STEER, "", 1)
+    );
+
+    // A model that does not ask for code mode keeps the steer even with the host installed.
+    glm.tool_mode = None;
+    assert_eq!(template_of(&with_config_overrides(glm, &host_installed)), direct);
+}
+
+#[test]
+fn code_mode_only_adds_the_exec_bullets_right_after_the_parallel_calls_bullet() {
+    let mut glm = glm_from_catalog();
+    let direct = template_of(&with_config_overrides(glm.clone(), &ModelsManagerConfig::default()));
+    assert!(
+        direct.contains(&format!("\n{PARALLEL_CALLS_BULLET_PREFIX}")),
+        "the anchor the exec bullets follow must stay in the GLM prompt"
+    );
+
+    glm.tool_mode = Some(ToolMode::CodeModeOnly);
+    let host_installed = ModelsManagerConfig {
+        code_mode_host_available: true,
+        ..Default::default()
+    };
+    let only = template_of(&with_config_overrides(glm.clone(), &host_installed));
+
+    let without_steer = direct.replacen(SHELL_SCRIPT_STEER, "", 1);
+    let anchor = without_steer
+        .find(&format!("\n{PARALLEL_CALLS_BULLET_PREFIX}"))
+        .expect("anchor")
+        + 1;
+    let after_anchor = anchor + without_steer[anchor..].find('\n').expect("line end") + 1;
+    let mut expected = without_steer.clone();
+    expected.insert_str(after_anchor, CODE_MODE_ONLY_EXEC_BULLETS);
+    assert_eq!(only, expected);
+    assert!(!only.contains("functions.exec"));
+
+    // Hybrid mode keeps the direct tools, so the parallel-calls bullet is enough there.
+    glm.tool_mode = Some(ToolMode::CodeMode);
+    assert_eq!(
+        template_of(&with_config_overrides(glm, &host_installed)),
+        without_steer
+    );
+}
+
+#[test]
+fn the_catalog_tool_mode_wins_over_configuration_as_in_core() {
+    let config = ModelsManagerConfig {
+        code_mode_host_available: true,
+        config_tool_mode: Some(ToolMode::CodeModeOnly),
+        ..Default::default()
+    };
+    let mut glm = glm_from_catalog();
+    let direct = template_of(&with_config_overrides(glm.clone(), &ModelsManagerConfig::default()));
+
+    glm.tool_mode = Some(ToolMode::Direct);
+    assert_eq!(template_of(&with_config_overrides(glm.clone(), &config)), direct);
+
+    glm.tool_mode = None;
+    assert!(
+        template_of(&with_config_overrides(glm, &config)).contains(CODE_MODE_ONLY_EXEC_BULLETS)
+    );
+}
+
+#[test]
+fn insert_after_line_needs_the_prefix_at_a_line_start() {
+    assert_eq!(
+        insert_after_line("a\nb\n".to_string(), "- x", "- y\n"),
+        "a\nb\n"
+    );
+    assert_eq!(
+        insert_after_line("say - x\n".to_string(), "- x", "- y\n"),
+        "say - x\n"
+    );
+    assert_eq!(
+        insert_after_line("a\n- x one\nb\n".to_string(), "- x", "- y\n"),
+        "a\n- x one\n- y\nb\n"
+    );
+    assert_eq!(
+        insert_after_line("a\n- x last".to_string(), "- x", "- y\n"),
+        "a\n- x last\n- y"
+    );
+}

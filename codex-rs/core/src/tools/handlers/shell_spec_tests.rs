@@ -31,6 +31,7 @@ fn a_non_interactive_run_is_offered_three_parameters() {
             allow_login_shell: true,
             exec_permission_approvals_enabled: true,
             lean_parameters: true,
+            code_mode_offered: false,
         },
         /*include_environment_id*/ false,
         /*include_shell_parameter*/ true,
@@ -77,6 +78,7 @@ fn exec_command_tool_matches_expected_spec() {
         allow_login_shell: true,
         exec_permission_approvals_enabled: false,
         lean_parameters: false,
+        code_mode_offered: false,
     });
 
     let description = if cfg!(windows) {
@@ -167,6 +169,7 @@ fn exec_command_tool_can_hide_shell_parameter() {
             allow_login_shell: true,
             exec_permission_approvals_enabled: false,
             lean_parameters: false,
+            code_mode_offered: false,
         },
         /*include_environment_id*/ false,
         /*include_shell_parameter*/ false,
@@ -263,5 +266,32 @@ fn request_permissions_tool_includes_full_permission_schema() {
             ),
             output_schema: None,
         })
+    );
+}
+
+#[test]
+fn offering_exec_puts_the_edit_line_back_as_it_was_before_the_script_steer() {
+    let description = |code_mode_offered| {
+        let ToolSpec::Function(tool) = create_exec_command_tool_with_environment_id(
+            CommandToolOptions {
+                allow_login_shell: false,
+                exec_permission_approvals_enabled: false,
+                lean_parameters: true,
+                code_mode_offered,
+            },
+            /*include_environment_id*/ false,
+            /*include_shell_parameter*/ false,
+            /*include_windows_shell_guidance*/ true,
+        ) else {
+            panic!("exec_command is a function tool");
+        };
+        tool.description
+    };
+
+    let direct = description(false);
+    assert!(direct.contains(EDIT_LINE_WITH_SCRIPT_STEER));
+    assert_eq!(
+        description(true),
+        direct.replacen(EDIT_LINE_WITH_SCRIPT_STEER, EDIT_LINE, 1)
     );
 }
