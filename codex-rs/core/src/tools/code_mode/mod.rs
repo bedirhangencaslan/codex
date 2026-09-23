@@ -3,6 +3,7 @@ mod execute_handler;
 pub(crate) mod execute_spec;
 mod output;
 mod response_adapter;
+mod result_budget;
 mod telemetry;
 mod wait_handler;
 pub(crate) mod wait_spec;
@@ -37,14 +38,17 @@ use crate::tools::call_trace;
 use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::SharedTurnDiffTracker;
 use crate::tools::context::ToolPayload;
+use crate::tools::handlers::resolve_tool_environment;
 use crate::tools::parallel::ToolCallRuntime;
 use crate::tools::router::ToolCall;
 use crate::tools::router::ToolCallSource;
 use crate::unified_exec::resolve_max_tokens;
+use crate::unified_exec::tool_output_spill_dir;
 use codex_protocol::openai_models::ToolMode;
 use codex_tools::ToolName;
 use codex_utils_audio::estimate_audio_token_count;
 use codex_utils_output_truncation::TruncationPolicy;
+use codex_utils_output_truncation::formatted_truncate_text;
 use codex_utils_output_truncation::formatted_truncate_text_content_items_with_policy;
 use codex_utils_output_truncation::truncate_function_output_items_with_policy;
 
@@ -54,6 +58,9 @@ use delegate::CodeModeDispatchWorker;
 pub(crate) use execute_handler::CodeModeExecuteHandler;
 use output::CodeModeToolOutput;
 use response_adapter::into_function_call_output_content_items;
+use result_budget::NestedExecLedger;
+use result_budget::NestedExecRecord;
+use result_budget::SpillTarget;
 pub(crate) use wait_handler::CodeModeWaitHandler;
 
 pub(crate) const PUBLIC_TOOL_NAME: &str = codex_code_mode::PUBLIC_TOOL_NAME;
@@ -79,6 +86,8 @@ pub(crate) struct CodeModeService {
     default_exec_yield_time_ms: u64,
     shutdown_token: CancellationToken,
     unavailable_warning_emitted: AtomicBool,
+    /// Nested command results per cell, matched against the cell's output when it is budgeted.
+    nested_exec: NestedExecLedger,
 }
 
 impl CodeModeService {
@@ -98,7 +107,16 @@ impl CodeModeService {
             default_exec_yield_time_ms: config.default_exec_yield_time_ms,
             shutdown_token: CancellationToken::new(),
             unavailable_warning_emitted: AtomicBool::new(false),
+            nested_exec: NestedExecLedger::default(),
         }
+    }
+
+    fn record_nested_exec(&self, cell_id: &str, record: NestedExecRecord) {
+        self.nested_exec.record(cell_id, record);
+    }
+
+    fn nested_exec_records(&self, cell_id: &str, finished: bool) -> Vec<NestedExecRecord> {
+        self.nested_exec.records(cell_id, finished)
     }
 
     pub(crate) fn is_available(&self) -> bool {
@@ -253,12 +271,67 @@ impl CodeModeService {
     }
 }
 
+/// What budgeting a cell's output needs beyond its token limit: the nested command results it
+/// may echo, and where a cut item's full text can go.
+pub(super) struct OutputShaping {
+    records: Vec<NestedExecRecord>,
+    spill: Option<SpillTarget>,
+}
+
+impl OutputShaping {
+    /// Collected before the response is consumed. A finished cell's records are released here;
+    /// a yielded one keeps them for the `wait` that returns the rest of its output.
+    pub(super) fn for_response(
+        session: &Session,
+        step_context: &StepContext,
+        response: &RuntimeResponse,
+        call_id: &str,
+    ) -> Self {
+        let (cell_id, finished) = match response {
+            RuntimeResponse::Yielded { cell_id, .. } => (cell_id, false),
+            RuntimeResponse::Terminated { cell_id, .. }
+            | RuntimeResponse::Result { cell_id, .. } => (cell_id, true),
+        };
+        let records = session
+            .services
+            .code_mode_service
+            .nested_exec_records(cell_id.as_str(), finished);
+        // The same directory the direct path spills to, under the same read-policy check: a path
+        // the model cannot open is never named.
+        let spill = resolve_tool_environment(&step_context.environments, None)
+            .ok()
+            .flatten()
+            .and_then(|turn_environment| {
+                tool_output_spill_dir(
+                    step_context.turn.config.codex_home.as_path(),
+                    session.thread_id(),
+                    &turn_environment.sandbox_context(/*additional_permissions*/ None),
+                    &turn_environment.cwd().to_path_buf(),
+                )
+            })
+            .map(|dir| SpillTarget {
+                dir,
+                stem: call_id.to_string(),
+            });
+        Self { records, spill }
+    }
+
+    #[cfg(test)]
+    fn none() -> Self {
+        Self {
+            records: Vec::new(),
+            spill: None,
+        }
+    }
+}
+
 fn handle_runtime_response(
     model_info: &codex_protocol::openai_models::ModelInfo,
     response: RuntimeResponse,
     max_output_tokens: Option<usize>,
     wall_time: Duration,
     experimental_show_cell_overhead: bool,
+    shaping: OutputShaping,
 ) -> CodeModeToolOutput {
     let script_status = format_script_status(&response);
     let supports_original = can_request_original_image_detail(model_info);
@@ -278,12 +351,10 @@ fn handle_runtime_response(
     let mut content_items = into_function_call_output_content_items(content_items);
     sanitize_image_detail_items(supports_original, &mut content_items);
     let success = error_text.is_none();
-    if let Some(error_text) = error_text {
-        content_items.push(FunctionCallOutputContentItem::InputText {
-            text: format!("Script error:\n{error_text}"),
-        });
-    }
-    content_items = truncate_code_mode_result(content_items, max_output_tokens);
+    let error_item = error_text.map(|error_text| FunctionCallOutputContentItem::InputText {
+        text: format!("Script error:\n{error_text}"),
+    });
+    content_items = budget_code_mode_result(content_items, error_item, max_output_tokens, &shaping);
     CodeModeToolOutput::new(
         FunctionToolOutput::from_content(content_items, Some(success)),
         script_status,
@@ -304,6 +375,51 @@ fn format_script_status(response: &RuntimeResponse) -> String {
             } else {
                 "Script failed".to_string()
             }
+        }
+    }
+}
+
+/// Fits a cell's output into `max_output_tokens`, item by item where it can.
+///
+/// The script's error, when there is one, is what the model most needs from a failed cell, so it
+/// is budgeted first and never shares a cut with the script's own output: it keeps up to half the
+/// budget and the script's items share the rest. Output that carries media keeps upstream's
+/// handling, which budgets media and text together.
+fn budget_code_mode_result(
+    mut items: Vec<FunctionCallOutputContentItem>,
+    error_item: Option<FunctionCallOutputContentItem>,
+    max_output_tokens: Option<usize>,
+    shaping: &OutputShaping,
+) -> Vec<FunctionCallOutputContentItem> {
+    let policy = TruncationPolicy::Tokens(resolve_max_tokens(max_output_tokens));
+    let error_item = error_item.map(|item| match item {
+        FunctionCallOutputContentItem::InputText { text } => {
+            FunctionCallOutputContentItem::InputText {
+                text: formatted_truncate_text(&text, policy * 0.5),
+            }
+        }
+        other => other,
+    });
+    let error_bytes = match &error_item {
+        Some(FunctionCallOutputContentItem::InputText { text }) => text.len() + 1,
+        _ => 0,
+    };
+    let script_policy = TruncationPolicy::Tokens(
+        TruncationPolicy::Bytes(policy.byte_budget().saturating_sub(error_bytes)).token_budget(),
+    );
+    match result_budget::shape_text_items(
+        &items,
+        &shaping.records,
+        script_policy,
+        shaping.spill.as_ref(),
+    ) {
+        Some(mut shaped) => {
+            shaped.extend(error_item);
+            shaped
+        }
+        None => {
+            items.extend(error_item);
+            truncate_code_mode_result(items, max_output_tokens)
         }
     }
 }
@@ -379,6 +495,20 @@ fn submit_nested_tool(
         }
     };
 
+    // Kept so the cell's output can later recognise this command's result if the script prints it
+    // back verbatim. Only the shell's two tools produce output the RTK stages know how to read.
+    let nested_exec_arguments = match &payload {
+        ToolPayload::Function { arguments }
+            if tool_name.is_default_namespace()
+                && matches!(tool_name.name.as_str(), "exec_command" | "write_stdin") =>
+        {
+            Some(arguments.clone())
+        }
+        _ => None,
+    };
+    let recorder_session = Arc::clone(&session);
+    let recorder_cell_id = cell_id.to_string();
+
     let call = ToolCall {
         tool_name,
         call_id,
@@ -403,7 +533,34 @@ fn submit_nested_tool(
         },
         cancellation_token,
     );
-    Ok(async move { Ok(result.await?.code_mode_result()) })
+    Ok(async move {
+        let value = result.await?.code_mode_result();
+        if let Some(arguments) = nested_exec_arguments
+            && let Some(record) = nested_exec_record(arguments, &value)
+        {
+            recorder_session
+                .services
+                .code_mode_service
+                .record_nested_exec(&recorder_cell_id, record);
+        }
+        Ok(value)
+    })
+}
+
+/// Reads back the fields `ExecCommandToolOutput::code_mode_result` serializes.
+fn nested_exec_record(arguments: String, value: &JsonValue) -> Option<NestedExecRecord> {
+    let as_i32 = |key: &str| {
+        value
+            .get(key)
+            .and_then(JsonValue::as_i64)
+            .and_then(|number| i32::try_from(number).ok())
+    };
+    Some(NestedExecRecord {
+        arguments,
+        exit_code: as_i32("exit_code"),
+        process_id: as_i32("session_id"),
+        output: value.get("output")?.as_str()?.to_string(),
+    })
 }
 
 fn build_nested_tool_payload(
@@ -454,7 +611,10 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
+    use super::OutputShaping;
+    use super::budget_code_mode_result;
     use super::build_nested_tool_payload;
+    use super::nested_exec_record;
     use super::truncate_code_mode_result;
     use crate::session::step_context::StepContext;
     use crate::session::tests::make_session_and_context;
@@ -529,6 +689,67 @@ mod tests {
             }
             other => panic!("expected freeform payload, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_script_error_is_kept_whole_when_the_script_output_is_cut() {
+        let error = "Script error:\nTypeError: result.output is undefined";
+        let items = vec![FunctionCallOutputContentItem::InputText {
+            text: "y".repeat(100_000),
+        }];
+
+        let budgeted = budget_code_mode_result(
+            items,
+            Some(FunctionCallOutputContentItem::InputText {
+                text: error.to_string(),
+            }),
+            Some(1_000),
+            &OutputShaping::none(),
+        );
+
+        let [
+            FunctionCallOutputContentItem::InputText { text: output },
+            FunctionCallOutputContentItem::InputText { text: last },
+        ] = budgeted.as_slice()
+        else {
+            panic!("expected the script output then the error, got {budgeted:?}");
+        };
+        assert!(output.contains("tokens truncated"));
+        assert_eq!(last, error);
+    }
+
+    #[test]
+    fn a_result_that_fits_is_returned_as_upstream_returned_it() {
+        let items = vec![
+            FunctionCallOutputContentItem::InputText {
+                text: "first".to_string(),
+            },
+            FunctionCallOutputContentItem::InputText {
+                text: "second".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            budget_code_mode_result(items.clone(), None, None, &OutputShaping::none()),
+            truncate_code_mode_result(items, None)
+        );
+    }
+
+    #[test]
+    fn nested_exec_record_reads_what_code_mode_result_serializes() {
+        let record = nested_exec_record(
+            r#"{"cmd":"cargo test"}"#.to_string(),
+            &json!({"wall_time_seconds": 1.5, "exit_code": 101, "output": "failures:"}),
+        )
+        .expect("an exec result carries output");
+
+        assert_eq!(record.exit_code, Some(101));
+        assert_eq!(record.process_id, None);
+        assert_eq!(record.output, "failures:");
+        assert_eq!(
+            nested_exec_record(String::new(), &json!({"exit_code": 0})),
+            None
+        );
     }
 
     #[test]
