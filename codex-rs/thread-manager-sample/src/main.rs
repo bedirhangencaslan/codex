@@ -74,7 +74,7 @@ use codex_core_api::thread_store_from_config;
 #[derive(Debug, Parser)]
 #[command(
     name = "codex-thread-manager-sample",
-    about = "Run one Suffice turn through ThreadManager and print mapped notifications as newline-delimited JSON."
+    about = "Run one Codex turn through ThreadManager and print mapped notifications as newline-delimited JSON."
 )]
 struct Args {
     /// Override the model for this run.
@@ -163,7 +163,7 @@ async fn run_main(arg0_paths: Arg0DispatchPaths) -> anyhow::Result<()> {
     } = thread_manager
         .start_thread(StartThreadOptions::new(config))
         .await
-        .context("start Suffice thread")?;
+        .context("start Codex thread")?;
 
     let thread_id_string = thread_id.to_string();
     let turn_output = run_turn(&thread, &thread_id_string, prompt).await;
@@ -171,13 +171,13 @@ async fn run_main(arg0_paths: Arg0DispatchPaths) -> anyhow::Result<()> {
     let _ = thread_manager.remove_thread(&thread_id).await;
 
     turn_output?;
-    shutdown_result.context("shut down Suffice thread")?;
+    shutdown_result.context("shut down Codex thread")?;
 
     Ok(())
 }
 
 fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::Result<Config> {
-    let codex_home = find_codex_home().context("find Suffice home")?;
+    let codex_home = find_codex_home().context("find Codex home")?;
     let cwd = AbsolutePathBuf::current_dir().context("resolve current directory")?;
     let model_provider_id = OPENAI_PROVIDER_ID.to_string();
     let model_providers = built_in_model_providers(/*openai_base_url*/ None);
@@ -187,6 +187,8 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         .clone();
 
     let mut config = Config {
+        application_network_policy: Default::default(),
+        application_auth_route_config: None,
         config_layer_stack: ConfigLayerStack::default(),
         startup_warnings: Vec::new(),
         bypass_hook_trust: false,
@@ -214,13 +216,14 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         base_instructions_provenance: None,
         developer_instructions: None,
         guardian_policy_config: None,
+        guardian_extra_policy: None,
         guardian_policy_template: None,
         include_permissions_instructions: false,
         include_apps_instructions: false,
         include_collaboration_mode_instructions: false,
         include_skill_instructions: false,
         skill_max_context_tokens: None,
-        orchestrator_skills_enabled: false,
+        cloud_skill_enabled: false,
         orchestrator_mcp_enabled: false,
         include_environment_context: false,
         compact_prompt: None,
@@ -228,11 +231,13 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         tui_notifications: TuiNotificationSettings::default(),
         animations: true,
         tui_effects: Default::default(),
+        tui_rendering: Default::default(),
         show_tooltips: true,
         tui_show_server_version_notice: true,
         tui_auto_recap: true,
         model_availability_nux: ModelAvailabilityNuxConfig::default(),
         tui_fullscreen_transcript: false,
+        tui_copy_on_select: Default::default(),
         tui_alternate_screen: AltScreenMode::Auto,
         tui_status_line: None,
         tui_status_line_use_colors: true,
@@ -318,6 +323,7 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         current_time_reminder: None,
         sleep_tool_mode: Default::default(),
         features: Default::default(),
+        prefer_mxc: false,
         suppress_unstable_features_warning: false,
         active_project: ProjectConfig { trust_level: None },
         notices: Notice::default(),
@@ -350,7 +356,7 @@ async fn run_turn(thread: &CodexThread, thread_id: &str, prompt: String) -> anyh
     let mut current_turn_id: Option<String> = None;
     let mut stdout = std::io::stdout().lock();
     loop {
-        let event = thread.next_event().await.context("read Suffice event")?;
+        let event = thread.next_event().await.context("read Codex event")?;
         let notification = match &event.msg {
             EventMsg::TurnStarted(event) => {
                 current_turn_id = Some(event.turn_id.clone());

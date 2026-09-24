@@ -49,6 +49,7 @@ mod voice_tests;
 #[path = "keymap/global_find_tests.rs"]
 mod global_find_tests;
 
+pub(crate) use bindings::KeymapActionId;
 pub(crate) use bindings::KeymapContext;
 pub(crate) use bindings::bindings_for_action;
 pub(crate) use bindings::keymap_action_id;
@@ -59,6 +60,7 @@ pub(crate) use chords::KeyChordMatch;
 pub(crate) use chords::KeyChordMatcher;
 pub(crate) use chords::KeymapContextSet;
 pub(crate) use chords::RuntimeChordKeymap;
+pub(crate) use chords::is_dispatch_token_event;
 
 /// Runtime keymap used by TUI input handlers.
 ///
@@ -140,7 +142,7 @@ pub(crate) struct ChatKeymap {
     pub(crate) previous_permission_mode: Vec<KeyBinding>,
     /// Switch to the next available permission mode.
     pub(crate) next_permission_mode: Vec<KeyBinding>,
-    /// Move up through async questions, then edit the most recently queued message.
+    /// Move forward through async questions, then edit the most recently queued message.
     pub(crate) edit_queued_message: Vec<KeyBinding>,
     /// Move back through async questions toward the composer.
     pub(crate) prompt_stack_back: Vec<KeyBinding>,
@@ -1373,7 +1375,11 @@ impl RuntimeKeymap {
             (keymap.agents.rename.as_ref(), &mut agents.rename, "r"),
             (keymap.agents.stop.as_ref(), &mut agents.stop, "x"),
             (keymap.agents.archive.as_ref(), &mut agents.archive, "a"),
-            (keymap.agents.delete.as_ref(), &mut agents.delete, "delete"),
+            (
+                keymap.agents.delete.as_ref(),
+                &mut agents.delete,
+                "backspace",
+            ),
             (keymap.agents.hide.as_ref(), &mut agents.hide, "h"),
             (
                 keymap.agents.toggle_grouping.as_ref(),
@@ -1666,8 +1672,8 @@ impl RuntimeKeymap {
                 ],
                 previous_permission_mode: default_bindings![],
                 next_permission_mode: default_bindings![],
-                edit_queued_message: default_bindings![alt(KeyCode::Up), shift(KeyCode::Left)],
-                prompt_stack_back: default_bindings![alt(KeyCode::Down), shift(KeyCode::Right)],
+                edit_queued_message: default_bindings![shift(KeyCode::Left), alt(KeyCode::Up)],
+                prompt_stack_back: default_bindings![shift(KeyCode::Right), alt(KeyCode::Down)],
                 skip_question: default_bindings![ctrl(KeyCode::Char(']'))],
             },
             composer: ComposerKeymap {
@@ -1912,7 +1918,7 @@ impl RuntimeKeymap {
                 rename: default_bindings![plain(KeyCode::Char('r'))],
                 stop: default_bindings![plain(KeyCode::Char('x'))],
                 archive: default_bindings![plain(KeyCode::Char('a'))],
-                delete: default_bindings![plain(KeyCode::Delete)],
+                delete: default_bindings![plain(KeyCode::Backspace)],
                 hide: default_bindings![plain(KeyCode::Char('h'))],
                 toggle_grouping: default_bindings![plain(KeyCode::Char('g'))],
                 chord_hints: Arc::default(),
@@ -2317,7 +2323,9 @@ impl RuntimeKeymap {
             }
             if bindings.iter().any(|binding| {
                 let (code, modifiers) = binding.normalized_parts();
-                (code == KeyCode::Backspace && modifiers == KeyModifiers::NONE)
+                (action != "delete"
+                    && code == KeyCode::Backspace
+                    && modifiers == KeyModifiers::NONE)
                     || (matches!(code, KeyCode::Char(_)) && crate::key_hint::is_altgr(modifiers))
             }) {
                 return Err(format!(
@@ -2345,7 +2353,7 @@ impl RuntimeKeymap {
                     return Err(format!(
                         "Ambiguous approval overlay keymap bindings: `{previous}` and `{action}` use the same key. \
 Set unique keys in `~/.suffice/config.toml` and retry. \
-See the Suffice keymap documentation for supported actions and examples."
+See the Codex keymap documentation for supported actions and examples."
                     ));
                 }
             }
@@ -2371,7 +2379,7 @@ fn validate_unique<'a>(
                 return Err(format!(
                     "Ambiguous `tui.keymap.{context}` bindings: `{previous}` and `{action}` use the same key. \
 Set unique keys in `~/.suffice/config.toml` and retry. \
-See the Suffice keymap documentation for supported actions and examples."
+See the Codex keymap documentation for supported actions and examples."
                 ));
             }
         }
@@ -2407,7 +2415,7 @@ fn validate_no_shadow_with_allowed_overlaps<const N: usize, const M: usize, cons
                 return Err(format!(
                     "Ambiguous `tui.keymap.{context}` bindings: `{previous}` shadows `{action}` with the same key. \
 Set unique keys in `~/.suffice/config.toml` and retry. \
-See the Suffice keymap documentation for supported actions and examples."
+See the Codex keymap documentation for supported actions and examples."
                 ));
             }
         }
@@ -2440,7 +2448,7 @@ fn validate_no_reserved<'a, const A: usize>(
                 return Err(format!(
                     "Ambiguous `tui.keymap.{context}` bindings: `{action}` uses a key reserved by `{reserved_action}`. \
 Set a different key in `~/.suffice/config.toml` and retry. \
-See the Suffice keymap documentation for supported actions and examples."
+See the Codex keymap documentation for supported actions and examples."
                 ));
             }
         }
@@ -2627,7 +2635,7 @@ fn parse_bindings(spec: &KeybindingsSpec, path: &str) -> Result<Vec<KeyBinding>,
         let binding = parse_keybinding(raw.as_str()).ok_or_else(|| {
             format!(
                 "Invalid `{path}` = `{}`. Use values like `ctrl-a`, `shift-enter`, or `page-down`. \
-See the Suffice keymap documentation for supported actions and examples.",
+See the Codex keymap documentation for supported actions and examples.",
                 raw.as_str()
             )
         })?;
@@ -2936,7 +2944,7 @@ mod tests {
         );
         assert_eq!(
             runtime.chat.edit_queued_message,
-            vec![key_hint::alt(KeyCode::Up), key_hint::shift(KeyCode::Left)]
+            vec![key_hint::shift(KeyCode::Left), key_hint::alt(KeyCode::Up)]
         );
         assert_eq!(
             runtime.composer.history_search_previous,

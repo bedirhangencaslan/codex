@@ -20,7 +20,7 @@
   colors remain the fallback for limited palettes.
 - **Success and additions:** Use ANSI `green`.
 - **Errors, failures and deletions:** Use ANSI `red`.
-- **Suffice:** Use ANSI `magenta`.
+- **Codex:** Use ANSI `magenta`.
 
 # Avoid
 
@@ -34,3 +34,11 @@
 - Avoid ANSI `blue` and `yellow` because for now the style guide doesn't use them. Prefer a foreground color mentioned above.
 
 (There are some rules to try to catch this in `clippy.toml`.)
+
+# Menu descriptions
+
+- Prefer concise built-in option descriptions and disabled-option explanations without trailing
+  periods.
+- When a description needs multiple sentences, keep normal punctuation, including the final period.
+  Do not combine sentences at the expense of clarity.
+- Preserve externally supplied descriptions as written.

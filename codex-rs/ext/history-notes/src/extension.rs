@@ -52,10 +52,13 @@ impl HistoryNotesExtension {
             && self.auth_manager.current_auth_uses_codex_backend()
         {
             thread_store.insert(HistoryNotesExtensionConfig {
-                backend: HistoryNotesBackend::new(create_model_provider(
-                    config.model_provider.clone(),
-                    Some(self.auth_manager.clone()),
-                )),
+                backend: HistoryNotesBackend::new(
+                    create_model_provider(
+                        config.model_provider.clone(),
+                        Some(self.auth_manager.clone()),
+                    ),
+                    config.http_client_factory(),
+                ),
             });
         } else {
             thread_store.remove::<HistoryNotesExtensionConfig>();
@@ -178,7 +181,7 @@ impl ToolContributor for HistoryNotesExtension {
     }
 }
 
-/// Installs the standalone history and notes tools backed by the Suffice backend.
+/// Installs the standalone history and notes tools backed by the Codex backend.
 pub fn install(registry: &mut ExtensionRegistryBuilder<Config>, auth_manager: Arc<AuthManager>) {
     let extension = Arc::new(HistoryNotesExtension { auth_manager });
     registry.thread_lifecycle_contributor(extension.clone());

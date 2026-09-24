@@ -123,11 +123,25 @@ async fn end_to_end_login_flow_persists_auth_json() -> Result<()> {
 
     // Run server in background
     let server_home = codex_home.clone();
+    let content = codex_http_client::NetworkPolicyController::default();
+    let local = codex_http_client::NetworkPolicyController::default();
+    let local_policy = local.policy();
+    local.publish(
+        local_policy.revision(),
+        codex_http_client::DestinationPolicy::Unrestricted,
+    );
+    let factory = codex_http_client::HttpClientFactory::new(
+        codex_http_client::OutboundProxyPolicy::ReqwestDefault,
+    );
+    let routes = codex_login::AuthRouteConfig::from_http_client_factory(
+        factory.clone().with_network_policy(content.policy()),
+    )
+    .with_local_bootstrap_factory(factory.with_network_policy(local_policy));
 
     let opts = ServerOptions {
         codex_home: server_home,
         cli_auth_credentials_store_mode: AuthCredentialsStoreMode::File,
-        auth_route_config: codex_login::test_support::transport_default_auth_route_config(),
+        auth_route_config: routes,
         client_id: codex_login::CLIENT_ID.to_string(),
         issuer,
         port: 0,
@@ -450,8 +464,8 @@ async fn oauth_access_denied_missing_entitlement_blocks_login_with_clear_error()
     assert!(resp.status().is_success());
     let body = resp.text().await?;
     assert!(
-        body.contains("You do not have access to Suffice"),
-        "error body should clearly explain the Suffice access denial"
+        body.contains("You do not have access to Codex"),
+        "error body should clearly explain the Codex access denial"
     );
     assert!(
         body.contains("Contact your workspace administrator"),
@@ -529,7 +543,7 @@ async fn oauth_access_denied_unknown_reason_uses_generic_error_page() -> Result<
         "generic oauth denial should preserve the oauth error details"
     );
     assert!(
-        body.contains("Return to Suffice to retry"),
+        body.contains("Return to Codex to retry"),
         "generic oauth denial should keep the generic help text"
     );
     assert!(
@@ -541,11 +555,11 @@ async fn oauth_access_denied_unknown_reason_uses_generic_error_page() -> Result<
         "generic oauth denial should include the oauth error description"
     );
     assert!(
-        !body.contains("You do not have access to Suffice"),
+        !body.contains("You do not have access to Codex"),
         "generic oauth denial should not show the entitlement-specific title"
     );
     assert!(
-        !body.contains("get access to Suffice"),
+        !body.contains("get access to Codex"),
         "generic oauth denial should not show the entitlement-specific admin guidance"
     );
 

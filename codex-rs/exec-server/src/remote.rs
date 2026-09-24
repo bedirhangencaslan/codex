@@ -295,7 +295,7 @@ impl EnvironmentRegistryClient {
             let body = response
                 .text()
                 .await
-                .map_err(|error| ExecServerError::EnvironmentRegistryRequest(error.into()))?;
+                .map_err(ExecServerError::EnvironmentRegistryRequest)?;
             return serde_json::from_str(&body).map_err(ExecServerError::Json);
         }
 
@@ -372,7 +372,7 @@ impl HarnessKeyValidator for RegistryHarnessKeyValidator {
         let response = response
             .json::<EnvironmentRegistryHarnessKeyValidationResponse>()
             .await
-            .map_err(|error| ExecServerError::EnvironmentRegistryRequest(error.into()))?;
+            .map_err(ExecServerError::EnvironmentRegistryRequest)?;
         if !response.valid {
             return Err(ExecServerError::Protocol(
                 "environment registry rejected Noise relay harness key".to_string(),
@@ -382,7 +382,7 @@ impl HarnessKeyValidator for RegistryHarnessKeyValidator {
     }
 }
 
-/// Noise connection configuration for a Suffice harness.
+/// Noise connection configuration for a Codex harness.
 ///
 /// Configuration stays inert until the effective outbound HTTP policy is known.
 /// Its connection provider then holds the authenticated registry client so every

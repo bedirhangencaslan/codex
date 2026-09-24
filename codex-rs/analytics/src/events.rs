@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use std::time::Instant;
 
 use crate::facts::AppInvocation;
@@ -331,7 +332,7 @@ pub enum GuardianReviewSessionKind {
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GuardianApprovalRequestSource {
-    /// Approval requested directly by the main Suffice turn.
+    /// Approval requested directly by the main Codex turn.
     MainTurn,
     /// Approval requested by a delegated subagent and routed through the parent
     /// session for guardian review.
@@ -792,6 +793,7 @@ pub(crate) enum WebSearchActionKind {
 
 #[derive(Serialize)]
 pub(crate) struct CodexCommandExecutionEventParams {
+    pub(crate) sandbox_backend: Option<String>,
     pub(crate) model_slug: Option<String>,
     pub(crate) reasoning_effort: Option<String>,
     #[serde(flatten)]
@@ -1496,7 +1498,9 @@ fn analytics_hook_source(source: HookSource) -> &'static str {
 }
 
 pub(crate) fn current_runtime_metadata() -> CodexRuntimeMetadata {
-    let os_info = os_info::get();
+    // Runtime metadata is stable; avoid launching OS discovery subprocesses per event.
+    static OS_INFO: LazyLock<os_info::Info> = LazyLock::new(os_info::get);
+    let os_info = &*OS_INFO;
     CodexRuntimeMetadata {
         codex_rs_version: env!("CARGO_PKG_VERSION").to_string(),
         runtime_os: std::env::consts::OS.to_string(),

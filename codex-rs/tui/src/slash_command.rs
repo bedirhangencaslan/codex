@@ -48,6 +48,7 @@ pub enum SlashCommand {
     Copy,
     Export,
     Raw,
+    Tui,
     Diff,
     Mention,
     Status,
@@ -91,7 +92,7 @@ impl SlashCommand {
         match self {
             SlashCommand::Feedback => "send logs to maintainers",
             SlashCommand::New => "start a new chat during a conversation",
-            SlashCommand::Init => "create an AGENTS.md file with instructions for Suffice",
+            SlashCommand::Init => "create an AGENTS.md file with instructions for Codex",
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
             SlashCommand::Recap => "summarize the current conversation now",
             SlashCommand::Review => "review my current changes and find issues",
@@ -107,12 +108,13 @@ impl SlashCommand {
             SlashCommand::Copy => "copy the last response or part of it",
             SlashCommand::Export => "export the conversation as markdown",
             SlashCommand::Raw => "toggle raw scrollback mode for copy-friendly terminal selection",
+            SlashCommand::Tui => "choose the TUI mode for the next launch",
             SlashCommand::Diff => "show git diff (including untracked files)",
             SlashCommand::Mention => "mention a file",
-            SlashCommand::Skills => "use skills to improve how Suffice performs specific tasks",
+            SlashCommand::Skills => "use skills to improve how Codex performs specific tasks",
             SlashCommand::Import => "import setup, this project, and recent chats from Claude Code",
             SlashCommand::Hooks => "view and manage lifecycle hooks",
-            SlashCommand::Daemon => "Manage the local background server.",
+            SlashCommand::Daemon => "Manage the local background server",
             SlashCommand::Warnings => "view retained warnings and diagnostic details",
             SlashCommand::Status => "show current session configuration and token usage",
             SlashCommand::Cd => "change the current working directory",
@@ -140,7 +142,7 @@ impl SlashCommand {
             SlashCommand::Side | SlashCommand::Btw => {
                 "start a side conversation in an ephemeral fork"
             }
-            SlashCommand::Permissions => "choose what Suffice is allowed to do",
+            SlashCommand::Permissions => "choose what Codex is allowed to do",
             SlashCommand::Keymap => "remap TUI shortcuts",
             SlashCommand::Vim => "toggle Vim mode for the composer",
             SlashCommand::ElevateSandbox => "set up elevated agent sandbox",
@@ -150,7 +152,7 @@ impl SlashCommand {
             SlashCommand::Mcp => "list configured MCP tools; use /mcp verbose for details",
             SlashCommand::Apps => "manage apps",
             SlashCommand::Plugins => "browse plugins",
-            SlashCommand::Logout => "log out of Suffice",
+            SlashCommand::Logout => "log out of Codex",
             SlashCommand::Rollout => "print the rollout file path",
             SlashCommand::TestApproval => "test approval request",
         }
@@ -248,6 +250,7 @@ impl SlashCommand {
             | SlashCommand::Recap
             | SlashCommand::Export
             | SlashCommand::Keymap
+            | SlashCommand::Tui
             | SlashCommand::Vim
             | SlashCommand::ElevateSandbox
             | SlashCommand::Experimental

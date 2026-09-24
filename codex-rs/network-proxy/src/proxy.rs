@@ -49,7 +49,7 @@ const WINDOWS_MANAGED_HTTP_PROXY_PORTS: RangeInclusive<u16> = 3128..=3159;
 const WINDOWS_MANAGED_SOCKS_PROXY_PORTS: RangeInclusive<u16> = 8081..=8112;
 
 #[derive(Debug, Clone, Parser)]
-#[command(name = "codex-network-proxy", about = "Suffice network sandbox proxy")]
+#[command(name = "codex-network-proxy", about = "Codex network sandbox proxy")]
 pub struct Args {}
 
 #[derive(Debug)]
@@ -450,7 +450,13 @@ impl NetworkProxyRuntimeSettings {
     fn from_config(config: &config::NetworkProxyConfig) -> Result<Self> {
         let mitm_ca_trust_bundle = if config.mitm {
             let env = crate::certs::ca_env_from_process();
-            Some(crate::certs::managed_ca_trust_bundle(&env)?)
+            Some(match config.mitm_ca.as_ref() {
+                Some(ca) => crate::certs::managed_ca_trust_bundle_for_external_cert_path(
+                    std::path::Path::new(&ca.certificate_file),
+                    &env,
+                )?,
+                None => crate::certs::managed_ca_trust_bundle(&env)?,
+            })
         } else {
             None
         };
@@ -838,7 +844,7 @@ fn apply_proxy_env_overrides(
     #[cfg(target_os = "macos")]
     if socks_enabled {
         // Preserve existing SSH wrappers (for example: Secretive/Teleport setups)
-        // but refresh a previously injected Suffice fallback so it cannot point
+        // but refresh a previously injected Codex fallback so it cannot point
         // at a stale proxy port after the proxy is restarted.
         match env.get(GIT_SSH_COMMAND_ENV_KEY) {
             Some(command) if !is_codex_proxy_git_ssh_command(command) => {}
@@ -969,7 +975,7 @@ impl NetworkProxy {
             config.enabled &= !broker_only;
             config.credential_broker = false;
             config.dangerously_allow_plaintext_credential_injection = false;
-            if config.mitm && config.mitm_hooks.is_empty() {
+            if config.mitm && config.mitm_hooks.is_empty() && config.mitm_ca.is_none() {
                 config.mitm = false;
             }
         }

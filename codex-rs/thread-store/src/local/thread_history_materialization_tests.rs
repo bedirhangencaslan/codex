@@ -99,7 +99,7 @@ async fn paginated_history_without_state_db_does_not_initialize_sqlite() {
     }
 }
 
-/// Separate Suffice and SQLite homes must work together across startup backfill,
+/// Separate Codex and SQLite homes must work together across startup backfill,
 /// thread listing, and projection-backed paginated history reads.
 #[tokio::test]
 async fn split_homes_support_backfill_listing_and_paginated_history() {
@@ -147,7 +147,7 @@ async fn split_homes_support_backfill_listing_and_paginated_history() {
 
     let runtime = codex_rollout::state_db::try_init(&rollout_config)
         .await
-        .expect("backfill state from Suffice home");
+        .expect("backfill state from Codex home");
     assert!(
         runtime
             .get_thread(thread_id)
@@ -285,7 +285,7 @@ async fn split_homes_support_backfill_listing_and_paginated_history() {
         let filename = sqlite_path.file_name().expect("SQLite database filename");
         assert!(
             !codex_home.join(filename).exists(),
-            "SQLite database should not be created under Suffice home"
+            "SQLite database should not be created under Codex home"
         );
     }
 }
@@ -583,6 +583,8 @@ async fn paginated_realtime_items_materialize_separately_in_rollout_order() {
     let legacy_thread_id = ThreadId::new();
     store
         .create_thread(CreateThreadParams {
+            creator_user_id: None,
+            creator_account_id: None,
             session_id: legacy_thread_id.into(),
             thread_id: legacy_thread_id,
             extra_config: None,
@@ -1110,7 +1112,7 @@ async fn paginated_fork_reads_compressed_shared_lineage_without_materializing() 
         .expect_err("external shared source cannot be referenced by rollout id");
     assert!(matches!(
         error,
-        crate::ThreadStoreError::InvalidRequest { message } if message.contains("must be in Suffice home")
+        crate::ThreadStoreError::InvalidRequest { message } if message.contains("must be in Codex home")
     ));
     store
         .shutdown_thread(source_thread_id)
@@ -1380,6 +1382,57 @@ async fn subagent_prefix_advances_projection_without_materializing_history() {
     .expect("read projected realtime items");
     assert_eq!(realtime_items, vec![("child:started".to_string(), 6)]);
     assert_eq!(projection_state(&pool, thread_id).await.1, 9);
+}
+
+#[tokio::test]
+async fn projection_preserves_exact_lifecycle_timestamps() {
+    let home = TempDir::new().expect("temp dir");
+    let store = projection_store(home.path()).await;
+    let thread_id = ThreadId::default();
+    create_paginated_thread(&store, thread_id).await;
+    let timestamps = [
+        (Some(1_789_855_978_123), Some(1_789_855_979_456)),
+        (Some(1_789_855_978_123), Some(1_789_855_978_123)),
+        (None, Some(1_789_855_979_456)),
+        (None, None),
+    ];
+    let mut items = vec![turn_started("turn-1")];
+    for (index, (started_at_ms, completed_at_ms)) in timestamps.iter().enumerate() {
+        items.push(RolloutItem::EventMsg(EventMsg::ItemCompleted(
+            ItemCompletedEvent {
+                thread_id,
+                turn_id: "turn-1".to_string(),
+                item: TurnItem::UserMessage(UserMessageItem {
+                    id: format!("user-{index}"),
+                    client_id: None,
+                    content: Vec::new(),
+                }),
+                started_at_ms: *started_at_ms,
+                completed_at_ms: completed_at_ms.unwrap_or_default(),
+            },
+        )));
+    }
+    store
+        .append_items(AppendThreadItemsParams { thread_id, items })
+        .await
+        .expect("append lifecycle records");
+    store
+        .shutdown_thread(thread_id)
+        .await
+        .expect("shutdown thread");
+    let pool = codex_state::open_thread_history_db(&codex_state::SqliteConfig::new_for_testing(
+        home.path().abs(),
+    ))
+    .await
+    .expect("open thread history db");
+    let actual = sqlx::query_as::<_, (Option<i64>, Option<i64>)>(
+        "SELECT started_at_ms, completed_at_ms FROM thread_items WHERE thread_id = ? ORDER BY rollout_ordinal",
+    )
+    .bind(thread_id.to_string())
+    .fetch_all(&pool)
+    .await
+    .expect("read persisted lifecycle timestamps");
+    assert_eq!(actual, timestamps);
 }
 
 #[tokio::test]
@@ -2571,6 +2624,8 @@ async fn create_paginated_subagent_thread(
 ) {
     store
         .create_thread(CreateThreadParams {
+            creator_user_id: None,
+            creator_account_id: None,
             session_id: thread_id.into(),
             thread_id,
             extra_config: None,

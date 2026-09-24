@@ -1,6 +1,6 @@
 # codex-otel
 
-`codex-otel` is the OpenTelemetry integration crate for Suffice. It provides:
+`codex-otel` is the OpenTelemetry integration crate for Codex. It provides:
 
 - Provider wiring for log/trace/metric exporters (`codex_otel::OtelProvider`
   and `codex_otel::provider`).
@@ -65,7 +65,7 @@ beta = "two"
 
 Configured tracestate members and encoded values must be valid W3C tracestate.
 Each nested table is encoded as semicolon-separated `key:value` fields inside
-that member. If propagated trace context already has the named member, Suffice
+that member. If propagated trace context already has the named member, Codex
 upserts configured fields and preserves other fields in that member. This
 config shape does not support setting opaque tracestate member values. Invalid
 trace metadata entries are ignored during config load and reported as startup
@@ -74,7 +74,7 @@ warnings.
 ## SessionTelemetry (events)
 
 `SessionTelemetry` adds consistent metadata to tracing events and helps record
-Suffice-specific session events. Rich session/business events should go through
+Codex-specific session events. Rich session/business events should go through
 `SessionTelemetry`; subsystem-owned audit events can stay with the owning subsystem.
 
 ```rust
@@ -96,6 +96,39 @@ let manager = SessionTelemetry::new(
 manager.user_prompt(&prompt_items);
 ```
 
+### Agent response logs
+
+Set `otel.log_agent_responses = true` with an OTLP HTTP or gRPC log exporter to
+emit `codex.agent_response` for completed assistant messages explicitly marked
+`final_answer`. The default is false, independent of `otel.log_user_prompt`;
+disabled response logging emits no event. Main agents and spawned task agents
+are included. Internal/review/compaction/memory agents, commentary, untagged
+messages, streaming deltas, tool-generated async messages, and history replay
+are excluded. Plans are preserved and memory-citation markup is removed from
+the exported copy without changing the stored answer.
+
+Opting in exports potentially sensitive response text, including subagent work
+absent from the main answer, to your log destination. Text is sent only to logs,
+capped at 65,536 UTF-8 bytes at a character boundary, without a truncation notice.
+`response_length` is the original byte count after citation removal, and
+`response_truncated` indicates whether the cap removed text.
+The log-only target is excluded from trace export, local state logs, and the
+feedback log buffer.
+
+Events include standard session attributes, `agent.type` (`main` or `subagent`),
+`turn.id`, and `item.id`. `conversation.id` identifies the emitting thread.
+Available lineage includes `parent.conversation.id`, `parent.turn.id`,
+`root.turn.id`, and `initiating.agent.path`. The parent conversation is the
+structural owner; the parent turn is the trigger and may belong to another
+agent. They are not a guaranteed matching pair or a supported Compliance API join.
+Completion is logged even if the turn later fails. Duplicate item completions
+are suppressed within a turn; delivery retains the existing best-effort exporter
+behavior, without an exactly-once guarantee.
+
+`AgentResponseLogger` owns filtering, text preparation, and per-turn deduplication.
+Core supplies completed raw items and step attribution, retaining the logger in
+the existing turn extension data; it does not own response-logging policy.
+
 ## Metrics (OTLP or in-memory)
 
 Modes:
@@ -104,7 +137,7 @@ Modes:
 - In-memory: records via `opentelemetry_sdk::metrics::InMemoryMetricExporter` for tests/assertions; call `shutdown()` to flush.
 
 `codex-otel` also provides `OtelExporter::Statsig`, a shorthand for exporting OTLP/HTTP JSON metrics
-to Statsig using Suffice-internal defaults.
+to Statsig using Codex-internal defaults.
 
 Statsig ingestion (OTLP/HTTP JSON) example:
 

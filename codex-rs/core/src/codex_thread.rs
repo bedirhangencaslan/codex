@@ -1,11 +1,12 @@
 use crate::agent::AgentStatus;
+use crate::agent::api::AgentControl;
 use crate::config::ConstraintResult;
 use crate::context::ContextualUserFragment;
 use crate::context::GuardianReviewEvidence;
 use crate::elicitation::ElicitationRegistration;
-use crate::environment_selection::TurnEnvironmentState;
 use crate::session::SessionIo;
 use crate::session::SessionSettingsUpdate;
+use crate::session::Submission;
 use crate::session::new_submission_id;
 use crate::session::session::Session;
 use crate::session::step_settings::StepSettingsUpdate;
@@ -42,7 +43,6 @@ use codex_protocol::protocol::MultiAgentVersion;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
-use codex_protocol::protocol::Submission;
 use codex_protocol::protocol::ThreadHistoryMode;
 use codex_protocol::protocol::ThreadMemoryMode;
 use codex_protocol::protocol::ThreadSettingsSnapshot;
@@ -72,6 +72,7 @@ use rmcp::model::ReadResourceRequestParams;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
@@ -165,8 +166,6 @@ pub use codex_guardian_context::GuardianRootMessage;
 pub struct GuardianAuthorizationVersion {
     /// User-message/reset revision, preserved across compaction and internal context.
     pub user_message_revision: u64,
-    /// Successful host answers captured by the temporary legacy path.
-    pub user_input_response_count: usize,
     /// False when required retained answers or root instructions are unavailable.
     pub retained_context_complete: bool,
 }
@@ -184,6 +183,8 @@ pub struct GuardianRootSnapshot {
 pub struct CodexThread {
     pub(crate) session: Arc<Session>,
     pub(crate) io: SessionIo,
+    // Queued agent mail owns a read guard until handled or dropped; eviction needs a write guard.
+    pub(crate) residency_gate: Arc<RwLock<()>>,
     // Registration source controls live access and lifecycle hooks. Managed Guardian
     // reviewers keep their existing subagent identity inside the session.
     pub(crate) session_source: SessionSource,
@@ -208,7 +209,7 @@ pub struct BackgroundTerminalInfo {
 }
 
 /// Conduit for the bidirectional stream of messages that compose a thread
-/// (formerly called a conversation) in Suffice.
+/// (formerly called a conversation) in Codex.
 impl CodexThread {
     pub(crate) fn new(
         session: Arc<Session>,
@@ -220,6 +221,7 @@ impl CodexThread {
         Self {
             session,
             io,
+            residency_gate: Arc::default(),
             session_source,
             startup_metadata,
             rollout_path,
@@ -235,6 +237,13 @@ impl CodexThread {
     /// Returns the session telemetry handle for thread-scoped production instrumentation.
     pub fn session_telemetry(&self) -> SessionTelemetry {
         self.session.services.session_telemetry.clone()
+    }
+
+    /// Schedule the same background model warmup used at startup for an idle thread.
+    /// The next turn consumes the warmup through the existing startup handoff.
+    /// Call after installing host services such as the thread's attestation routing.
+    pub async fn prewarm(&self) {
+        self.session.schedule_startup_prewarm().await;
     }
 
     /// Whether analytics is enabled for this thread after configuration and host overrides.
@@ -300,6 +309,13 @@ impl CodexThread {
         self.session.emit_thread_idle_lifecycle_if_idle(cause).await;
     }
 
+    /// Checkpoint initialization without activating speculative persistence.
+    pub async fn checkpoint_preparation(&self) -> std::io::Result<()> {
+        self.session
+            .try_ensure_rollout_materialized(PersistContext::ThreadPreparation)
+            .await
+    }
+
     #[doc(hidden)]
     pub async fn ensure_rollout_materialized(&self) {
         self.session
@@ -320,6 +336,7 @@ impl CodexThread {
         self.io
             .submit_with_trace(
                 op, trace, /*parent_turn_id*/ None, /*root_turn_id*/ None,
+                /*residency_guard*/ None,
             )
             .await
     }
@@ -386,10 +403,7 @@ impl CodexThread {
         &self,
         request: RecoverTurnRequest,
     ) -> CodexResult<StartIfIdleSubmission> {
-        self.session
-            .services
-            .agent_control
-            .ensure_execution_capacity_for_turn_start(self)
+        self.ensure_execution_capacity_for_turn_start(self.session.services.agent_control.as_ref())
             .await?;
         let RecoverTurnRequest {
             turn_id,
@@ -454,6 +468,7 @@ impl CodexThread {
                 trace: current_span_w3c_trace_context(),
                 parent_turn_id: None,
                 root_turn_id: None,
+                residency_guard: None,
             })
             .await
             .map_err(|_| CodexErr::Fatal("thread session has stopped".to_string()))?;
@@ -492,11 +507,10 @@ impl CodexThread {
         mode: TurnInputMode,
     ) -> CodexResult<TurnInputSubmission> {
         if !matches!(mode, TurnInputMode::Steer { .. }) {
-            self.session
-                .services
-                .agent_control
-                .ensure_execution_capacity_for_turn_start(self)
-                .await?;
+            self.ensure_execution_capacity_for_turn_start(
+                self.session.services.agent_control.as_ref(),
+            )
+            .await?;
         }
         self.io.submit_turn_input(request, mode).await
     }
@@ -526,18 +540,7 @@ impl CodexThread {
     ) -> Option<Vec<TurnEnvironmentSelection>> {
         let active = self.session.active_turn.lock().await;
         let task = active.as_ref()?.task.as_ref()?;
-        Some(
-            task.turn_context
-                .initial_environments
-                .environments
-                .iter()
-                .map(|environment| match environment {
-                    TurnEnvironmentState::Ready(environment) => environment.selection(),
-                    TurnEnvironmentState::Starting(environment) => environment.selection.clone(),
-                    TurnEnvironmentState::Failed { selection, .. } => selection.clone(),
-                })
-                .collect(),
-        )
+        Some(task.turn_context.initial_environments.all_selections())
     }
 
     /// Captures a regular turn only after its input is recorded. The caller must flush the rollout.
@@ -692,7 +695,7 @@ impl CodexThread {
     /// Record raw Responses API items without starting a new turn.
     pub async fn inject_response_items(&self, items: Vec<ResponseItem>) -> CodexResult<()> {
         self.inject_response_items_for_turn(items).await?;
-        self.session.flush_rollout().await?;
+        self.checkpoint_preparation().await?;
         Ok(())
     }
 
@@ -824,13 +827,13 @@ impl CodexThread {
 
     /// Returns the active turn's reviewer, including live updates, or the thread default.
     pub async fn approvals_reviewer_for_turn(&self, turn_id: &str) -> ApprovalsReviewer {
-        if let Some((turn, inputs, _)) = self
+        if let Some((turn, settings, _, _)) = self
             .session
             .active_turn_context_and_strict_auto_review()
             .await
             && turn.sub_id == turn_id
         {
-            inputs.settings.approvals_reviewer()
+            settings.approvals_reviewer()
         } else {
             self.config_snapshot().await.approvals_reviewer
         }
@@ -920,7 +923,7 @@ impl CodexThread {
         self.session
             .services
             .agent_control
-            .root_user_authorization(self.session.thread_id)
+            .get_guardian_package(self.session.thread_id)
             .await
     }
 
@@ -1071,5 +1074,19 @@ impl CodexThread {
             elicitations.registration = None;
         }
         Ok(elicitations.count)
+    }
+
+    pub(crate) async fn ensure_execution_capacity_for_turn_start(
+        &self,
+        control: &dyn AgentControl,
+    ) -> CodexResult<()> {
+        if self.session.active_turn.lock().await.is_some() {
+            return Ok(());
+        }
+        let config = self.session.get_config().await;
+        let multi_agent_version = self
+            .multi_agent_version()
+            .unwrap_or_else(|| config.multi_agent_version_from_features());
+        control.check_turn_admission(multi_agent_version, &self.session_source)
     }
 }

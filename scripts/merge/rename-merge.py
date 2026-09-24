@@ -84,7 +84,15 @@ def restore(text, path):
             # a real breakage wearing a rename's clothes.
             pat = re.compile(rb"(?<![A-Za-z0-9_])" + re.escape(old.encode())
                              + rb"(?=[/\\\"'\s)\],]|$)")
-            text = pat.sub(new.encode(), text)
+
+            # Nor is a line that begins with it: that is a method chain split across lines,
+            # `fixture\n    .codex\n    .submit(..)`, reading the field `codex`. The
+            # 2026-09-24 merge renamed six of those, one of them undoing bbdd99a92a.
+            def segment(m, src=text, new=new.encode()):
+                line = src[src.rfind(b"\n", 0, m.start()) + 1:m.start()]
+                return m.group(0) if not line.strip() else new
+
+            text = pat.sub(segment, text)
         elif re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", old):
             # A bare word: match it whole, so `Codex` never fires inside `AsyncCodex`.
             text = re.sub(rb"\b" + re.escape(old.encode()) + rb"\b(?=[^A-Za-z0-9_]|$)",

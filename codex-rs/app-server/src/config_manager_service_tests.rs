@@ -666,7 +666,7 @@ X-Doc = "42"
 #[tokio::test]
 async fn write_value_preserves_comments_and_order() -> Result<()> {
     let tmp = tempdir().expect("tempdir");
-    let original = r#"# Suffice user configuration
+    let original = r#"# Codex user configuration
 model = "gpt-5.2"
 approval_policy = "on-request"
 
@@ -692,7 +692,7 @@ unified_exec = true
         .expect("write succeeds");
 
     let updated = std::fs::read_to_string(tmp.path().join(CONFIG_TOML_FILE)).expect("read config");
-    let expected = r#"# Suffice user configuration
+    let expected = r#"# Codex user configuration
 model = "gpt-5.2"
 approval_policy = "on-request"
 
@@ -737,6 +737,7 @@ async fn psp_feature_configures_first_party_routing() -> Result<()> {
         config.http_client_factory(),
         HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault)
             .with_system_proxy_fallback()
+            .with_network_policy(config.application_network_policy.clone())
             .with_chatgpt_cookies([HeaderValue::from_static("oai-chat-psp=true")])
     );
     assert_eq!(

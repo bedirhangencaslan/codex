@@ -7,7 +7,7 @@ pub use codex_utils_plugins::mention_syntax;
 mod bundled_hooks;
 mod load_outcome;
 pub mod manifest;
-mod plugin_id;
+use codex_core_plugin_common::plugin_id;
 mod provider;
 
 pub use bundled_hooks::is_allowlisted_bundled_cleanup_hook;
@@ -88,7 +88,7 @@ pub struct ExecutorPluginHookSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PluginTelemetryMetadata {
-    /// Local plugin identifier used by Suffice configuration and the plugin cache,
+    /// Local plugin identifier used by Codex configuration and the plugin cache,
     /// when it has been resolved.
     pub plugin_id: Option<PluginId>,
     /// Optional backend identifier for remote plugins.

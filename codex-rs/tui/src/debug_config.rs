@@ -805,7 +805,7 @@ interrupt_message = false
     #[test]
     fn debug_config_output_lists_requirement_sources() {
         let requirements_file = if cfg!(windows) {
-            absolute_path("C:\\ProgramData\\OpenAI\\Suffice\\requirements.toml")
+            absolute_path("C:\\ProgramData\\OpenAI\\Codex\\requirements.toml")
         } else {
             absolute_path("/etc/codex/requirements.toml")
         };
@@ -977,6 +977,7 @@ interrupt_message = false
             }),
             additional_developer_instructions: None,
             guardian_policy_config: Some("Use the managed guardian policy.".to_string()),
+            guardian_extra_policy: None,
             feature_requirements: Some(FeatureRequirementsToml {
                 entries: BTreeMap::from([("guardian_approval".to_string(), true)]),
             }),
@@ -1079,7 +1080,7 @@ interrupt_message = false
     #[test]
     fn debug_config_output_filters_sandbox_modes_blocked_by_deny_read_requirements() {
         let requirements_file = if cfg!(windows) {
-            absolute_path("C:\\ProgramData\\OpenAI\\Suffice\\requirements.toml")
+            absolute_path("C:\\ProgramData\\OpenAI\\Codex\\requirements.toml")
         } else {
             absolute_path("/etc/codex/requirements.toml")
         };
@@ -1347,6 +1348,7 @@ approval_policy = "never"
             computer_use: None,
             windows: None,
             guardian_policy_config: None,
+            guardian_extra_policy: None,
             feature_requirements: None,
             hooks: None,
             mcp_servers: None,

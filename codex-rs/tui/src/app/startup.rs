@@ -734,7 +734,7 @@ impl App {
                 color_eyre::eyre::eyre!(
                     "Invalid `tui.keymap` configuration: {err}\n\
 Fix the config and retry.\n\
-See the Suffice keymap documentation for supported actions and examples."
+See the Codex keymap documentation for supported actions and examples."
                 )
             })?;
         #[cfg(not(debug_assertions))]
@@ -764,6 +764,7 @@ See the Suffice keymap documentation for supported actions and examples."
             keymap: runtime_keymap,
             key_chord_matcher: KeyChordMatcher::default(),
             transcript_cells: Vec::new(),
+            composer_tips: Default::default(),
             native_history: Default::default(),
             transcript_view: Default::default(),
             last_rendered_history_tail: None,
@@ -804,6 +805,8 @@ See the Suffice keymap documentation for supported actions and examples."
             pending_realtime_speech_replay: HashMap::new(),
             pending_realtime_transcript_replay: HashMap::new(),
             realtime_replay_order: VecDeque::new(),
+            background_voice: None,
+            background_voice_error: None,
             temporary_structured_requests: HashMap::new(),
             pending_thread_titles: HashMap::new(),
             thread_event_listener_tasks: HashMap::new(),

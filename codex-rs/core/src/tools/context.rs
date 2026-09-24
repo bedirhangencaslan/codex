@@ -31,6 +31,8 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::OnceLock;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -47,6 +49,14 @@ where
 
 pub type SharedTurnDiffTracker = Arc<Mutex<TurnDiffTracker>>;
 
+/// Host-observed state for one call, owned outside its abortable dispatch task.
+/// Delivery does not finish the call: post-tool hooks can still be cancelled.
+#[derive(Default)]
+pub(crate) struct ToolCallState {
+    pub(crate) terminal_outcome_reached: AtomicBool,
+    pub(crate) delivered_assistant_message: OnceLock<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ToolCallSource {
     Direct,
@@ -55,7 +65,7 @@ pub enum ToolCallSource {
         /// Runtime cell that issued the nested tool request.
         cell_id: String,
         /// Code-mode's per-cell tool invocation id. This is useful for
-        /// debugging the JS/runtime bridge, but it is not the Suffice tool call id
+        /// debugging the JS/runtime bridge, but it is not the Codex tool call id
         /// because the runtime id only needs to be unique within one cell.
         runtime_tool_call_id: String,
     },

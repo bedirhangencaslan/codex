@@ -406,7 +406,7 @@ async fn lifecycle_removes_background_and_current_tasks_without_losing_the_dashb
     ] {
         let key = match action {
             AgentsOverviewAction::Archive => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
-            AgentsOverviewAction::Delete => KeyCode::Delete.into(),
+            AgentsOverviewAction::Delete => KeyCode::Backspace.into(),
         };
         let (mut app, mut rx, _op_rx) =
             Box::pin(crate::app::tests::make_test_app_with_channels()).await;
@@ -698,7 +698,9 @@ async fn lifecycle_removes_background_and_current_tasks_without_losing_the_dashb
             // Removal must not depend on the overview having the primary or its ancestors cached.
             app.agents_overview.threads.remove(&primary);
         }
+        crate::chatwidget::activate_voice_for_thread(&mut app.chat_widget, primary);
         Box::pin(app.handle_event(&mut tui, &mut app_server, confirmed)).await?;
+        assert_eq!(app.voice_owner_thread_id(), None);
         assert_eq!(
             (
                 app.primary_thread_id,

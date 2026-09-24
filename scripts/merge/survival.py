@@ -83,7 +83,9 @@ def commit_deltas():
     shas = [s for s in sh("log", "--format=%h", "%s..%s" % (BASE, OURS)).split()]
     out = {}
     for sha in shas:
-        if sha in POLICY_EXCLUDED:
+        # `%h` grows with the repository - it printed `f06d1e476a` by 2026-09-24 - so an exact
+        # match against the nine-character ids above silently stopped excluding anything.
+        if any(sha.startswith(p) for p in POLICY_EXCLUDED):
             continue
         txt = sh("show", "--format=", "-U0", "--no-renames", sha)
         added, removed, path = [], [], None

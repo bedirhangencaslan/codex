@@ -20,7 +20,7 @@ use wiremock::matchers::query_param;
 
 #[tokio::test]
 async fn agent_plugin_capabilities_do_not_require_runtime_data_directory() {
-    let codex_home = TempDir::new().expect("Suffice home");
+    let codex_home = TempDir::new().expect("Codex home");
     let store = PluginStore::new(codex_home.path().to_path_buf());
     let plugin_id = PluginId::parse("example@test").expect("plugin id");
     let root = store.plugin_root(&plugin_id, "1.0.0");
@@ -119,6 +119,7 @@ async fn capabilities_union_cached_versions_and_sync_reports_removal() -> anyhow
     let config = RemotePluginServiceConfig::new(
         format!("{}/backend-api", server.uri()),
         crate::test_support::test_http_client_factory(),
+        /*product_sku*/ None,
     );
     let auth = CodexAuth::create_dummy_chatgpt_auth_for_testing();
     Mock::given(method("GET"))

@@ -101,13 +101,16 @@ use wiremock::matchers::path_regex;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 const DELEGATED_SHELL_TURN_TIMEOUT: Duration = Duration::from_secs(30);
 const DELEGATED_SHELL_TOOL_TIMEOUT_MS: u64 = 30_000;
-const STARTUP_CONTEXT_HEADER: &str = "Startup context from Suffice.";
+const STARTUP_CONTEXT_HEADER: &str = "Startup context from Codex.";
 const V2_STEERING_ACKNOWLEDGEMENT: &str =
     "This was sent to steer the previous background agent task.";
 const V2_HANDOFF_COMPLETE_ACKNOWLEDGEMENT: &str =
     "Background agent finished. Use the preceding [BACKEND] messages as the result.";
 const RESPONSE_ITEM_PREFIX: &str =
     "Use the following context to inform future responses, but do not speak it to the user.";
+
+#[path = "realtime_transcript_tests.rs"]
+mod transcript_tests;
 
 #[derive(Debug, Clone, Copy)]
 enum StartupContextConfig<'a> {
@@ -390,6 +393,7 @@ impl RealtimeE2eHarness {
                     .unwrap_or(false)
                     .then(|| RESPONSE_ITEM_PREFIX.to_string()),
                 codex_response_handoff_mode,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 codex_responses_as_items,
                 model: None,
@@ -451,6 +455,7 @@ impl RealtimeE2eHarness {
                     .unwrap_or(false)
                     .then(|| RESPONSE_ITEM_PREFIX.to_string()),
                 codex_response_handoff_mode: None,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 codex_responses_as_items,
                 model: None,
@@ -488,6 +493,7 @@ impl RealtimeE2eHarness {
                 flush_transcript_tail_on_session_end: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes,
                 codex_responses_as_items: None,
                 model: None,
@@ -706,6 +712,7 @@ async fn realtime_conversation_streams_timeline_items() -> Result<()> {
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             model: None,
             output_modality: RealtimeOutputModality::Audio,
@@ -902,6 +909,7 @@ async fn realtime_conversation_streams_v2_notifications() -> Result<()> {
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             thread_id: thread_start.thread.id.clone(),
             model: Some("realtime-treatment-model".to_string()),
@@ -1471,6 +1479,7 @@ async fn realtime_start_can_skip_startup_context() -> Result<()> {
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             thread_id: thread_start.thread.id.clone(),
             model: None,
@@ -1568,6 +1577,7 @@ async fn realtime_text_output_modality_requests_text_output_and_final_transcript
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             thread_id: thread_start.thread.id.clone(),
             model: None,
@@ -1745,6 +1755,7 @@ async fn realtime_conversation_stop_emits_closed_notification() -> Result<()> {
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             thread_id: thread_start.thread.id.clone(),
             model: None,
@@ -1819,6 +1830,7 @@ async fn realtime_mode_uses_client_instructions_on_entry_and_exit() -> Result<()
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             model: None,
             output_modality: RealtimeOutputModality::Audio,
@@ -2103,6 +2115,7 @@ async fn realtime_webrtc_start_emits_sdp_notification() -> Result<()> {
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             thread_id: thread_id.clone(),
             model: None,
@@ -2321,6 +2334,7 @@ async fn existing_call_attaches_without_reinitializing_the_client_session(
             flush_transcript_tail_on_session_end: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             codex_responses_as_items: None,
             model: None,
@@ -2409,6 +2423,7 @@ async fn existing_call_rejects_client_owned_session_configuration(option: &str) 
         flush_transcript_tail_on_session_end: None,
         codex_response_item_prefix: None,
         codex_response_handoff_mode: None,
+        backend_reasoning_status: false,
         codex_response_handoff_channel_prefixes: None,
         codex_responses_as_items: None,
         model: None,
@@ -2637,7 +2652,7 @@ async fn webrtc_v1_client_managed_handoffs_disable_automatic_output() -> Result<
     .await;
     assert!(
         automatic_handoff.is_err(),
-        "automatic Suffice output should not reach realtime in client-managed handoff mode"
+        "automatic Codex output should not reach realtime in client-managed handoff mode"
     );
 
     harness
@@ -3645,7 +3660,7 @@ async fn websocket_v2_background_agent_steering_ack_requests_response_create() -
     // acknowledgement so it can surface that acknowledgement to the user.
     assert_v2_response_create(&harness.sideband_outbound_request(/*request_index*/ 2).await);
 
-    // Phase 4: release the gated delegated turn. Suffice should then continue
+    // Phase 4: release the gated delegated turn. Codex should then continue
     // the same run with the steering text included in the follow-up Responses
     // request, proving realtime did not merely acknowledge and drop it.
     let _ = gate_completed_tx.send(());
@@ -3928,6 +3943,7 @@ async fn realtime_webrtc_start_surfaces_backend_error() -> Result<()> {
             codex_responses_as_items: None,
             codex_response_item_prefix: None,
             codex_response_handoff_mode: None,
+            backend_reasoning_status: false,
             codex_response_handoff_channel_prefixes: None,
             thread_id: thread_start.thread.id,
             model: None,

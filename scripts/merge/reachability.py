@@ -54,7 +54,8 @@ def introduced():
     """(symbol, defining path) pairs our commits added, excluding test files."""
     out = {}
     for sha in sh("log", "--format=%h", "%s..%s" % (BASE, OURS)).split():
-        if sha in POLICY_EXCLUDED:
+        # `%h` grows with the repository; see the same check in survival.py.
+        if any(sha.startswith(p) for p in POLICY_EXCLUDED):
             continue
         path = None
         for line in sh("show", "--format=", "-U0", "--no-renames", sha).splitlines():

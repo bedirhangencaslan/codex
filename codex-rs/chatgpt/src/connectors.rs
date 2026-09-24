@@ -50,7 +50,7 @@ async fn connector_auth(config: &Config) -> anyhow::Result<CodexAuth> {
         .ok_or_else(|| anyhow::anyhow!("ChatGPT auth not available"))?;
     anyhow::ensure!(
         auth.uses_codex_backend(),
-        "ChatGPT connectors require Suffice backend auth"
+        "ChatGPT connectors require Codex backend auth"
     );
     Ok(auth)
 }
@@ -134,6 +134,8 @@ pub struct ConnectorMetadataReadResult {
 ///
 /// The store is created before awaiting the backend request, so a response that arrives after an
 /// account or backend change can only commit to the scope under which it was requested.
+/// Capture `auth` and `config.application_network_policy` together using
+/// `AuthManager::auth_with_http_client_factory` so the request retains that account's policy.
 pub async fn read_connector_metadata(
     config: &Config,
     auth: &CodexAuth,
@@ -142,7 +144,7 @@ pub async fn read_connector_metadata(
 ) -> anyhow::Result<ConnectorMetadataReadResult> {
     anyhow::ensure!(
         auth.uses_codex_backend(),
-        "ChatGPT backend requests require Suffice backend auth"
+        "ChatGPT backend requests require Codex backend auth"
     );
     anyhow::ensure!(
         auth.get_account_id().is_some(),

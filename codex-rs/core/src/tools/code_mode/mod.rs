@@ -532,6 +532,7 @@ fn submit_nested_tool(
             runtime_tool_call_id,
         },
         cancellation_token,
+        Arc::default(),
     );
     Ok(async move {
         let value = result.await?.code_mode_result();

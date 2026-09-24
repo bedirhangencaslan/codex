@@ -126,6 +126,7 @@ fn plugins_config_input_with_requirements(
         /*remote_plugin_enabled*/ false,
         String::new(),
         test_http_client_factory(),
+        /*product_sku*/ None,
     )
 }
 
@@ -166,6 +167,7 @@ fn curated_repo_sync_stays_deferred_for_remote_chatgpt_catalog() {
         /*remote_plugin_enabled*/ true,
         "https://chatgpt.com".to_string(),
         test_http_client_factory(),
+        /*product_sku*/ None,
     );
     let manager = Arc::new(test_plugins_manager_with_options(
         tmp.path().to_path_buf(),
@@ -205,7 +207,7 @@ fn marketplace_source_refresh_notifies_only_after_installed_cache_changes() {
 
 #[tokio::test]
 async fn marketplace_policy_projection_disables_installed_plugin_and_invalidates_cache() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     write_plugin(
         &codex_home.path().join("plugins/cache/company"),
         "sample/local",
@@ -255,7 +257,7 @@ url = "https://github.com/example/other.git"
 
 #[tokio::test]
 async fn plugin_read_rejects_marketplace_blocked_by_requirements() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let marketplace_root = codex_home.path().join("marketplace");
     write_plugin(&marketplace_root, "sample", "sample");
     write_file(
@@ -300,7 +302,7 @@ restrict_to_allowed_sources = true
 
 #[test]
 fn marketplace_policy_filters_discovered_marketplaces_by_configured_name() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let repo_root = codex_home.path().join("repo");
     let subdirectory = repo_root.join("worktree/subdirectory");
     fs::create_dir_all(&subdirectory).expect("create input subdirectory");
@@ -784,7 +786,7 @@ fn write_plugin(root: &Path, dir_name: &str, manifest_name: &str) {
 fn init_git_repo(repo: &Path) {
     run_git(repo, &["init"]);
     run_git(repo, &["config", "user.email", "codex-test@example.com"]);
-    run_git(repo, &["config", "user.name", "Suffice Test"]);
+    run_git(repo, &["config", "user.name", "Codex Test"]);
     run_git(repo, &["add", "."]);
     run_git(repo, &["commit", "-m", "initial"]);
 }
@@ -855,6 +857,7 @@ fn remote_installed_plugin_in_marketplace(
     marketplace_name: &str,
 ) -> RemoteInstalledPlugin {
     RemoteInstalledPlugin {
+        extensions: None,
         canonical_app_id: None,
         marketplace_name: marketplace_name.to_string(),
         id: format!("plugins~Plugin_{name}"),
@@ -2969,6 +2972,7 @@ async fn plugin_cache_reuses_effective_configurations() {
             /*remote_plugin_enabled*/ false,
             "https://chatgpt.com".to_string(),
             test_http_client_factory(),
+            /*product_sku*/ None,
         )
     };
     let manager = test_plugins_manager(codex_home.path().to_path_buf());
@@ -3233,6 +3237,7 @@ async fn plugins_for_config_discards_in_flight_load_after_account_change() {
         /*remote_plugin_enabled*/ true,
         String::new(),
         test_http_client_factory(),
+        /*product_sku*/ None,
     );
     let auth_manager = test_auth_manager(Some(AuthMode::ChatgptAuthTokens));
     let manager = Arc::new(test_plugins_manager_with_auth_manager(
@@ -3372,7 +3377,7 @@ async fn install_plugin_updates_config_with_relative_path_and_plugin_key() {
 
 #[tokio::test]
 async fn strict_install_requires_allowed_local_marketplace_to_be_added_first() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let marketplace_root = codex_home.path().join("company-marketplace");
     write_plugin(&marketplace_root, "sample", "sample");
     write_file(
@@ -7182,6 +7187,7 @@ fn remote_installed_plugins_cache_refresh_coalesces_materializations() {
             service_config: RemotePluginServiceConfig::new(
                 "https://example.com".to_string(),
                 test_http_client_factory(),
+                /*product_sku*/ None,
             ),
             auth: None,
             notify: RemoteInstalledPluginsCacheRefreshNotify::IfCacheChanged,
@@ -7518,7 +7524,7 @@ remote_plugin = true
     let linear_metadata = plugin_cache_root
         .join(REMOTE_GLOBAL_MARKETPLACE_NAME)
         .join("linear")
-        .join(".suffice-remote-plugin-install.json");
+        .join(".codex-remote-plugin-install.json");
     assert!(renamed_malformed_cache.exists());
     assert!(previous_malformed_cache.exists());
     assert!(!linear_metadata.exists());

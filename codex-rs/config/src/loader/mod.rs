@@ -1,3 +1,4 @@
+mod application;
 mod layer_io;
 mod local;
 #[cfg(target_os = "macos")]
@@ -12,6 +13,9 @@ mod tests;
 mod projectless_directory_tests;
 #[cfg(windows)]
 mod windows;
+
+pub use application::LocalApplicationRequirements;
+pub use application::load_local_application_requirements;
 
 use self::layer_io::LoadedConfigLayers;
 use crate::CONFIG_TOML_FILE;
@@ -106,7 +110,7 @@ async fn first_layer_config_error_from_entries(layers: &[ConfigLayerEntry]) -> O
 /// hooks, rules, deny-read permissions, and remote sandbox config:
 ///
 /// - system    `/etc/codex/requirements.toml` (Unix) or
-///   `%ProgramData%\OpenAI\Suffice\requirements.toml` (Windows)
+///   `%ProgramData%\OpenAI\Codex\requirements.toml` (Windows)
 /// - cloud:    enterprise-managed cloud config bundle requirements
 /// - legacy:   `/etc/codex/managed_config.toml` (Unix) reinterpreted as
 ///   requirements.toml
@@ -117,10 +121,10 @@ async fn first_layer_config_error_from_entries(layers: &[ConfigLayerEntry]) -> O
 ///
 /// Configuration is built up from multiple layers in the following order:
 ///
-/// - package:  optional default configuration supplied with the Suffice package
+/// - package:  optional default configuration supplied with the Codex package
 /// - admin:    managed preferences (*)
 /// - system    `/etc/codex/config.toml` (Unix) or
-///   `%ProgramData%\OpenAI\Suffice\config.toml` (Windows)
+///   `%ProgramData%\OpenAI\Codex\config.toml` (Windows)
 /// - cloud     enterprise-managed cloud config bundle fragments
 /// - user      `${SUFFICE_HOME}/config.toml`
 /// - profile   `${SUFFICE_HOME}/<name>.config.toml`, when selected
@@ -184,7 +188,7 @@ pub async fn load_config_layers_state(
         let config = toml::from_str(raw_toml).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("invalid embedded packaged defaults; this is a Suffice build error: {error}"),
+                format!("invalid embedded packaged defaults; this is a Codex build error: {error}"),
             )
         })?;
         ConfigLayerEntry::new_with_raw_toml(
@@ -799,7 +803,7 @@ fn windows_codex_system_dir() -> PathBuf {
         );
         PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS)
     });
-    program_data.join("OpenAI").join("Suffice")
+    program_data.join("OpenAI").join("Codex")
 }
 
 #[cfg(windows)]
@@ -952,7 +956,7 @@ fn legacy_requirements_to_toml_value(legacy: LegacyManagedConfigToml) -> io::Res
     }
     if let Some(sandbox_mode) = sandbox_mode {
         let required_mode: SandboxModeRequirement = sandbox_mode.into();
-        // Allowing read-only is a requirement for Suffice to function correctly.
+        // Allowing read-only is a requirement for Codex to function correctly.
         // So in this backfill path, we append read-only if it's not already specified.
         let mut allowed_modes = vec![SandboxModeRequirement::ReadOnly];
         if required_mode != SandboxModeRequirement::ReadOnly {
@@ -1967,7 +1971,7 @@ foo = "xyzzy"
         let expected = windows_program_data_dir_from_known_folder()
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS))
             .join("OpenAI")
-            .join("Suffice")
+            .join("Codex")
             .join("requirements.toml");
         assert_eq!(
             windows_system_requirements_toml_file()
@@ -1979,7 +1983,7 @@ foo = "xyzzy"
             windows_system_requirements_toml_file()
                 .expect("requirements.toml path")
                 .as_path()
-                .ends_with(Path::new("OpenAI").join("Suffice").join("requirements.toml"))
+                .ends_with(Path::new("OpenAI").join("Codex").join("requirements.toml"))
         );
     }
 
@@ -1989,7 +1993,7 @@ foo = "xyzzy"
         let expected = windows_program_data_dir_from_known_folder()
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_PROGRAM_DATA_DIR_WINDOWS))
             .join("OpenAI")
-            .join("Suffice")
+            .join("Codex")
             .join("config.toml");
         assert_eq!(
             windows_system_config_toml_file()
@@ -2001,7 +2005,7 @@ foo = "xyzzy"
             windows_system_config_toml_file()
                 .expect("config.toml path")
                 .as_path()
-                .ends_with(Path::new("OpenAI").join("Suffice").join("config.toml"))
+                .ends_with(Path::new("OpenAI").join("Codex").join("config.toml"))
         );
     }
 }

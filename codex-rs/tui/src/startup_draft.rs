@@ -132,6 +132,7 @@ impl StartupDraft {
             initialized_terminal.enhanced_keys_supported,
             initialized_terminal.stderr_guard,
         );
+        tui.terminal_app_over_ssh = initialized_terminal.terminal_app_over_ssh;
         tui.set_alt_screen_enabled(screen.use_alt_screen);
         let mut pump = StartupDraftPump::new(&tui, initial_screen, session_action);
         pump.bottom_pane
@@ -502,7 +503,7 @@ fn startup_draft_bottom_pane(
             frame_requester,
             has_input_focus: true,
             enhanced_keys_supported,
-            placeholder_text: "Ask Suffice to do anything".to_string(),
+            placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: crate::system_motion::mode() == crate::motion::MotionMode::Animated,
             effects: Default::default(),

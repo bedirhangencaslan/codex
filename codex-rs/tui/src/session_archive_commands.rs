@@ -1,4 +1,4 @@
-//! Shared implementation for `suffice archive`, `suffice delete`, and `suffice unarchive`.
+//! Shared implementation for `codex archive`, `codex delete`, and `codex unarchive`.
 //!
 //! The CLI commands are thin app-server clients: resolve a user-provided UUID or exact session
 //! name, then call the corresponding app-server RPC.
@@ -81,7 +81,7 @@ pub async fn run_session_archive_command(
     target: String,
     options: SessionArchiveCommandOptions,
 ) -> Result<String> {
-    let codex_home = find_codex_home().wrap_err("failed to find Suffice home")?;
+    let codex_home = find_codex_home().wrap_err("failed to find Codex home")?;
     let mut app_server =
         start_app_server_for_session_command(options, codex_home.to_path_buf()).await?;
     run_session_archive_action_with_app_server(
@@ -298,6 +298,8 @@ pub(super) async fn start_app_server_for_session_command(
         loader_overrides.user_config_profile = Some(profile_v2.clone());
     }
     loader_overrides.ignore_login_requirements = app_server_target.uses_remote_workspace();
+    let embedded_network_policy =
+        codex_app_server_client::EmbeddedNetworkPolicy::load(&loader_overrides).await;
 
     let bootstrap_config = load_config_toml_with_layer_stack(
         codex_home.as_path(),
@@ -316,6 +318,7 @@ pub(super) async fn start_app_server_for_session_command(
         &app_server_target,
         &bootstrap_config,
         codex_home.as_path(),
+        &embedded_network_policy,
     )
     .await?;
 
@@ -356,7 +359,11 @@ pub(super) async fn start_app_server_for_session_command(
         .wrap_err("failed to load configuration")?;
     let environment_manager = Arc::new(
         prepared_environment_manager
-            .build(Some(local_runtime_paths), config.http_client_factory())
+            .build(
+                Some(local_runtime_paths),
+                app_server_target
+                    .environment_http_client_factory(&config, &embedded_network_policy),
+            )
             .wrap_err("failed to initialize environment manager")?,
     );
     let mut state_db = super::init_state_db_for_app_server_target(&config, &app_server_target)
@@ -374,6 +381,7 @@ pub(super) async fn start_app_server_for_session_command(
         /*log_db*/ None,
         &mut state_db,
         environment_manager,
+        embedded_network_policy,
     )
     .await?;
     Ok(

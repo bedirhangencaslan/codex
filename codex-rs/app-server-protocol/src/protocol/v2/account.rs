@@ -84,7 +84,7 @@ pub enum LoginAccountParams {
     #[ts(rename = "chatgptDeviceCode")]
     ChatgptDeviceCode,
     /// [UNSTABLE] FOR OPENAI INTERNAL USE ONLY - DO NOT USE.
-    /// The access token must contain the same scopes that Suffice-managed ChatGPT auth tokens have.
+    /// The access token must contain the same scopes that Codex-managed ChatGPT auth tokens have.
     #[experimental("account/login/start.chatgptAuthTokens")]
     #[serde(rename = "chatgptAuthTokens", rename_all = "camelCase")]
     #[ts(rename = "chatgptAuthTokens", rename_all = "camelCase")]
@@ -96,7 +96,7 @@ pub enum LoginAccountParams {
         chatgpt_account_id: String,
         /// Optional plan type supplied by the client.
         ///
-        /// When `null`, Suffice attempts to derive the plan type from access-token
+        /// When `null`, Codex attempts to derive the plan type from access-token
         /// claims. If unavailable, the plan defaults to `unknown`.
         #[ts(optional = nullable)]
         chatgpt_plan_type: Option<String>,
@@ -125,7 +125,7 @@ pub enum LoginAccountParams {
 #[ts(export_to = "v2/")]
 pub enum LoginAppBrand {
     #[default]
-    Suffice,
+    Codex,
     Chatgpt,
 }
 
@@ -269,7 +269,7 @@ pub struct LogoutAccountResponse {}
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub enum ChatgptAuthTokensRefreshReason {
-    /// Suffice attempted a backend request and received `401 Unauthorized`.
+    /// Codex attempted a backend request and received `401 Unauthorized`.
     Unauthorized,
 }
 
@@ -278,7 +278,7 @@ pub enum ChatgptAuthTokensRefreshReason {
 #[ts(export_to = "v2/")]
 pub struct ChatgptAuthTokensRefreshParams {
     pub reason: ChatgptAuthTokensRefreshReason,
-    /// Workspace/account identifier that Suffice was previously using.
+    /// Workspace/account identifier that Codex was previously using.
     ///
     /// Clients that manage multiple accounts/workspaces can use this as a hint
     /// to refresh the token for the correct workspace.
@@ -334,7 +334,7 @@ pub struct GetAccountRateLimitsResponse {
     pub ordinary_usage_allowed: Option<bool>,
     /// Backward-compatible single-bucket view; mirrors the historical payload.
     pub rate_limits: RateLimitSnapshot,
-    /// Multi-bucket view keyed by metered `limit_id` (for example, `suffice`).
+    /// Multi-bucket view keyed by metered `limit_id` (for example, `codex`).
     pub rate_limits_by_limit_id: Option<HashMap<String, RateLimitSnapshot>>,
     pub rate_limit_reset_credits: Option<RateLimitResetCreditsSummary>,
     /// Account associated with this usage snapshot, when supplied by the backend.
@@ -589,6 +589,62 @@ pub struct AccountUpdatedNotification {
     pub auth_mode: Option<AuthMode>,
     pub plan_type: Option<PlanType>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/", rename_all = "camelCase")]
+pub enum GatewayOAuthStatus {
+    NotReady,
+    Started,
+    Succeeded,
+    Failed,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct GatewayOAuthChangedNotification {
+    /// Authorization handoff, sent only to the connection that started login.
+    pub auth_url: Option<String>,
+    pub provider_id: String,
+    pub status: GatewayOAuthStatus,
+    pub error: Option<String>,
+}
+
+impl std::fmt::Debug for GatewayOAuthChangedNotification {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayOAuthChangedNotification")
+            .field("auth_url", &self.auth_url.as_ref().map(|_| "[REDACTED]"))
+            .field("provider_id", &self.provider_id)
+            .field("status", &self.status)
+            .field("error", &self.error)
+            .finish()
+    }
+}
+
+/// Current effective gateway policy and credential readiness; never contains credentials.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct GatewayOAuthReadResponse {
+    pub provider_id: String,
+    pub provider_name: String,
+    /// Whether the selected provider uses gateway OAuth, even when already signed in.
+    pub required: bool,
+    /// Null when the effective provider does not use gateway OAuth.
+    pub status: Option<GatewayOAuthStatus>,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct GatewayOAuthLoginResponse {}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct GatewayOAuthCancelResponse {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]

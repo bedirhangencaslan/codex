@@ -154,6 +154,7 @@ async fn forward_ops_preserves_submission_trace_context() {
         }),
         parent_turn_id: Some("parent-turn".to_string()),
         root_turn_id: Some("root-turn".to_string()),
+        residency_guard: None,
     };
     tx_ops.send(submission).await.unwrap();
     drop(tx_ops);
@@ -398,7 +399,7 @@ async fn run_codex_thread_interactive_rejects_approval_policy_that_can_prompt() 
             if matches!(
                 err.details(),
                 CodexErrorDetails::InvalidRequest(message)
-                    if message == "Suffice delegates require approval policy `never`"
+                    if message == "Codex delegates require approval policy `never`"
             )
     ));
 }

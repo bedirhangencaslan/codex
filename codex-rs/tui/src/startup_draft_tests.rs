@@ -128,6 +128,61 @@ fn startup_draft_renders_full_empty_and_multiline_composer_frames() {
     insta::assert_snapshot!("startup_draft_full_frames", snapshots.join("\n---\n"));
 }
 
+#[test]
+fn terminal_app_ssh_fallback_renders_inline_startup() {
+    let pump = startup_test_pump(std::iter::empty());
+    let owned_layout = super::layout::OwnedStartupLayout::new(
+        &pump.header,
+        &pump.bottom_pane,
+        StartupDraftSessionAction::New,
+    );
+    let mut frames = Vec::new();
+    for terminal_app_over_ssh in [false, true] {
+        let owned = crate::determine_alt_screen_mode(
+            /*no_alt_screen*/ false,
+            codex_config::types::AltScreenMode::Auto,
+            terminal_app_over_ssh,
+        );
+        let renderable = if owned {
+            crate::render::renderable::RenderableItem::Borrowed(&owned_layout)
+        } else {
+            startup_draft_renderable(
+                &pump.header,
+                &pump.bottom_pane,
+                StartupDraftSessionAction::New,
+            )
+        };
+        let width = 48;
+        let height = if owned {
+            16
+        } else {
+            renderable.desired_height(width)
+        };
+        let area = Rect::new(/*x*/ 0, /*y*/ 0, width, height);
+        let mut buffer = Buffer::empty(area);
+        renderable.render(area, &mut buffer);
+        let frame = (0..height)
+            .map(|y| {
+                (0..width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        frames.push(format!(
+            "terminal_app_over_ssh={terminal_app_over_ssh}, owned={owned}\n{frame}"
+        ));
+    }
+    insta::assert_snapshot!(
+        "terminal_app_ssh_startup",
+        frames
+            .join("\n---\n")
+            .replace(crate::version::CODEX_CLI_VERSION, "<VERSION>")
+    );
+}
+
 #[tokio::test]
 async fn startup_draft_clears_loading_status_when_starting_fresh() {
     let mut snapshots = Vec::new();
@@ -217,7 +272,7 @@ async fn startup_draft_clears_loading_status_when_starting_fresh() {
 
 #[tokio::test]
 async fn startup_draft_hydrates_its_header_without_moving_the_composer() {
-    let codex_home = tempfile::tempdir().expect("create temporary Suffice home");
+    let codex_home = tempfile::tempdir().expect("create temporary Codex home");
     let config = ConfigBuilder::default()
         .codex_home(codex_home.path().to_path_buf())
         .build()
@@ -564,7 +619,7 @@ fn startup_draft_preserves_windows_altgr_text_input() {
 
 #[tokio::test]
 async fn startup_draft_applies_paste_burst_preferences_without_losing_buffered_input() {
-    let codex_home = tempfile::tempdir().expect("create temporary Suffice home");
+    let codex_home = tempfile::tempdir().expect("create temporary Codex home");
     let mut config = ConfigBuilder::default()
         .codex_home(codex_home.path().to_path_buf())
         .build()
@@ -612,7 +667,7 @@ async fn startup_draft_applies_paste_burst_preferences_without_losing_buffered_i
 
 #[tokio::test]
 async fn startup_draft_applies_editor_keymap_without_enabling_vim() {
-    let codex_home = tempfile::tempdir().expect("create temporary Suffice home");
+    let codex_home = tempfile::tempdir().expect("create temporary Codex home");
     let mut config = ConfigBuilder::default()
         .codex_home(codex_home.path().to_path_buf())
         .build()
@@ -670,7 +725,7 @@ async fn startup_draft_waits_for_onboarding_before_accepting_input() {
         ]
         .into_iter(),
     );
-    let codex_home = tempfile::tempdir().expect("create an existing custom Suffice home");
+    let codex_home = tempfile::tempdir().expect("create an existing custom Codex home");
     std::fs::write(codex_home.path().join("history.jsonl"), "")
         .expect("create existing startup history");
     let system_config_path = codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(

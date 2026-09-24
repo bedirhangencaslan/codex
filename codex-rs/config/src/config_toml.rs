@@ -1,4 +1,4 @@
-//! Schema-heavy configuration TOML types used by Suffice.
+//! Schema-heavy configuration TOML types used by Codex.
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -55,7 +55,6 @@ use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::permissions::NetworkSandboxPolicy;
 use codex_protocol::protocol::AskForApproval;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_path::normalize_for_path_comparison;
 use codex_utils_path_uri::Platform;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -140,14 +139,23 @@ of strings; comma-separated strings are not supported. Use \
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
 pub struct OrchestratorToml {
-    pub skills: Option<OrchestratorFeatureToml>,
-    pub mcp: Option<OrchestratorFeatureToml>,
+    /// Legacy no-op setting retained for compatibility. Use `cloud.skills` to configure cloud skills.
+    pub skills: Option<FeatureToggleToml>,
+    pub mcp: Option<FeatureToggleToml>,
 }
 
-/// Settings for a feature owned by the orchestrator.
+/// Cloud-owned feature settings.
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
-pub struct OrchestratorFeatureToml {
+pub struct CloudToml {
+    /// Cloud skills are permitted by default; the host must supply a cloud provider.
+    pub skills: Option<FeatureToggleToml>,
+}
+
+/// Optional enablement of a configured feature.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct FeatureToggleToml {
     pub enabled: Option<bool>,
 }
 
@@ -257,7 +265,7 @@ pub struct ConfigToml {
     /// Optional path to a file containing model instructions that will override
     /// the built-in instructions for the selected model. Users are STRONGLY
     /// DISCOURAGED from using this field, as deviating from the instructions
-    /// sanctioned by Suffice will likely degrade model performance.
+    /// sanctioned by Codex will likely degrade model performance.
     pub model_instructions_file: Option<AbsolutePathBuf>,
 
     /// Compact prompt used for history compaction.
@@ -272,13 +280,13 @@ pub struct ConfigToml {
     pub forced_login_method: Option<ForcedLoginMethod>,
 
     /// Preferred backend for storing CLI auth credentials.
-    /// file (default): Use a file in the Suffice home directory.
+    /// file (default): Use a file in the Codex home directory.
     /// keyring: Use an OS-specific keyring service.
     /// auto: Use the keyring if available, otherwise use a file.
     #[serde(default)]
     pub cli_auth_credentials_store: Option<AuthCredentialsStoreMode>,
 
-    /// Definition for MCP servers that Suffice can reach out to for tool calls.
+    /// Definition for MCP servers that Codex can reach out to for tool calls.
     #[serde(default)]
     // Uses the raw MCP input shape (custom deserialization) rather than `McpServerConfig`.
     #[schemars(schema_with = "crate::schema::mcp_servers_schema")]
@@ -291,13 +299,13 @@ pub struct ConfigToml {
     /// Preferred backend for storing MCP OAuth credentials.
     /// keyring: Use an OS-specific keyring service.
     ///          https://github.com/openai/codex/blob/main/codex-rs/rmcp-client/src/oauth.rs#L2
-    /// file: Use a file in the Suffice home directory.
+    /// file: Use a file in the Codex home directory.
     /// auto (default): Use the OS-specific keyring service if available, otherwise use a file.
     #[serde(default)]
     pub mcp_oauth_credentials_store: Option<OAuthCredentialsStoreMode>,
 
     /// Optional fixed port for the local HTTP callback server used during MCP OAuth login.
-    /// When unset, Suffice will bind to an ephemeral port chosen by the OS.
+    /// When unset, Codex will bind to an ephemeral port chosen by the OS.
     pub mcp_oauth_callback_port: Option<u16>,
 
     /// Optional redirect URI to use during MCP OAuth login.
@@ -355,11 +363,11 @@ pub struct ConfigToml {
     #[serde(default = "default_history")]
     pub history: Option<History>,
 
-    /// Directory where Suffice stores the SQLite state DB.
+    /// Directory where Codex stores the SQLite state DB.
     /// Defaults to `$CODEX_SQLITE_HOME` when set. Otherwise uses `$SUFFICE_HOME`.
     pub sqlite_home: Option<AbsolutePathBuf>,
 
-    /// Directory where Suffice writes log files. Setting this value explicitly
+    /// Directory where Codex writes log files. Setting this value explicitly
     /// also enables the TUI text log in this directory.
     /// Defaults to `$SUFFICE_HOME/log`.
     pub log_dir: Option<AbsolutePathBuf>,
@@ -400,7 +408,7 @@ pub struct ConfigToml {
     /// Base URL for requests to ChatGPT (as opposed to the OpenAI API).
     pub chatgpt_base_url: Option<String>,
 
-    /// Optional product SKU forwarded on host-owned Suffice Apps MCP requests.
+    /// Optional product SKU forwarded on host-owned Codex Apps MCP requests.
     pub apps_mcp_product_sku: Option<String>,
 
     /// Bounded, product-owned metadata attached to every Responses API request.
@@ -408,6 +416,9 @@ pub struct ConfigToml {
 
     /// Orchestrator-owned feature settings.
     pub orchestrator: Option<OrchestratorToml>,
+
+    /// Cloud-owned feature settings.
+    pub cloud: Option<CloudToml>,
 
     /// Base URL override for the built-in `openai` model provider.
     pub openai_base_url: Option<String>,
@@ -501,23 +512,23 @@ pub struct ConfigToml {
     pub ghost_snapshot: Option<GhostSnapshotToml>,
 
     /// Markers used to detect the project root when searching parent
-    /// directories for `.suffice` folders. Defaults to [".git"] when unset.
+    /// directories for `.codex` folders. Defaults to [".git"] when unset.
     #[serde(default)]
     pub project_root_markers: Option<Vec<String>>,
 
-    /// When `true`, checks for Suffice updates on startup and surfaces update prompts.
-    /// Set to `false` only if your Suffice updates are centrally managed.
+    /// When `true`, checks for Codex updates on startup and surfaces update prompts.
+    /// Set to `false` only if your Codex updates are centrally managed.
     /// Defaults to `true`.
     pub check_for_update_on_startup: Option<bool>,
 
     /// Legacy fallback for `tui.disable_paste_burst`. Prefer the setting under `[tui]`.
     pub disable_paste_burst: Option<bool>,
 
-    /// When `false`, disables analytics across Suffice product surfaces in this machine.
+    /// When `false`, disables analytics across Codex product surfaces in this machine.
     /// Defaults to `true`.
     pub analytics: Option<AnalyticsConfigToml>,
 
-    /// When `false`, disables feedback collection across Suffice product surfaces.
+    /// When `false`, disables feedback collection across Codex product surfaces.
     /// Defaults to `true`.
     pub feedback: Option<FeedbackConfigToml>,
 
@@ -560,6 +571,8 @@ pub enum ThreadStoreToml {
 pub struct AutoReviewToml {
     /// Additional policy instructions inserted into the guardian prompt.
     pub policy: Option<String>,
+    /// Additional policy text inserted into the Guardian template's `{{ extra_policy }}` slot.
+    pub extra_policy: Option<String>,
     /// Experimental full Guardian prompt template containing the tenant policy placeholder.
     pub experimental_policy_template: Option<String>,
 }
@@ -852,70 +865,12 @@ impl ConfigToml {
         resolved_cwd: &Path,
         repo_root: Option<&Path>,
     ) -> Option<ProjectConfig> {
-        let projects = self.projects.as_ref()?;
-
-        for normalized_cwd in normalized_project_lookup_keys(resolved_cwd) {
-            if let Some(project_config) = project_config_for_lookup_key(projects, &normalized_cwd) {
-                return Some(project_config);
-            }
-        }
-
-        if let Some(repo_root) = repo_root {
-            for normalized_repo_root in normalized_project_lookup_keys(repo_root) {
-                if let Some(project_config_for_root) =
-                    project_config_for_lookup_key(projects, &normalized_repo_root)
-                {
-                    return Some(project_config_for_root);
-                }
-            }
-        }
-
-        None
+        self.projects.as_ref()?;
+        self.get_active_project_for_lookup(&crate::ProjectTrustLookup::from_native(
+            resolved_cwd,
+            repo_root,
+        ))
     }
-}
-
-/// Canonicalize the path and convert it to a string to be used as a key in the
-/// projects trust map. On Windows, strips UNC, when possible, to try to ensure
-/// that different paths that point to the same location have the same key.
-fn normalized_project_lookup_keys(path: &Path) -> Vec<String> {
-    let normalized_path = normalize_project_lookup_key(path.to_string_lossy().to_string());
-    let normalized_canonical_path = normalize_project_lookup_key(
-        normalize_for_path_comparison(path)
-            .unwrap_or_else(|_| path.to_path_buf())
-            .to_string_lossy()
-            .to_string(),
-    );
-    if normalized_path == normalized_canonical_path {
-        vec![normalized_canonical_path]
-    } else {
-        vec![normalized_canonical_path, normalized_path]
-    }
-}
-
-fn normalize_project_lookup_key(key: String) -> String {
-    if cfg!(windows) {
-        key.to_ascii_lowercase()
-    } else {
-        key
-    }
-}
-
-fn project_config_for_lookup_key(
-    projects: &HashMap<String, ProjectConfig>,
-    lookup_key: &str,
-) -> Option<ProjectConfig> {
-    if let Some(project_config) = projects.get(lookup_key) {
-        return Some(project_config.clone());
-    }
-
-    let mut normalized_matches: Vec<_> = projects
-        .iter()
-        .filter(|(key, _)| normalize_project_lookup_key((*key).clone()) == lookup_key)
-        .collect();
-    normalized_matches.sort_by_key(|(key, _)| *key);
-    normalized_matches
-        .first()
-        .map(|(_, project_config)| (**project_config).clone())
 }
 
 pub fn validate_reserved_model_provider_ids(

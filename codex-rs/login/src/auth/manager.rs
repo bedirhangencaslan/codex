@@ -100,7 +100,7 @@ pub enum CodexAuth {
     BedrockAccessKeys(BedrockAccessKeysAuth),
 }
 
-/// Policy for resolving Agent Identity auth from a broader Suffice auth snapshot.
+/// Policy for resolving Agent Identity auth from a broader Codex auth snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentIdentityAuthPolicy {
     /// Use Agent Identity auth only when the current auth is already Agent Identity.
@@ -222,6 +222,9 @@ pub enum RefreshTokenError {
     Permanent(#[from] RefreshTokenFailedError),
     #[error(transparent)]
     Transient(#[from] std::io::Error),
+    /// Denied by application policy; neither retry nor cache as a credential failure.
+    #[error(transparent)]
+    Policy(#[from] codex_http_client::NetworkPolicyDenied),
 }
 
 /// Error returned when constructing an [`AuthManager`] from resolved configuration.
@@ -295,7 +298,16 @@ impl RefreshTokenError {
     pub fn failed_reason(&self) -> Option<RefreshTokenFailedReason> {
         match self {
             Self::Permanent(error) => Some(error.reason),
-            Self::Transient(_) => None,
+            Self::Transient(_) | Self::Policy(_) => None,
+        }
+    }
+}
+
+impl From<codex_http_client::HttpError> for RefreshTokenError {
+    fn from(error: codex_http_client::HttpError) -> Self {
+        match error {
+            codex_http_client::HttpError::Policy(denied) => Self::Policy(denied),
+            error => Self::Transient(std::io::Error::other(error)),
         }
     }
 }
@@ -305,6 +317,9 @@ impl From<RefreshTokenError> for std::io::Error {
         match err {
             RefreshTokenError::Permanent(failed) => std::io::Error::other(failed),
             RefreshTokenError::Transient(inner) => inner,
+            RefreshTokenError::Policy(error) => {
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, error)
+            }
         }
     }
 }
@@ -590,12 +605,12 @@ impl CodexAuth {
             )),
             Self::PersonalAccessToken(auth) => Ok(auth.access_token().to_string()),
             Self::BedrockApiKey(_) | Self::BedrockAccessKeys(_) => Err(std::io::Error::other(
-                "Bedrock API key auth does not expose a Suffice bearer token",
+                "Bedrock API key auth does not expose a Codex bearer token",
             )),
         }
     }
 
-    /// Returns `None` if Suffice backend auth does not expose an account id.
+    /// Returns `None` if Codex backend auth does not expose an account id.
     pub fn get_account_id(&self) -> Option<String> {
         match self {
             Self::Headers(headers) => headers
@@ -610,7 +625,7 @@ impl CodexAuth {
         }
     }
 
-    /// Returns false if Suffice backend auth omits the FedRAMP claim.
+    /// Returns false if Codex backend auth omits the FedRAMP claim.
     pub fn is_fedramp_account(&self) -> bool {
         match self {
             Self::Headers(_) => false,
@@ -622,7 +637,7 @@ impl CodexAuth {
         }
     }
 
-    /// Returns `None` if Suffice backend auth does not expose an account email.
+    /// Returns `None` if Codex backend auth does not expose an account email.
     pub fn get_account_email(&self) -> Option<String> {
         match self {
             Self::Headers(_) => None,
@@ -632,7 +647,7 @@ impl CodexAuth {
         }
     }
 
-    /// Returns `None` if Suffice backend auth does not expose a ChatGPT user id.
+    /// Returns `None` if Codex backend auth does not expose a ChatGPT user id.
     pub fn get_chatgpt_user_id(&self) -> Option<String> {
         match self {
             Self::Headers(_) => None,
@@ -1043,7 +1058,7 @@ pub async fn login_with_access_token(
             let auth = PersonalAccessTokenAuth::load(access_token, auth_route_config).await?;
             ensure_auth_workspace_allowed(forced_chatgpt_workspace_id, auth.account_id())?;
             AuthDotJson {
-                // Infer PAT auth from the credential field so older Suffice builds can still
+                // Infer PAT auth from the credential field so older Codex builds can still
                 // deserialize auth.json after a rollback.
                 auth_mode: None,
                 openai_api_key: None,
@@ -1633,6 +1648,9 @@ async fn request_chatgpt_token_refresh(
     {
         Ok(response) => Ok(response),
         Err(OAuthError::Rejected(rejection)) => {
+            if let Some(codex_http_client::HttpError::Policy(denied)) = rejection.body_read_error {
+                return Err(denied.into());
+            }
             let status = rejection.status;
             let detail = &rejection.detail;
             tracing::error!(%status, ?detail, "Failed to refresh token");
@@ -1651,7 +1669,8 @@ async fn request_chatgpt_token_refresh(
                 )))
             }
         }
-        Err(error @ (OAuthError::Transport(_) | OAuthError::InvalidResponse)) => {
+        Err(OAuthError::Transport(error)) => Err(error.into()),
+        Err(error @ OAuthError::InvalidResponse) => {
             Err(RefreshTokenError::Transient(std::io::Error::other(error)))
         }
     }
@@ -2049,7 +2068,7 @@ pub struct AuthManager {
 /// `codex_core::config::Config`, but this trait keeps `codex-login` independent
 /// from `codex-core`.
 pub trait AuthManagerConfig {
-    /// Returns the Suffice home directory used for auth storage.
+    /// Returns the Codex home directory used for auth storage.
     fn codex_home(&self) -> PathBuf;
 
     /// Returns the CLI auth credential storage mode for auth loading.
@@ -2114,6 +2133,21 @@ fn default_agent_identity_authapi_base_url() -> Option<String> {
 }
 
 impl AuthManager {
+    /// Returns the application policy associated with this account owner.
+    pub fn application_network_policy(&self) -> codex_http_client::NetworkPolicy {
+        self.auth_route_config
+            .http_client_factory()
+            .network_policy()
+            .clone()
+    }
+
+    /// Creates content clients bound to the account currently owned by this manager.
+    pub fn http_client_factory(&self) -> HttpClientFactory {
+        self.auth_route_config
+            .http_client_factory()
+            .clone()
+            .with_network_policy(self.application_network_policy().for_current_account())
+    }
     /// Create a new manager loading the initial auth using the provided
     /// preferred auth method. Errors loading auth are swallowed; `auth()` will
     /// simply return `None` in that case so callers can treat it as an
@@ -2372,6 +2406,14 @@ impl AuthManager {
         self.auth_cached()
     }
 
+    /// Refreshes auth, then captures credentials and their account-bound factory together.
+    /// The auth read lock prevents an identity change between the two snapshots.
+    pub async fn auth_with_http_client_factory(&self) -> Option<(CodexAuth, HttpClientFactory)> {
+        self.auth().await;
+        let cached = self.inner.read().ok()?;
+        Some((cached.auth.clone()?, self.http_client_factory()))
+    }
+
     pub async fn agent_identity_auth(
         &self,
         policy: AgentIdentityAuthPolicy,
@@ -2552,6 +2594,7 @@ impl AuthManager {
                             cached_auth
                         }
                         RefreshTokenError::Transient(_) => None,
+                        RefreshTokenError::Policy(_) => cached_auth,
                     }
                 }
             };
@@ -2591,6 +2634,12 @@ impl AuthManager {
                 !Self::auths_equal_for_refresh(previous, new_auth.as_ref());
             let owner_changed =
                 auth_changed_for_refresh && !same_owner(previous, new_auth.as_ref());
+            if owner_changed {
+                self.auth_route_config
+                    .http_client_factory()
+                    .network_policy()
+                    .invalidate();
+            }
             if auth_changed_for_refresh {
                 guard.permanent_refresh_failure = None;
             }

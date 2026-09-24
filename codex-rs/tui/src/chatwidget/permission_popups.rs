@@ -4,6 +4,7 @@
 //! Windows-specific sandbox prompting lives beside it in
 //! `windows_sandbox_prompts`.
 
+use super::permissions_menu::permission_preset_description;
 use super::*;
 use crate::style::accent_color;
 use codex_protocol::openai_models::MODEL_SPECIALTY_CYBER;
@@ -78,8 +79,7 @@ impl ChatWidget {
             } else {
                 preset.label.to_string()
             };
-            let base_description =
-                Some(preset.description.replace(" (Identical to Agent mode)", ""));
+            let base_description = Some(permission_preset_description(&preset).to_string());
             let approval_disabled_reason = match self
                 .config
                 .permissions
@@ -210,7 +210,7 @@ impl ChatWidget {
                     let rationale = event
                         .rationale
                         .as_deref()
-                        .unwrap_or("Auto-review did not include a rationale.");
+                        .unwrap_or("Auto-review did not include a rationale");
                     SelectionItem {
                         name: summary.clone(),
                         description: Some(rationale.to_string()),
@@ -447,7 +447,7 @@ impl ChatWidget {
             vec![
                 Line::default(),
                 Line::from(
-                    "When Suffice runs with full access, it can edit any file on your computer and run commands with network, without your approval.",
+                    "When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval.",
                 ),
                 Line::default(),
                 Line::from(vec![
@@ -458,7 +458,7 @@ impl ChatWidget {
             ]
         } else {
             vec![Line::from(vec![
-                "When Suffice runs with full access, it can edit any file on your computer and run commands with network, without your approval. "
+                "When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval. "
                     .into(),
                 "Exercise caution when enabling full access. This significantly increases the risk of data loss, leaks, or unexpected behavior."
                     .red(),

@@ -358,7 +358,7 @@ fn source_backed_cells_render_raw_source_without_prefix_or_style() {
 #[test]
 fn proposed_plan_cell_renders_markdown_table() {
     let plan = new_proposed_plan(
-        "## Plan\n\n| Step | Owner |\n| --- | --- |\n| Verify | Suffice |\n".to_string(),
+        "## Plan\n\n| Step | Owner |\n| --- | --- |\n| Verify | Codex |\n".to_string(),
         &test_cwd(),
     );
 
@@ -477,7 +477,7 @@ fn empty_mcp_output_preserves_docs_hyperlink() {
 #[test]
 fn proposed_plan_cell_unwraps_markdown_fenced_table() {
     let plan = new_proposed_plan(
-        "## Plan\n\n```markdown\n| Step | Owner |\n| --- | --- |\n| Verify | Suffice |\n```\n"
+        "## Plan\n\n```markdown\n| Step | Owner |\n| --- | --- |\n| Verify | Codex |\n```\n"
             .to_string(),
         &test_cwd(),
     );
@@ -781,6 +781,58 @@ async fn session_info_availability_nux_tooltip_snapshot() {
 }
 
 #[tokio::test]
+async fn session_info_preserves_styled_tooltip_links() {
+    let config = test_config().await;
+    let cell = new_session_info(
+        &config,
+        &crate::local_settings::LocalSettings::from(&config),
+        "gpt-5",
+        "gpt-5",
+        &session_configured_event("gpt-5"),
+        /*is_first_event*/ false,
+        Some(
+            "Use **/copy** or `ctrl+y`; visit the [Codex community forum](https://example.com)."
+                .to_string(),
+        ),
+        Some(PlanType::Free),
+        /*show_fast_status*/ false,
+    );
+
+    let lines = cell.transcript_hyperlink_lines(/*width*/ 30);
+    assert_eq!(lines, cell.display_hyperlink_lines(/*width*/ 30));
+    assert_eq!(
+        visible_lines(lines.clone()),
+        cell.transcript_lines(/*width*/ 30)
+    );
+    let tip_start = lines
+        .iter()
+        .position(|line| line.line.to_string().starts_with("  Tip:"))
+        .unwrap();
+    let tip_lines = &lines[tip_start..];
+    let command = tip_lines
+        .iter()
+        .flat_map(|line| &line.line.spans)
+        .find(|span| span.content == "/copy")
+        .unwrap();
+    assert!(command.style.add_modifier.contains(Modifier::BOLD));
+    let mut rendered = Vec::new();
+    for line in tip_lines {
+        let text = line.line.to_string();
+        rendered.push(text.clone());
+        for link in &line.hyperlinks {
+            // This ASCII fixture makes byte offsets equal to terminal columns.
+            rendered.push(format!(
+                "    link {:?}: {} -> {}",
+                link.columns,
+                &text[link.columns.clone()],
+                link.destination,
+            ));
+        }
+    }
+    insta::assert_snapshot!(rendered.join("\n"));
+}
+
+#[tokio::test]
 async fn session_info_first_event_suppresses_tooltips_and_nux() {
     let config = test_config().await;
     let cell = new_session_info(
@@ -939,7 +991,7 @@ fn error_event_bedrock_expired_signature_snapshot() {
         user_message: Some(
             "Amazon Bedrock rejected the request because its AWS signature has expired. \
 Refresh your AWS credentials and retry. If `AWS_BEARER_TOKEN_BEDROCK` is set, update or \
-unset it, then restart Suffice"
+unset it, then restart Codex"
                 .to_string(),
         ),
         url: Some("https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses".to_string()),
@@ -1068,6 +1120,7 @@ fn mcp_tools_output_from_statuses_renders_status_only_servers() {
         name: "plugin_docs".to_string(),
         runtime_status: None,
         plugin_id: None,
+        http_origin: None,
         server_info: None,
         tools: HashMap::from([(
             "lookup".to_string(),
@@ -1102,6 +1155,7 @@ fn mcp_tools_output_from_statuses_renders_verbose_inventory() {
         name: "plugin_docs".to_string(),
         runtime_status: None,
         plugin_id: None,
+        http_origin: None,
         server_info: None,
         tools: HashMap::from([(
             "lookup".to_string(),
@@ -1155,7 +1209,7 @@ fn prefixed_wrapped_history_cell_indents_wrapped_lines() {
     let summary = Line::from(vec![
         "You ".into(),
         "approved".bold(),
-        " Suffice to run ".into(),
+        " Codex to run ".into(),
         "echo something really long to ensure wrapping happens".dim(),
         " this time".bold(),
     ]);
@@ -1164,7 +1218,7 @@ fn prefixed_wrapped_history_cell_indents_wrapped_lines() {
     assert_eq!(
         rendered,
         vec![
-            "✔ You approved Suffice".to_string(),
+            "✔ You approved Codex".to_string(),
             "  to run echo something".to_string(),
             "  really long to ensure".to_string(),
             "  wrapping happens this".to_string(),

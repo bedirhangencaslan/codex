@@ -216,7 +216,9 @@ pub use permissions::resolve_permission_profile;
 pub(crate) use resolved_permission_profile::PermissionProfileState;
 pub use token_budget_startup::TokenBudgetStartupConfig;
 pub use windows_sandbox_config::PreparedWindowsSandboxConfig;
+use windows_sandbox_config::network_config_allows_mxc;
 pub use windows_sandbox_config::prepare_windows_sandbox_config;
+use windows_sandbox_config::resolve_windows_sandbox_type;
 
 const DEFAULT_IGNORE_LARGE_UNTRACKED_DIRS: i64 = 200;
 const DEFAULT_IGNORE_LARGE_UNTRACKED_FILES: i64 = 10 * 1024 * 1024;
@@ -348,7 +350,7 @@ pub struct Permissions {
     /// Effective Windows sandbox mode derived from `[windows].sandbox` or
     /// legacy feature keys.
     pub windows_sandbox_mode: Option<WindowsSandboxModeToml>,
-    /// Selected Windows sandbox implementation, separate from the legacy setup level.
+    /// Configured Windows backend; use `Config::effective_local_windows_sandbox_type()` for local selection.
     pub windows_sandbox_type: SandboxType,
 }
 
@@ -436,7 +438,7 @@ impl Permissions {
     }
 
     /// Workspace roots that came from user-visible configuration or runtime
-    /// selection. Internal Suffice-only writable roots are intentionally excluded.
+    /// selection. Internal Codex-only writable roots are intentionally excluded.
     pub fn user_visible_workspace_roots(&self) -> &[AbsolutePathBuf] {
         &self.workspace_roots
     }
@@ -569,7 +571,7 @@ impl Permissions {
 }
 
 // A profile override only inherits the selected profile's proxy/allowlist config
-// when Suffice is still responsible for the network policy. `Disabled` means no
+// when Codex is still responsible for the network policy. `Disabled` means no
 // outer sandbox, so starting the managed proxy would narrow the override.
 fn profile_allows_configured_network_proxy(permission_profile: &PermissionProfile) -> bool {
     match permission_profile {
@@ -606,6 +608,10 @@ pub enum ThreadStoreConfig {
 /// Application configuration loaded from disk and merged with overrides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
+    /// App-server-owned destination policy; other runtimes remain unmanaged.
+    pub application_network_policy: codex_http_client::NetworkPolicy,
+    /// Auth bootstrap routing installed by the app-server configuration owner.
+    pub application_auth_route_config: Option<AuthRouteConfig>,
     /// Provenance for how this [`Config`] was derived (merged layers + enforced
     /// requirements).
     pub config_layer_stack: ConfigLayerStack,
@@ -690,6 +696,10 @@ pub struct Config {
     /// guardian developer prompt.
     pub guardian_policy_config: Option<String>,
 
+    /// Additional Guardian policy from requirements.toml or config.toml.
+    /// Rendered into `{{ extra_policy }}` alongside the resolved tenant policy.
+    pub guardian_extra_policy: Option<String>,
+
     /// Guardian prompt template override from config.toml.
     /// The resolved policy config replaces its `{{ tenant_policy_config }}`
     /// placeholder when a review session is built.
@@ -710,8 +720,8 @@ pub struct Config {
     /// Optional token budget override for the available-skills catalog.
     pub skill_max_context_tokens: Option<NonZeroUsize>,
 
-    /// Whether orchestrator-owned skills are exposed to the model.
-    pub orchestrator_skills_enabled: bool,
+    /// Whether cloud skills are discovered and exposed to the model.
+    pub cloud_skill_enabled: bool,
 
     /// Whether orchestrator-owned MCP tools are exposed to the model.
     pub orchestrator_mcp_enabled: bool,
@@ -722,23 +732,23 @@ pub struct Config {
     /// Compact prompt override.
     pub compact_prompt: Option<String>,
 
-    /// Optional external notifier command. When set, Suffice will spawn this
+    /// Optional external notifier command. When set, Codex will spawn this
     /// program after each completed *turn* (i.e. when the agent finishes
     /// processing a user submission). The value must be the full command
-    /// broken into argv tokens **without** the trailing JSON argument - Suffice
+    /// broken into argv tokens **without** the trailing JSON argument - Codex
     /// appends one extra argument containing a JSON payload describing the
     /// event.
     ///
     /// Example `~/.suffice/config.toml` snippet:
     ///
     /// ```toml
-    /// notify = ["notify-send", "Suffice"]
+    /// notify = ["notify-send", "Codex"]
     /// ```
     ///
     /// which will be invoked as:
     ///
     /// ```shell
-    /// notify-send Suffice '{"type":"agent-turn-complete","turn-id":"12345"}'
+    /// notify-send Codex '{"type":"agent-turn-complete","turn-id":"12345"}'
     /// ```
     ///
     /// If unset the feature is disabled.
@@ -752,6 +762,9 @@ pub struct Config {
 
     /// Individual TUI effects, subordinate to the animation master switch.
     pub tui_effects: codex_config::types::TuiEffects,
+
+    /// Rich content rendering preferences, independent of animations.
+    pub tui_rendering: codex_config::types::TuiRendering,
 
     /// Show startup tooltips in the TUI welcome screen.
     pub show_tooltips: bool,
@@ -774,6 +787,9 @@ pub struct Config {
 
     /// Own the fullscreen transcript when the alternate screen is enabled.
     pub tui_fullscreen_transcript: bool,
+
+    /// Override the terminal-specific default for copying transcript mouse selections.
+    pub tui_copy_on_select: codex_config::types::CopyOnSelect,
 
     /// Start the TUI in the specified collaboration mode (plan/default).
 
@@ -842,12 +858,12 @@ pub struct Config {
     pub workspace_roots_explicit: bool,
 
     /// Preferred store for CLI auth credentials.
-    /// file (default): Use a file in the Suffice home directory.
+    /// file (default): Use a file in the Codex home directory.
     /// keyring: Use an OS-specific keyring service.
     /// auto: Use the OS-specific keyring service if available, otherwise use a file.
     pub cli_auth_credentials_store_mode: AuthCredentialsStoreMode,
 
-    /// Definition for MCP servers that Suffice can reach out to for tool calls.
+    /// Definition for MCP servers that Codex can reach out to for tool calls.
     pub mcp_servers: Constrained<HashMap<String, McpServerConfig>>,
 
     /// Trusted IdP shared by all permitted EMA MCP registrations.
@@ -858,16 +874,16 @@ pub struct Config {
 
     /// Preferred store for MCP OAuth credentials.
     /// keyring: Use an OS-specific keyring service.
-    ///          Credentials stored in the keyring will only be readable by Suffice unless the user explicitly grants access via OS-level keyring access.
+    ///          Credentials stored in the keyring will only be readable by Codex unless the user explicitly grants access via OS-level keyring access.
     ///          https://github.com/openai/codex/blob/main/codex-rs/rmcp-client/src/oauth.rs#L2
     /// file: SUFFICE_HOME/.credentials.json
-    ///       This file will be readable to Suffice and other applications running as the same user.
+    ///       This file will be readable to Codex and other applications running as the same user.
     /// auto (default): keyring if available, otherwise file.
     pub mcp_oauth_credentials_store_mode: OAuthCredentialsStoreMode,
 
     /// Optional fixed port to use for the local HTTP callback server used during MCP OAuth login.
     ///
-    /// When unset, Suffice will bind to an ephemeral port chosen by the OS.
+    /// When unset, Codex will bind to an ephemeral port chosen by the OS.
     pub mcp_oauth_callback_port: Option<u16>,
 
     /// Optional redirect URI to use during MCP OAuth login.
@@ -919,14 +935,14 @@ pub struct Config {
     /// Memories subsystem settings.
     pub memories: MemoriesConfig,
 
-    /// Directory containing all Suffice state (defaults to `~/.suffice` but can be
+    /// Directory containing all Codex state (defaults to `~/.codex` but can be
     /// overridden by the `SUFFICE_HOME` environment variable).
     pub codex_home: AbsolutePathBuf,
 
-    /// Resolved configuration shared by all Suffice SQLite databases.
+    /// Resolved configuration shared by all Codex SQLite databases.
     pub sqlite: codex_state::SqliteConfig,
 
-    /// Directory where Suffice writes log files (defaults to `$SUFFICE_HOME/log`).
+    /// Directory where Codex writes log files (defaults to `$SUFFICE_HOME/log`).
     pub log_dir: PathBuf,
 
     /// Settings that govern if and what will be written to `~/.suffice/history.jsonl`.
@@ -947,7 +963,7 @@ pub struct Config {
     /// output will be hyperlinked using the specified URI scheme.
     pub file_opener: UriBasedFileOpener,
 
-    /// Path to the current Suffice executable. This cannot be set in the config
+    /// Path to the current Codex executable. This cannot be set in the config
     /// file: it must be set in code via [`ConfigOverrides`].
     pub codex_self_exe: Option<PathBuf>,
 
@@ -992,7 +1008,7 @@ pub struct Config {
     /// Base URL for requests to ChatGPT (as opposed to the OpenAI API).
     pub chatgpt_base_url: String,
 
-    /// Whether Suffice-owned clients should respect host system proxy settings.
+    /// Whether Codex-owned clients should respect host system proxy settings.
     pub respect_system_proxy: bool,
 
     /// Optional product SKU forwarded to the host-owned apps MCP server.
@@ -1084,6 +1100,9 @@ pub struct Config {
     /// Centralized feature flags; source of truth for feature gating.
     pub features: ManagedFeatures,
 
+    /// Local rollout preference after checking network restrictions and native availability.
+    pub prefer_mxc: bool,
+
     /// When `true`, suppress warnings about unstable (under development) features.
     pub suppress_unstable_features_warning: bool,
 
@@ -1094,8 +1113,8 @@ pub struct Config {
     /// Collection of various notices we show the user
     pub notices: Notice,
 
-    /// When `true`, checks for Suffice updates on startup and surfaces update prompts.
-    /// Set to `false` only if your Suffice updates are centrally managed.
+    /// When `true`, checks for Codex updates on startup and surfaces update prompts.
+    /// Set to `false` only if your Codex updates are centrally managed.
     /// Defaults to `true`.
     pub check_for_update_on_startup: bool,
 
@@ -1104,11 +1123,11 @@ pub struct Config {
     /// or placeholder replacement will occur for fast keypress bursts.
     pub disable_paste_burst: bool,
 
-    /// When `false`, disables analytics across Suffice product surfaces in this machine.
+    /// When `false`, disables analytics across Codex product surfaces in this machine.
     /// Voluntarily left as Optional because the default value might depend on the client.
     pub analytics_enabled: Option<bool>,
 
-    /// When `false`, disables feedback collection across Suffice product surfaces.
+    /// When `false`, disables feedback collection across Codex product surfaces.
     /// Defaults to `true`.
     pub feedback_enabled: bool,
 
@@ -1308,6 +1327,7 @@ pub struct MultiAgentV2Config {
     pub hide_spawn_agent_metadata: bool,
     pub expose_spawn_agent_model_overrides: bool,
     pub wait_agent_enabled: bool,
+    pub disable_direct_message: bool,
     pub non_code_mode_only: bool,
 }
 
@@ -1327,6 +1347,7 @@ impl MultiAgentV2Config {
             hide_spawn_agent_metadata: true,
             expose_spawn_agent_model_overrides: true,
             wait_agent_enabled: true,
+            disable_direct_message: false,
             non_code_mode_only: true,
         }
     }
@@ -1535,7 +1556,7 @@ impl Config {
         &self.sqlite
     }
 
-    /// Whether Guardian may use the unmetered Suffice inference endpoints.
+    /// Whether Guardian may use the unmetered Codex inference endpoints.
     pub fn free_guardian_enabled(&self) -> bool {
         self.config_layer_stack
             .effective_config()
@@ -1677,7 +1698,14 @@ impl Config {
 
     /// Returns auth routing resolved from the effective feature configuration.
     pub fn auth_route_config(&self) -> AuthRouteConfig {
-        AuthRouteConfig::from_http_client_factory(self.http_client_factory())
+        self.application_auth_route_config
+            .clone()
+            .unwrap_or_else(|| {
+                AuthRouteConfig::from_http_client_factory(
+                    self.http_client_factory()
+                        .with_network_policy(self.application_network_policy.clone()),
+                )
+            })
     }
 
     /// Creates the HTTP client factory resolved from the effective feature configuration.
@@ -1687,7 +1715,8 @@ impl Config {
         } else {
             OutboundProxyPolicy::ReqwestDefault
         };
-        let mut factory = HttpClientFactory::new(outbound_proxy_policy);
+        let mut factory = HttpClientFactory::new(outbound_proxy_policy)
+            .with_network_policy(self.application_network_policy.clone());
         if !self.respect_system_proxy && self.features.enabled(Feature::SystemProxyFallback) {
             factory = factory.with_system_proxy_fallback();
         }
@@ -1707,6 +1736,7 @@ impl Config {
             self.features.enabled(Feature::RemotePlugin),
             self.chatgpt_base_url.clone(),
             self.http_client_factory(),
+            self.apps_mcp_product_sku.clone(),
         )
     }
 
@@ -1962,7 +1992,7 @@ impl Config {
         .await
     }
 
-    /// Load a default configuration for a specific Suffice home without reading
+    /// Load a default configuration for a specific Codex home without reading
     /// user, project, or system config layers.
     pub async fn load_default_with_cli_overrides_for_codex_home(
         codex_home: PathBuf,
@@ -1989,7 +2019,7 @@ impl Config {
     }
     /// This is a secondary way of creating [Config], which is appropriate when
     /// the harness is meant to be used with a specific configuration that
-    /// ignores user settings. For example, the `suffice exec` subcommand is
+    /// ignores user settings. For example, the `codex exec` subcommand is
     /// designed to use [AskForApproval::Never] exclusively.
     ///
     /// Further, [ConfigOverrides] contains some options that are not supported
@@ -2703,9 +2733,7 @@ fn resolve_update_plan_enabled(config_toml: &ConfigToml) -> bool {
         .is_some_and(|config| config.enabled)
 }
 
-fn resolve_orchestrator_feature_enabled(
-    feature: Option<&codex_config::config_toml::OrchestratorFeatureToml>,
-) -> bool {
+fn resolve_feature_enabled(feature: Option<&codex_config::config_toml::FeatureToggleToml>) -> bool {
     feature.and_then(|feature| feature.enabled).unwrap_or(true)
 }
 
@@ -2783,6 +2811,9 @@ fn resolve_multi_agent_v2_config(config_toml: &ConfigToml) -> MultiAgentV2Config
     let wait_agent_enabled = base
         .and_then(|config| config.wait_agent_enabled)
         .unwrap_or(default.wait_agent_enabled);
+    let disable_direct_message = base
+        .and_then(|config| config.disable_direct_message)
+        .unwrap_or(default.disable_direct_message);
     let subagent_developer_instructions = base
         .and_then(|config| config.subagent_developer_instructions.as_ref())
         .map(|instructions| instructions.trim().to_string());
@@ -2812,6 +2843,7 @@ fn resolve_multi_agent_v2_config(config_toml: &ConfigToml) -> MultiAgentV2Config
         hide_spawn_agent_metadata,
         expose_spawn_agent_model_overrides,
         wait_agent_enabled,
+        disable_direct_message,
         non_code_mode_only,
     }
 }
@@ -3239,10 +3271,14 @@ impl Config {
                 .as_ref(),
         )?;
         let orchestrator = cfg.orchestrator.as_ref();
-        let orchestrator_skills_enabled =
-            resolve_orchestrator_feature_enabled(orchestrator.and_then(|value| value.skills.as_ref()));
+        let cloud_skill_enabled = cfg
+            .cloud
+            .as_ref()
+            .and_then(|cloud| cloud.skills.as_ref())
+            .and_then(|skills| skills.enabled)
+            .unwrap_or(true);
         let orchestrator_mcp_enabled =
-            resolve_orchestrator_feature_enabled(orchestrator.and_then(|value| value.mcp.as_ref()));
+            resolve_feature_enabled(orchestrator.and_then(|value| value.mcp.as_ref()));
         let mut startup_warnings = config_layer_stack
             .startup_warnings()
             .unwrap_or_default()
@@ -3290,6 +3326,7 @@ impl Config {
             filesystem: filesystem_requirements,
             additional_developer_instructions: _,
             guardian_policy_config_source: _,
+            guardian_extra_policy_source: _,
         } = config_layer_stack.requirements().clone();
 
         // Destructure ConfigOverrides fully to ensure all overrides are applied.
@@ -3405,10 +3442,6 @@ impl Config {
             &mut constrained_windows_sandbox_mode,
             &mut startup_warnings,
         )?;
-        let legacy_windows_sandbox_level = windows_sandbox_level_for_legacy_checks(
-            windows_sandbox_type,
-            windows_sandbox_level,
-        );
         let resolved_cwd = AbsolutePathBuf::try_from(normalize_for_native_workdir({
             use std::env;
 
@@ -3486,6 +3519,22 @@ impl Config {
         let profiles_are_active = effective_permission_selection.profiles_are_active(
             default_permissions_override.as_deref(),
             permission_config_syntax,
+        );
+        let prefer_mxc = features.enabled(Feature::PreferMxc)
+            && network_config_allows_mxc(
+                &effective_permission_selection,
+                profiles_are_active,
+                permission_profile.as_ref(),
+                network_requirements.as_ref(),
+                cfg.features.as_ref(),
+                enable_network_proxy,
+            )?
+            && codex_sandboxing::windows_mxc_available();
+        let local_windows_sandbox_type =
+            resolve_windows_sandbox_type(windows_sandbox_type, prefer_mxc);
+        let legacy_windows_sandbox_level = windows_sandbox_level_for_legacy_checks(
+            local_windows_sandbox_type,
+            windows_sandbox_level,
         );
         let explicit_permission_profile_mode = effective_permission_selection
             .persisted_profile_id_was_provided
@@ -3983,6 +4032,17 @@ impl Config {
                             auto_review.policy.as_deref(),
                         ))
                 });
+        let guardian_extra_policy = normalize_guardian_policy_config(
+            config_layer_stack
+                .requirements_toml()
+                .guardian_extra_policy
+                .as_deref(),
+        )
+        .or_else(|| {
+            cfg.auto_review.as_ref().and_then(|auto_review| {
+                normalize_guardian_policy_config(auto_review.extra_policy.as_deref())
+            })
+        });
         let guardian_policy_template = cfg
             .auto_review
             .as_ref()
@@ -4073,7 +4133,7 @@ impl Config {
             if approval_policy_was_explicit {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode.",
+                    "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Codex would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode.",
                 ));
             }
             // Full access is the default here rather than something the user
@@ -4221,6 +4281,7 @@ impl Config {
         .map_err(std::io::Error::from)?;
         let otel = otel::resolve_config(cfg.otel.unwrap_or_default(), &mut startup_warnings);
         let config = Self {
+            prefer_mxc,
             model,
             service_tier,
             review_model,
@@ -4264,7 +4325,7 @@ impl Config {
             include_collaboration_mode_instructions,
             include_skill_instructions,
             skill_max_context_tokens,
-            orchestrator_skills_enabled,
+            cloud_skill_enabled,
             orchestrator_mcp_enabled,
             include_environment_context,
             // The config.toml omits "_mode" because it's a config file. However, "_mode"
@@ -4332,6 +4393,8 @@ impl Config {
             sqlite: codex_state::SqliteConfig::from_sqlite_home(sqlite_home),
             log_dir,
             config_layer_stack,
+            application_network_policy: Default::default(),
+            application_auth_route_config: None,
             history,
             ephemeral: ephemeral.unwrap_or_default(),
             extra_config: None,
@@ -4348,6 +4411,7 @@ impl Config {
                 .or(show_raw_agent_reasoning)
                 .unwrap_or(false),
             guardian_policy_config,
+            guardian_extra_policy,
             guardian_policy_template,
             model_reasoning_effort: cfg.model_reasoning_effort,
             plan_mode_reasoning_effort: cfg.plan_mode_reasoning_effort,
@@ -4429,6 +4493,7 @@ impl Config {
                 .unwrap_or_default(),
             animations: cfg.tui.as_ref().map(|t| t.animations).unwrap_or(true),
             tui_effects: cfg.tui.as_ref().map(|t| t.effects).unwrap_or_default(),
+            tui_rendering: cfg.tui.as_ref().map(|t| t.rendering).unwrap_or_default(),
             show_tooltips: cfg.tui.as_ref().map(|t| t.show_tooltips).unwrap_or(true),
             tui_show_server_version_notice: cfg
                 .tui
@@ -4455,7 +4520,12 @@ impl Config {
             tui_fullscreen_transcript: cfg
                 .tui
                 .as_ref()
-                .is_some_and(|tui| tui.fullscreen_transcript),
+                .is_none_or(|tui| tui.fullscreen_transcript),
+            tui_copy_on_select: cfg
+                .tui
+                .as_ref()
+                .map(|tui| tui.copy_on_select)
+                .unwrap_or_default(),
             tui_alternate_screen: cfg
                 .tui
                 .as_ref()
@@ -4853,9 +4923,9 @@ fn normalize_guardian_policy_config(value: Option<&str>) -> Option<String> {
     })
 }
 
-/// Returns the path to the Suffice configuration directory, which can be
+/// Returns the path to the Codex configuration directory, which can be
 /// specified by the `SUFFICE_HOME` environment variable. If not set, defaults to
-/// `~/.suffice`.
+/// `~/.codex`.
 ///
 /// - If `SUFFICE_HOME` is set, the value must exist and be a directory. The
 ///   value will be canonicalized and this function will Err otherwise.
@@ -4865,7 +4935,7 @@ pub fn find_codex_home() -> std::io::Result<AbsolutePathBuf> {
     codex_utils_home_dir::find_codex_home()
 }
 
-/// Returns the path to the folder where Suffice logs are stored. Does not verify
+/// Returns the path to the folder where Codex logs are stored. Does not verify
 /// that the directory exists.
 pub fn log_dir(cfg: &Config) -> std::io::Result<PathBuf> {
     Ok(cfg.log_dir.clone())

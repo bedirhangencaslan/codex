@@ -143,7 +143,7 @@ pub(crate) async fn supports_daemon_command(codex_bin: &Path, args: &[&str]) -> 
 pub(crate) async fn resolved_managed_codex_bin(codex_bin: &Path) -> Result<PathBuf> {
     fs::canonicalize(codex_bin).await.with_context(|| {
         format!(
-            "failed to resolve managed Suffice binary {}",
+            "failed to resolve managed Codex binary {}",
             codex_bin.display()
         )
     })
@@ -160,13 +160,13 @@ pub(crate) async fn managed_codex_version(codex_bin: &Path) -> Result<String> {
         .await
         .with_context(|| {
             format!(
-                "failed to invoke managed Suffice binary {}",
+                "failed to invoke managed Codex binary {}",
                 codex_bin.display()
             )
         })?;
     if !output.status.success() {
         return Err(anyhow!(
-            "managed Suffice binary {} exited with status {}",
+            "managed Codex binary {} exited with status {}",
             codex_bin.display(),
             output.status
         ));
@@ -174,7 +174,7 @@ pub(crate) async fn managed_codex_version(codex_bin: &Path) -> Result<String> {
 
     let stdout = String::from_utf8(output.stdout).with_context(|| {
         format!(
-            "managed Suffice version was not utf-8: {}",
+            "managed Codex version was not utf-8: {}",
             codex_bin.display()
         )
     })?;
@@ -187,16 +187,26 @@ pub(crate) struct ExecutableIdentity {
 }
 
 pub(crate) async fn executable_identity(executable: &Path) -> Result<ExecutableIdentity> {
-    let bytes = fs::read(executable)
-        .await
-        .with_context(|| format!("failed to read executable {}", executable.display()))?;
-    Ok(executable_identity_from_bytes(&bytes))
+    let executable = executable.to_path_buf();
+    // Debug executables can be hundreds of MB. Stream the digest off the async
+    // runtime instead of allocating the whole file and blocking a runtime thread.
+    tokio::task::spawn_blocking(move || {
+        std::fs::File::open(&executable)
+            .and_then(executable_identity_from_reader)
+            .with_context(|| format!("failed to read executable {}", executable.display()))
+    })
+    .await
+    .context("executable identity task failed")?
 }
 
-pub(crate) fn executable_identity_from_bytes(bytes: &[u8]) -> ExecutableIdentity {
-    ExecutableIdentity {
-        digest: *blake3::hash(bytes).as_bytes(),
-    }
+pub(crate) fn executable_identity_from_reader(
+    reader: impl std::io::Read,
+) -> std::io::Result<ExecutableIdentity> {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update_reader(reader)?;
+    Ok(ExecutableIdentity {
+        digest: *hasher.finalize().as_bytes(),
+    })
 }
 
 fn managed_codex_file_name() -> &'static str {
@@ -208,7 +218,7 @@ fn parse_codex_version(output: &str) -> Result<String> {
         .split_whitespace()
         .nth(1)
         .filter(|version| !version.is_empty())
-        .ok_or_else(|| anyhow!("managed Suffice version output was malformed"))?;
+        .ok_or_else(|| anyhow!("managed Codex version output was malformed"))?;
     Ok(version.to_string())
 }
 

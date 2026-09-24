@@ -74,15 +74,7 @@ impl AgentsOverviewView {
         let viewport = row(area, padding, area.height - padding * 2);
         if padding > 0 {
             let (title, status, updated) = columns(row(area, /*offset*/ 0, /*height*/ 1));
-            line(
-                if !state.editing_metadata() {
-                    "Tasks".cyan().bold()
-                } else {
-                    "Tasks".dim()
-                },
-                title,
-                buf,
-            );
+            line("Tasks".dim(), title, buf);
             line("Status".dim(), status, buf);
             Line::from("Updated".dim())
                 .right_aligned()
@@ -161,7 +153,10 @@ impl AgentsOverviewView {
                 },
                 style,
             );
-            let (status, dot) = Self::status(task);
+            let (status, mut dot) = Self::status(task);
+            if index == self.selected {
+                dot.style = style;
+            }
             line(
                 Line::from(if index == self.selected { "›" } else { " " }).style(style),
                 rect,
@@ -187,6 +182,16 @@ impl AgentsOverviewView {
                 );
                 title.width -= 10;
                 line(Line::from("  current").style(style), badge, buf);
+            }
+            if task.has_voice && title.width >= 8 {
+                let badge = Rect::new(
+                    title.right() - 8,
+                    title.y,
+                    /*width*/ 8,
+                    /*height*/ 1,
+                );
+                title.width -= 8;
+                line(Line::from("  voice").style(style), badge, buf);
             }
             let title_style = if index == self.selected {
                 style

@@ -437,7 +437,7 @@ impl BedrockState {
             }
             BedrockView::EnvironmentInstructions => {
                 lines.push(
-                    "  Configure AWS credentials in your environment, then restart Suffice.".into(),
+                    "  Configure AWS credentials in your environment, then restart Codex.".into(),
                 );
                 lines.push("".into());
                 lines.push(Line::from(vec![
@@ -566,7 +566,7 @@ impl BedrockState {
                 ),
                 BedrockMethod::EnvironmentInstructions => (
                     "Environment variables".to_string(),
-                    "Configure AWS credentials in your environment, then return here.".to_string(),
+                    "Configure AWS credentials in your environment, then return here".to_string(),
                 ),
                 BedrockMethod::ApiKey => (
                     "Bedrock API key".to_string(),

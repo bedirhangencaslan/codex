@@ -1,15 +1,15 @@
-//! Registry of model providers supported by Suffice.
+//! Registry of model providers supported by Codex.
 //!
 //! Providers can be defined in two places:
-//!   1. Built-in defaults compiled into the binary so Suffice works out-of-the-box.
+//!   1. Built-in defaults compiled into the binary so Codex works out-of-the-box.
 //!   2. User-defined entries inside `~/.suffice/config.toml` under the `model_providers`
 //!      key. These override or extend the defaults at runtime.
 //!
 //! API provider construction applies the process-wide managed residency policy also
 //! used by default HTTP headers.
 
-use codex_api::Provider as ApiProvider;
-use codex_api::RetryConfig as ApiRetryConfig;
+use codex_client::Provider as ApiProvider;
+use codex_client::RetryConfig as ApiRetryConfig;
 use codex_protocol::auth::AuthMode;
 use codex_protocol::config_types::ModelProviderAuthInfo;
 use codex_protocol::error::CodexErr;
@@ -86,6 +86,8 @@ pub const AMAZON_BEDROCK_RUNTIME_PROVIDER_ID: &str = "amazon-bedrock-runtime";
 pub const AMAZON_BEDROCK_GPT_5_5_MODEL_ID: &str = "openai.gpt-5.5";
 pub const AMAZON_BEDROCK_GPT_5_4_MODEL_ID: &str = "openai.gpt-5.4";
 pub const AMAZON_BEDROCK_GPT_5_6_SOL_MODEL_ID: &str = "openai.gpt-5.6-sol";
+pub const AMAZON_BEDROCK_GPT_6_SOL_MODEL_ID: &str = "openai.gpt-6-sol";
+pub const AMAZON_BEDROCK_GPT_6_LUNA_MODEL_ID: &str = "openai.gpt-6-luna";
 pub const AMAZON_BEDROCK_GPT_6_ASTRA_MODEL_ID: &str = "openai.gpt-6-astra";
 pub const AMAZON_BEDROCK_GPT_5_6_TERRA_MODEL_ID: &str = "openai.gpt-5.6-terra";
 pub const AMAZON_BEDROCK_GPT_5_6_LUNA_MODEL_ID: &str = "openai.gpt-5.6-luna";
@@ -698,7 +700,7 @@ pub fn built_in_model_providers(
         P::create_amazon_bedrock_runtime_provider(/*aws*/ None);
 
     // We do not want to be in the business of adjucating which third-party
-    // providers are bundled with Suffice CLI, so we only include the OpenAI and
+    // providers are bundled with Codex CLI, so we only include the OpenAI and
     // open source ("oss") providers by default. Users are encouraged to add to
     // `model_providers` in config.toml to add their own providers.
     [

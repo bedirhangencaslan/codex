@@ -43,7 +43,7 @@ pub enum RemoteCompactionSupport {
     V2,
 }
 
-/// Optional provider-backed features that Suffice may expose at runtime.
+/// Optional provider-backed features that Codex may expose at runtime.
 ///
 /// These capabilities are a provider-owned upper bound. Callers can disable
 /// more functionality through normal config, but should not expose a feature
@@ -177,7 +177,7 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     ///
     /// TODO(celia-oai): Make auth manager access internal to this crate so callers
     /// resolve provider-specific auth only through `ModelProvider`. We first need
-    /// to think through whether Suffice should have a unified provider-specific auth
+    /// to think through whether Codex should have a unified provider-specific auth
     /// manager throughout the codebase; that is a larger refactor than this change.
     fn auth_manager(&self) -> Option<Arc<AuthManager>>;
 
@@ -289,7 +289,7 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
         })
     }
 
-    /// Returns request credentials, optionally scoped to a Suffice session task.
+    /// Returns request credentials, optionally scoped to a Codex session task.
     fn api_auth_for_scope(
         &self,
         scope: ProviderAuthScope,
@@ -975,6 +975,7 @@ mod tests {
                 (http::StatusCode::FORBIDDEN, "AccessDeniedException", false),
             ] {
                 let error = TransportError::Http {
+                    retry_after: None,
                     status,
                     url: None,
                     headers: None,
@@ -1263,7 +1264,12 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
             )
             .await;
         assert_eq!(uncached_catalog, catalog);
-        for slug in ["openai.gpt-5.6-sol", "openai.gpt-6-astra"] {
+        for slug in [
+            "openai.gpt-6-sol",
+            "openai.gpt-6-luna",
+            "openai.gpt-5.6-sol",
+            "openai.gpt-6-astra",
+        ] {
             let model_info = manager
                 .get_model_info(
                     slug,
@@ -1289,8 +1295,10 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
         assert_eq!(
             models,
             vec![
-                ("openai.gpt-5.6-sol", "GPT-5.6 Sol"),
+                ("openai.gpt-6-sol", "GPT-6 Sol"),
                 ("openai.gpt-6-astra", "GPT-6-Astra"),
+                ("openai.gpt-6-luna", "GPT-6 Luna"),
+                ("openai.gpt-5.6-sol", "GPT-5.6 Sol"),
                 ("openai.gpt-5.6-terra", "GPT-5.6 Terra"),
                 ("openai.gpt-5.6-luna", "GPT-5.6 Luna"),
                 ("openai.gpt-5.5", "GPT-5.5"),
@@ -1310,8 +1318,10 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
                 .map(|preset| preset.model.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "openai.gpt-5.6-sol",
+                "openai.gpt-6-sol",
                 "openai.gpt-6-astra",
+                "openai.gpt-6-luna",
+                "openai.gpt-5.6-sol",
                 "openai.gpt-5.6-terra",
                 "openai.gpt-5.6-luna",
                 "openai.gpt-5.5",
@@ -1324,7 +1334,7 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
             .find(|preset| preset.is_default)
             .expect("Bedrock catalog should have a default model");
 
-        assert_eq!(default_model.model, "openai.gpt-5.6-sol");
+        assert_eq!(default_model.model, "openai.gpt-6-sol");
     }
 
     #[tokio::test]
@@ -1338,10 +1348,11 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
         assert!(!configured_model.additional_speed_tiers.is_empty());
         assert!(!configured_model.service_tiers.is_empty());
 
-        let provider = create_model_provider(
-            ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None),
-            /*auth_manager*/ None,
-        );
+        let mut provider_info =
+            ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None);
+        provider_info.base_url =
+            Some("https://bedrock-mantle.us-gov-west-1.api.aws/openai/v1".to_string());
+        let provider = create_model_provider(provider_info, /*auth_manager*/ None);
         let manager = provider.models_manager(
             test_codex_home(),
             Some(ModelsResponse {

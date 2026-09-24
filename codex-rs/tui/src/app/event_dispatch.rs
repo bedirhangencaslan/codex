@@ -25,12 +25,16 @@ use codex_app_server_protocol::WindowsSandboxSetupMode;
 pub(super) const SHUTDOWN_FIRST_EXIT_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 2);
 
 impl App {
-    pub(super) async fn handle_event(
+    pub(crate) async fn handle_event(
         &mut self,
         tui: &mut tui::Tui,
         app_server: &mut AppServerSession,
         event: AppEvent,
     ) -> Result<AppRunControl> {
+        // Release the shortcut's input guard even when a fork is rejected below.
+        if matches!(event, AppEvent::ForkCurrentSession { .. }) {
+            self.chat_widget.fork_in_progress = false;
+        }
         if self.reconnect.offline
             && !matches!(
                 &event,
@@ -98,6 +102,21 @@ impl App {
             return Ok(AppRunControl::Continue);
         }
 
+        // Keep the picker check and model update in one event without recursively polling this
+        // large dispatcher on the TUI thread's stack.
+        let (event, sparkle_model) = match event {
+            AppEvent::AstraSelectedFromModelPicker {
+                thread_id,
+                model,
+                action,
+            } => {
+                let should_offer = self.chat_widget.current_model() != model
+                    && self.chat_widget.sparkle_thread_for_picker_action(&model) == Some(thread_id);
+                let next_event = action.into_app_event(model.clone());
+                (next_event, should_offer.then_some(model))
+            }
+            event => (event, None),
+        };
         match event {
             AppEvent::OpenDaemonMenu => self.open_daemon_menu(),
             AppEvent::ConfirmDaemonUpdate(source) => self.confirm_daemon_update(source),
@@ -248,10 +267,13 @@ impl App {
                     .await?;
             }
             AppEvent::DynamicToolThreadStarted {
-                thread_id,
+                thread,
                 task_tools_available,
                 registered,
             } => {
+                let Ok(thread_id) = ThreadId::from_string(&thread.id) else {
+                    return Ok(AppRunControl::Continue);
+                };
                 self.agents_overview
                     .dispatched_requests
                     .entry(thread_id)
@@ -259,6 +281,15 @@ impl App {
                 if task_tools_available {
                     app_server.remember_task_tool_thread(thread_id);
                 }
+                // Fallback metadata must not replay after fresh reads or newer notifications.
+                if !thread.ephemeral
+                    && !self.agents_overview.removed_threads.contains(&thread_id)
+                    && !self.agents_overview.threads.get(&thread_id).is_some_and(Option::is_some) {
+                    self.agents_overview.threads.insert(thread_id, Some(thread));
+                    self.agents_overview.refresh_thread_ids.insert(thread_id);
+                }
+                self.refresh_changed_agents_overview_threads(app_server);
+                self.repaint_agents_overview();
                 let _ = registered.send(());
             }
             AppEvent::DynamicToolCallCompleted {
@@ -376,10 +407,17 @@ impl App {
                 self.pending_open_resume_picker = true;
             }
             AppEvent::OpenExternalAgentConfigMigration => {
+                let cwd = if self.chat_widget.thread_id().is_some()
+                    || !app_server.uses_remote_workspace()
+                {
+                    Some(self.chat_widget.config_ref().cwd.to_path_buf())
+                } else {
+                    app_server.remote_cwd_override().map(Path::to_path_buf)
+                };
                 match crate::external_agent_config_migration::flow::handle_external_agent_config_migration_prompt(
                     tui,
                     app_server,
-                    &self.config,
+                    cwd.as_deref(),
                 )
                 .await
                 {
@@ -438,16 +476,16 @@ impl App {
                 return self.delete_current_thread(tui, app_server).await;
             }
             AppEvent::ForkCurrentSession { name } => {
+                let from_locked_thread = self.chat_widget.is_external_writer_view();
+                let source = if from_locked_thread {
+                    "locked_thread_shortcut"
+                } else {
+                    "slash_command"
+                };
                 self.session_telemetry.counter(
                     "codex.thread.fork",
                     /*inc*/ 1,
-                    &[("source", "slash_command")],
-                );
-                let summary = session_summary(
-                    self.chat_widget.token_usage(),
-                    self.chat_widget.thread_id(),
-                    self.chat_widget.thread_name(),
-                    self.chat_widget.rollout_path().as_deref(),
+                    &[("source", source)],
                 );
                 self.chat_widget
                     .add_plain_history_lines(vec!["/fork".magenta().into()]);
@@ -458,6 +496,12 @@ impl App {
                         );
                         return Ok(AppRunControl::Continue);
                     }
+                    self.chat_widget.fork_in_progress = true;
+                    // This handler awaits the fork outside the draw loop. Paint before waiting.
+                    let screen_size = tui.terminal.last_known_screen_size;
+                    self.handle_draw_pre_render(tui, screen_size)?;
+                    self.chat_widget.pre_draw_tick();
+                    self.render_chat_widget_frame(tui, screen_size)?;
                     self.refresh_in_memory_config_from_disk_best_effort("forking the thread")
                         .await;
                     let mut fork_config = self.config.clone();
@@ -480,6 +524,9 @@ impl App {
                         selected_profile.as_ref(),
                     ).await {
                         Ok(mut forked) => {
+                            let retained_input = from_locked_thread
+                                .then(|| self.chat_widget.capture_thread_input_state())
+                                .flatten();
                             let name_error = if let Some(name) = name {
                                 match app_server
                                     .thread_set_name(forked.session.thread_id, name.clone())
@@ -496,7 +543,7 @@ impl App {
                             } else {
                                 None
                             };
-                            self.shutdown_current_thread(app_server).await;
+                            self.detach_current_thread_for_navigation(app_server, Some(forked.session.thread_id)).await;
                             match self
                                 .replace_chat_widget_with_app_server_thread(
                                     tui,
@@ -507,23 +554,15 @@ impl App {
                                 .await
                             {
                                 Ok(()) => {
+                                    // Keep local input without replacing the fork's running state.
+                                    self.chat_widget.restore_reconnected_input(retained_input);
                                     if let Some(err) = name_error {
                                         self.chat_widget.add_error_message(err);
                                     }
-                                    if let Some(summary) = summary {
-                                        let mut lines: Vec<Line<'static>> = Vec::new();
-                                        if let Some(usage_line) = summary.usage_line {
-                                            lines.push(usage_line.into());
-                                        }
-                                        if let Some(command) = summary.resume_hint {
-                                            let spans = vec![
-                                                "To continue this session, run ".into(),
-                                                command.cyan(),
-                                            ];
-                                            lines.push(spans.into());
-                                        }
-                                        self.chat_widget.add_plain_history_lines(lines);
-                                    }
+                                    self.chat_widget.add_info_message(
+                                        "Fork created. You can continue here.".to_string(),
+                                        /*hint*/ None,
+                                    );
                                 }
                                 Err(err) => {
                                     self.chat_widget.add_error_message(format!(
@@ -538,6 +577,13 @@ impl App {
                             ));
                         }
                     }
+                    if from_locked_thread {
+                        // Repeated locked-view shortcuts must not act on the resulting view.
+                        if let Err(err) = tui.discard_pending_input_before_interactive_screen() {
+                            tracing::warn!(%err, "failed to discard input after forking");
+                        }
+                        tui.schedule_screen_size_recheck(Duration::ZERO);
+                    }
                 } else {
                     self.chat_widget.add_error_message(
                         "A thread must contain at least one turn before it can be forked."
@@ -545,6 +591,7 @@ impl App {
                     );
                 }
 
+                self.chat_widget.fork_in_progress = false;
                 self.chat_widget.maybe_send_next_queued_input();
                 tui.frame_requester().schedule_frame();
             }
@@ -798,12 +845,16 @@ impl App {
 
                 if start < end {
                     self.native_history.consolidate(&self.transcript_cells[start..end], &consolidated);
-                    self.transcript_view.replace_range(&self.transcript_cells, start..end, &consolidated);
+                    if tui.is_owned_screen() {
+                        self.transcript_view.replace_group(&self.transcript_cells, start..end, &consolidated);
+                    } else {
+                        self.transcript_view.replace_range(&self.transcript_cells, start..end, &consolidated);
+                    }
                     self.transcript_cells
                         .splice(start..end, std::iter::once(consolidated.clone()));
 
                     if let Some(Overlay::Transcript(t)) = &mut self.overlay {
-                        t.consolidate_cells(start..end, consolidated.clone());
+                        t.regroup_cells(start..end, consolidated.clone());
                         tui.frame_requester().schedule_frame();
                     }
 
@@ -970,21 +1021,48 @@ impl App {
                     self.chat_widget.pre_draw_tick();
                     self.render_chat_widget_frame(tui, screen_size)?;
                 }
+                let parked_voice = match &op {
+                    AppCommand::RealtimeConversationStart { thread_id, .. }
+                    | AppCommand::RealtimeConversationStop { thread_id }
+                    | AppCommand::RealtimeConversationSpeech { thread_id, .. } => self
+                        .background_voice
+                        .as_ref()
+                        .is_some_and(|owner| owner.thread_id() == Some(*thread_id)),
+                    _ => false,
+                };
+                let visible_thread = self.active_thread_id;
+                if parked_voice
+                    && let Some(owner) = self.background_voice.as_mut()
+                {
+                    std::mem::swap(&mut self.chat_widget, owner);
+                    self.active_thread_id = self.chat_widget.thread_id();
+                }
                 self.chat_widget.prepare_local_op_submission(&op);
-                if let Err(err) = self.submit_active_thread_op(app_server, op).await {
-                    if let Some(delivery_id) = realtime_speech_delivery_id {
-                        self.chat_widget
-                            .restore_undelivered_realtime_speech(delivery_id);
-                    }
-                    if self.recover_transport_error(&err)
-                    {
+                let result = self.submit_active_thread_op(app_server, op).await;
+                if result.is_err()
+                    && let Some(delivery_id) = realtime_speech_delivery_id
+                {
+                    self.chat_widget.restore_undelivered_realtime_speech(delivery_id);
+                }
+                if parked_voice
+                    && let Some(owner) = self.background_voice.as_mut()
+                {
+                    std::mem::swap(&mut self.chat_widget, owner);
+                    self.active_thread_id = visible_thread;
+                }
+                if let Err(err) = result {
+                    if self.recover_transport_error(&err) {
                         return Ok(AppRunControl::Continue);
                     }
+                    let chat_widget = match self.background_voice.as_deref_mut() {
+                        Some(owner) if parked_voice => owner,
+                        _ => &mut self.chat_widget,
+                    };
                     let unsupported_permissions = err
                         .downcast_ref::<UnsupportedLegacyPermissionProfile>()
                         .is_some();
                     if unsupported_permissions {
-                        self.chat_widget
+                        chat_widget
                             .set_queue_autosend_suppressed(/*suppressed*/ true);
                     }
                     let handled = is_user_turn
@@ -993,19 +1071,18 @@ impl App {
                             Some(TypedRequestError::Server { method, .. })
                                 if method == "turn/start"
                         ) || unsupported_permissions)
-                        && self
-                            .chat_widget
+                        && chat_widget
                             .handle_turn_start_rejection(format!("Failed to start turn: {err:#}"));
                     if is_realtime_conversation {
                         let message = format!("Voice conversation failed: {err:#}");
                         if is_realtime_stop {
-                            if self.chat_widget.thread_id() == realtime_stop_thread_id {
-                                self.chat_widget.record_realtime_failure();
-                                self.chat_widget.reset_realtime_conversation();
-                                self.chat_widget.add_error_message(message);
+                            if chat_widget.thread_id() == realtime_stop_thread_id {
+                                chat_widget.record_realtime_failure();
+                                chat_widget.reset_realtime_conversation();
+                                chat_widget.add_realtime_error(message);
                             }
                         } else {
-                            self.chat_widget.on_realtime_error(message);
+                            chat_widget.on_realtime_error(message);
                         }
                         tracing::error!(error = ?err, "realtime conversation request failed");
                     } else if handled {
@@ -1566,6 +1643,7 @@ impl App {
                     let rate_limit_reset_credits = response.rate_limit_reset_credits.clone();
                     let snapshots = if accepted
                     {
+                        self.chat_widget.apply_usage_notice_read(request_id);
                         self.chat_widget.update_backend_banner(&response);
                         self.apply_backend_banner_fallback(app_server).await;
                         app_server_rate_limit_snapshots(response)
@@ -1841,30 +1919,29 @@ impl App {
                         .await;
                 }
             }
-            AppEvent::AstraSelectedFromModelPicker { thread_id, model, action } => {
-                // Check and apply in the same event so a queued backend update cannot turn a
-                // no-op picker confirmation into a sparkle.
-                let should_offer = self.chat_widget.current_model() != model
-                    && self.chat_widget.sparkle_thread_for_picker_action(&model) == Some(thread_id);
-                let control = Box::pin(self.handle_event(
-                    tui,
-                    app_server,
-                    action.into_app_event(model.clone()),
-                ))
-                .await?;
-                if should_offer {
-                    self.chat_widget.on_sparkle_model_selected_from_picker(&model);
+            AppEvent::AstraSelectedFromModelPicker { .. } => unreachable!("picker event unwrapped"),
+            AppEvent::BackgroundVoiceError { thread_id, message } => {
+                if self.chat_widget.thread_id() == Some(thread_id) {
+                    self.chat_widget.add_error_message(message);
+                } else {
+                    self.background_voice_error = Some((thread_id, message));
                 }
-                return Ok(control);
+            }
+            AppEvent::RealtimeConversationStateChanged => {
+                self.repaint_agents_overview();
+            }
+            AppEvent::VoiceControl { thread_id, control } => {
+                if thread_id == self.chat_widget.thread_id() || self.voice_owner_thread_id().is_some() {
+                    self.control_voice(control);
+                }
             }
             AppEvent::RealtimeWebrtcOfferCreated {
                 thread_id,
                 attempt_id,
                 result,
             } => {
-                if self.chat_widget.thread_id() == Some(thread_id) {
-                    self.chat_widget
-                        .on_realtime_webrtc_offer_created(thread_id, attempt_id, result);
+                if let Some(owner) = self.voice_widget_for_thread(thread_id) {
+                    owner.on_realtime_webrtc_offer_created(thread_id, attempt_id, result);
                 } else if let Ok(offer) = result {
                     offer.handle.close();
                 }
@@ -1874,9 +1951,8 @@ impl App {
                 attempt_id,
                 result,
             } => {
-                if self.chat_widget.thread_id() == Some(thread_id) {
-                    self.chat_widget
-                        .on_realtime_webrtc_connected(attempt_id, result);
+                if let Some(owner) = self.voice_widget_for_thread(thread_id) {
+                    owner.on_realtime_webrtc_connected(attempt_id, result);
                 }
             }
             AppEvent::StopRealtimeConversation { thread_id } => {
@@ -1958,6 +2034,7 @@ impl App {
                 self.chat_widget.open_advanced_reasoning_popup(model);
             }
             AppEvent::ApplyAdvancedReasoning { model, effort } => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 if self
                     .active_thread_model_setting_update_params(model.clone())
                     .is_some_and(|params| params.permissions.is_some())
@@ -2181,7 +2258,7 @@ impl App {
                                     Line::from(vec!["• ".dim(), "Sandbox ready".into()]),
                                     Line::from(vec![
                                         "  ".into(),
-                                        "Suffice can now safely edit files and execute commands in your computer"
+                                        "Codex can now safely edit files and execute commands in your computer"
                                             .dark_gray(),
                                     ]),
                                 ]);
@@ -2195,6 +2272,7 @@ impl App {
                 }
             }
             AppEvent::PersistModelSelection { model, effort } => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 match self.persist_model_defaults(
                     app_server.request_handle(),
                     crate::config_update::build_model_selection_edits(
@@ -2230,6 +2308,7 @@ impl App {
                 }
             }
             AppEvent::SelectSessionModel { model, effort } => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.select_session_model(app_server, model, effort).await;
             }
             AppEvent::CyberModelAutoReviewNotice => {
@@ -2445,6 +2524,7 @@ impl App {
                 }
             }
             AppEvent::PersistPlanModeReasoningEffort(effort) => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 let key_path = "plan_mode_reasoning_effort";
                 let edit = if let Some(effort) = effort {
                     crate::config_update::replace_config_value(
@@ -2635,7 +2715,7 @@ impl App {
             #[cfg(any(unix, windows))]
             AppEvent::AgentsDaemonStarted { result } => match result {
                 Ok(()) => self.chat_widget.add_info_message(
-                    "Background server started. Run `suffice agents` in another terminal; this session remains unchanged."
+                    "Background server started. Run `codex agents` in another terminal; this session remains unchanged."
                         .to_string(),
                     /*hint*/ None,
                 ),
@@ -2875,6 +2955,9 @@ impl App {
                     ));
                 }
             },
+            AppEvent::FullscreenTranscriptSelected { enabled } => {
+                self.save_fullscreen_transcript(enabled).await;
+            }
             AppEvent::StatusLineSetup {
                 items,
                 use_theme_colors,
@@ -2896,6 +2979,7 @@ impl App {
                     Err(err) => {
                         let error = format_config_error(&err);
                         tracing::error!(error = %error, "failed to persist status line settings; keeping previous selection");
+                        self.app_event_tx.send(AppEvent::FollowTranscript);
                         self.chat_widget.add_error_message(format!(
                             "Failed to save status line settings: {error}"
                         ));
@@ -2935,6 +3019,7 @@ impl App {
                     }
                     Err(err) => {
                         tracing::error!(error = %err, "failed to persist terminal title items; keeping previous selection");
+                        self.app_event_tx.send(AppEvent::FollowTranscript);
                         self.chat_widget.revert_terminal_title_setup_preview();
                         self.chat_widget.add_error_message(format!(
                             "Failed to save terminal title items: {err}"
@@ -2974,6 +3059,7 @@ impl App {
                         self.restore_runtime_theme_from_config();
                         self.refresh_status_line();
                         tracing::error!(error = %err, "failed to persist theme selection");
+                        self.app_event_tx.send(AppEvent::FollowTranscript);
                         self.chat_widget
                             .add_error_message(format!("Failed to save theme: {err}"));
                     }
@@ -3090,6 +3176,10 @@ impl App {
                 }
             }
         }
+        if let Some(model) = sparkle_model {
+            self.chat_widget
+                .on_sparkle_model_selected_from_picker(&model);
+        }
         Ok(AppRunControl::Continue)
     }
 
@@ -3110,6 +3200,7 @@ impl App {
         ) {
             Ok(outcome) => outcome,
             Err(err) => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget.add_error_message(err);
                 return;
             }
@@ -3121,6 +3212,7 @@ impl App {
                 message,
             } => (*keymap_config, bindings, message),
             crate::keymap_setup::KeymapEditOutcome::Unchanged { message } => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget.add_info_message(message, /*hint*/ None);
                 return;
             }
@@ -3158,10 +3250,12 @@ impl App {
                 self.sync_side_thread_ui();
                 self.chat_widget
                     .return_to_keymap_picker(&context, &action, &runtime_keymap);
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget.add_info_message(message, /*hint*/ None);
             }
             Err(err) => {
                 tracing::error!(error = %err, "failed to persist keymap binding");
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget
                     .add_error_message(format!("Failed to save shortcut: {err}"));
             }
@@ -3183,6 +3277,7 @@ impl App {
         ) {
             Ok(keymap_config) => keymap_config,
             Err(err) => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget.add_error_message(err);
                 return;
             }
@@ -3191,6 +3286,7 @@ impl App {
         let runtime_keymap = match RuntimeKeymap::from_config(&keymap_config) {
             Ok(runtime_keymap) => runtime_keymap,
             Err(err) => {
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget
                     .add_error_message(format!("Failed to refresh shortcuts: {err}"));
                 return;
@@ -3212,6 +3308,7 @@ impl App {
                 self.sync_side_thread_ui();
                 self.chat_widget
                     .return_to_keymap_picker(&context, &action, &runtime_keymap);
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget.add_info_message(
                     format!("Removed custom shortcut for `{context}.{action}`."),
                     /*hint*/ None,
@@ -3219,6 +3316,7 @@ impl App {
             }
             Err(err) => {
                 tracing::error!(error = %err, "failed to clear keymap binding");
+                self.app_event_tx.send(AppEvent::FollowTranscript);
                 self.chat_widget
                     .add_error_message(format!("Failed to remove shortcut: {err}"));
             }
@@ -3255,7 +3353,9 @@ impl App {
                 // its shutdown completion does not trigger agent failover.
                 self.pending_shutdown_exit_thread_id =
                     self.active_thread_id.or(self.chat_widget.thread_id());
-                if self.pending_shutdown_exit_thread_id.is_some() {
+                if self.pending_shutdown_exit_thread_id.is_some()
+                    || self.voice_owner_thread_id().is_some()
+                {
                     // This is a UI escape-hatch budget, not a protocol
                     // deadline. A healthy local thread/unsubscribe round trip
                     // should finish comfortably inside two seconds, while a
@@ -3311,7 +3411,13 @@ impl App {
             }
         }
 
-        Ok(match app_server.thread_archive(thread_id).await {
+        let result = async {
+            self.stop_voice_for_removed_thread(app_server, thread_id)
+                .await?;
+            app_server.thread_archive(thread_id).await
+        }
+        .await;
+        Ok(match result {
             Ok(()) if matches!(self.app_server_target, AppServerTarget::Embedded) => {
                 AppRunControl::Exit(ExitReason::Archived(thread_id))
             }
@@ -3328,7 +3434,9 @@ impl App {
                 self.pending_thread_switch_resets += 1;
                 self.app_event_tx
                     .send(AppEvent::ResetTranscriptForThreadSwitch);
-                self.reset_thread_event_state();
+                self.detach_current_thread_for_navigation(app_server, /*destination*/ None)
+                    .await;
+                self.reset_thread_event_state().await;
                 let init = self.chatwidget_init_for_forked_or_resumed_thread(
                     tui,
                     self.config.clone(),
@@ -3371,7 +3479,13 @@ impl App {
             }
         }
 
-        Ok(match app_server.thread_delete(thread_id).await {
+        let result = async {
+            self.stop_voice_for_removed_thread(app_server, thread_id)
+                .await?;
+            app_server.thread_delete(thread_id).await
+        }
+        .await;
+        Ok(match result {
             Ok(()) if matches!(self.app_server_target, AppServerTarget::Embedded) => {
                 AppRunControl::Exit(ExitReason::ThreadRemoved)
             }
@@ -3388,7 +3502,9 @@ impl App {
                 self.pending_thread_switch_resets += 1;
                 self.app_event_tx
                     .send(AppEvent::ResetTranscriptForThreadSwitch);
-                self.reset_thread_event_state();
+                self.detach_current_thread_for_navigation(app_server, /*destination*/ None)
+                    .await;
+                self.reset_thread_event_state().await;
                 let init = self.chatwidget_init_for_forked_or_resumed_thread(
                     tui,
                     self.config.clone(),

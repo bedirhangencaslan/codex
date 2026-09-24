@@ -670,7 +670,7 @@ pub enum PluginAuthPolicy {
 #[ts(export_to = "v2/")]
 pub enum PluginAvailability {
     /// Plugin-service currently sends `"ENABLED"` for available remote plugins.
-    /// Suffice app-server exposes `"AVAILABLE"` in its API; the alias keeps
+    /// Codex app-server exposes `"AVAILABLE"` in its API; the alias keeps
     /// decoding compatible with that upstream response.
     #[serde(rename = "AVAILABLE", alias = "ENABLED")]
     #[ts(rename = "AVAILABLE")]
@@ -696,6 +696,8 @@ pub enum PluginDisabledReason {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct PluginSummary {
+    #[serde(default)]
+    pub extensions: Option<super::PluginExtensions>,
     pub id: String,
     /// Backend remote plugin identifier when available.
     pub remote_plugin_id: Option<String>,

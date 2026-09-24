@@ -1035,7 +1035,7 @@ model_provider = "custom-openai"
 
 [model_providers.custom-openai]
 name = "OpenAI"
-http_headers = { "X-OpenAI-Internal-Suffice-Residency" = "request-override", "x-provider-header" = "preserved" }
+http_headers = { "X-OpenAI-Internal-Codex-Residency" = "request-override", "x-provider-header" = "preserved" }
 env_http_headers = { "x-openai-internal-codex-residency" = "CODEX_TEST_UNSET_RESIDENCY_HEADER", "x-provider-env-header" = "CODEX_TEST_UNSET_PROVIDER_HEADER" }
 "#,
         )
@@ -1073,7 +1073,7 @@ env_http_headers = { "x-openai-internal-codex-residency" = "CODEX_TEST_UNSET_RES
             .as_ref()
             .expect("environment-backed headers should remain configured");
         assert_eq!(
-            static_headers.get("X-OpenAI-Internal-Suffice-Residency"),
+            static_headers.get("X-OpenAI-Internal-Codex-Residency"),
             Some(&"request-override".into())
         );
         assert_eq!(
@@ -1254,6 +1254,7 @@ fn config_toml_deserializes_model_availability_nux() {
             animations: true,
             screen_reader_detection_done: None,
             effects: Default::default(),
+            rendering: Default::default(),
             show_tooltips: true,
             show_server_version_notice: true,
             auto_recap: true,
@@ -1261,7 +1262,8 @@ fn config_toml_deserializes_model_availability_nux() {
             vim_mode_default: false,
             question_esc_back: true,
             raw_output_mode: false,
-            fullscreen_transcript: false,
+            fullscreen_transcript: true,
+            copy_on_select: Default::default(),
             alternate_screen: AltScreenMode::default(),
             status_line: None,
             status_line_use_colors: true,
@@ -2023,6 +2025,7 @@ respect_system_proxy = true
             codex_http_client::HttpClientFactory::new(
                 codex_http_client::OutboundProxyPolicy::RespectSystemProxy,
             ),
+            /*product_sku*/ None,
         )
     );
     Ok(())
@@ -2218,7 +2221,7 @@ respect_system_proxy = false
 #[tokio::test]
 async fn experimental_network_requirements_enable_proxy_without_feature() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
-    // The managed proxy only applies while Suffice owns the network policy, so
+    // The managed proxy only applies while Codex owns the network policy, so
     // this needs a sandboxed profile rather than the full-access default.
     std::fs::write(
         codex_home.path().join(CONFIG_TOML_FILE),
@@ -3529,14 +3532,22 @@ async fn default_permissions_profile_can_extend_builtin_read_only() -> std::io::
     Ok(())
 }
 
+#[test_case::test_case(false; "legacy")]
+#[test_case::test_case(true; "prefer_mxc")]
 #[tokio::test]
-async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::io::Result<()> {
+async fn empty_config_defaults_to_builtin_profile_for_trusted_project(
+    prefer_mxc: bool,
+) -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
     let cwd = TempDir::new()?;
     let project_key = cwd.path().to_string_lossy().to_string();
 
     let config = Config::load_from_base_config_with_overrides(
         ConfigToml {
+            features: Some(FeaturesToml::from(BTreeMap::from([(
+                "prefer_mxc".to_string(),
+                prefer_mxc,
+            )]))),
             projects: Some(HashMap::from([(
                 project_key,
                 ProjectConfig {
@@ -3553,6 +3564,9 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
     )
     .await?;
 
+    // This fork defaults a trusted project to full access with approvals off (2950aa15a), and
+    // that default does not depend on the Windows sandbox: both cases land on the same profile.
+    let mxc_selected = prefer_mxc && codex_sandboxing::windows_mxc_available();
     let policy = config.permissions.file_system_sandbox_policy();
     assert_eq!(
         config
@@ -3560,7 +3574,8 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
             .active_permission_profile()
             .as_ref()
             .map(|active| active.id.as_str()),
-        Some(BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS)
+        Some(BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS),
+        "prefer_mxc={prefer_mxc}, mxc_selected={mxc_selected}"
     );
     assert!(
         policy.can_write_local_path_with_cwd(cwd.path(), cwd.path()),
@@ -3570,21 +3585,6 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
         config.permissions.approval_policy.value(),
         AskForApproval::Never
     );
-    if cfg!(target_os = "windows") {
-        assert!(
-            !policy.can_write_local_path_with_cwd(cwd.path(), cwd.path()),
-            "expected trusted project fallback to stay read-only without Windows sandbox support, policy: {policy:?}"
-        );
-    } else {
-        assert!(
-            policy.can_write_local_path_with_cwd(cwd.path(), cwd.path()),
-            "expected trusted project fallback to use :workspace, policy: {policy:?}"
-        );
-        assert!(
-            !policy.can_write_local_path_with_cwd(&cwd.path().join(".suffice"), cwd.path()),
-            "expected :workspace metadata carveouts, policy: {policy:?}"
-        );
-    }
     Ok(())
 }
 
@@ -4092,7 +4092,7 @@ async fn permissions_profiles_allow_unknown_special_paths() -> std::io::Result<(
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Configured filesystem path `:future_special_path` is not recognized by this version of Suffice and will be ignored."
+            "Configured filesystem path `:future_special_path` is not recognized by this version of Codex and will be ignored."
         )),
         "{:?}",
         config.startup_warnings
@@ -4133,7 +4133,7 @@ async fn permissions_profiles_allow_unknown_special_paths_with_nested_entries()
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Configured filesystem path `:future_special_path` with nested entry `docs` is not recognized by this version of Suffice and will be ignored."
+            "Configured filesystem path `:future_special_path` with nested entry `docs` is not recognized by this version of Codex and will be ignored."
         )),
         "{:?}",
         config.startup_warnings
@@ -4164,7 +4164,7 @@ async fn permissions_profiles_allow_missing_filesystem_with_warning() -> std::io
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Suffice."
+            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Codex."
         )),
         "{:?}",
         config.startup_warnings
@@ -4192,7 +4192,7 @@ async fn permissions_profiles_allow_empty_filesystem_with_warning() -> std::io::
     );
     assert!(
         config.startup_warnings.iter().any(|warning| warning.contains(
-            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Suffice."
+            "Permissions profile `dev` does not define any recognized filesystem entries for this version of Codex."
         )),
         "{:?}",
         config.startup_warnings
@@ -4395,6 +4395,7 @@ fn tui_config_missing_notifications_field_defaults_to_enabled() {
             animations: true,
             screen_reader_detection_done: None,
             effects: Default::default(),
+            rendering: Default::default(),
             show_tooltips: true,
             show_server_version_notice: true,
             auto_recap: true,
@@ -4402,7 +4403,8 @@ fn tui_config_missing_notifications_field_defaults_to_enabled() {
             vim_mode_default: false,
             question_esc_back: true,
             raw_output_mode: false,
-            fullscreen_transcript: false,
+            fullscreen_transcript: true,
+            copy_on_select: Default::default(),
             alternate_screen: AltScreenMode::Auto,
             status_line: None,
             status_line_use_colors: true,
@@ -8377,6 +8379,7 @@ fn config_toml_deserializes_auto_review_policy_and_template() {
         r#"
 [auto_review]
 policy = "Use the user-configured guardian policy."
+extra_policy = "Use the user-configured additional policy."
 experimental_policy_template = "Configured template: {{ tenant_policy_config }}"
 "#,
     )
@@ -8386,10 +8389,12 @@ experimental_policy_template = "Configured template: {{ tenant_policy_config }}"
     assert_eq!(
         (
             auto_review.policy.as_deref(),
+            auto_review.extra_policy.as_deref(),
             auto_review.experimental_policy_template.as_deref(),
         ),
         (
             Some("Use the user-configured guardian policy."),
+            Some("Use the user-configured additional policy."),
             Some("Configured template: {{ tenant_policy_config }}"),
         )
     );
@@ -8401,6 +8406,7 @@ async fn load_config_uses_auto_review_guardian_policy_config_and_template() -> s
     let cfg = ConfigToml {
         auto_review: Some(AutoReviewToml {
             policy: Some("  Use the user-configured guardian policy.  ".to_string()),
+            extra_policy: Some("  Use the user-configured additional policy.  ".to_string()),
             experimental_policy_template: Some(
                 "  Configured template: {{ tenant_policy_config }}  ".to_string(),
             ),
@@ -8421,10 +8427,12 @@ async fn load_config_uses_auto_review_guardian_policy_config_and_template() -> s
     assert_eq!(
         (
             config.guardian_policy_config.as_deref(),
+            config.guardian_extra_policy.as_deref(),
             config.guardian_policy_template.as_deref(),
         ),
         (
             Some("Use the user-configured guardian policy."),
+            Some("Use the user-configured additional policy."),
             Some("Configured template: {{ tenant_policy_config }}"),
         )
     );
@@ -8435,40 +8443,56 @@ async fn load_config_uses_auto_review_guardian_policy_config_and_template() -> s
 #[tokio::test]
 async fn requirements_guardian_policy_beats_auto_review() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
-    let config_layer_stack = ConfigLayerStack::new(
-        Vec::new(),
-        Default::default(),
-        codex_config::ConfigRequirementsToml {
-            guardian_policy_config: Some("Use the managed guardian policy.".to_string()),
+    for (managed_extra, expected_extra) in [
+        (
+            Some("  Use the managed additional policy.  "),
+            "Use the managed additional policy.",
+        ),
+        (Some("   "), "Use the user-configured additional policy."),
+        (None, "Use the user-configured additional policy."),
+    ] {
+        let config_layer_stack = ConfigLayerStack::new(
+            Vec::new(),
+            Default::default(),
+            codex_config::ConfigRequirementsToml {
+                guardian_policy_config: Some("Use the managed guardian policy.".to_string()),
+                guardian_extra_policy: managed_extra.map(str::to_owned),
+                ..Default::default()
+            },
+        )
+        .map_err(std::io::Error::other)?;
+        let cfg = ConfigToml {
+            auto_review: Some(AutoReviewToml {
+                policy: Some("Use the user-configured guardian policy.".to_string()),
+                extra_policy: Some("Use the user-configured additional policy.".to_string()),
+                experimental_policy_template: None,
+            }),
             ..Default::default()
-        },
-    )
-    .map_err(std::io::Error::other)?;
-    let cfg = ConfigToml {
-        auto_review: Some(AutoReviewToml {
-            policy: Some("Use the user-configured guardian policy.".to_string()),
-            experimental_policy_template: None,
-        }),
-        ..Default::default()
-    };
+        };
 
-    let config = Config::load_config_with_layer_stack(
-        LOCAL_FS.as_ref(),
-        cfg,
-        ConfigOverrides {
-            cwd: Some(codex_home.path().to_path_buf()),
-            ..Default::default()
-        },
-        codex_home.abs(),
-        config_layer_stack,
-    )
-    .await?;
+        let config = Config::load_config_with_layer_stack(
+            LOCAL_FS.as_ref(),
+            cfg,
+            ConfigOverrides {
+                cwd: Some(codex_home.path().to_path_buf()),
+                ..Default::default()
+            },
+            codex_home.abs(),
+            config_layer_stack,
+        )
+        .await?;
 
-    assert_eq!(
-        config.guardian_policy_config.as_deref(),
-        Some("Use the managed guardian policy.")
-    );
-
+        assert_eq!(
+            (
+                config.guardian_policy_config.as_deref(),
+                config.guardian_extra_policy.as_deref(),
+            ),
+            (
+                Some("Use the managed guardian policy."),
+                Some(expected_extra),
+            )
+        );
+    }
     Ok(())
 }
 
@@ -8478,6 +8502,7 @@ async fn load_config_ignores_empty_auto_review_guardian_policy_config() -> std::
     let cfg = ConfigToml {
         auto_review: Some(AutoReviewToml {
             policy: Some("   ".to_string()),
+            extra_policy: Some("   ".to_string()),
             experimental_policy_template: None,
         }),
         ..Default::default()
@@ -8493,7 +8518,10 @@ async fn load_config_ignores_empty_auto_review_guardian_policy_config() -> std::
     )
     .await?;
 
-    assert_eq!(config.guardian_policy_config, None);
+    assert_eq!(
+        (config.guardian_policy_config, config.guardian_extra_policy),
+        (None, None)
+    );
 
     Ok(())
 }
@@ -8506,6 +8534,7 @@ async fn load_config_ignores_empty_requirements_guardian_policy_config() -> std:
         Default::default(),
         codex_config::ConfigRequirementsToml {
             guardian_policy_config: Some("   ".to_string()),
+            guardian_extra_policy: Some("   ".to_string()),
             ..Default::default()
         },
     )
@@ -8523,7 +8552,10 @@ async fn load_config_ignores_empty_requirements_guardian_policy_config() -> std:
     )
     .await?;
 
-    assert_eq!(config.guardian_policy_config, None);
+    assert_eq!(
+        (config.guardian_policy_config, config.guardian_extra_policy),
+        (None, None)
+    );
 
     Ok(())
 }
@@ -9869,6 +9901,7 @@ async fn metrics_exporter_defaults_to_statsig_when_missing() -> std::io::Result<
     .await?;
 
     assert_eq!(config.otel.metrics_exporter, OtelExporterKind::Statsig);
+    assert!(!config.otel.agent_response_logging_enabled());
     Ok(())
 }
 
@@ -9878,6 +9911,7 @@ async fn trace_exporter_defaults_to_none_when_log_exporter_is_set() -> std::io::
     let mut cfg = fixture.cfg.clone();
     cfg.otel = Some(OtelConfigToml {
         tool_result: toml::from_str("max_bytes = 8192").expect("tool-result logging config"),
+        log_agent_responses: Some(true),
         exporter: Some(OtelExporterKind::OtlpHttp {
             endpoint: "http://localhost:14318/v1/logs".to_string(),
             headers: HashMap::new(),
@@ -9899,6 +9933,7 @@ async fn trace_exporter_defaults_to_none_when_log_exporter_is_set() -> std::io::
     .await?;
 
     assert_eq!(config.otel.tool_result.max_bytes, 8192);
+    assert!(config.otel.agent_response_logging_enabled());
     assert!(matches!(
         config.otel.exporter,
         OtelExporterKind::OtlpHttp { .. }
@@ -10231,6 +10266,7 @@ async fn test_requirements_web_search_mode_allowlist_does_not_warn_when_unset() 
         models: None,
         additional_developer_instructions: None,
         guardian_policy_config: None,
+        guardian_extra_policy: None,
     };
     let requirement_source = codex_config::RequirementSource::Unknown;
     let requirement_source_for_error = requirement_source.clone();
@@ -10746,6 +10782,49 @@ apps_mcp_product_sku = "tpp"
 }
 
 #[tokio::test]
+async fn config_loads_cloud_skills_with_legacy_noop() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+    for (settings, expected) in [
+        ("", true),
+        ("[cloud.skills]", true),
+        ("[cloud.skills]\nenabled = false", false),
+        ("[cloud.skills]\nenabled = true", true),
+        ("[orchestrator.skills]\nenabled = false", true),
+        ("[orchestrator.skills]\nenabled = true", true),
+        (
+            "[orchestrator.skills]\nenabled = false\n[cloud.skills]",
+            true,
+        ),
+        (
+            "[orchestrator.skills]\nenabled = true\n[cloud.skills]\nenabled = false",
+            false,
+        ),
+        (
+            "[orchestrator.skills]\nenabled = false\n[cloud.skills]\nenabled = true",
+            true,
+        ),
+    ] {
+        let cfg: ConfigToml = toml::from_str(&format!(
+            "model = \"gpt-5.4\"\n{settings}\n[orchestrator.mcp]\nenabled = false"
+        ))
+        .expect("cloud skill settings should deserialize");
+        let config = Config::load_from_base_config_with_overrides(
+            cfg,
+            ConfigOverrides::default(),
+            codex_home.abs(),
+        )
+        .await?;
+
+        assert_eq!(
+            (config.cloud_skill_enabled, config.orchestrator_mcp_enabled),
+            (expected, false),
+            "{settings}"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn config_loads_orchestrator_settings_from_toml() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
     let cfg: ConfigToml = toml::from_str(
@@ -10769,11 +10848,8 @@ enabled = false
     .await?;
 
     assert_eq!(
-        (
-            config.orchestrator_skills_enabled,
-            config.orchestrator_mcp_enabled
-        ),
-        (false, false)
+        (config.cloud_skill_enabled, config.orchestrator_mcp_enabled),
+        (true, false)
     );
     Ok(())
 }
@@ -10970,6 +11046,73 @@ async fn explicit_sandbox_mode_falls_back_when_disallowed_by_requirements() -> s
 }
 
 #[tokio::test]
+async fn local_mxc_preference_preserves_configured_backend() -> anyhow::Result<()> {
+    use codex_sandboxing::SandboxType::WindowsMxc;
+    use codex_sandboxing::SandboxType::WindowsRestrictedToken;
+
+    let codex_home = TempDir::new()?;
+    for (prefer, resolved_preference, binding, mode, expected) in [
+        (true, true, true, "unelevated", WindowsMxc),
+        (true, false, true, "unelevated", WindowsRestrictedToken),
+        (true, false, false, "unelevated", WindowsRestrictedToken),
+        (false, false, true, "unelevated", WindowsRestrictedToken),
+        (false, false, false, "mxc", WindowsMxc),
+    ] {
+        let cfg: ConfigToml = toml::from_str(&format!(
+            "[windows]\nsandbox = {mode:?}\n[features]\nprefer_mxc = {prefer}\n\
+             [features.network_proxy]\nenabled = true\nallow_local_binding = {binding}\n"
+        ))?;
+        assert_eq!(
+            network_config_allows_mxc(
+                &EffectivePermissionSelection {
+                    profiles: None,
+                    selected_profile_id: None,
+                    persisted_profile_id_was_provided: false,
+                    requirements_force_profile_selection: false,
+                },
+                /*profiles_are_active*/ false,
+                /*permission_profile*/ None,
+                /*network_requirements*/ None,
+                cfg.features.as_ref(),
+                /*enable_network_proxy*/ true,
+            )?,
+            binding,
+        );
+        let mut config = Config::load_from_base_config_with_overrides(
+            cfg,
+            ConfigOverrides {
+                cwd: Some(codex_home.path().to_path_buf()),
+                ..Default::default()
+            },
+            codex_home.abs(),
+        )
+        .await?;
+        assert_eq!(
+            config.prefer_mxc,
+            prefer && binding && codex_sandboxing::windows_mxc_available(),
+        );
+        // Exercise both resolved decisions independently of the host's native support.
+        config.prefer_mxc = resolved_preference;
+        assert_eq!(
+            (
+                config.windows_sandbox_type_from_config(),
+                config.effective_local_windows_sandbox_type()
+            ),
+            (
+                if mode == "mxc" {
+                    WindowsMxc
+                } else {
+                    WindowsRestrictedToken
+                },
+                expected
+            ),
+            "prefer={prefer}, resolved={resolved_preference}, binding={binding}, mode={mode}"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn windows_sandbox_mode_falls_back_when_disallowed_by_requirements() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
     std::fs::write(
@@ -11031,7 +11174,7 @@ sandbox_mode = "danger-full-access"
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert_eq!(
         err.to_string(),
-        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
+        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Codex would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
     );
     Ok(())
 }
@@ -11065,7 +11208,7 @@ default_permissions = "dev"
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert_eq!(
         err.to_string(),
-        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Suffice would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
+        "`approval_policy = \"never\"` cannot be used because requirements do not allow `sandbox_mode = \"danger-full-access\"`; Codex would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode."
     );
     Ok(())
 }
@@ -11570,18 +11713,21 @@ shell_tool = false
     Ok(())
 }
 
-#[test]
-fn retired_personality_feature_requirements_do_not_reject_configured_values() -> std::io::Result<()>
-{
+#[test_case::test_case(Feature::Personality; "personality")]
+#[test_case::test_case(Feature::GuardianThreadContext; "guardian thread context")]
+fn retired_feature_requirements_do_not_pin_configured_values(
+    feature: Feature,
+) -> std::io::Result<()> {
+    let key = feature.key();
     for (configured, required) in [(true, false), (false, true)] {
         let cfg: ConfigToml = toml::from_str(&format!(
-            "[features]\npersonality = {configured}\nshell_tool = false\n"
+            "[features]\n\"{key}\" = {configured}\nshell_tool = false\n"
         ))
         .expect("valid config");
         let requirement = Sourced::new(
             FeatureRequirementsToml {
                 entries: BTreeMap::from([
-                    ("personality".to_string(), required),
+                    (key.to_string(), required),
                     ("shell_tool".to_string(), false),
                 ]),
             },
@@ -11608,11 +11754,15 @@ fn retired_personality_feature_requirements_do_not_reject_configured_values() ->
         )?;
         assert_eq!(
             (
-                features.enabled(Feature::Personality),
+                features.enabled(feature),
                 features.enabled(Feature::ShellTool),
-                warnings,
+                warnings.len(),
             ),
-            (false, false, Vec::new()),
+            (
+                Features::with_defaults().enabled(feature),
+                false,
+                usize::from(feature == Feature::GuardianThreadContext),
+            ),
         );
     }
 
@@ -11867,6 +12017,7 @@ tool_namespace = "agents"
 hide_spawn_agent_metadata = true
 expose_spawn_agent_model_overrides = false
 wait_agent_enabled = false
+disable_direct_message = true
 non_code_mode_only = true
 
 [agents]
@@ -11922,6 +12073,7 @@ max_concurrent_threads_per_session = 9
     assert!(config.multi_agent_v2.hide_spawn_agent_metadata);
     assert!(!config.multi_agent_v2.expose_spawn_agent_model_overrides);
     assert!(!config.multi_agent_v2.wait_agent_enabled);
+    assert!(config.multi_agent_v2.disable_direct_message);
     assert!(config.multi_agent_v2.non_code_mode_only);
 
     Ok(())

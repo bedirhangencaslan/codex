@@ -22,9 +22,9 @@ use strum_macros::Display;
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Display, JsonSchema, TS)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthMode {
-    /// OpenAI API key provided by the caller and stored by Suffice.
+    /// OpenAI API key provided by the caller and stored by Codex.
     ApiKey,
-    /// ChatGPT OAuth managed by Suffice (tokens persisted and refreshed by Suffice).
+    /// ChatGPT OAuth managed by Codex (tokens persisted and refreshed by Codex).
     Chatgpt,
     /// [UNSTABLE] FOR OPENAI INTERNAL USE ONLY - DO NOT USE.
     ///
@@ -39,22 +39,22 @@ pub enum AuthMode {
     #[ts(rename = "headers")]
     #[strum(serialize = "headers")]
     Headers,
-    /// Programmatic Suffice auth backed by a registered Agent Identity.
+    /// Programmatic Codex auth backed by a registered Agent Identity.
     #[serde(rename = "agentIdentity")]
     #[ts(rename = "agentIdentity")]
     #[strum(serialize = "agentIdentity")]
     AgentIdentity,
-    /// Programmatic Suffice auth backed by a personal access token.
+    /// Programmatic Codex auth backed by a personal access token.
     #[serde(rename = "personalAccessToken")]
     #[ts(rename = "personalAccessToken")]
     #[strum(serialize = "personalAccessToken")]
     PersonalAccessToken,
-    /// Amazon Bedrock bearer token managed by Suffice.
+    /// Amazon Bedrock bearer token managed by Codex.
     #[serde(rename = "bedrockApiKey")]
     #[ts(rename = "bedrockApiKey")]
     #[strum(serialize = "bedrockApiKey")]
     BedrockApiKey,
-    /// Amazon Bedrock AWS access keys managed by Suffice.
+    /// Amazon Bedrock AWS access keys managed by Codex.
     #[serde(rename = "bedrockAccessKeys")]
     #[ts(rename = "bedrockAccessKeys")]
     #[strum(serialize = "bedrockAccessKeys")]
@@ -74,7 +74,7 @@ impl AuthMode {
         }
     }
 
-    /// Returns whether this mode is backed by Suffice services rather than a direct model API.
+    /// Returns whether this mode is backed by Codex services rather than a direct model API.
     pub fn uses_codex_backend(self) -> bool {
         match self {
             Self::Chatgpt
@@ -319,13 +319,14 @@ macro_rules! client_request_definitions {
             pub fn into_jsonrpc_parts(
                 self,
             ) -> std::result::Result<(RequestId, crate::Result), serde_json::Error> {
-                match self {
+                let (request_id, response) = match self {
                     $(
                         Self::$variant { request_id, response } => {
-                            serde_json::to_value(response).map(|result| (request_id, result))
+                            (request_id, ClientResponsePayload::$variant(response))
                         }
                     )*
-                }
+                };
+                serde_json::to_value(response).map(|result| (request_id, result))
             }
         }
 
@@ -363,16 +364,7 @@ macro_rules! client_request_definitions {
                 &self,
                 request_id: RequestId,
             ) -> std::result::Result<(RequestId, crate::Result), serde_json::Error> {
-                match self {
-                    $(
-                        Self::$variant(response) => {
-                            serde_json::to_value(response).map(|result| (request_id, result))
-                        }
-                    )*
-                    Self::InterruptConversation(response) => {
-                        serde_json::to_value(response).map(|result| (request_id, result))
-                    }
-                }
+                serde_json::to_value(self).map(|result| (request_id, result))
             }
         }
 
@@ -1118,6 +1110,21 @@ client_request_definitions! {
         serialization: None,
         response: v2::ModelListResponse,
     },
+    GatewayOAuthRead => "account/gatewayOAuth/read" {
+        params: #[ts(type = "undefined")] #[serde(skip_serializing_if = "Option::is_none")] Option<()>,
+        serialization: None,
+        response: v2::GatewayOAuthReadResponse,
+    },
+    GatewayOAuthLogin => "account/gatewayOAuth/login" {
+        params: #[ts(type = "undefined")] #[serde(skip_serializing_if = "Option::is_none")] Option<()>,
+        serialization: None,
+        response: v2::GatewayOAuthLoginResponse,
+    },
+    GatewayOAuthCancel => "account/gatewayOAuth/cancel" {
+        params: #[ts(type = "undefined")] #[serde(skip_serializing_if = "Option::is_none")] Option<()>,
+        serialization: None,
+        response: v2::GatewayOAuthCancelResponse,
+    },
     ModelProviderCapabilitiesRead => "modelProvider/capabilities/read" {
         params: v2::ModelProviderCapabilitiesReadParams,
         serialization: None,
@@ -1366,7 +1373,7 @@ client_request_definitions! {
         response: v2::CommandExecResizeResponse,
     },
     #[experimental("process/spawn")]
-    /// Spawn a standalone process (argv vector) without a Suffice sandbox.
+    /// Spawn a standalone process (argv vector) without a Codex sandbox.
     ProcessSpawn => "process/spawn" {
         params: v2::ProcessSpawnParams,
         serialization: process_handle(params.process_handle),
@@ -1951,7 +1958,7 @@ server_notification_definitions! {
     #[experimental("autoApprovalReview/strictReviewRequired")]
     StrictReviewRequired => "autoApprovalReview/strictReviewRequired" (v2::StrictReviewRequiredNotification),
     ItemCompleted => "item/completed" (v2::ItemCompletedNotification),
-    /// This event is internal-only. Used by Suffice Cloud.
+    /// This event is internal-only. Used by Codex Cloud.
     RawResponseItemCompleted => "rawResponseItem/completed" (v2::RawResponseItemCompletedNotification),
     /// This event is internal-only. Used by clients that need exact upstream usage.
     RawResponseCompleted => "rawResponse/completed" (v2::RawResponseCompletedNotification),
@@ -1978,6 +1985,7 @@ server_notification_definitions! {
     #[experimental("mcpServer/event/stream/notification")]
     McpServerEventStream => "mcpServer/event/stream/notification" (v2::McpServerEventStreamNotification),
     AccountUpdated => "account/updated" (v2::AccountUpdatedNotification),
+    GatewayOAuthChanged => "account/gatewayOAuth/changed" (v2::GatewayOAuthChangedNotification),
     AccountRateLimitsUpdated => "account/rateLimits/updated" (v2::AccountRateLimitsUpdatedNotification),
     AppListUpdated => "app/list/updated" (v2::AppListUpdatedNotification),
     RemoteControlStatusChanged => "remoteControl/status/changed" (v2::RemoteControlStatusChangedNotification),
@@ -2466,6 +2474,7 @@ mod tests {
                 server: "server-a".to_string(),
                 uri: "file:///tmp/resource".to_string(),
                 connector_id: None,
+                target: None,
             },
         };
         assert_eq!(
@@ -2562,6 +2571,7 @@ mod tests {
         let environment_add = ClientRequest::EnvironmentAdd {
             request_id: request_id(),
             params: v2::EnvironmentAddParams {
+                auth_bearer_token: None,
                 environment_id: "remote-a".to_string(),
                 exec_server_url: "ws://127.0.0.1:8765".to_string(),
                 connect_timeout_ms: None,
@@ -2655,6 +2665,7 @@ mod tests {
                 server: "server-a".to_string(),
                 uri: "file:///tmp/resource".to_string(),
                 connector_id: None,
+                target: None,
             },
         };
         assert_eq!(mcp_resource_read.serialization_scope(), None);
@@ -2735,10 +2746,11 @@ mod tests {
             params: v1::InitializeParams {
                 client_info: v1::ClientInfo {
                     name: "codex_vscode".to_string(),
-                    title: Some("Suffice VS Code Extension".to_string()),
+                    title: Some("Codex VS Code Extension".to_string()),
                     version: "0.1.0".to_string(),
                 },
                 capabilities: Some(v1::InitializeCapabilities {
+                    explicit_gateway_oauth: false,
                     experimental_api: true,
                     request_attestation: true,
                     mcp_server_openai_form_elicitation: true,
@@ -2763,7 +2775,7 @@ mod tests {
                 "params": {
                     "clientInfo": {
                         "name": "codex_vscode",
-                        "title": "Suffice VS Code Extension",
+                        "title": "Codex VS Code Extension",
                         "version": "0.1.0"
                     },
                     "capabilities": {
@@ -2795,7 +2807,7 @@ mod tests {
             "params": {
                 "clientInfo": {
                     "name": "codex_vscode",
-                    "title": "Suffice VS Code Extension",
+                    "title": "Codex VS Code Extension",
                     "version": "0.1.0"
                 },
                 "capabilities": {
@@ -2822,10 +2834,11 @@ mod tests {
                 params: v1::InitializeParams {
                     client_info: v1::ClientInfo {
                         name: "codex_vscode".to_string(),
-                        title: Some("Suffice VS Code Extension".to_string()),
+                        title: Some("Codex VS Code Extension".to_string()),
                         version: "0.1.0".to_string(),
                     },
                     capabilities: Some(v1::InitializeCapabilities {
+                        explicit_gateway_oauth: false,
                         experimental_api: true,
                         request_attestation: true,
                         mcp_server_openai_form_elicitation: true,
@@ -3812,11 +3825,13 @@ mod tests {
         let request = ClientRequest::EnvironmentAdd {
             request_id: RequestId::Integer(9),
             params: v2::EnvironmentAddParams {
+                auth_bearer_token: Some("private-executor-token".into()),
                 environment_id: "remote-a".to_string(),
                 exec_server_url: "ws://127.0.0.1:8765".to_string(),
                 connect_timeout_ms: Some(300_000),
             },
         };
+        assert!(!format!("{request:?}").contains("private-executor-token"));
         assert_eq!(
             json!({
                 "method": "environment/add",
@@ -3824,7 +3839,8 @@ mod tests {
                 "params": {
                     "environmentId": "remote-a",
                     "execServerUrl": "ws://127.0.0.1:8765",
-                    "connectTimeoutMs": 300000
+                    "connectTimeoutMs": 300000,
+                    "authBearerToken": "private-executor-token"
                 }
             }),
             serde_json::to_value(&request)?,
@@ -4002,6 +4018,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: Some(CodexResponseHandoffMode::BemTags),
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: Some(std::collections::BTreeMap::from([
                     ("analysis".to_string(), vec!["[THINKING]".to_string()]),
                     (
@@ -4088,6 +4105,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: None,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 thread_id: "thr_123".to_string(),
                 model: None,
@@ -4140,6 +4158,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: None,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 thread_id: "thr_123".to_string(),
                 model: None,
@@ -4346,6 +4365,7 @@ mod tests {
         let request = ClientRequest::EnvironmentAdd {
             request_id: RequestId::Integer(1),
             params: v2::EnvironmentAddParams {
+                auth_bearer_token: None,
                 environment_id: "remote-a".to_string(),
                 exec_server_url: "ws://127.0.0.1:8765".to_string(),
                 connect_timeout_ms: None,
@@ -4392,6 +4412,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: None,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 thread_id: "thr_123".to_string(),
                 model: None,

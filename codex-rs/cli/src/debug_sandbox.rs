@@ -319,7 +319,8 @@ async fn run_command_under_sandbox(
     if let SandboxType::Windows = sandbox_type {
         #[cfg(target_os = "windows")]
         {
-            if config.permissions.windows_sandbox_type != codex_sandboxing::SandboxType::WindowsMxc
+            if config.effective_local_windows_sandbox_type()
+                != codex_sandboxing::SandboxType::WindowsMxc
             {
                 let workspace_roots = config
                     .effective_workspace_roots()
@@ -356,9 +357,11 @@ async fn run_command_under_sandbox(
         Some(spec) => Some(
             spec.start_proxy(
                 &permission_profile,
-                managed_proxy_routing_for_windows_sandbox(config.permissions.windows_sandbox_type),
+                managed_proxy_routing_for_windows_sandbox(
+                    config.effective_local_windows_sandbox_type(),
+                ),
                 local_binding_policy_for_sandbox(
-                    config.permissions.windows_sandbox_type,
+                    config.effective_local_windows_sandbox_type(),
                     Some(std::env::consts::OS),
                 ),
                 /*policy_decider*/ None,
@@ -681,7 +684,7 @@ async fn load_debug_sandbox_config_with_codex_home(
         ));
     }
 
-    // For legacy configs, `suffice sandbox` historically defaulted to read-only
+    // For legacy configs, `codex sandbox` historically defaulted to read-only
     // instead of inheriting ambient `sandbox_mode` settings from user/system
     // config. Keep that behavior unless this invocation explicitly passes a
     // legacy `sandbox_mode` CLI override for compatibility with older callers.

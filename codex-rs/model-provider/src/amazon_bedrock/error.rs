@@ -10,7 +10,7 @@ pub(super) const CREDENTIAL_EXPORT_CONFIG_ERROR_PREFIX: &str =
 pub(super) const BEDROCK_EXPIRED_SIGNATURE_MESSAGE: &str = concat!(
     "Amazon Bedrock rejected the request because its AWS signature has expired. ",
     "Refresh your AWS credentials and retry. If `AWS_BEARER_TOKEN_BEDROCK` is set, ",
-    "update or unset it, then restart Suffice",
+    "update or unset it, then restart Codex",
 );
 
 pub(super) fn map_api_error(error: ApiError) -> CodexErr {
@@ -27,8 +27,8 @@ pub(super) fn map_api_error(error: ApiError) -> CodexErr {
         let mut response = response.clone();
         response.user_message = Some(BEDROCK_EXPIRED_SIGNATURE_MESSAGE.to_string());
         let mapped_error = CodexErr::new(CodexErrorDetails::UnexpectedStatus(response));
-        return match error.server_retry_delay() {
-            Some(retry_delay) => mapped_error.with_retry_delay(retry_delay),
+        return match error.retry_after() {
+            Some(retry_after) => mapped_error.with_retry_after(retry_after),
             None => mapped_error,
         };
     }

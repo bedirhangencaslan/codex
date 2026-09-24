@@ -159,7 +159,7 @@ pub struct ThreadStartParams {
     #[ts(optional = nullable)]
     pub mock_experimental_field: Option<String>,
     /// If true, opt into emitting raw Responses API items on the event stream.
-    /// This is for internal use only (e.g. Suffice Cloud).
+    /// This is for internal use only (e.g. Codex Cloud).
     #[experimental("thread/start.experimentalRawEvents")]
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub experimental_raw_events: bool,
@@ -1759,6 +1759,12 @@ pub struct ThreadItemEntry {
     /// Turn containing this item.
     pub turn_id: String,
     pub item: ThreadItem,
+    /// Unix timestamp (milliseconds) when the item started, if recorded by the producer.
+    #[ts(type = "number | null")]
+    pub started_at_ms: Option<i64>,
+    /// Unix timestamp (milliseconds) when the item completed, if recorded by the producer.
+    #[ts(type = "number | null")]
+    pub completed_at_ms: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

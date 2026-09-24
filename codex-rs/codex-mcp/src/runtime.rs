@@ -89,13 +89,11 @@ pub struct McpRuntimeInput {
     pub client_mcp_extensions: ClientMcpExtensions,
     pub auth: Option<CodexAuth>,
     pub auth_manager: Option<Arc<AuthManager>>,
-    /// Whether the owning thread may prompt the user; automatic decisions remain available.
-    pub allow_user_interaction: bool,
     pub elicitation_reviewer: Option<ElicitationReviewerHandle>,
     pub elicitation_lifecycle: Option<ElicitationLifecycle>,
 }
 
-/// Owns all mutable MCP state for one Suffice thread.
+/// Owns all mutable MCP state for one Codex thread.
 ///
 /// Publication replaces the latest state atomically. Existing bindings retain
 /// their exact connections and configuration for as long as they are needed.

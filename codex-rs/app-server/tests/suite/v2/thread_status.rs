@@ -144,10 +144,11 @@ async fn thread_status_changed_can_be_opted_out() -> Result<()> {
         mcp.initialize_with_capabilities(
             ClientInfo {
                 name: "codex_vscode".to_string(),
-                title: Some("Suffice VS Code Extension".to_string()),
+                title: Some("Codex VS Code Extension".to_string()),
                 version: "0.1.0".to_string(),
             },
             Some(InitializeCapabilities {
+                explicit_gateway_oauth: false,
                 experimental_api: true,
                 request_attestation: false,
                 opt_out_notification_methods: Some(vec!["thread/status/changed".to_string()]),

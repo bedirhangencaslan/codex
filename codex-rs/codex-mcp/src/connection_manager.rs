@@ -1,4 +1,4 @@
-//! Aggregates MCP server connections for Suffice.
+//! Aggregates MCP server connections for Codex.
 //!
 //! [`McpConnectionSet`] is the private connection set behind
 //! [`crate::McpRuntime`] and [`crate::McpBinding`]. It coordinates startup status
@@ -222,7 +222,6 @@ impl McpConnectionSet {
             client_mcp_extensions,
             auth,
             auth_manager,
-            allow_user_interaction,
             elicitation_reviewer,
             elicitation_lifecycle,
         } = input;
@@ -259,7 +258,6 @@ impl McpConnectionSet {
             !previous.servers.is_empty()
                 && previous.elicitation_requests.update(
                     Arc::clone(&config),
-                    allow_user_interaction,
                     elicitation_reviewer.clone(),
                     elicitation_lifecycle.clone(),
                 )
@@ -269,7 +267,6 @@ impl McpConnectionSet {
         } else {
             ElicitationRequestManager::new(
                 Arc::clone(&config),
-                allow_user_interaction,
                 elicitation_reviewer,
                 elicitation_lifecycle,
                 elicitation_router,
@@ -343,7 +340,7 @@ impl McpConnectionSet {
             );
             let resolved_environment =
                 runtime_context.resolve_server_environment(&server_name, &configured_config);
-            // For built-in Suffice Apps, `CODEX_CONNECTORS_TOKEN` is a debug
+            // For built-in Codex Apps, `CODEX_CONNECTORS_TOKEN` is a debug
             // override: it supplies runtime auth but bypasses the shared tools
             // cache.
             let uses_env_bearer_token = match &configured_config.transport {
@@ -380,7 +377,7 @@ impl McpConnectionSet {
                     .context(codex_home.clone(), codex_apps_tools_cache_key.clone())
                     .with_live_scope(scope.to_string())
             });
-            // The reserved Suffice Apps registration follows the shared
+            // The reserved Codex Apps registration follows the shared
             // AuthManager across refreshes. In the hosted-plugin path, this
             // is the ChatGPT /ps/mcp connection. User-configured MCP
             // registrations keep their existing configured auth path.
@@ -391,7 +388,7 @@ impl McpConnectionSet {
             } else {
                 static_chatgpt_auth_provider.clone()
             };
-            // If Suffice Apps has an env bearer token, that is its auth path. Do
+            // If Codex Apps has an env bearer token, that is its auth path. Do
             // not also attach the ambient CodexAuth provider.
             let runtime_auth_provider =
                 if server_name == CODEX_APPS_MCP_SERVER_NAME && uses_env_bearer_token {
@@ -1024,7 +1021,7 @@ impl McpConnectionSet {
     }
 
     /// Returns presentation metadata from the current connection.
-    /// Suffice Apps metadata may come from its existing cache; regular MCP server information is
+    /// Codex Apps metadata may come from its existing cache; regular MCP server information is
     /// connection-specific, so pending regular clients are awaited.
     pub(crate) async fn list_available_server_infos(&self) -> HashMap<String, McpServerInfo> {
         let mut server_infos = HashMap::new();

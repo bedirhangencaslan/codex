@@ -570,6 +570,7 @@ mod tests {
         let config = RemotePluginServiceConfig::new(
             format!("{}/backend-api", server.uri()),
             crate::test_support::test_http_client_factory(),
+            /*product_sku*/ None,
         );
         let auth = CodexAuth::create_dummy_chatgpt_auth_for_testing();
 
@@ -598,7 +599,7 @@ mod tests {
         .expect("valid plugin id");
         let metadata_path = PluginStore::new(codex_home.path().to_path_buf())
             .plugin_base_root(&plugin_id)
-            .join(".suffice-remote-plugin-install.json");
+            .join(".codex-remote-plugin-install.json");
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(
                 &std::fs::read_to_string(metadata_path.as_path())
@@ -756,11 +757,11 @@ mod tests {
             crate::test_support::recorded_http_client_urls(&selected_urls),
             vec![
                 format!(
-                    "{}/backend-api/ps/plugins/installed?limit=200&includeDownloadUrls=true",
+                    "{}/backend-api/ps/plugins/installed?includeExtensions=true&limit=200&includeDownloadUrls=true",
                     server.uri()
                 ),
                 format!(
-                    "{}/backend-api/ps/plugins/installed?limit=200&includeDownloadUrls=true&pageToken=page-2",
+                    "{}/backend-api/ps/plugins/installed?includeExtensions=true&limit=200&includeDownloadUrls=true&pageToken=page-2",
                     server.uri()
                 ),
             ]
@@ -778,7 +779,7 @@ mod tests {
             );
             assert_eq!(
                 serde_json::from_str::<serde_json::Value>(
-                    &std::fs::read_to_string(plugin_root.join(".suffice-remote-plugin-install.json"))
+                    &std::fs::read_to_string(plugin_root.join(".codex-remote-plugin-install.json"))
                         .expect("read remote plugin install metadata")
                 )
                 .expect("parse remote plugin install metadata"),

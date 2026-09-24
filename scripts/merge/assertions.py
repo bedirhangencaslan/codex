@@ -95,6 +95,10 @@ CHECKS = [
      "active_turn_id", "present", "code"),
     ("istek istatistikleri", "T1", CORE + "session/turn.rs",
      "request_stats", "present", "code"),
+    # `request_stats` alone also matches the end-of-turn flush, so it survives losing the
+    # per-request record. 2026-09-24's merge put that record next to upstream's metadata.
+    ("her istek kaydediliyor", "T1", CORE + "session/turn.rs",
+     "request_stats.record_prompt(&prompt)", "present", "code"),
     ("prompt_input_for_step", "T1", CORE + "session/mod.rs",
      "fn prompt_input_for_step", "present", "code"),
     ("onbellek canli tutma", "T1", CORE + "tools/router.rs",
@@ -116,6 +120,13 @@ CHECKS = [
     ("with_config_overrides hunisi", "T1", MM + "src/model_info.rs",
      "fn with_config_overrides", "present", "code"),
 
+    # --- the binary the user runs --------------------------------------------------
+    # The rename driver folds every lowercase `suffice`; the 2026-09-24 merge reverted both.
+    ("program adi suffice", "T1", "codex-rs/cli/Cargo.toml",
+     'name = "suffice"', "present", "raw"),
+    ("cargo run suffice'i seciyor", "T1", "codex-rs/cli/Cargo.toml",
+     'default-run = "suffice"', "present", "raw"),
+
     # --- the wire this fork's provider needs ------------------------------------
     ("Chat wire govdesi", "T1", "codex-rs/codex-api/src/endpoint/responses.rs",
      "chat_body_from_responses_request", "present", "code"),
@@ -123,6 +134,14 @@ CHECKS = [
         "codex-api", "codex-rs/codex-api"), "enum ResponsesEndpoint", "present", "code"),
     ("Chat akis cozucusu", "T1", "codex-rs/codex-api/src/sse/chat.rs",
      "fn spawn_chat_stream", "present", "code"),
+    # Upstream moved `Provider` into codex-client on 2026-09-24 (f5960fcc22). The moved file
+    # arrived without our field and without a conflict; only the stub it left behind conflicted.
+    ("WireApi enumu", "T1", "codex-rs/codex-client/src/provider.rs",
+     "enum WireApi", "present", "code"),
+    ("Provider.wire alani", "T1", "codex-rs/codex-client/src/provider.rs",
+     "pub wire: WireApi", "present", "code"),
+    ("codex-api WireApi'yi disari veriyor", "T1", "codex-rs/codex-api/src/provider.rs",
+     "codex_client::WireApi", "present", "code"),
     ("saglayici OpenAI degilse remote-v2 yok", "T1",
      "codex-rs/model-provider/src/provider.rs", "is_openai()", "present", "code"),
 ]

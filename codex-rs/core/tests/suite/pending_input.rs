@@ -322,7 +322,7 @@ async fn build_codex(server: &StreamingSseServer) -> Arc<CodexThread> {
         .with_model("gpt-5.4")
         .build_with_streaming_server(server)
         .await
-        .expect("build streaming Suffice test session")
+        .expect("build streaming Codex test session")
         .suffice
 }
 
@@ -522,7 +522,7 @@ async fn queue_only_agent_mail_wakes_sleeping_root_with_previous_turn_context() 
         .with_extensions(Arc::new(extensions.build()))
         .build_with_auto_env(&server)
         .await
-        .expect("build Suffice test session")
+        .expect("build Codex test session")
         .codex;
 
     codex
@@ -600,7 +600,7 @@ async fn steer_interrupts_wait_agent_and_is_sent_in_follow_up_request() {
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build Suffice test session")
+        .expect("build Codex test session")
         .codex;
 
     submit_user_input(&codex, INITIAL_PROMPT).await;
@@ -684,7 +684,7 @@ async fn any_new_input_interrupts_sleep() {
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build Suffice test session")
+        .expect("build Codex test session")
         .codex;
 
     submit_user_input(&codex, INITIAL_PROMPT).await;
@@ -1162,6 +1162,145 @@ async fn user_input_does_not_preempt_after_reasoning_item() {
     server.shutdown().await;
 }
 
+#[derive(Clone, Copy)]
+enum ConditionalInterruptCase {
+    CurrentTurn,
+    StaleTurn,
+    PendingUserInput,
+    PendingMailbox,
+    AbandonedRequest,
+}
+
+#[test_case(ConditionalInterruptCase::CurrentTurn; "current_turn_without_pending_input")]
+#[test_case(ConditionalInterruptCase::StaleTurn; "stale_turn")]
+#[test_case(ConditionalInterruptCase::PendingUserInput; "pending_user_input")]
+#[test_case(ConditionalInterruptCase::PendingMailbox; "pending_mailbox")]
+#[test_case(ConditionalInterruptCase::AbandonedRequest; "abandoned_request")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn interrupt_if_no_pending_input_checks_turn_and_queue(
+    case: ConditionalInterruptCase,
+) -> anyhow::Result<()> {
+    const INITIAL_PROMPT: &str = "first prompt";
+    const PENDING_PROMPT: &str = "preserve this pending input";
+    let (release_response, response_gate) = oneshot::channel();
+    let first_chunks = vec![
+        chunk(ev_response_created("resp-1")),
+        chunk(ev_reasoning_item_added("reason-1", &["thinking"])),
+        gated_chunk(
+            response_gate,
+            vec![
+                ev_reasoning_item("reason-1", &["thinking"], &[]),
+                ev_completed("resp-1"),
+            ],
+        ),
+    ];
+    let (server, _completions) =
+        start_streaming_sse_server(vec![first_chunks, response_completed_chunks("resp-2")]).await;
+    let config_server = responses::start_mock_server().await;
+    let base_url = format!("{}/v1", server.uri());
+    let test = test_codex()
+        .with_model("gpt-5.4")
+        .with_config(move |config| {
+            config.model_provider.base_url = Some(base_url);
+            let _ = config.features.disable(Feature::EnableRequestCompression);
+        })
+        .build_with_auto_env(&config_server)
+        .await?;
+    let codex = &test.codex;
+    let TurnInputSubmission::Started { turn_id } = codex
+        .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+            text: INITIAL_PROMPT.to_string(),
+            text_elements: Vec::new(),
+        }]))
+        .await?
+    else {
+        panic!("initial input should start a turn");
+    };
+    wait_for_reasoning_item_started(codex).await;
+    if matches!(case, ConditionalInterruptCase::PendingUserInput) {
+        steer_user_input(codex, PENDING_PROMPT).await;
+    }
+    if matches!(case, ConditionalInterruptCase::PendingMailbox) {
+        submit_queue_only_agent_mail(codex, PENDING_PROMPT).await;
+    }
+    let expected_turn_id = match case {
+        ConditionalInterruptCase::StaleTurn | ConditionalInterruptCase::AbandonedRequest => {
+            format!("stale-{turn_id}")
+        }
+        ConditionalInterruptCase::CurrentTurn
+        | ConditionalInterruptCase::PendingUserInput
+        | ConditionalInterruptCase::PendingMailbox => turn_id.clone(),
+    };
+    if matches!(case, ConditionalInterruptCase::AbandonedRequest) {
+        let (reply, result) = oneshot::channel();
+        drop(result);
+        codex
+            .submit(Op::InterruptIfNoPendingInput { turn_id, reply })
+            .await?;
+        // Wait for the abandoned request to be handled before releasing the response.
+        let (reply, result) = oneshot::channel();
+        codex
+            .submit(Op::InterruptIfNoPendingInput {
+                turn_id: expected_turn_id.clone(),
+                reply,
+            })
+            .await?;
+        assert!(!tokio::time::timeout(std::time::Duration::from_secs(/*secs*/ 10), result).await??);
+    }
+    let should_abort = matches!(case, ConditionalInterruptCase::CurrentTurn);
+    assert_eq!(
+        tokio::time::timeout(
+            std::time::Duration::from_secs(/*secs*/ 10),
+            codex.interrupt_if_no_pending_input(&expected_turn_id),
+        )
+        .await??,
+        should_abort,
+    );
+
+    if should_abort {
+        wait_for_event(codex, |event| {
+            assert!(!matches!(event, EventMsg::TurnComplete(_)));
+            matches!(event, EventMsg::TurnAborted(_))
+        })
+        .await;
+        let _ = release_response.send(());
+    } else {
+        release_response.send(()).expect("release model response");
+        wait_for_event(codex, |event| {
+            assert!(!matches!(event, EventMsg::TurnAborted(_)));
+            matches!(event, EventMsg::TurnComplete(_))
+        })
+        .await;
+    }
+    let requests = server.requests().await;
+    if matches!(case, ConditionalInterruptCase::PendingUserInput) {
+        assert_eq!(requests.len(), 2);
+        let second: Value = from_slice(&requests[1])?;
+        let prompts = message_input_texts(&second, "user")
+            .into_iter()
+            .filter(|text| text == INITIAL_PROMPT || text == PENDING_PROMPT)
+            .collect::<Vec<_>>();
+        assert_eq!(prompts, vec![INITIAL_PROMPT, PENDING_PROMPT]);
+    } else if matches!(case, ConditionalInterruptCase::PendingMailbox) {
+        assert_eq!(requests.len(), 2);
+        let second: Value = from_slice(&requests[1])?;
+        let mail = second["input"]
+            .as_array()
+            .expect("model input")
+            .iter()
+            .find(|item| item["type"] == "agent_message")
+            .expect("pending mailbox input");
+        assert_eq!(
+            mail["content"],
+            json!([{ "type": "input_text", "text": PENDING_PROMPT }])
+        );
+    } else {
+        assert_eq!(requests.len(), 1);
+    }
+    server.shutdown().await;
+    Ok(())
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CompactionFailurePoint {
     PreTurn,
@@ -1432,7 +1571,7 @@ async fn steered_user_input_waits_for_model_continuation_after_mid_turn_compact(
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build streaming Suffice test session")
+        .expect("build streaming Codex test session")
         .codex;
 
     submit_user_input(&codex, "first prompt").await;
@@ -1517,7 +1656,7 @@ async fn steered_user_input_follows_compact_when_only_the_steer_needs_follow_up(
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build streaming Suffice test session")
+        .expect("build streaming Codex test session")
         .codex;
 
     submit_user_input(&codex, "first prompt").await;
@@ -1634,7 +1773,7 @@ async fn steered_user_input_waits_when_tool_output_triggers_compact_before_next_
         })
         .build_with_streaming_server(&server)
         .await
-        .expect("build streaming Suffice test session");
+        .expect("build streaming Codex test session");
     let codex = test.codex.clone();
 
     submit_danger_full_access_user_turn(&test, "first prompt").await;
