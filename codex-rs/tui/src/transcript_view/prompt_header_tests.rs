@@ -20,6 +20,7 @@ fn user(message: &str) -> Arc<dyn HistoryCell> {
         Vec::new(),
         Vec::new(),
         Vec::new(),
+        /*invisible*/ false,
     ))
 }
 

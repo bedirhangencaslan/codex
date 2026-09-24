@@ -198,6 +198,7 @@ async fn hints_respect_settings_drafts_and_custom_shortcuts() -> Result<()> {
             Vec::new(),
             Vec::new(),
             Vec::new(),
+            /*invisible*/ false,
         )));
     app.keymap.app.find_transcript = vec![crate::key_hint::plain(KeyCode::F(12))];
     select_catalog_tip(

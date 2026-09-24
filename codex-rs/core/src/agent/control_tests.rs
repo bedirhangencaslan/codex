@@ -491,7 +491,10 @@ async fn mcp_attribution_in_constructed_request(thread: &CodexThread) -> McpAttr
             .session
             .clone_history()
             .await
-            .for_prompt(&step_context.settings.model_info.input_modalities),
+            .for_prompt(
+                &step_context.settings.model_info.input_modalities,
+                /*active_turn_id*/ None,
+            ),
         &step_context,
         thread.session.get_prompt_base_instructions().await,
     );

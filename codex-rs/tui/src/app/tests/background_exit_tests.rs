@@ -62,6 +62,7 @@ async fn external_writer_view_preserves_draft_from_keys_and_paste() -> Result<()
             Vec::new(),
             Vec::new(),
             Vec::new(),
+            /*invisible*/ false,
         )));
     app.chat_widget.insert_str("Retained draft");
     app.chat_widget.show_external_writer_thread();

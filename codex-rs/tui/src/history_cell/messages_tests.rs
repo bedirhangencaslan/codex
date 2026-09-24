@@ -19,6 +19,7 @@ fn user_prompt_urls_keep_destinations_across_widths() {
         )],
         Vec::new(),
         Vec::new(),
+        /*invisible*/ false,
     );
     let mut snapshots = Vec::new();
     for width in [120, 60, 24] {
@@ -59,6 +60,7 @@ fn local_image_only_user_message_remains_visible() {
         Vec::new(),
         vec![PathBuf::from("fixture.png")],
         Vec::new(),
+        /*invisible*/ false,
     );
     let display = cell.display_lines(/*width*/ 40);
 
@@ -77,6 +79,7 @@ fn mixed_image_labels_preserve_existing_placeholders_without_duplicates() {
         )],
         vec![PathBuf::from("one.png"), PathBuf::from("two.png")],
         vec!["https://example.test/remote.png".to_string()],
+        /*invisible*/ false,
     );
 
     insta::assert_snapshot!(ratatui::text::Text::from(cell.display_lines(/*width*/ 40)));

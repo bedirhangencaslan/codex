@@ -405,6 +405,7 @@ fn highlighting_reveals_prompt_body_when_only_padding_is_visible() {
             Vec::new(),
             Vec::new(),
             Vec::new(),
+            /*invisible*/ false,
         )),
         Arc::new(history_cell::PlainHistoryCell::new(vec![
             "tail one".into(),
