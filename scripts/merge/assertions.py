@@ -43,8 +43,11 @@ HEAD = "HEAD"
 
 # Edits made to GLM's template on purpose after OURS, as (old, new). The template must equal
 # OURS's with exactly these applied - so an intended change passes and nothing else does.
-GLM_TEMPLATE_EDITS = []
-GLM_TEMPLATE_CHARS = 16166
+GLM_TEMPLATE_EDITS = [
+    # The template was copied from a GPT entry and told GLM it was GPT-5.
+    ("an agent based on GPT-5.", "an agent based on GLM 5.3 Flash."),
+]
+GLM_TEMPLATE_CHARS = 16174
 
 CORE = "codex-rs/core/src/"
 MM = "codex-rs/models-manager/"
@@ -207,8 +210,14 @@ def catalog():
     for slug in sorted(ia):
         if slug not in ib:
             continue
-        d = sorted(k for k in set(ia[slug]) | set(ib[slug])
-                   if k not in dead and ia[slug].get(k) != ib[slug].get(k))
+        was = ia[slug]
+        if slug == "glm-5.3-flash" and GLM_TEMPLATE_EDITS:
+            was = json.loads(json.dumps(was))
+            mm = was.get("model_messages") or {}
+            for old, new in GLM_TEMPLATE_EDITS:
+                mm["instructions_template"] = (mm.get("instructions_template") or "").replace(old, new)
+        d = sorted(k for k in set(was) | set(ib[slug])
+                   if k not in dead and was.get(k) != ib[slug].get(k))
         tier = "T1" if slug == "glm-5.3-flash" else "T2"
         # Only the model this fork runs is a hard failure; the hidden ones are upstream's.
         out.append(("%s alanlari" % slug, tier, ", ".join(d)[:22] or "ayni",
