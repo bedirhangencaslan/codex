@@ -36,8 +36,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=HERE,
                       capture_output=True, encoding="utf-8").stdout.strip()
 
-OURS = "88a2b0c53"
+# The branch the latest merge started from. Move it at every merge: judged against an older
+# one, the fork's own later work (code-mode-glm moving GLM's `tool_mode`) reads as a loss.
+OURS = "fe4ea72d3e"
 HEAD = "HEAD"
+
+# Edits made to GLM's template on purpose after OURS, as (old, new). The template must equal
+# OURS's with exactly these applied - so an intended change passes and nothing else does.
+GLM_TEMPLATE_EDITS = []
+GLM_TEMPLATE_CHARS = 16166
 
 CORE = "codex-rs/core/src/"
 MM = "codex-rs/models-manager/"
@@ -175,9 +182,18 @@ def catalog():
     def tpl(m):
         return ((m or {}).get("model_messages") or {}).get("instructions_template") or ""
 
-    drift = [s for s in ia if s in ib and tpl(ia[s]) != tpl(ib[s])]
-    out.append(("her sablon OURS ile birebir", "T1",
-                "farkli: %s" % (", ".join(drift) or "yok"), not drift))
+    # The model this fork runs must match OURS exactly, less the edits made on purpose.
+    want = tpl(ia.get("glm-5.3-flash"))
+    for old, new in GLM_TEMPLATE_EDITS:
+        want = want.replace(old, new)
+    same = want == tpl(ib.get("glm-5.3-flash"))
+    out.append(("GLM sablonu OURS ile birebir", "T1", "ayni" if same else "FARKLI", same))
+    # Since 2026-09-24 the hidden OpenAI models take upstream's own template edits beside
+    # ours, merged on the template's lines. A difference there is a decision, so it is
+    # reported and not failed; the glob/grep check below still fails if ours goes missing.
+    drift = [s for s in ia if s in ib and s != "glm-5.3-flash" and tpl(ia[s]) != tpl(ib[s])]
+    out.append(("diger sablonlarda upstream duzeltmesi", "T2",
+                ", ".join(drift) or "yok", True))
 
     out.append(("hicbir modelimiz kaybolmadi", "T1",
                 "%d -> %d" % (len(ia), len(ib)),
@@ -202,7 +218,8 @@ def catalog():
     out.append(("glm-5.3-flash var", "T1", "-", g is not None))
     if g:
         n = len(tpl(g))
-        out.append(("GLM sablonu 16166 karakter", "T1", "%d" % n, n == 16166))
+        out.append(("GLM sablonu %d karakter" % GLM_TEMPLATE_CHARS, "T1", "%d" % n,
+                    n == GLM_TEMPLATE_CHARS))
         out.append(("GLM apply_patch_tool_type=prose", "T1",
                     str(g.get("apply_patch_tool_type")), g.get("apply_patch_tool_type") == "prose"))
         out.append(("GLM visibility=list", "T1", str(g.get("visibility")),
