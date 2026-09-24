@@ -125,7 +125,7 @@ pub enum LoginAccountParams {
 #[ts(export_to = "v2/")]
 pub enum LoginAppBrand {
     #[default]
-    Codex,
+    Suffice,
     Chatgpt,
 }
 

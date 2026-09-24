@@ -470,8 +470,8 @@ other non-default provider fields are not supported"
             retry,
             stream_idle_timeout: self.stream_idle_timeout(),
             wire: match self.wire_api {
-                WireApi::Responses => codex_api::WireApi::Responses,
-                WireApi::Chat => codex_api::WireApi::Chat,
+                WireApi::Responses => codex_client::WireApi::Responses,
+                WireApi::Chat => codex_client::WireApi::Chat,
             },
         })
     }

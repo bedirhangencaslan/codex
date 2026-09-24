@@ -52,6 +52,18 @@ LoginSuccessPageBrand::Codex => LoginSuccessPageBrand::Suffice
 Codex(CodexErr) => Suffice(CodexErr) | codex-rs/core/src/tools/sandboxing.rs
 #[serde(alias = "CODEX")]\n    Codex, => #[serde(alias = "CODEX")]\n    Suffice, | codex-rs/protocol/src/protocol.rs
 
+# ...and `Self::` inside their own impls, which the qualified rules above do not reach: the
+# 2026-09-24 merge left `Self::Codex` in `impl Product` against a variant named `Suffice`,
+# and verify-names.py did not see it. Neither file declares another enum with a `Codex` variant.
+Self::Codex => Self::Suffice | codex-rs/protocol/src/protocol.rs
+Self::Codex => Self::Suffice | codex-rs/login/src/success_page.rs
+
+# The two brand enums had no declaration rule at all: on 2026-09-24 `LoginAppBrand`'s uses
+# came back as `Suffice` and its declaration stayed `Codex`, which is also the wire value
+# (`rename_all = "lowercase"`). Anchored on the enum's own opening lines.
+pub enum LoginAppBrand {\n    #[default]\n    Codex, => pub enum LoginAppBrand {\n    #[default]\n    Suffice, | codex-rs/app-server-protocol/src/protocol/v2/account.rs
+pub enum LoginSuccessPageBrand {\n    Codex, => pub enum LoginSuccessPageBrand {\n    Suffice, | codex-rs/login/src/success_page.rs
+
 # The Python SDK exports `Suffice` beside `AsyncCodex`, `CodexError` and `CodexRpcError`,
 # which kept their names. Scoped to the SDK so a bare `Codex` elsewhere is left alone.
 Codex => Suffice | sdk/python/
@@ -64,3 +76,13 @@ Codex => Suffice | sdk/python/
 # restores them: the 2026-09-24 merge came out building `codex.exe`. Quoted, so the package
 # name `codex-cli` and the `codex-*` dependencies are left alone.
 "codex" => "suffice" | codex-rs/cli/Cargo.toml
+
+# The CLI's own name: clap's `name` and `bin_name`, the usage line, and the name shell
+# completions are generated for. The 2026-09-24 merge folded all four to `codex`, so
+# `--version` said `codex` and `suffice completion` wrote completions for a command that is
+# not installed. The usage line holds a literal `\n`, which a rule here cannot spell (this
+# file reads `\n` as a newline), so it is matched in two halves.
+name = "codex", => name = "suffice", | codex-rs/cli/src/main.rs
+"codex [OPTIONS] [PROMPT] => "suffice [OPTIONS] [PROMPT] | codex-rs/cli/src/main.rs
+codex [OPTIONS] <COMMAND> [ARGS]" => suffice [OPTIONS] <COMMAND> [ARGS]" | codex-rs/cli/src/main.rs
+let name = "codex"; => let name = "suffice"; | codex-rs/cli/src/main.rs

@@ -3854,7 +3854,7 @@ impl Product {
     pub fn to_app_platform(self) -> &'static str {
         match self {
             Self::Chatgpt => "chat",
-            Self::Codex => "codex",
+            Self::Suffice => "codex",
             Self::Atlas => "atlas",
         }
     }
@@ -3863,7 +3863,7 @@ impl Product {
         let normalized = value.trim().to_ascii_lowercase();
         match normalized.as_str() {
             "chatgpt" => Some(Self::Chatgpt),
-            "codex" => Some(Self::Codex),
+            "codex" => Some(Self::Suffice),
             "atlas" => Some(Self::Atlas),
             _ => None,
         }
