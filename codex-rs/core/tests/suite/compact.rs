@@ -2246,7 +2246,7 @@ async fn auto_compact_runs_after_resume_when_token_usage_is_over_limit() {
     let response_mock = mount_sse_sequence(&server, vec![compact_turn, sse_follow_up]).await;
 
     resumed
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             follow_up_user,
             resumed.cwd.path().to_path_buf(),
@@ -2631,7 +2631,7 @@ async fn pre_sampling_compact_falls_back_from_retired_previous_model_after_renam
         .expect("rollout path");
 
     initial
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "before switch",
             initial.cwd.path().to_path_buf(),
@@ -2645,7 +2645,7 @@ async fn pre_sampling_compact_falls_back_from_retired_previous_model_after_renam
     .await;
 
     initial
-        .suffice
+        .codex
         .submit(Op::Shutdown)
         .await
         .expect("shutdown initial session");
@@ -2668,7 +2668,7 @@ async fn pre_sampling_compact_falls_back_from_retired_previous_model_after_renam
         .expect("resume codex");
 
     resumed
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "after switch",
             resumed.cwd.path().to_path_buf(),
@@ -2770,7 +2770,7 @@ async fn pre_sampling_compact_falls_back_when_previous_model_is_not_found() {
         .expect("rollout path");
 
     initial
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "before switch",
             initial.cwd.path().to_path_buf(),
@@ -2784,7 +2784,7 @@ async fn pre_sampling_compact_falls_back_when_previous_model_is_not_found() {
     .await;
 
     initial
-        .suffice
+        .codex
         .submit(Op::Shutdown)
         .await
         .expect("shutdown initial session");
@@ -2808,7 +2808,7 @@ async fn pre_sampling_compact_falls_back_when_previous_model_is_not_found() {
         .expect("resume codex");
 
     resumed
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "after switch",
             resumed.cwd.path().to_path_buf(),
@@ -3411,7 +3411,7 @@ async fn pre_sampling_compact_runs_after_resume_and_switch_to_smaller_model() {
         .expect("rollout path");
 
     initial
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "before resume",
             initial.cwd.path().to_path_buf(),
@@ -3425,7 +3425,7 @@ async fn pre_sampling_compact_runs_after_resume_and_switch_to_smaller_model() {
     .await;
 
     initial
-        .suffice
+        .codex
         .submit(Op::Shutdown)
         .await
         .expect("shutdown initial session");
@@ -3448,7 +3448,7 @@ async fn pre_sampling_compact_runs_after_resume_and_switch_to_smaller_model() {
         .expect("resume codex");
 
     resumed
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "after resume",
             resumed.cwd.path().to_path_buf(),
@@ -3532,7 +3532,7 @@ async fn pre_sampling_compact_recovers_comp_hash_after_resume() {
         .expect("rollout path");
 
     initial
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "before resume",
             initial.cwd.path().to_path_buf(),
@@ -3546,7 +3546,7 @@ async fn pre_sampling_compact_recovers_comp_hash_after_resume() {
     .await;
 
     initial
-        .suffice
+        .codex
         .submit(Op::Shutdown)
         .await
         .expect("shutdown initial session");
@@ -3579,7 +3579,7 @@ async fn pre_sampling_compact_recovers_comp_hash_after_resume() {
         .expect("resume codex");
 
     resumed
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "after resume",
             resumed.cwd.path().to_path_buf(),
@@ -3659,7 +3659,7 @@ async fn pre_sampling_compact_skips_missing_comp_hash_after_resume() {
         .expect("rollout path");
 
     initial
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "before resume",
             initial.cwd.path().to_path_buf(),
@@ -3673,7 +3673,7 @@ async fn pre_sampling_compact_skips_missing_comp_hash_after_resume() {
     .await;
 
     initial
-        .suffice
+        .codex
         .submit(Op::Shutdown)
         .await
         .expect("shutdown initial session");
@@ -3704,7 +3704,7 @@ async fn pre_sampling_compact_skips_missing_comp_hash_after_resume() {
         .expect("resume codex");
 
     resumed
-        .suffice
+        .codex
         .start_or_steer_turn(disabled_permission_user_turn(
             "after resume",
             resumed.cwd.path().to_path_buf(),

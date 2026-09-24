@@ -1187,7 +1187,7 @@ async fn contributor_fails_closed_when_model_configuration_is_invalid() -> Resul
     });
     fixture
         .test
-        .suffice
+        .codex
         .thread_extension_data()
         .insert(parent_model);
 
@@ -1227,7 +1227,7 @@ async fn contributor_fails_closed_when_luna_classification_fails() -> Result<()>
         .await;
     fixture
         .test
-        .suffice
+        .codex
         .thread_extension_data()
         .get::<LunaSampler>()
         .expect("Guardian v2 should initialize")
@@ -2043,7 +2043,7 @@ async fn contributor_samples_tool_calls_with_the_existing_luna_pool() -> Result<
     test.codex.ensure_rollout_materialized().await;
     assert!(
         !test
-            .suffice
+            .codex
             .load_history(/*include_archived*/ false)
             .await?
             .items
@@ -2146,7 +2146,7 @@ async fn contributor_persists_nested_code_mode_action_with_score() -> Result<()>
     let score = tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
         loop {
             if let Some(score) = test
-                .suffice
+                .codex
                 .load_history(/*include_archived*/ false)
                 .await?
                 .items
@@ -2431,7 +2431,7 @@ async fn incompatible_compaction_blocks_cached_score_and_initial_cua_allowance()
     let authorization = fixture.test.codex.guardian_authorization_version().await;
     fixture
         .test
-        .suffice
+        .codex
         .inject_response_items(vec![ResponseItem::Compaction {
             id: Some(ResponseItemId::from_server(
                 "incompatible-checkpoint".to_owned(),

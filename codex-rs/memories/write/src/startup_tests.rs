@@ -808,7 +808,7 @@ async fn run_memory_phase_one_model_request_test(
         Some(test.thread_manager.auth_manager()),
     ));
     let db = test
-        .suffice
+        .codex
         .state_db()
         .ok_or_else(|| anyhow::anyhow!("state db should be enabled for memory startup test"))?;
     let source_id = seed_stage1_candidate(
@@ -967,7 +967,7 @@ async fn run_memory_phase_two_model_request_test(
         Some(test.thread_manager.auth_manager()),
     ));
     let db = test
-        .suffice
+        .codex
         .state_db()
         .ok_or_else(|| anyhow::anyhow!("state db should be enabled for memory startup test"))?;
     let source_id = seed_stage1_output(

@@ -93,7 +93,7 @@ async fn http_auth_challenge_reaches_agent_tool_call_events_without_replay() -> 
         .await?;
     wait_for_mcp_server(&fixture.codex, "reauth").await?;
     fixture
-        .suffice
+        .codex
         .start_or_steer_turn(read_only_user_turn(&fixture, "List calendar events."))
         .await?;
 
@@ -195,7 +195,7 @@ async fn oauth_mode_refresh_replaces_the_live_connection(
         .await?;
 
     let initial_result = fixture
-        .suffice
+        .codex
         .call_mcp_tool(
             server_name,
             "calendar_list_events",
@@ -220,7 +220,7 @@ async fn oauth_mode_refresh_replaces_the_live_connection(
         }
         // A normal tool call reconciles the refreshed config without forcing a reconnect.
         let result = fixture
-            .suffice
+            .codex
             .call_mcp_tool(
                 server_name,
                 "calendar_list_events",

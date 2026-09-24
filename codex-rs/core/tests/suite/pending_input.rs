@@ -82,7 +82,7 @@ async fn idle_response_items_include_pending_mailbox_in_first_request() -> anyho
 
     submit_queue_only_agent_mail(test.codex.as_ref(), "pending mailbox input").await;
     let submission = test
-        .suffice
+        .codex
         .start_turn_if_idle(TurnInputRequest::new(TurnInput::ResponseItem(
             responses::user_message_item("automatic response item"),
         )))
@@ -139,7 +139,7 @@ async fn standalone_tool_output_starts_instruction_turn() -> anyhow::Result<()> 
     let output = serde_json::from_value(expected_output.clone())?;
 
     let submission = test
-        .suffice
+        .codex
         .start_or_steer_turn(TurnInputRequest::new(TurnInput::ResponseItem(output)))
         .await?;
     let TurnInputSubmission::Started { turn_id } = submission else {
@@ -195,7 +195,7 @@ async fn assert_idle_user_input_reaches_the_first_model_request(
         text_elements: Vec::new(),
     }];
     let submission = test
-        .suffice
+        .codex
         .start_turn_if_idle(TurnInputRequest::new(TurnInput::UserInput {
             content: expected_input.clone(),
             client_id: Some("queued-user-message".to_string()),
@@ -323,7 +323,7 @@ async fn build_codex(server: &StreamingSseServer) -> Arc<CodexThread> {
         .build_with_streaming_server(server)
         .await
         .expect("build streaming Codex test session")
-        .suffice
+        .codex
 }
 
 async fn submit_user_input(codex: &CodexThread, text: &str) {
