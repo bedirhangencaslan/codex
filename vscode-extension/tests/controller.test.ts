@@ -47,7 +47,7 @@ const init: InitState = {
   attachedSkills: [],
   invisibleTurns: {},
   threadStartCompaction: {},
-  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {},
+  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {}, threadPreferences: {},
 };
 
 function setup(patch: Partial<AppState> = {}) {
@@ -76,10 +76,25 @@ describe("turn/start is exactly what the TUI would send", () => {
     });
   });
 
-  test("the preferences text is NOT sent anywhere (goal item 8 is plan-only)", async () => {
-    const { bridge, ctl } = setup();
+  test("the preference goes once, as thread/start.developerInstructions, never with a turn", async () => {
+    const env = setup();
+    await env.ctl.send("hello");
+    await env.ctl.send("again");
+    expect(env.bridge.calls.find((c) => c.method === "thread/start")!.params.developerInstructions).toBe("Answer in Turkish, please.");
+    expect(JSON.stringify(env.bridge.turnStarts())).not.toContain("Answer in Turkish");
+    expect(env.state.init!.threadPreferences).toEqual({ T1: "Answer in Turkish, please." });
+  });
+
+  test("no preference: thread/start carries none", async () => {
+    const { bridge, ctl } = setup({ init: { ...init, preferences: "  " } });
     await ctl.send("hello");
-    expect(JSON.stringify(bridge.calls)).not.toContain("Answer in Turkish");
+    expect(bridge.calls.find((c) => c.method === "thread/start")!.params).not.toHaveProperty("developerInstructions");
+  });
+
+  test("resuming a chat gives Codex the preference it started with (compaction rebuilds from config)", async () => {
+    const { bridge, ctl } = setup({ init: { ...init, threadPreferences: { OLD: "Be brief." } } });
+    await ctl.resume("OLD");
+    expect(bridge.calls.find((c) => c.method === "thread/resume")!.params.developerInstructions).toBe("Be brief.");
   });
 
   test("attached skills are skill items like $skill; blocked files add nothing to the input", async () => {
@@ -93,13 +108,13 @@ describe("turn/start is exactly what the TUI would send", () => {
   });
 
   test("no blocked files: thread/start carries no config at all", async () => {
-    const { bridge, ctl } = setup();
+    const { bridge, ctl } = setup({ init: { ...init, preferences: "" } });
     await ctl.send("hi");
     expect(bridge.calls.find((c) => c.method === "thread/start")!.params).toEqual({ cwd: "/w" });
   });
 
   test("blocked files start the chat under a session profile that denies them (Codex's own mechanism)", async () => {
-    const env = setup();
+    const env = setup({ init: { ...init, preferences: "" } });
     env.ctl.attachFile({ name: "a.env", path: "/w/a.env" });
     env.ctl.attachFile({ name: "secrets", path: "/w/secrets" });
     await env.ctl.send("one");

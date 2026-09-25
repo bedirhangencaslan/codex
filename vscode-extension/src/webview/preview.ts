@@ -141,6 +141,7 @@ export class PreviewBridge extends BaseBridge {
         ? { practiced: ["status", "pwd", "rename"], quizzes: { "basics.folder": "pwd", "sessions.unrelated": "compact" }, explored: [] }
         : { practiced: [], quizzes: {}, explored: [] },
       threadBlocks: {},
+      threadPreferences: {},
     };
   }
 

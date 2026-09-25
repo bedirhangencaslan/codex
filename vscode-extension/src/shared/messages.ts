@@ -23,7 +23,8 @@ export interface EnvKeyInfo {
 export interface PersistedState {
   /** User price overrides, by model id (globalState). */
   prices: Record<string, ModelPrice>;
-  /** Goal item 8 text box (globalState). Stored only; see PROMPT-CHANGE-PLAN.md. */
+  /** Goal item 8: the conversation preference for new chats (globalState). A chat that starts with
+   * one gives it to the model once, as `thread/start.developerInstructions`. */
   preferences: string;
   /** Skills this workspace attaches to every turn (workspaceState). */
   attachedSkills: AttachedSkill[];
@@ -38,6 +39,9 @@ export interface PersistedState {
    * permission profile denies, given again when the thread is resumed. Older entries are a bare
    * list of blocked paths. */
   threadBlocks: Record<string, ThreadFileAccess | string[]>;
+  /** threadId -> the preference that thread started with (workspaceState); given again on resume
+   * because Codex rebuilds its developer instructions from config at every compaction. */
+  threadPreferences: Record<string, string>;
 }
 
 /** What the files panel asked for: block the picks, or select them and block the rest. */

@@ -34,6 +34,9 @@ export function Toolbar() {
       <Chip icon="folder" active={c.panel === "files" || c.files.length > 0} onClick={() => ctl.togglePanel("files")} title={t("panel.filesTitle")} badge={c.files.length}>
         {c.files.length > 0 ? t(c.fileMode === "select" ? "panel.filesChipSelected" : "panel.filesChipBlocked") : t("panel.files")}
       </Chip>
+      <Chip icon="pencil" active={c.panel === "prefs" || !!state.init?.preferences?.trim()} onClick={() => ctl.togglePanel("prefs")} title={t("panel.prefsTitle")}>
+        {t("panel.prefs")}
+      </Chip>
       <span className="sf-toolbar-spacer" />
       <Chip icon="chip" active={c.panel === "model"} onClick={() => ctl.togglePanel("model")} title={`${t("panel.model")} · ${t("panel.effort")}`}>
         {modelLabel}
@@ -52,6 +55,8 @@ export function Panels() {
       return <SkillsPanel />;
     case "files":
       return <FilesPanel />;
+    case "prefs":
+      return <PrefsPanel />;
     case "model":
       return <ModelPanel />;
     default:
@@ -414,6 +419,53 @@ function EffortSlider({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Goal item 8: how Suffice should talk to you. The text is saved for new chats; a chat takes the
+ * preference it starts with (Codex fixes developer instructions for a running chat), so an edit
+ * while a chat is open applies to the next one.
+ */
+function PrefsPanel() {
+  const { state, ctl, t } = useApp();
+  const saved = state.init?.preferences ?? "";
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
+  const chatPreference = ctl.chatPreference;
+  const differsFromChat = chatPreference !== null && chatPreference !== saved.trim();
+  return (
+    <PanelFrame title={t("panel.prefsTitle")}>
+      <p className="sf-muted sf-small">{t("panel.prefsDesc")}</p>
+      <textarea
+        className="sf-textarea"
+        rows={4}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={t("settings.prefsPlaceholder")}
+        aria-label={t("panel.prefsTitle")}
+      />
+      <div className="sf-row sf-wrap">
+        <Button variant="primary" onClick={() => ctl.savePreferences(text.trim())} disabled={text.trim() === saved.trim()}>
+          {t("common.save")}
+        </Button>
+        <Button variant="ghost" icon="x" onClick={() => (setText(""), ctl.savePreferences(""))} disabled={!saved && !text}>
+          {t("panel.filesClear")}
+        </Button>
+      </div>
+      {differsFromChat && (
+        <Notice tone="info">
+          <div className="sf-stack-tight">
+            <span>{t("panel.prefsLocked")}</span>
+            <div>
+              <Button variant="secondary" icon="plus" onClick={() => ctl.newThread()}>
+                {t("panel.filesApplyNew")}
+              </Button>
+            </div>
+          </div>
+        </Notice>
+      )}
+    </PanelFrame>
   );
 }
 

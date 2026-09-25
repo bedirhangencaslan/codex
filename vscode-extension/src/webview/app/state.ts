@@ -14,7 +14,7 @@ export const SCREENS: Screen[] = ["home", "chat", "history", "skills", "commands
 
 export type PermissionPreset = "readOnly" | "auto" | "full";
 export type ModeChoice = "default" | "plan";
-export type ComposerPanel = "mode" | "skills" | "files" | "model" | null;
+export type ComposerPanel = "mode" | "skills" | "files" | "prefs" | "model" | null;
 
 export interface ConfigSnapshot {
   model: string | null;

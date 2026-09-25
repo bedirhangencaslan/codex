@@ -268,7 +268,15 @@ export class Controller {
     const mode = this.state.composer.fileMode;
     const picks = this.state.composer.files.map((f) => f.path);
     const denied = picks.length > 0 ? await this.deniedPathsFor(mode, picks) : [];
-    const started = await this.session.threadStart({ cwd: this.cwd, ...(denied.length > 0 ? { config: blockProfileConfig(denied) } : {}) });
+    // Goal item 8 (approved, PROMPT-CHANGE-PLAN P1): Codex's own field, rendered once into the
+    // chat's opening developer instructions and cached from then on. Fixed for the chat.
+    const preference = (this.state.init?.preferences ?? "").trim();
+    const started = await this.session.threadStart({
+      cwd: this.cwd,
+      ...(denied.length > 0 ? { config: blockProfileConfig(denied) } : {}),
+      ...(preference ? { developerInstructions: preference } : {}),
+    });
+    if (preference) this.persist("threadPreferences", { ...(this.state.init?.threadPreferences ?? {}), [started.thread.id]: preference });
     if (picks.length > 0) {
       const access: ThreadFileAccess = { mode, picks, denied };
       this.persist("threadBlocks", { ...(this.state.init?.threadBlocks ?? {}), [started.thread.id]: access });
@@ -283,7 +291,12 @@ export class Controller {
     try {
       // A chat that blocked files gets the same profile back; the panel shows its list.
       const access = this.threadAccess(threadId);
-      const resumed = await this.session.threadResume({ threadId, ...(access.denied.length > 0 ? { config: blockProfileConfig(access.denied) } : {}) });
+      const preference = this.state.init?.threadPreferences?.[threadId];
+      const resumed = await this.session.threadResume({
+        threadId,
+        ...(access.denied.length > 0 ? { config: blockProfileConfig(access.denied) } : {}),
+        ...(preference ? { developerInstructions: preference } : {}),
+      });
       this.dispatch({
         type: "composer",
         patch: { fileMode: access.mode, files: access.picks.map((path) => ({ name: path.split(/[\\/]/).pop() ?? path, path })) },
@@ -632,6 +645,12 @@ export class Controller {
   clearFiles(): void {
     this.dispatch({ type: "composer", patch: { files: [] } });
   }
+  /** The preference the current chat started with ("" for none), or null before a chat has started. */
+  get chatPreference(): string | null {
+    const threadId = this.state.chat.threadId;
+    return threadId ? (this.state.init?.threadPreferences?.[threadId] ?? "") : null;
+  }
+
   /** The file access the current chat started with, or null before a chat has started. */
   get chatBlocks(): ThreadFileAccess | null {
     const threadId = this.state.chat.threadId;

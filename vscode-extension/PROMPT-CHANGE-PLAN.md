@@ -6,29 +6,21 @@ that `suffice exec` would not send (see `tests/controller.test.ts`).
 
 Each item lists what would change in the model input, what it costs, and how to switch it on.
 
-## P1: send the conversation preferences box (goal item 8)
+## P1: the conversation preference (APPROVED by the owner, 2026-09-26, applied)
 
-Today the Settings text box is stored in VS Code globalState and never leaves the extension.
+The **Preference** button under the chat box, between Files and the model, opens a text box.
 
-**Option A (recommended): `thread/start.developerInstructions`**
-- This is an existing protocol field (`ThreadStartParams.developerInstructions`). Core adds it
-  as a developer-role fragment (`core/src/context/developer_instructions.rs`,
-  `generic.developer_instructions`).
-- It is sent only when a thread is created, so the prefix stays stable for the whole thread and
-  prompt caching keeps working. Cost: the length of the text as input tokens once, then almost
-  all of it at the cached price ($0.015/M on glm-5.3-flash).
-- To change: in `webview/app/controller.ts`, where `thread/start` is built, add
-  `developerInstructions: init.preferences.trim() || undefined`. Update the test "the preferences
-  text is NOT sent anywhere" to expect it only in `thread/start`.
-- Caveat: editing the box would not affect running threads. Replace the Settings notice
-  `settings.prefsPending` (en/tr) with "Applies to new chats."
-
-**Option B: `developer_instructions` in the user config** (`config/value/write`)
-- This applies to every client, including the TUI and exec, which may be unwanted.
-- It changes the prefix of every new session on the machine.
-
-**Not recommended:** prepending the text to each user message. It changes every turn, adds its
-tokens to every request, and shows up in the transcript.
+- **When it is sent:** a chat that starts with a preference gives it to the model once, as
+  `thread/start.developerInstructions`. Codex renders that into the chat's opening developer
+  instructions (`core/src/session/mod.rs` 4302-4310). After the first request it is read from the
+  cache.
+- **Stored per chat:** the preference is kept with the chat, and `thread/resume` gives it back.
+  This matters because Codex rebuilds its developer instructions from config at every compaction.
+- **Fixed for the chat:** Codex ignores `developerInstructions` for a running chat
+  (`app-server thread_processor.rs` 220-224).
+- **Why no mid-chat change:** a live test showed that `thread/fork` alone does not deliver a new
+  preference. Only fork plus compaction does, and that summarises the chat. The owner chose "set at
+  the start": an edit while a chat is open applies to a new chat, and the panel offers that.
 
 ## P2: TUI parity for the collaboration mode block
 

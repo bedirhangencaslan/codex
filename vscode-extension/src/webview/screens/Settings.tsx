@@ -1,6 +1,6 @@
-// Goal items 7, 8, 11 and 14: language, the conversation-preferences box, the reasoning-shrink /
-// compaction sync check and the theme picker. The compaction slider (item 10) lives in the chat's
-// meters row.
+// Goal items 7, 11 and 14: language, the reasoning-shrink / compaction sync check and the theme
+// picker. The compaction slider (item 10) and the conversation preference (item 8) live under the
+// chat box.
 import { useEffect, useState } from "react";
 import { MODEL_FACTS } from "../../shared/catalog";
 import { checkCompactionSync, type CompactionSyncFinding } from "../../shared/compactionSync";
@@ -19,7 +19,6 @@ export function SettingsScreen() {
       </header>
       <Language />
       <Theme />
-      <Preferences />
       <CompactionSync />
     </div>
   );
@@ -68,24 +67,6 @@ function Theme() {
   );
 }
 
-function Preferences() {
-  const { state, ctl, t } = useApp();
-  const [text, setText] = useState(state.init?.preferences ?? "");
-  const [saved, setSaved] = useState(false);
-  useEffect(() => setText(state.init?.preferences ?? ""), [state.init?.preferences]);
-  return (
-    <Section title={t("settings.prefsTitle")} description={t("settings.prefsDesc")}>
-      <textarea className="sf-textarea" rows={4} value={text} onChange={(e) => (setText(e.target.value), setSaved(false))} placeholder={t("settings.prefsPlaceholder")} aria-label={t("settings.prefsTitle")} />
-      <div className="sf-row">
-        <Button variant="primary" onClick={() => (ctl.savePreferences(text), setSaved(true))} disabled={text === (state.init?.preferences ?? "")}>
-          {t("common.save")}
-        </Button>
-        {saved && <span className="sf-muted">{t("settings.prefsSaved")}</span>}
-      </div>
-      <Notice tone="info">{t("settings.prefsPending")}</Notice>
-    </Section>
-  );
-}
 
 
 /**

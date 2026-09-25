@@ -44,7 +44,7 @@ function usePreviewDemo(bridge: HostBridge, ctl: Controller, state: AppState): v
     const params = new URLSearchParams(location.search);
     const panel = params.get("panel");
     if (params.get("demo")) void ctl.send("Run `echo hello-suffice` and tell me what it printed.");
-    if (panel === "mode" || panel === "skills" || panel === "files" || panel === "model") setTimeout(() => ctl.togglePanel(panel), 200);
+    if (panel === "mode" || panel === "skills" || panel === "files" || panel === "prefs" || panel === "model") setTimeout(() => ctl.togglePanel(panel), 200);
   }, [state.server.state, state.models.length]);
 }
 

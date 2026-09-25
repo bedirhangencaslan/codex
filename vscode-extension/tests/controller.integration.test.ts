@@ -71,7 +71,7 @@ maybe("controller on a real app-server", () => {
     const init: InitState = {
       locale: "en", languageSetting: "auto", themeId: "vscode", workspaceFolders: [{ name: "w", path: work }],
       envKeys: [], extensionVersion: "0", prices: {}, preferences: "", attachedSkills: [], invisibleTurns: {}, threadStartCompaction: {},
-  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {},
+  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {}, threadPreferences: {},
     };
     state = { ...initialState, init, server: host.currentStatus };
     const dispatch = (action: AppAction) => {

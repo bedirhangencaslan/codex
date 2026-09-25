@@ -7,7 +7,7 @@ import { EMPTY_PROGRESS } from "../shared/lessons";
 import type { EnvKeyInfo, PersistedState } from "../shared/messages";
 
 const GLOBAL_KEYS: Array<keyof PersistedState> = ["prices", "preferences", "learning"];
-const WORKSPACE_KEYS: Array<keyof PersistedState> = ["attachedSkills", "invisibleTurns", "threadStartCompaction", "threadBlocks"];
+const WORKSPACE_KEYS: Array<keyof PersistedState> = ["attachedSkills", "invisibleTurns", "threadStartCompaction", "threadBlocks", "threadPreferences"];
 
 const DEFAULTS: PersistedState = {
   prices: {},
@@ -17,6 +17,7 @@ const DEFAULTS: PersistedState = {
   threadStartCompaction: {},
   learning: EMPTY_PROGRESS,
   threadBlocks: {},
+  threadPreferences: {},
 };
 
 /** Env var names offered even before the user adds any: the provider this fork ships for. */
