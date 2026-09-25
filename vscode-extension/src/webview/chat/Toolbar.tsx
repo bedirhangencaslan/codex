@@ -315,12 +315,23 @@ function FilesPanel() {
         </Notice>
       )}
       {needsElevated && <Notice tone="warning">{t("panel.filesElevated")}</Notice>}
-      <div className="sf-segmented" role="radiogroup" aria-label={t("panel.filesTitle")}>
-        {(["block", "select"] as const).map((option) => (
-          <button key={option} type="button" role="radio" aria-checked={mode === option} className={mode === option ? "is-active" : ""} onClick={() => ctl.setFileMode(option)}>
-            {t(option === "block" ? "panel.filesModeBlock" : "panel.filesModeSelect")}
-          </button>
-        ))}
+      <div className="sf-mode-switch">
+        <button type="button" className={`sf-mode-switch-label ${mode === "block" ? "is-active" : ""}`} onClick={() => ctl.setFileMode("block")}>
+          {t("panel.filesModeBlock")}
+        </button>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={mode === "select"}
+          aria-label={`${t("panel.filesModeBlock")} / ${t("panel.filesModeSelect")}`}
+          className={`sf-switch ${mode === "select" ? "is-on" : ""}`}
+          onClick={() => ctl.setFileMode(mode === "select" ? "block" : "select")}
+        >
+          <span className="sf-switch-thumb" aria-hidden="true" />
+        </button>
+        <button type="button" className={`sf-mode-switch-label ${mode === "select" ? "is-active" : ""}`} onClick={() => ctl.setFileMode("select")}>
+          {t("panel.filesModeSelect")}
+        </button>
       </div>
       <p className="sf-muted sf-small">{t(mode === "block" ? "panel.filesModeBlockDesc" : "panel.filesModeSelectDesc")}</p>
       <input className="sf-input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("panel.filesFilter")} aria-label={t("panel.filesFilter")} />
