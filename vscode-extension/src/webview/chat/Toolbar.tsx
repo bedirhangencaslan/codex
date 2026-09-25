@@ -359,6 +359,64 @@ function FilesPanel() {
   );
 }
 
+/**
+ * The reasoning levels the model reports (model/list `supportedReasoningEfforts`, in its order), as
+ * a slider with one stop per level and the level names above their stops. Only levels the model
+ * lists are offered: the wire clamps anything else (GLM-5.3 accepts only low, high and max).
+ */
+function EffortSlider({
+  levels,
+  value,
+  label,
+  name,
+  onChange,
+}: {
+  levels: ReasoningEffort[];
+  value: ReasoningEffort | null;
+  label: string;
+  name: (level: ReasoningEffort) => string;
+  onChange: (level: ReasoningEffort) => void;
+}) {
+  const index = Math.max(0, value ? levels.indexOf(value) : 0);
+  const last = Math.max(1, levels.length - 1);
+  // A stop sits at thumb/2 + (width - thumb) * i / last; the labels use the same formula.
+  const at = (i: number) => `calc(var(--sf-thumb) / 2 + (100% - var(--sf-thumb)) * ${i / last})`;
+  return (
+    <div className="sf-effort">
+      <div className="sf-effort-labels" aria-hidden="true">
+        {levels.map((level, i) => (
+          <button
+            key={level}
+            type="button"
+            tabIndex={-1}
+            className={`sf-effort-label ${i === index ? "is-active" : ""}`}
+            style={{ left: at(i) }}
+            onClick={() => onChange(level)}
+          >
+            {name(level)}
+          </button>
+        ))}
+      </div>
+      <input
+        type="range"
+        className="sf-effort-range"
+        min={0}
+        max={levels.length - 1}
+        step={1}
+        value={index}
+        aria-label={label}
+        aria-valuetext={name(levels[index]!)}
+        onChange={(e) => onChange(levels[Number(e.target.value)]!)}
+      />
+      <div className="sf-effort-stops" aria-hidden="true">
+        {levels.map((level, i) => (
+          <span key={level} className={`sf-effort-stop ${i <= index ? "is-filled" : ""}`} style={{ left: at(i) }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ModelPanel() {
   const { state, ctl, t } = useApp();
   const current = state.composer.model ?? state.threadModel ?? state.config?.model ?? state.models.find((m) => m.isDefault)?.id ?? null;
@@ -375,21 +433,13 @@ function ModelPanel() {
       {efforts.length > 0 && (
         <div className="sf-panel-group">
           <div className="sf-panel-subtitle">{t("panel.effort")}</div>
-          <div className="sf-segmented" role="radiogroup" aria-label={t("panel.effort")}>
-            {efforts.map((e) => (
-              <button
-                key={e.reasoningEffort}
-                type="button"
-                role="radio"
-                aria-checked={effort === e.reasoningEffort}
-                className={effort === e.reasoningEffort ? "is-active" : ""}
-                title={e.description}
-                onClick={() => ctl.setEffort(e.reasoningEffort as ReasoningEffort)}
-              >
-                {t(`effort.${e.reasoningEffort}` as MessageKey)}
-              </button>
-            ))}
-          </div>
+          <EffortSlider
+            levels={efforts.map((e) => e.reasoningEffort as ReasoningEffort)}
+            value={effort as ReasoningEffort | null}
+            label={t("panel.effort")}
+            name={(level) => t(`effort.${level}` as MessageKey)}
+            onChange={(level) => ctl.setEffort(level)}
+          />
         </div>
       )}
     </PanelFrame>

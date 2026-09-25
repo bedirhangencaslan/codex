@@ -399,3 +399,14 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-chat-empty { max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
 .sf-chat-empty .sf-btn { white-space: normal; max-width: 100%; text-align: center; }
 .sf-btn > svg { flex: none; }
+/* Reasoning effort: a slider with one stop per level the model supports, names above the stops. */
+.sf-effort { --sf-thumb: 14px; position: relative; display: flex; flex-direction: column; gap: 2px; padding: 0 2px; }
+.sf-effort-labels { position: relative; height: 1.4em; }
+.sf-effort-label { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; border: 0; background: transparent; padding: 0; font: inherit; font-size: .88em; color: var(--sf-muted); cursor: pointer; }
+.sf-effort-label:first-child { transform: translateX(calc(var(--sf-thumb) / -2)); }
+.sf-effort-label:last-child { transform: translateX(calc(-100% + var(--sf-thumb) / 2)); }
+.sf-effort-label.is-active { color: var(--sf-text); font-weight: 600; }
+.sf-effort-range { width: 100%; margin: 0; accent-color: var(--sf-accent); cursor: pointer; }
+.sf-effort-stops { position: relative; height: 6px; }
+.sf-effort-stop { position: absolute; top: 0; width: 6px; height: 6px; border-radius: 50%; transform: translateX(-50%); background: var(--sf-border); }
+.sf-effort-stop.is-filled { background: var(--sf-accent); }
