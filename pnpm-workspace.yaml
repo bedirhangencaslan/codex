@@ -2,6 +2,7 @@ packages:
   - codex-cli
   - codex-rs/responses-api-proxy/npm
   - sdk/typescript
+  - vscode-extension
 
 ignoredBuiltDependencies:
   - esbuild

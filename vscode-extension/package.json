@@ -1,0 +1,101 @@
+{
+  "name": "suffice-vscode",
+  "displayName": "Suffice",
+  "description": "Suffice chat, skills and cost meters in the VS Code side bar, over the documented app-server protocol.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "suffice",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "suffice",
+          "title": "Suffice",
+          "icon": "media/suffice.svg"
+        }
+      ]
+    },
+    "views": {
+      "suffice": [
+        {
+          "type": "webview",
+          "id": "suffice.chat",
+          "name": "Suffice"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "suffice.focus",
+        "title": "Suffice: Open"
+      },
+      {
+        "command": "suffice.newThread",
+        "title": "Suffice: New Chat"
+      },
+      {
+        "command": "suffice.showInterfaces",
+        "title": "Suffice: Show Interfaces"
+      },
+      {
+        "command": "suffice.restartServer",
+        "title": "Suffice: Restart App Server"
+      }
+    ],
+    "configuration": {
+      "title": "Suffice",
+      "properties": {
+        "suffice.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the suffice executable. Empty: look for `suffice` on PATH."
+        },
+        "suffice.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "en",
+            "tr"
+          ],
+          "default": "auto",
+          "description": "Interface language. `auto` follows the VS Code display language."
+        },
+        "suffice.theme": {
+          "type": "string",
+          "default": "vscode",
+          "description": "Interface theme id (see the Settings screen). `vscode` follows the editor theme."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.19.18",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/vscode": "1.90.0",
+    "esbuild": "^0.28.1",
+    "jest": "^29.7.0",
+    "marked": "^15.0.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ts-jest": "^29.4.4",
+    "typescript": "^5.9.2"
+  }
+}
