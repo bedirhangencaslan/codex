@@ -6,7 +6,7 @@ import type { Model } from "@protocol/v2/Model";
 import type { ReasoningEffort } from "@protocol/ReasoningEffort";
 import type { SkillMetadata } from "@protocol/v2/SkillMetadata";
 import type { CompactionScope } from "../../shared/compactionSync";
-import type { InitState, ServerStatus } from "../../shared/messages";
+import type { FileAccessMode, InitState, ServerStatus } from "../../shared/messages";
 import { chatReducer, emptyChat, type ChatAction, type ChatState } from "../state/chatReducer";
 
 export type Screen = "home" | "chat" | "history" | "skills" | "commands" | "api" | "settings";
@@ -46,6 +46,8 @@ export interface ComposerState {
   /** Files and folders the next chat blocks (the thread's permission profile denies them). The
    * list stays for later chats until it is changed; a running chat keeps the list it started with. */
   files: AttachedFile[];
+  /** Block the picks, or select them and block everything else at their levels of the workspace. */
+  fileMode: FileAccessMode;
   panel: ComposerPanel;
   /** Text to place in the composer (from the command guide's "Try it"). */
   draft: string | null;
@@ -82,7 +84,7 @@ export const initialState: AppState = {
   skillErrors: [],
   config: null,
   serverRequests: [],
-  composer: { model: null, effort: null, mode: null, permission: null, invisible: false, files: [], panel: null, draft: null },
+  composer: { model: null, effort: null, mode: null, permission: null, invisible: false, files: [], fileMode: "block", panel: null, draft: null },
   toast: null,
 };
 

@@ -13,7 +13,7 @@ import type { TurnStartParamsWithMode } from "../../protocol/experimental";
 import type { CompactionScope } from "../../shared/compactionSync";
 import type { MessageKey, Params } from "../../shared/i18n";
 import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress } from "../../shared/lessons";
-import type { AttachedSkill, HostToWebview, InitState, PersistedState } from "../../shared/messages";
+import type { AttachedSkill, FileAccessMode, HostToWebview, InitState, PersistedState, ThreadFileAccess } from "../../shared/messages";
 import type { ModelPrice } from "../../shared/pricing";
 import { findCommand, parseSlashInput } from "../../shared/slashCommands";
 import { lastAgentText } from "../state/chatReducer";
@@ -250,9 +250,14 @@ export class Controller {
 
   private async ensureThread(): Promise<string> {
     if (this.state.chat.threadId) return this.state.chat.threadId;
-    const blocked = this.state.composer.files.map((f) => f.path);
-    const started = await this.session.threadStart({ cwd: this.cwd, ...(blocked.length > 0 ? { config: blockProfileConfig(blocked) } : {}) });
-    if (blocked.length > 0) this.persist("threadBlocks", { ...(this.state.init?.threadBlocks ?? {}), [started.thread.id]: blocked });
+    const mode = this.state.composer.fileMode;
+    const picks = this.state.composer.files.map((f) => f.path);
+    const denied = picks.length > 0 ? await this.deniedPathsFor(mode, picks) : [];
+    const started = await this.session.threadStart({ cwd: this.cwd, ...(denied.length > 0 ? { config: blockProfileConfig(denied) } : {}) });
+    if (picks.length > 0) {
+      const access: ThreadFileAccess = { mode, picks, denied };
+      this.persist("threadBlocks", { ...(this.state.init?.threadBlocks ?? {}), [started.thread.id]: access });
+    }
     this.dispatch({ type: "chat", action: { type: "threadLoaded", threadId: started.thread.id, name: started.thread.name, turns: [] } });
     this.dispatch({ type: "thread", cwd: started.cwd, model: started.model });
     await this.rememberStartCompaction(started.thread.id);
@@ -262,9 +267,12 @@ export class Controller {
   async resume(threadId: string): Promise<void> {
     try {
       // A chat that blocked files gets the same profile back; the panel shows its list.
-      const blocked = this.state.init?.threadBlocks?.[threadId] ?? [];
-      const resumed = await this.session.threadResume({ threadId, ...(blocked.length > 0 ? { config: blockProfileConfig(blocked) } : {}) });
-      this.dispatch({ type: "composer", patch: { files: blocked.map((path) => ({ name: path.split(/[\\/]/).pop() ?? path, path })) } });
+      const access = this.threadAccess(threadId);
+      const resumed = await this.session.threadResume({ threadId, ...(access.denied.length > 0 ? { config: blockProfileConfig(access.denied) } : {}) });
+      this.dispatch({
+        type: "composer",
+        patch: { fileMode: access.mode, files: access.picks.map((path) => ({ name: path.split(/[\\/]/).pop() ?? path, path })) },
+      });
       this.dispatch({ type: "chat", action: { type: "threadLoaded", threadId, name: resumed.thread.name, turns: resumed.thread.turns } });
       this.dispatch({ type: "thread", cwd: resumed.cwd, model: resumed.model });
       // A thread left in Plan mode resumes in Plan; the composer follows it.
@@ -597,10 +605,68 @@ export class Controller {
   clearFiles(): void {
     this.dispatch({ type: "composer", patch: { files: [] } });
   }
-  /** The files the current chat blocks, or null before a chat has started. */
-  get chatBlocks(): string[] | null {
+  /** The file access the current chat started with, or null before a chat has started. */
+  get chatBlocks(): ThreadFileAccess | null {
     const threadId = this.state.chat.threadId;
-    return threadId ? (this.state.init?.threadBlocks?.[threadId] ?? []) : null;
+    return threadId ? this.threadAccess(threadId) : null;
+  }
+
+  private threadAccess(threadId: string): ThreadFileAccess {
+    const entry = this.state.init?.threadBlocks?.[threadId];
+    if (!entry) return { mode: "block", picks: [], denied: [] };
+    return Array.isArray(entry) ? { mode: "block", picks: entry, denied: entry } : entry;
+  }
+
+  setFileMode(fileMode: FileAccessMode): void {
+    this.dispatch({ type: "composer", patch: { fileMode } });
+  }
+
+  /** What the thread's profile denies: the picks themselves, or in Select mode their complement. */
+  private async deniedPathsFor(mode: FileAccessMode, picks: string[]): Promise<string[]> {
+    return mode === "block" ? picks : this.selectionComplement(picks);
+  }
+
+  /**
+   * Select mode: every entry at the picks' levels of the workspace that is neither picked nor on
+   * the way to a pick. For `src/api/client.ts` that is the rest of `src/api`, the rest of `src` and
+   * the rest of the workspace root. Nothing outside the workspace is touched, a picked folder keeps
+   * all of its contents, and `AGENTS.md` stays readable because Codex reads it to build the chat's
+   * instructions. Listings come from the app-server's own `fs/readDirectory`.
+   */
+  private async selectionComplement(picks: string[]): Promise<string[]> {
+    const root = this.cwd;
+    if (!root) return [];
+    const sep = root.includes("\\") ? "\\" : "/";
+    const norm = (path: string) => path.replace(/[\\/]+/g, sep).replace(/[\\/]$/, "");
+    const key = (path: string) => (sep === "\\" ? norm(path).toLowerCase() : norm(path));
+    const rootPath = norm(root);
+    const rootKey = key(rootPath);
+    const picked = new Set(picks.map(key));
+    const onPath = new Set<string>();
+    const dirs: string[] = [];
+    for (const pick of picks) {
+      const path = norm(pick);
+      if (!key(path).startsWith(rootKey + sep.toLowerCase())) continue;
+      let parent = path.slice(0, path.lastIndexOf(sep));
+      while (parent.length >= rootPath.length) {
+        if (!onPath.has(key(parent))) {
+          onPath.add(key(parent));
+          dirs.push(parent);
+        }
+        if (key(parent) === rootKey) break;
+        parent = parent.slice(0, parent.lastIndexOf(sep));
+      }
+    }
+    const denied: string[] = [];
+    for (const dir of dirs) {
+      const listing = await this.session.fsReadDirectory({ path: dir });
+      for (const entry of listing.entries) {
+        const full = `${dir}${sep}${entry.fileName}`;
+        if (picked.has(key(full)) || onPath.has(key(full)) || entry.fileName === "AGENTS.md") continue;
+        denied.push(full);
+      }
+    }
+    return denied;
   }
   detachFile(path: string): void {
     this.dispatch({ type: "composer", patch: { files: this.state.composer.files.filter((f) => f.path !== path) } });

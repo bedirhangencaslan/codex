@@ -11,6 +11,8 @@ class FakeBridge extends BaseBridge {
   readonly isPreview = false;
   calls: Array<{ method: string; params: any }> = [];
   posts: WebviewToHost[] = [];
+  /** fs/readDirectory answers, by directory. */
+  tree: Record<string, Array<{ fileName: string; isDirectory: boolean; isFile: boolean }>> = {};
   post(message: WebviewToHost): void {
     this.posts.push(message);
     if (message.type !== "rpc") return;
@@ -21,6 +23,7 @@ class FakeBridge extends BaseBridge {
       "config/read": { config: { model_auto_compact_token_limit: 90000 } },
       "thread/goal/set": { goal: { objective: "ship", status: "active" } },
     };
+    if (message.method === "fs/readDirectory") result["fs/readDirectory"] = { entries: this.tree[(message.params as { path: string }).path] ?? [] };
     queueMicrotask(() => this.receive({ type: "rpcResult", id: message.id, result: result[message.method] ?? {} } as HostToWebview));
   }
   viewState<T>(): T | undefined {
@@ -116,16 +119,51 @@ describe("turn/start is exactly what the TUI would send", () => {
     });
     // Nothing per turn: the profile belongs to the thread.
     for (const p of env.bridge.turnStarts()) expect(Object.keys(p).sort()).toEqual(["input", "invisible", "threadId", "turnTrigger"]);
-    expect(env.state.init!.threadBlocks).toEqual({ T1: ["/w/a.env", "/w/secrets"] });
+    expect(env.state.init!.threadBlocks).toEqual({ T1: { mode: "block", picks: ["/w/a.env", "/w/secrets"], denied: ["/w/a.env", "/w/secrets"] } });
     // The list stays for the next chat.
     expect(env.state.composer.files.map((f) => f.path)).toEqual(["/w/a.env", "/w/secrets"]);
   });
 
-  test("resuming a chat that blocked files gives it the same profile back", async () => {
+  test("resuming a chat gives it the same profile back (older bare-list entries too)", async () => {
     const { bridge, ctl } = setup({ init: { ...init, threadBlocks: { OLD: ["/w/a.env"] } } });
     await ctl.resume("OLD");
     const resume = bridge.calls.find((c) => c.method === "thread/resume")!.params;
     expect(resume.config[`permissions.${BLOCK_PROFILE_ID}`].filesystem).toEqual({ "/w/a.env": "deny" });
+  });
+
+  const dir = (fileName: string) => ({ fileName, isDirectory: true, isFile: false });
+  const file = (fileName: string) => ({ fileName, isDirectory: false, isFile: true });
+
+  test("Select: everything at the picks' levels except the picks and the way to them is denied", async () => {
+    const env = setup();
+    env.bridge.tree = {
+      "/w": [dir("src"), dir("docs"), file("README.md"), file(".env"), file("AGENTS.md")],
+      "/w/src": [dir("api"), file("index.ts")],
+      "/w/src/api": [file("client.ts"), file("retry.ts")],
+    };
+    env.ctl.setFileMode("select");
+    env.ctl.attachFile({ name: "client.ts", path: "/w/src/api/client.ts" });
+    env.ctl.attachFile({ name: "docs", path: "/w/docs" });
+    await env.ctl.send("go");
+    const start = env.bridge.calls.find((c) => c.method === "thread/start")!.params;
+    expect(Object.keys(start.config[`permissions.${BLOCK_PROFILE_ID}`].filesystem).sort()).toEqual(
+      ["/w/.env", "/w/README.md", "/w/src/api/retry.ts", "/w/src/index.ts"].sort(),
+    );
+    // The picked folder is never listed, so its contents stay readable.
+    expect(env.bridge.calls.some((c) => c.method === "fs/readDirectory" && c.params.path === "/w/docs")).toBe(false);
+    expect(env.state.init!.threadBlocks.T1).toEqual({
+      mode: "select",
+      picks: ["/w/src/api/client.ts", "/w/docs"],
+      denied: expect.arrayContaining(["/w/.env", "/w/README.md", "/w/src/api/retry.ts", "/w/src/index.ts"]),
+    });
+  });
+
+  test("Select, resumed: the panel comes back in Select mode with the picks", async () => {
+    const { ctl, state } = setup({ init: { ...init, threadBlocks: { OLD: { mode: "select", picks: ["/w/a.ts"], denied: ["/w/b.ts"] } } } });
+    await ctl.resume("OLD");
+    expect(ctl.current.composer.fileMode).toBe("select");
+    expect(ctl.current.composer.files.map((f) => f.path)).toEqual(["/w/a.ts"]);
+    void state;
   });
 
   test("large pastes are expanded before sending", async () => {

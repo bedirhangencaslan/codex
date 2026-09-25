@@ -68,7 +68,8 @@ The webview may call only the methods listed in `ALLOWED_RPC_METHODS` (`src/shar
 
 ## Blocked files
 
-The tree under the composer blocks files and folders. It never sends them to the model. The block is
+The tree under the composer decides which files Suffice may read: **Block** the ticked ones, or
+**Select** them and block the rest. It never sends them to the model. The block is
 enforced by Codex's own permission machinery; no check is added outside it.
 
 - **Profile per chat.** A chat that blocks files starts with a session-scoped permission profile in
@@ -93,8 +94,12 @@ enforced by Codex's own permission machinery; no check is added outside it.
   once with `/setup-default-sandbox` in the terminal UI. The panel says so.
 - **Codex quirk.** A blocked path that no longer exists is recreated as an empty folder by the
   Windows sandbox before it is locked.
-- **Select mode.** Not implemented yet. When it is, it will be the complement: everything in the
-  workspace except the picks becomes `deny`.
+- **Select mode.** The switch above the filter chooses Block or Select. Select turns the picks into
+  their complement: at every level of the workspace on the way to a pick, each entry that is neither
+  picked nor on the way to a pick becomes a `deny` entry. For `src/api/client.ts` that is the rest of
+  `src/api`, the rest of `src` and the rest of the root. The listings come from the app-server's
+  `fs/readDirectory`. A picked folder keeps all of its contents. Nothing outside the workspace is
+  denied. `AGENTS.md` stays readable because Codex reads it to build the chat's instructions.
 
 ## Cost guarantees (tested in `tests/controller.test.ts`)
 

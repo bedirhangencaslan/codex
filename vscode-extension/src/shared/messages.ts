@@ -34,9 +34,19 @@ export interface PersistedState {
   threadStartCompaction: Record<string, number | null>;
   /** Slash command course progress: commands run, quiz answers, reference entries opened (globalState). */
   learning: LearningProgress;
-  /** threadId -> files and folders that thread blocks (workspaceState). Given to the thread's
-   * permission profile when it starts, and again when it is resumed. */
-  threadBlocks: Record<string, string[]>;
+  /** threadId -> the file access a thread started with (workspaceState). `denied` is what its
+   * permission profile denies, given again when the thread is resumed. Older entries are a bare
+   * list of blocked paths. */
+  threadBlocks: Record<string, ThreadFileAccess | string[]>;
+}
+
+/** What the files panel asked for: block the picks, or select them and block the rest. */
+export type FileAccessMode = "block" | "select";
+
+export interface ThreadFileAccess {
+  mode: FileAccessMode;
+  picks: string[];
+  denied: string[];
 }
 
 export interface InitState extends PersistedState {

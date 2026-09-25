@@ -380,3 +380,9 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-stack > p { margin: 0; }
 .sf-tree-toggle { flex: 1; display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; text-align: left; min-width: 0; }
 .sf-tree-spacer { flex: none; width: 12px; }
+/* Round tick marks in the file tree. */
+.sf-tree-row input[type="checkbox"] { appearance: none; -webkit-appearance: none; flex: none; width: 14px; height: 14px; margin: 0; border-radius: 50%; border: 1.5px solid var(--sf-muted); background: transparent; display: inline-grid; place-content: center; cursor: pointer; }
+.sf-tree-row input[type="checkbox"]::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--sf-accent-text); transform: scale(0); transition: transform .1s; }
+.sf-tree-row input[type="checkbox"]:checked { background: var(--sf-accent); border-color: var(--sf-accent); }
+.sf-tree-row input[type="checkbox"]:checked::before { transform: scale(1); }
+.sf-tree-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 1px; }
