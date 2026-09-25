@@ -100,8 +100,6 @@ const PERMISSIONS: Array<{ id: PermissionPreset; label: MessageKey; desc: Messag
 
 function ModePanel() {
   const { state, ctl, t } = useApp();
-  const [objective, setObjective] = useState("");
-  const goal = state.chat.goal;
   // Modes come from collaborationMode/list, so any mode the server adds is listed too.
   const modes = state.modes.length ? state.modes : [{ name: "Default", mode: "default" as const, model: null, reasoning_effort: null }];
   const describe = (mode: string | null) =>
@@ -118,42 +116,6 @@ function ModePanel() {
             description={describe(m.mode)}
           />
         ))}
-      </div>
-
-      <div className="sf-panel-group">
-        <div className="sf-panel-subtitle">
-          <Icon name="target" size={13} /> {t("panel.modeGoal")}
-        </div>
-        <p className="sf-muted">{t("panel.modeGoalDesc")}</p>
-        {goal ? (
-          <>
-            <p className="sf-goal-objective">{goal.objective}</p>
-            <p className="sf-muted">{t("panel.goalStatus", { status: t(`goal.${goal.status}` as MessageKey), tokens: goal.tokensUsed })}</p>
-            <div className="sf-row">
-              {goal.status === "paused" ? (
-                <Button onClick={() => void ctl.setGoalStatus("active")}>{t("panel.goalResume")}</Button>
-              ) : (
-                <Button onClick={() => void ctl.setGoalStatus("paused")}>{t("panel.goalPause")}</Button>
-              )}
-              <Button variant="ghost" onClick={() => void ctl.clearGoal()}>
-                {t("panel.goalClear")}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <form
-            className="sf-row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (objective.trim()) void ctl.setGoal(objective.trim()).then(() => setObjective(""));
-            }}
-          >
-            <input className="sf-input" value={objective} onChange={(e) => setObjective(e.target.value)} placeholder={t("panel.goalPlaceholder")} aria-label={t("panel.goalPlaceholder")} />
-            <Button variant="primary" type="submit" disabled={!objective.trim()}>
-              {t("panel.goalSet")}
-            </Button>
-          </form>
-        )}
       </div>
 
       <div className="sf-panel-group">

@@ -448,10 +448,19 @@ export class Controller {
         // dispatch() already synced this.state, so send() below sees Plan.
         this.dispatch({ type: "composer", patch: { mode: "plan" } });
         return args ? this.send(args) : true;
-      case "goal":
-        if (args) await this.setGoal(args);
-        else this.dispatch({ type: "composer", patch: { panel: "mode" } });
+      case "goal": {
+        if (args) {
+          await this.setGoal(args);
+          return true;
+        }
+        const goal = this.state.chat.goal;
+        notice(
+          goal
+            ? t("chat.goalCurrent", { objective: goal.objective, status: t(`goal.${goal.status}` as MessageKey), tokens: goal.tokensUsed })
+            : t("chat.goalUsage"),
+        );
         return true;
+      }
       case "compact":
         if (this.state.chat.threadId) await this.session.threadCompactStart({ threadId: this.state.chat.threadId }).catch((e) => this.fail(e));
         return true;

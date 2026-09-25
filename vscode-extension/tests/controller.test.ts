@@ -273,6 +273,14 @@ describe("slash commands typed in the composer", () => {
     expect(bridge.calls.find((c) => c.method === "thread/goal/set")!.params).toEqual({ threadId: "T1", objective: "ship it", status: "active" });
   });
 
+  test("/goal on its own explains how to set one and opens no panel", async () => {
+    const env = setup();
+    await env.ctl.send("/goal");
+    expect(env.state.composer.panel).toBeNull();
+    expect(env.state.chat.notices.at(-1)!.text).toContain("/goal all tests pass");
+    expect(env.bridge.turnStarts()).toHaveLength(0);
+  });
+
   test("terminal-only commands are explained, not sent", async () => {
     const env = setup();
     const { bridge, ctl } = env;
