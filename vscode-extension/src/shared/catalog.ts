@@ -2,10 +2,6 @@
 // no compaction limit and no prices). Each constant mirrors one line of Rust or of the model
 // catalog, and tests/catalog.test.ts reads that source and fails if they drift apart.
 
-/** codex-rs/core/src/request_density.rs `WINDOW_TOKENS`: the fixed window the reasoning
- * retention cost model divides the remaining budget by. It never follows the configured limit. */
-export const RETENTION_WINDOW_TOKENS = 80_000;
-
 /** codex-rs/protocol/src/openai_models.rs `auto_compact_token_limit()`: the limit is clamped to
  * 9/10 of the context window. */
 export const AUTO_COMPACT_CLAMP_NUMERATOR = 9;

@@ -6,12 +6,14 @@
 //   (core/src/session/mod.rs, ModelInfoOverrides). config/value/write does not refresh it for a
 //   running thread; only new or resumed threads see a new value. Reasoning retention and
 //   auto-compaction both read that frozen value, so they agree with each other.
-// - Reasoning retention (core/src/reasoning_retention.rs horizon()) divides the remaining budget
-//   by RETENTION_WINDOW_TOKENS, a constant that never follows the configured limit.
+// - Reasoning retention (core/src/reasoning_retention.rs horizon()) prices against the budget left
+//   under that same limit (session/context_window.rs base_window_tokens_remaining). Its 80K
+//   WINDOW_TOKENS is only the unit the user's request density is measured in and cancels out, so
+//   any limit is in step with it.
 // - For the `total` scope the limit is clamped to 9/10 of the context window; for
 //   `body_after_prefix` compaction uses the configured value unclamped while the read tool's
 //   budget still uses the clamped one.
-import { clampedAutoCompactLimit, RETENTION_WINDOW_TOKENS } from "./catalog";
+import { clampedAutoCompactLimit } from "./catalog";
 
 export type CompactionScope = "total" | "body_after_prefix";
 
@@ -28,7 +30,6 @@ export interface CompactionSyncInput {
 
 export type CompactionSyncFinding =
   | { kind: "thread-frozen"; threadValue: number | null; sliderValue: number | null }
-  | { kind: "retention-window"; limit: number; window: number }
   | { kind: "clamped"; requested: number; applied: number }
   | { kind: "scope-unclamped"; requested: number; clampedForRead: number };
 
@@ -58,10 +59,6 @@ export function checkCompactionSync(input: CompactionSyncInput): CompactionSyncR
       }
     }
     effectiveLimit = input.scope === "total" ? clamped : (requested ?? clamped);
-  }
-
-  if (effectiveLimit !== null && effectiveLimit !== RETENTION_WINDOW_TOKENS) {
-    findings.push({ kind: "retention-window", limit: effectiveLimit, window: RETENTION_WINDOW_TOKENS });
   }
 
   return { effectiveLimit, inSync: findings.length === 0, findings };

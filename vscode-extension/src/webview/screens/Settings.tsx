@@ -100,8 +100,6 @@ function CompactionSync() {
     switch (f.kind) {
       case "thread-frozen":
         return t("settings.sync.threadFrozen", { thread: shown(f.threadValue), slider: shown(f.sliderValue) });
-      case "retention-window":
-        return t("settings.sync.retentionWindow", { window: fmt(f.window), limit: fmt(f.limit), ratio: formatNumber(locale, f.limit / f.window, { maximumFractionDigits: 2 }) });
       case "clamped":
         return t("settings.sync.clamped", { requested: fmt(f.requested), applied: fmt(f.applied) });
       case "scope-unclamped":

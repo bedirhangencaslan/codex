@@ -40,16 +40,19 @@ Plan, then once back to Default.
   afterwards. Change: `collaborationMode()` in `controller.ts` returns the Default mask when
   there is no change. Two tests in `controller.test.ts` would flip.
 
-## P3: retention window vs the compaction limit (finding only, for the owner)
+## P3: retention window vs the compaction limit (WITHDRAWN, 2026-09-26: the finding was wrong)
 
-`core/src/request_density.rs` hardcodes `WINDOW_TOKENS = 80_000`, and the reasoning retention
-horizon is computed from it. The horizon does not follow `model_auto_compact_token_limit`. When
-the slider is set to anything other than 80000, retention and compaction plan for different
-windows. The extension's sync check (goal item 11) reports this and changes nothing.
+The earlier note said reasoning retention does not follow the configured limit. It does:
 
-Possible fix (a Rust change inside a cost mechanism, so only with approval): derive the window
-from the session's effective auto-compact limit. This is not a prompt change, but it changes how
-much reasoning is kept, so it changes model input.
+- **Where the budget comes from:** `reasoning_retention::horizon` gets `budget_remaining` from
+  `session/context_window.rs` `base_window_tokens_remaining`, which is the configured compaction
+  limit minus the tokens used (session/mod.rs 4575-4589).
+- **What the 80K is:** `WINDOW_TOKENS = 80_000` in `request_density.rs` is only the unit in which
+  the user's request density is measured and persisted (`request_density.json`). In
+  `budget_remaining / WINDOW_TOKENS * requests_per_window` it cancels out.
+- **Why nothing changes:** tying it to the limit would mix units across the persisted samples and
+  break the horizon. No change is made. The extension's misleading "retention window" warning is
+  removed.
 
 ## P4: blocked files are listed to the model (APPROVED by the owner, 2026-09-25, applied)
 

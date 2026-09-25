@@ -315,7 +315,6 @@ const base = {
   "settings.syncOk": "Senkron: reasoning shrink ve compaction senin ayarladığın {value} token değerini kullanıyor.",
   "settings.syncNoThread": "Çalışan sohbet yok; kontrol yeni sohbetlerin kullanacağı değeri kapsıyor.",
   "settings.sync.threadFrozen": "Çalışan sohbet hâlâ {thread} değerini kullanıyor. Reasoning shrink ve compaction bu değeri sohbet başlarken aldı; yeni değerin {slider} yalnızca yeni ya da devam ettirilen sohbetlerde geçerli. Hiçbir şey değiştirilmedi.",
-  "settings.sync.retentionWindow": "Reasoning shrink kalan bütçeyi senin limitine ({limit}) değil, sabit {window} token'lık bir pencereye bölüyor. Bu yüzden saklama ufku {ratio} kat ölçekleniyor. Hiçbir şey değiştirilmedi.",
   "settings.sync.clamped": "{requested}, bağlam penceresinin 9/10'unun üstünde; Suffice {applied} uyguluyor. Hiçbir şey değiştirilmedi.",
   "settings.sync.scopeUnclamped": "body_after_prefix kapsamında compaction {requested} değerini kırpmadan kullanırken read aracı bütçesini {clamped} üzerinden hesaplıyor. Hiçbir şey değiştirilmedi.",
   "settings.defaultValue": "varsayılan",

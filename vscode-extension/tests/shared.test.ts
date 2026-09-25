@@ -6,7 +6,6 @@ import {
   clampedAutoCompactLimit,
   CONTEXT_BASELINE_TOKENS,
   MODEL_FACTS,
-  RETENTION_WINDOW_TOKENS,
 } from "../src/shared/catalog";
 import { checkCompactionSync } from "../src/shared/compactionSync";
 import { computeMeters, contextLeftPercent, formatTokensCompact, formatUsd } from "../src/shared/meters";
@@ -17,11 +16,6 @@ const codexRs = join(__dirname, "..", "..", "codex-rs");
 const rust = (path: string) => readFileSync(join(codexRs, path), "utf8");
 
 describe("catalog constants mirror the Rust they describe", () => {
-  test("RETENTION_WINDOW_TOKENS = request_density.rs WINDOW_TOKENS", () => {
-    const m = /pub\(crate\) const WINDOW_TOKENS: i64 = ([\d_]+);/.exec(rust("core/src/request_density.rs"));
-    expect(Number(m![1]!.replace(/_/g, ""))).toBe(RETENTION_WINDOW_TOKENS);
-  });
-
   test("CONTEXT_BASELINE_TOKENS = protocol.rs BASELINE_TOKENS", () => {
     const m = /const BASELINE_TOKENS: i64 = ([\d_]+);/.exec(rust("protocol/src/protocol.rs"));
     expect(Number(m![1]!.replace(/_/g, ""))).toBe(CONTEXT_BASELINE_TOKENS);
@@ -118,11 +112,6 @@ describe("compaction sync check (goal item 11)", () => {
   test("a new slider value does not reach the running thread", () => {
     const r = checkCompactionSync({ ...glm, sliderValue: 80_000, threadStartValue: null });
     expect(r.findings).toEqual([{ kind: "thread-frozen", threadValue: null, sliderValue: 80_000 }]);
-  });
-
-  test("any limit other than 80K is out of step with the retention window", () => {
-    const r = checkCompactionSync({ ...glm, sliderValue: 120_000 });
-    expect(r.findings).toEqual([{ kind: "retention-window", limit: 120_000, window: RETENTION_WINDOW_TOKENS }]);
   });
 
   test("above 9/10 of the window the total scope clamps", () => {

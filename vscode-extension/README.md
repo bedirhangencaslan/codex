@@ -61,7 +61,7 @@ The webview may call only the methods listed in `ALLOWED_RPC_METHODS` (`src/shar
 | 8 | Conversation preference | **Preference** button under the chat box. Sent once per chat as `thread/start.developerInstructions` and kept with the chat, including on resume. An edit while a chat is open applies to a new chat. See P1 in `PROMPT-CHANGE-PLAN.md`. |
 | 9 | API keys and prices | API screen. Keys live in VS Code SecretStorage and are passed to the app-server as env vars (default `ZAI_API_KEY`); the server restarts on change. Built-in glm-5.3-flash prices can be overridden. |
 | 10 | Compaction slider | Settings. Writes `model_auto_compact_token_limit` via `config/value/write`; "model default" removes it. |
-| 11 | Retention ↔ compaction sync | `shared/compactionSync.ts`. It only warns and never changes anything. Findings: the running thread froze a different limit; the value differs from the retention window of 80000; the value is clamped to 9/10 of the context window; the `body_after_prefix` scope is unclamped. |
+| 11 | Retention ↔ compaction sync | `shared/compactionSync.ts`. It only warns and never changes anything. Findings: the running thread froze a different limit; the value is clamped to 9/10 of the context window; the `body_after_prefix` scope is unclamped. (Reasoning retention prices against the budget left under the same limit, so there is nothing else to be out of step with.) |
 | 13 | Meters | Context left, cache % of the last request, speed, total cost. |
 | 14 | Themes | Nine palettes as `--sf-*` CSS variables. |
 | 15 | Panels under the composer | Invisible, mode (default/plan/goal/review/permissions), skills, file and folder tree that **blocks** what you tick (see *Blocked files* below), model + reasoning effort. |
