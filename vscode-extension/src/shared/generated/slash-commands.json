@@ -1,0 +1,641 @@
+{
+  "source": "codex-rs/tui/src/slash_command.rs",
+  "commands": [
+    {
+      "name": "model",
+      "variant": "Model",
+      "aliases": [],
+      "description": "choose what model and reasoning effort to use",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "ide",
+      "variant": "Ide",
+      "aliases": [],
+      "description": "include current selection, open files, and other context from your IDE",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "permissions",
+      "variant": "Permissions",
+      "aliases": [],
+      "description": "choose what Codex is allowed to do",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "keymap",
+      "variant": "Keymap",
+      "aliases": [],
+      "description": "remap TUI shortcuts",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "vim",
+      "variant": "Vim",
+      "aliases": [],
+      "description": "toggle Vim mode for the composer",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "setup-default-sandbox",
+      "variant": "ElevateSandbox",
+      "aliases": [],
+      "description": "set up elevated agent sandbox",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "experimental",
+      "variant": "Experimental",
+      "aliases": [],
+      "description": "toggle experimental features",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "approve",
+      "variant": "AutoReview",
+      "aliases": [],
+      "description": "approve one retry of a recent auto-review denial",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "memories",
+      "variant": "Memories",
+      "aliases": [],
+      "description": "configure memory use and generation",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "skills",
+      "variant": "Skills",
+      "aliases": [],
+      "description": "use skills to improve how Codex performs specific tasks",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "import",
+      "variant": "Import",
+      "aliases": [],
+      "description": "import setup, this project, and recent chats from Claude Code",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "hooks",
+      "variant": "Hooks",
+      "aliases": [],
+      "description": "view and manage lifecycle hooks",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "review",
+      "variant": "Review",
+      "aliases": [],
+      "description": "review my current changes and find issues",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "rename",
+      "variant": "Rename",
+      "aliases": [],
+      "description": "rename the current thread",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "new",
+      "variant": "New",
+      "aliases": [],
+      "description": "start a new chat during a conversation",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "archive",
+      "variant": "Archive",
+      "aliases": [],
+      "description": "archive this session",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "delete",
+      "variant": "Delete",
+      "aliases": [],
+      "description": "permanently delete this session",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "resume",
+      "variant": "Resume",
+      "aliases": [],
+      "description": "resume a saved chat",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "fork",
+      "variant": "Fork",
+      "aliases": [],
+      "description": "fork the current chat",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "worktree",
+      "variant": "Worktree",
+      "aliases": [],
+      "description": "start or continue a conversation in a new worktree",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "app",
+      "variant": "App",
+      "aliases": [],
+      "description": "continue this session in the Desktop app",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "init",
+      "variant": "Init",
+      "aliases": [],
+      "description": "create an AGENTS.md file with instructions for Codex",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "compact",
+      "variant": "Compact",
+      "aliases": [],
+      "description": "summarize conversation to prevent hitting the context limit",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "recap",
+      "variant": "Recap",
+      "aliases": [],
+      "description": "summarize the current conversation now",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "plan",
+      "variant": "Plan",
+      "aliases": [],
+      "description": "switch to Plan mode",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "invisible",
+      "variant": "Invisible",
+      "aliases": [],
+      "description": "toggle invisible mode: turns are kept out of later context",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "voice",
+      "variant": "Voice",
+      "aliases": [],
+      "description": "start or stop voice; use /voice settings to choose a voice",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "goal",
+      "variant": "Goal",
+      "aliases": [],
+      "description": "set or view the goal for a long-running task",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "agents",
+      "variant": "Agents",
+      "aliases": [],
+      "description": "open the agent command center",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "side",
+      "variant": "Side",
+      "aliases": [],
+      "description": "start a side conversation in an ephemeral fork",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "btw",
+      "variant": "Btw",
+      "aliases": [],
+      "description": "start a side conversation in an ephemeral fork",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "copy",
+      "variant": "Copy",
+      "aliases": [],
+      "description": "copy the last response or part of it",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "export",
+      "variant": "Export",
+      "aliases": [],
+      "description": "export the conversation as markdown",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "raw",
+      "variant": "Raw",
+      "aliases": [],
+      "description": "toggle raw scrollback mode for copy-friendly terminal selection",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "tui",
+      "variant": "Tui",
+      "aliases": [],
+      "description": "choose the TUI mode for the next launch",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "diff",
+      "variant": "Diff",
+      "aliases": [],
+      "description": "show git diff (including untracked files)",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "mention",
+      "variant": "Mention",
+      "aliases": [],
+      "description": "mention a file",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "status",
+      "variant": "Status",
+      "aliases": [],
+      "description": "show current session configuration and token usage",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "daemon",
+      "variant": "Daemon",
+      "aliases": [],
+      "description": "Manage the local background server",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "warnings",
+      "variant": "Warnings",
+      "aliases": [],
+      "description": "view retained warnings and diagnostic details",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "cd",
+      "variant": "Cd",
+      "aliases": [],
+      "description": "change the current working directory",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "pwd",
+      "variant": "Pwd",
+      "aliases": [
+        "cwd"
+      ],
+      "description": "show the current working directory",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "usage",
+      "variant": "Usage",
+      "aliases": [],
+      "description": "view account usage or use a usage limit reset",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": true,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "debug-config",
+      "variant": "DebugConfig",
+      "aliases": [],
+      "description": "show config layers and requirement sources for debugging",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "title",
+      "variant": "Title",
+      "aliases": [],
+      "description": "configure which items appear in the terminal title",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "statusline",
+      "variant": "Statusline",
+      "aliases": [],
+      "description": "configure which items appear in the status line",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "theme",
+      "variant": "Theme",
+      "aliases": [],
+      "description": "choose a syntax highlighting theme",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "pets",
+      "variant": "Pets",
+      "aliases": [
+        "pet"
+      ],
+      "description": "choose or hide the terminal pet",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "mcp",
+      "variant": "Mcp",
+      "aliases": [],
+      "description": "list configured MCP tools; use /mcp verbose for details",
+      "inlineArgs": true,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "apps",
+      "variant": "Apps",
+      "aliases": [],
+      "description": "manage apps",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "plugins",
+      "variant": "Plugins",
+      "aliases": [],
+      "description": "browse plugins",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "logout",
+      "variant": "Logout",
+      "aliases": [],
+      "description": "log out of Codex",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "quit",
+      "variant": "Quit",
+      "aliases": [],
+      "description": "exit Codex",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "exit",
+      "variant": "Exit",
+      "aliases": [],
+      "description": "exit Codex",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "feedback",
+      "variant": "Feedback",
+      "aliases": [],
+      "description": "send logs to maintainers",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "rollout",
+      "variant": "Rollout",
+      "aliases": [],
+      "description": "print the rollout file path",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "ps",
+      "variant": "Ps",
+      "aliases": [],
+      "description": "list background terminals",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "stop",
+      "variant": "Stop",
+      "aliases": [
+        "clean"
+      ],
+      "description": "stop all background terminals",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "clear",
+      "variant": "Clear",
+      "aliases": [],
+      "description": "clear the terminal and start a new chat",
+      "inlineArgs": true,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "test-approval",
+      "variant": "TestApproval",
+      "aliases": [],
+      "description": "test approval request",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "subagents",
+      "variant": "MultiAgents",
+      "aliases": [],
+      "description": "switch between this session's subagents",
+      "inlineArgs": false,
+      "availableDuringTask": true,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": true
+    },
+    {
+      "name": "debug-m-drop",
+      "variant": "MemoryDrop",
+      "aliases": [],
+      "description": "DO NOT USE",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    },
+    {
+      "name": "debug-m-update",
+      "variant": "MemoryUpdate",
+      "aliases": [],
+      "description": "DO NOT USE",
+      "inlineArgs": false,
+      "availableDuringTask": false,
+      "availableInSideConversation": false,
+      "availableWhenThreadUnavailable": false
+    }
+  ]
+}

@@ -51,14 +51,25 @@ import type { TurnInterruptParams } from "@protocol/v2/TurnInterruptParams";
 import type { TurnInterruptResponse } from "@protocol/v2/TurnInterruptResponse";
 import type { TurnStartResponse } from "@protocol/v2/TurnStartResponse";
 import type { CollaborationModeListResponse, TurnStartParamsWithMode } from "./experimental";
-import type { JsonRpcConnection } from "./jsonrpc";
+import type { IncomingNotification } from "./jsonrpc";
+
+/**
+ * What the typed calls need from a connection. The extension host passes its
+ * JsonRpcConnection; the webview passes a channel that relays over postMessage, so both sides
+ * share this one typed surface.
+ */
+export interface RpcChannel {
+  request<T>(method: string, params?: unknown): Promise<T>;
+  notify(method: string, params?: unknown): void;
+  onNotification(listener: (notification: IncomingNotification) => void): () => void;
+}
 
 export type Notification = ServerNotification;
 export type NotificationOf<M extends Notification["method"]> = Extract<Notification, { method: M }>;
 export type ServerRequestOf<M extends ServerRequest["method"]> = Extract<ServerRequest, { method: M }>;
 
 export class AppServerSession {
-  constructor(private readonly rpc: JsonRpcConnection) {}
+  constructor(private readonly rpc: RpcChannel) {}
 
   /** `initialize` then `initialized`. experimentalApi matches the TUI (app_server_connection.rs). */
   async initialize(clientInfo: ClientInfo): Promise<InitializeResponse> {
