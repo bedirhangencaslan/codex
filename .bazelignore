@@ -2,5 +2,3 @@
 # .git/sl/origbackups (which can be populated by Sapling SCM).
 .git
 codex-rs/target
-# GUI workspace builds with pnpm/cargo directly; keep Bazel out of it.
-gui

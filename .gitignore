@@ -94,7 +94,3 @@ CHANGELOG.ignore.md
 # Python bytecode files
 __pycache__/
 *.pyc
-
-# GUI shells
-gui/desktop/src-tauri/target/
-gui/vscode/media/
