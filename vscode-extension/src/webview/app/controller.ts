@@ -16,7 +16,7 @@ import type { ModelPrice } from "../../shared/pricing";
 import { findCommand, parseSlashInput } from "../../shared/slashCommands";
 import { lastAgentText } from "../state/chatReducer";
 import type { HostBridge } from "../host";
-import type { AppAction, AppState, PermissionPreset, Screen } from "./state";
+import { appReducer, type AppAction, type AppState, type PermissionPreset, type Screen } from "./state";
 
 /** codex_utils_approval_presets, as the TUI's /permissions offers them. */
 export const PERMISSION_PRESETS: Record<PermissionPreset, { approvalPolicy: AskForApproval; sandboxPolicy: SandboxPolicy }> = {
@@ -39,7 +39,7 @@ export class Controller {
 
   constructor(
     readonly bridge: HostBridge,
-    private readonly dispatch: (action: AppAction) => void,
+    private readonly render: (action: AppAction) => void,
     initial: AppState,
     private readonly t: () => Translate,
   ) {
@@ -47,7 +47,17 @@ export class Controller {
     this.state = initial;
   }
 
-  /** Keeps the controller's view of state current (called from the React reducer loop). */
+  /**
+   * Applies an action to the controller's own state at once (React only applies it at the next
+   * render), then hands it to React. Both run the same appReducer, so they cannot disagree, and a
+   * sequence like "/plan <text>" (switch mode, then send) sees the switch.
+   */
+  private dispatch(action: AppAction): void {
+    this.state = appReducer(this.state, action);
+    this.render(action);
+  }
+
+  /** Re-aligns with React's state after a render. */
   sync(state: AppState): void {
     this.state = state;
   }
@@ -211,6 +221,10 @@ export class Controller {
       const resumed = await this.session.threadResume({ threadId });
       this.dispatch({ type: "chat", action: { type: "threadLoaded", threadId, name: resumed.thread.name, turns: resumed.thread.turns } });
       this.dispatch({ type: "thread", cwd: resumed.cwd, model: resumed.model });
+      // A thread left in Plan mode resumes in Plan; the composer follows it.
+      const resumedMode = (resumed as { collaborationMode?: { mode?: string } | null }).collaborationMode?.mode;
+      if (resumedMode === "plan") this.planThreads.add(threadId);
+      this.dispatch({ type: "composer", patch: { mode: resumedMode === "plan" ? "plan" : null } });
       this.go("chat");
       await this.rememberStartCompaction(threadId);
       const goal = await this.session.threadGoalGet({ threadId }).catch(() => ({ goal: null }));
@@ -241,7 +255,7 @@ export class Controller {
       if (c.model) params.model = c.model;
       if (c.effort) params.effort = c.effort;
       if (c.permission) Object.assign(params, PERMISSION_PRESETS[c.permission]);
-      const mode = this.collaborationMode();
+      const mode = this.collaborationMode(threadId);
       if (mode) params.collaborationMode = mode;
       const started = await this.session.turnStart(params);
       if (c.invisible) {
@@ -257,10 +271,23 @@ export class Controller {
     }
   }
 
-  /** turn/start.collaborationMode for the chosen mode; undefined leaves the server's default. */
-  private collaborationMode(): TurnStartParamsWithMode["collaborationMode"] {
+  /** Threads whose current collaboration mode is Plan (set by us, or found on resume). */
+  private readonly planThreads = new Set<string>();
+
+  /**
+   * turn/start.collaborationMode, sent only when the thread's mode actually changes: into Plan,
+   * or back to Default from Plan (the server keeps a mode for later turns, so leaving Plan needs
+   * one explicit Default). Measured: every turn that carries a mode adds the mode's built-in
+   * `<collaboration_mode>` block (~1.3K chars for Default) to the request, so a thread that never
+   * used Plan sends nothing — the same model input as `suffice exec`. The TUI instead sends Default
+   * on every turn; matching it is a model-input change left to the owner (PROMPT-CHANGE-PLAN.md).
+   */
+  private collaborationMode(threadId: string): TurnStartParamsWithMode["collaborationMode"] {
     const choice = this.state.composer.mode;
-    if (!choice) return undefined;
+    const inPlan = this.planThreads.has(threadId);
+    if (choice === "plan") this.planThreads.add(threadId);
+    else if (choice === "default" && inPlan) this.planThreads.delete(threadId);
+    else return undefined;
     const mask = this.state.modes.find((m) => m.mode === choice);
     const model = this.state.composer.model ?? this.state.threadModel ?? this.state.config?.model ?? this.state.models.find((m) => m.isDefault)?.id;
     if (!model) return undefined;
@@ -320,8 +347,8 @@ export class Controller {
         this.toggleInvisible();
         return true;
       case "planMode":
+        // dispatch() already synced this.state, so send() below sees Plan.
         this.dispatch({ type: "composer", patch: { mode: "plan" } });
-        this.sync({ ...this.state, composer: { ...this.state.composer, mode: "plan" } });
         return args ? this.send(args) : true;
       case "goal":
         if (args) await this.setGoal(args);
