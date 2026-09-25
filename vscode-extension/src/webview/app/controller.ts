@@ -46,14 +46,15 @@ export function isUnelevatedDenyReadRefusal(error: unknown): boolean {
   return /unelevated/i.test(text) && /deny-read/i.test(text);
 }
 
-/** Model-facing label in front of the conversation preference (owner-approved, English on purpose:
- * it is prompt text, not interface text). Only sent together with a non-empty preference. */
-export const PREFERENCE_LABEL = "User's conversation preferences:";
+/** Model-facing tag around the conversation preference, in the style of Codex's other context
+ * sections (`<skills_instructions>`, `<permissions instructions>`). Owner-approved; English on
+ * purpose, it is prompt text, not interface text. Only sent with a non-empty preference. */
+export const PREFERENCE_TAG = "users_conversation_preferences";
 
 /** `developerInstructions` for a chat's preference, or undefined when there is none. */
 export function preferenceInstructions(preference: string | undefined): string | undefined {
   const text = preference?.trim();
-  return text ? `${PREFERENCE_LABEL}\n${text}` : undefined;
+  return text ? `<${PREFERENCE_TAG}>\n${text}\n</${PREFERENCE_TAG}>` : undefined;
 }
 
 /** The permission profile a chat that blocks files runs under. */
