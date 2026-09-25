@@ -1,13 +1,13 @@
-// Goal items 7, 8, 10, 11 and 14: language, the conversation-preferences box, the compaction
-// slider, the reasoning-shrink/compaction sync check and the theme picker.
+// Goal items 7, 8, 11 and 14: language, the conversation-preferences box, the reasoning-shrink /
+// compaction sync check and the theme picker. The compaction slider (item 10) lives in the chat's
+// meters row.
 import { useEffect, useState } from "react";
 import { MODEL_FACTS } from "../../shared/catalog";
 import { checkCompactionSync, type CompactionSyncFinding } from "../../shared/compactionSync";
 import { formatNumber, LOCALES, type MessageKey } from "../../shared/i18n";
 import { THEMES, type Palette } from "../../shared/themes";
-import { COMMIT_KEYS, COMPACTION_STEP } from "../app/compaction";
+import { compactionRange } from "../app/compaction";
 import { useApp } from "../app/context";
-import { useCompactionSlider } from "../app/useCompactionSlider";
 import { Button, Notice, Section } from "../components/ui";
 
 export function SettingsScreen() {
@@ -20,7 +20,7 @@ export function SettingsScreen() {
       <Language />
       <Theme />
       <Preferences />
-      <Compaction />
+      <CompactionSync />
     </div>
   );
 }
@@ -88,42 +88,34 @@ function Preferences() {
 }
 
 
-function Compaction() {
+/**
+ * Goal item 11: whether reasoning shrink and compaction use the limit set with the compaction slider
+ * under the chat box. Report only: nothing is changed from here.
+ */
+function CompactionSync() {
   const { state, ctl, t, locale } = useApp();
   useEffect(() => {
     if (state.server.state === "ready") void ctl.loadConfig();
   }, [state.server.state]);
 
   const config = state.config;
-  const contextTokens = state.chat.tokenUsage?.last.totalTokens ?? 0;
-  const slider = useCompactionSlider(contextTokens);
-  const { range } = slider;
-  const model = range.model;
-  const facts = model ? MODEL_FACTS[model] : undefined;
+  const range = compactionRange(state, state.chat.tokenUsage?.last.totalTokens ?? 0);
+  const facts = range.model ? MODEL_FACTS[range.model] : undefined;
   // The clamp works on the raw window Suffice knows (an override, else the catalog), not the
   // effective one token usage reports.
   const rawWindow = config?.contextWindow ?? facts?.contextWindow ?? null;
-  const modelDefault = range.defaultValue;
-  const configured = range.configured;
-  const value = slider.value;
-  const [savedNote, setSavedNote] = useState(false);
-
   const fmt = (n: number) => formatNumber(locale, n);
-  const commit = async (next: number | null) => {
-    if (next === configured) return;
-    setSavedNote(await slider.commit(next));
-  };
 
   const threadId = state.chat.threadId;
   const report = checkCompactionSync({
-    sliderValue: configured,
+    sliderValue: range.configured,
     threadStartValue: threadId ? (state.init?.threadStartCompaction[threadId] ?? null) : undefined,
     scope: config?.compactionScope ?? "total",
     contextWindow: rawWindow,
     catalogLimit: facts ? facts.autoCompactTokenLimit : undefined,
   });
   const describe = (f: CompactionSyncFinding): string => {
-    const shown = (v: number | null) => (v === null ? `${t("settings.defaultValue")} (${modelDefault !== null ? fmt(modelDefault) : "–"})` : fmt(v));
+    const shown = (v: number | null) => (v === null ? `${t("settings.defaultValue")} (${fmt(range.defaultValue)})` : fmt(v));
     switch (f.kind) {
       case "thread-frozen":
         return t("settings.sync.threadFrozen", { thread: shown(f.threadValue), slider: shown(f.sliderValue) });
@@ -137,47 +129,17 @@ function Compaction() {
   };
 
   return (
-    <>
-      <Section title={t("settings.compactionTitle")} description={t("settings.compactionDesc")}>
-        <div className="sf-slider-row">
-          <input
-            type="range"
-            className="sf-slider"
-            min={range.min}
-            max={range.max}
-            step={COMPACTION_STEP}
-            value={value}
-            onChange={(e) => (slider.setValue(Number(e.target.value)), setSavedNote(false))}
-            onPointerUp={() => void commit(value)}
-            onKeyUp={(e) => COMMIT_KEYS.includes(e.key) && void commit(value)}
-            aria-label={t("settings.compactionTitle")}
-            aria-valuetext={t("settings.compactionValue", { value: fmt(value) })}
-            disabled={slider.disabled}
-          />
-          <output className="sf-slider-value">{t("settings.compactionValue", { value: fmt(value) })}</output>
-        </div>
-        <div className="sf-row sf-wrap">
-          {modelDefault !== null && <span className="sf-muted">{t("settings.compactionDefault", { value: fmt(modelDefault) })}</span>}
-          <Button variant="ghost" onClick={() => void commit(null)} disabled={configured === null}>
-            {t("settings.compactionUseDefault")}
-          </Button>
-        </div>
-        {!range.realWindow && <p className="sf-muted">{t("settings.compactionUnknownWindow", { model: model ?? "–", max: fmt(range.max) })}</p>}
-        {savedNote && <Notice tone="success">{t("settings.compactionSaved")}</Notice>}
-      </Section>
-
-      <Section title={t("settings.syncTitle")}>
-        {!threadId && <p className="sf-muted">{t("settings.syncNoThread")}</p>}
-        {report.inSync ? (
-          <Notice tone="success">{t("settings.syncOk", { value: report.effectiveLimit !== null ? fmt(report.effectiveLimit) : "–" })}</Notice>
-        ) : (
-          report.findings.map((f) => (
-            <Notice key={f.kind} tone="warning">
-              {describe(f)}
-            </Notice>
-          ))
-        )}
-      </Section>
-    </>
+    <Section title={t("settings.syncTitle")}>
+      {!threadId && <p className="sf-muted">{t("settings.syncNoThread")}</p>}
+      {report.inSync ? (
+        <Notice tone="success">{t("settings.syncOk", { value: report.effectiveLimit !== null ? fmt(report.effectiveLimit) : "–" })}</Notice>
+      ) : (
+        report.findings.map((f) => (
+          <Notice key={f.kind} tone="warning">
+            {describe(f)}
+          </Notice>
+        ))
+      )}
+    </Section>
   );
 }

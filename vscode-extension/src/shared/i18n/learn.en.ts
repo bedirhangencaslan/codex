@@ -18,7 +18,7 @@ export const learnEn = {
   "learn.sessions.fresh": "Every request sends the whole conversation again. An unrelated task in an old chat pays for all of that history: /new (or the + button) starts a clean one.",
   "learn.sessions.try.rename": "Give the current chat a name you will recognise in the history. It needs an open chat: send a message first if there is none.",
   "learn.sessions.try.rename.draft": "/rename my first lesson",
-  "learn.sessions.compact": "When a chat gets long, /compact replaces the history with a summary, so later requests are smaller. Suffice also does this by itself at the compaction limit you set in Settings.",
+  "learn.sessions.compact": "When a chat gets long, /compact replaces the history with a summary, so later requests are smaller. Suffice also does this by itself at the compaction limit you set with the slider under the chat box.",
   "learn.sessions.try.resume": "Open the list of saved chats; pick one to continue with all its context.",
   "learn.sessions.try.resume.draft": "/resume",
   "learn.sessions.quiz.unrelated": "You finished a bug fix and now want to write a README for another project. What do you do?",

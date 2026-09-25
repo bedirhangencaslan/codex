@@ -18,7 +18,7 @@ export const learnTr = {
   "learn.sessions.fresh": "Her istek konuşmanın tamamını yeniden gönderir. Eski bir sohbette açılan ilgisiz bir iş, o geçmişin bedelini öder: /new (ya da + düğmesi) temiz bir sohbet başlatır.",
   "learn.sessions.try.rename": "Mevcut sohbete geçmişte tanıyacağın bir ad ver. Açık bir sohbet gerekir: yoksa önce bir mesaj gönder.",
   "learn.sessions.try.rename.draft": "/rename ilk dersim",
-  "learn.sessions.compact": "Sohbet uzayınca /compact geçmişi bir özetle değiştirir, böylece sonraki istekler küçülür. Suffice bunu Ayarlar'da belirlediğin compaction limitinde kendiliğinden de yapar.",
+  "learn.sessions.compact": "Sohbet uzayınca /compact geçmişi bir özetle değiştirir, böylece sonraki istekler küçülür. Suffice bunu sohbet kutusunun altındaki kaydırıcıyla belirlediğin compaction limitinde kendiliğinden de yapar.",
   "learn.sessions.try.resume": "Kayıtlı sohbetlerin listesini aç; birini seçip bütün bağlamıyla devam et.",
   "learn.sessions.try.resume.draft": "/resume",
   "learn.sessions.quiz.unrelated": "Bir hata düzeltmesini bitirdin, şimdi başka bir proje için README yazmak istiyorsun. Ne yaparsın?",

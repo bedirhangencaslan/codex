@@ -46,7 +46,7 @@ const base = {
   "home.api.title": "API anahtarları ve fiyatlar",
   "home.api.desc": "Sağlayıcı anahtarları, hesap durumu ve her modelin milyon token fiyatı.",
   "home.settings.title": "Ayarlar",
-  "home.settings.desc": "Dil, tema, konuşma tercihleri ve compaction limiti.",
+  "home.settings.desc": "Dil, tema, konuşma tercihleri ve reasoning shrink / compaction kontrolü.",
 
   // --- server connection
   "server.connecting": "Suffice başlatılıyor…",
@@ -309,12 +309,7 @@ const base = {
   "settings.prefsSaved": "Kaydedildi.",
   "settings.prefsPending": "Henüz modele gönderilmiyor. Göndermek modelin okuduğu girdiyi değiştirdiği için proje sahibinin onayını bekliyor (bkz. PROMPT-CHANGE-PLAN.md).",
   "settings.compactionTitle": "Compaction limiti",
-  "settings.compactionDesc": "Konuşma bu kadar token'a ulaşınca Suffice onu özetleyip devam eder. Düşük değer istek başına daha ucuz, yüksek değer daha fazla ayrıntı tutar.",
   "settings.compactionValue": "{value} token",
-  "settings.compactionDefault": "model varsayılanı ({value})",
-  "settings.compactionUseDefault": "Model varsayılanını kullan",
-  "settings.compactionSaved": "Suffice ayarına yazıldı. Yeni ve devam ettirilen sohbetler bunu kullanır.",
-  "settings.compactionUnknownWindow": "{model} modelinin bağlam penceresi bilinmiyor; kaydırıcı en fazla {max} değerine izin veriyor.",
   "settings.syncTitle": "Reasoning shrink ↔ compaction",
   "settings.syncOk": "Senkron: reasoning shrink ve compaction senin ayarladığın {value} token değerini kullanıyor.",
   "settings.syncNoThread": "Çalışan sohbet yok; kontrol yeni sohbetlerin kullanacağı değeri kapsıyor.",

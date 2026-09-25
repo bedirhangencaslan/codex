@@ -47,7 +47,7 @@ const base = {
   "home.api.title": "API keys & pricing",
   "home.api.desc": "Provider keys, account status and the price per million tokens of each model.",
   "home.settings.title": "Settings",
-  "home.settings.desc": "Language, theme, conversation preferences and the compaction limit.",
+  "home.settings.desc": "Language, theme, conversation preferences and the reasoning shrink / compaction check.",
 
   // --- server connection
   "server.connecting": "Starting Suffice…",
@@ -310,12 +310,7 @@ const base = {
   "settings.prefsSaved": "Saved.",
   "settings.prefsPending": "Not sent to the model yet. Sending it changes what the model reads, so it waits for the owner's approval (see PROMPT-CHANGE-PLAN.md).",
   "settings.compactionTitle": "Compaction limit",
-  "settings.compactionDesc": "When the conversation reaches this many tokens, Suffice summarises it to keep going. Lower is cheaper per request, higher keeps more detail.",
   "settings.compactionValue": "{value} tokens",
-  "settings.compactionDefault": "model default ({value})",
-  "settings.compactionUseDefault": "Use the model default",
-  "settings.compactionSaved": "Written to your Suffice config. New and resumed chats use it.",
-  "settings.compactionUnknownWindow": "The context window of {model} is unknown; the slider allows up to {max}.",
   "settings.syncTitle": "Reasoning shrink ↔ compaction",
   "settings.syncOk": "In sync: reasoning shrink and compaction use {value} tokens, the value you set.",
   "settings.syncNoThread": "No chat is running; the check covers the value new chats will use.",
