@@ -80,7 +80,9 @@ describe("turn/start is exactly what the TUI would send", () => {
     const env = setup();
     await env.ctl.send("hello");
     await env.ctl.send("again");
-    expect(env.bridge.calls.find((c) => c.method === "thread/start")!.params.developerInstructions).toBe("Answer in Turkish, please.");
+    expect(env.bridge.calls.find((c) => c.method === "thread/start")!.params.developerInstructions).toBe(
+      "User's conversation preferences:\nAnswer in Turkish, please.",
+    );
     expect(JSON.stringify(env.bridge.turnStarts())).not.toContain("Answer in Turkish");
     expect(env.state.init!.threadPreferences).toEqual({ T1: "Answer in Turkish, please." });
   });
@@ -94,7 +96,7 @@ describe("turn/start is exactly what the TUI would send", () => {
   test("resuming a chat gives Codex the preference it started with (compaction rebuilds from config)", async () => {
     const { bridge, ctl } = setup({ init: { ...init, threadPreferences: { OLD: "Be brief." } } });
     await ctl.resume("OLD");
-    expect(bridge.calls.find((c) => c.method === "thread/resume")!.params.developerInstructions).toBe("Be brief.");
+    expect(bridge.calls.find((c) => c.method === "thread/resume")!.params.developerInstructions).toBe("User's conversation preferences:\nBe brief.");
   });
 
   test("attached skills are skill items like $skill; blocked files add nothing to the input", async () => {

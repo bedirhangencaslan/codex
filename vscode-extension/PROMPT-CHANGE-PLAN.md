@@ -14,6 +14,9 @@ The **Preference** button under the chat box, between Files and the model, opens
   `thread/start.developerInstructions`. Codex renders that into the chat's opening developer
   instructions (`core/src/session/mod.rs` 4302-4310). After the first request it is read from the
   cache.
+- **Label:** it is sent as `User's conversation preferences:` followed by a newline and the text.
+  The owner approved this simple English label, which exists only when there is a preference;
+  without one nothing is sent. The panel and the per-chat record keep the bare text.
 - **Stored per chat:** the preference is kept with the chat, and `thread/resume` gives it back.
   This matters because Codex rebuilds its developer instructions from config at every compaction.
 - **Fixed for the chat:** Codex ignores `developerInstructions` for a running chat

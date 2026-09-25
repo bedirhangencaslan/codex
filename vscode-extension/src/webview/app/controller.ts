@@ -46,6 +46,16 @@ export function isUnelevatedDenyReadRefusal(error: unknown): boolean {
   return /unelevated/i.test(text) && /deny-read/i.test(text);
 }
 
+/** Model-facing label in front of the conversation preference (owner-approved, English on purpose:
+ * it is prompt text, not interface text). Only sent together with a non-empty preference. */
+export const PREFERENCE_LABEL = "User's conversation preferences:";
+
+/** `developerInstructions` for a chat's preference, or undefined when there is none. */
+export function preferenceInstructions(preference: string | undefined): string | undefined {
+  const text = preference?.trim();
+  return text ? `${PREFERENCE_LABEL}\n${text}` : undefined;
+}
+
 /** The permission profile a chat that blocks files runs under. */
 export const BLOCK_PROFILE_ID = "suffice-block";
 
@@ -274,7 +284,7 @@ export class Controller {
     const started = await this.session.threadStart({
       cwd: this.cwd,
       ...(denied.length > 0 ? { config: blockProfileConfig(denied) } : {}),
-      ...(preference ? { developerInstructions: preference } : {}),
+      ...(preference ? { developerInstructions: preferenceInstructions(preference) } : {}),
     });
     if (preference) this.persist("threadPreferences", { ...(this.state.init?.threadPreferences ?? {}), [started.thread.id]: preference });
     if (picks.length > 0) {
@@ -295,7 +305,7 @@ export class Controller {
       const resumed = await this.session.threadResume({
         threadId,
         ...(access.denied.length > 0 ? { config: blockProfileConfig(access.denied) } : {}),
-        ...(preference ? { developerInstructions: preference } : {}),
+        ...(preference ? { developerInstructions: preferenceInstructions(preference) } : {}),
       });
       this.dispatch({
         type: "composer",
