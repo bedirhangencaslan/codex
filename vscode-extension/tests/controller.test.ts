@@ -1,7 +1,7 @@
 // What the webview sends to the model is the whole point of rule 6: only existing protocol
 // fields, and nothing extra when the user chose nothing. These tests drive the controller with a
 // fake bridge and check every turn/start it makes.
-import { Controller, filePathToken, PERMISSION_PRESETS } from "../src/webview/app/controller";
+import { BLOCK_PROFILE_ID, Controller, PERMISSION_PRESETS } from "../src/webview/app/controller";
 import { appReducer, initialState, type AppAction, type AppState } from "../src/webview/app/state";
 import { BaseBridge } from "../src/webview/host";
 import { translate, localeByCode } from "../src/shared/i18n";
@@ -44,7 +44,7 @@ const init: InitState = {
   attachedSkills: [],
   invisibleTurns: {},
   threadStartCompaction: {},
-  learning: { practiced: [], quizzes: {}, explored: [] },
+  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {},
 };
 
 function setup(patch: Partial<AppState> = {}) {
@@ -79,29 +79,53 @@ describe("turn/start is exactly what the TUI would send", () => {
     expect(JSON.stringify(bridge.calls)).not.toContain("Answer in Turkish");
   });
 
-  test("picked files are written into the text like the TUI's @ picker; skills are skill items like $skill", async () => {
+  test("attached skills are skill items like $skill; blocked files add nothing to the input", async () => {
     const { bridge, ctl } = setup({ init: { ...init, attachedSkills: [{ name: "pdf", path: "/s/pdf/SKILL.md" }] } });
-    ctl.attachFile({ name: "a.ts", path: "/w/a.ts" });
+    ctl.attachFile({ name: "a.env", path: "/w/a.env" });
     await ctl.send("look");
     expect(bridge.turnStarts()[0].input).toEqual([
-      { type: "text", text: "look\n\na.ts", text_elements: [] },
+      { type: "text", text: "look", text_elements: [] },
       { type: "skill", name: "pdf", path: "/s/pdf/SKILL.md" },
     ]);
   });
 
-  test("file paths are written like the TUI's @ picker: relative inside the folder, quoted with spaces", () => {
-    expect(filePathToken("C:\\work\\app\\src\\a.ts", "C:\\work\\app")).toBe("src/a.ts");
-    expect(filePathToken("c:\\work\\app\\My Docs\\b.md", "C:\\work\\app\\")).toBe('"My Docs/b.md"');
-    expect(filePathToken("/home/u/app/src", "/home/u/app")).toBe("src");
-    expect(filePathToken("D:\\other\\c.ts", "C:\\work\\app")).toBe("D:\\other\\c.ts");
+  test("no blocked files: thread/start carries no config at all", async () => {
+    const { bridge, ctl } = setup();
+    await ctl.send("hi");
+    expect(bridge.calls.find((c) => c.method === "thread/start")!.params).toEqual({ cwd: "/w" });
   });
 
-  test("a picked folder goes into the text too", async () => {
-    const { bridge, ctl } = setup();
-    ctl.attachFile({ name: "src", path: "/w/src" });
-    ctl.attachFile({ name: "b c.ts", path: "/w/b c.ts" });
-    await ctl.send("explain");
-    expect(bridge.turnStarts()[0].input).toEqual([{ type: "text", text: 'explain\n\nsrc "b c.ts"', text_elements: [] }]);
+  test("blocked files start the chat under a session profile that denies them (Codex's own mechanism)", async () => {
+    const env = setup();
+    env.ctl.attachFile({ name: "a.env", path: "/w/a.env" });
+    env.ctl.attachFile({ name: "secrets", path: "/w/secrets" });
+    await env.ctl.send("one");
+    await env.ctl.send("two");
+    const starts = env.bridge.calls.filter((c) => c.method === "thread/start");
+    expect(starts).toHaveLength(1);
+    expect(starts[0]!.params).toEqual({
+      cwd: "/w",
+      config: {
+        default_permissions: BLOCK_PROFILE_ID,
+        [`permissions.${BLOCK_PROFILE_ID}`]: {
+          extends: ":workspace",
+          filesystem: { "/w/a.env": "deny", "/w/secrets": "deny" },
+          network: { enabled: true },
+        },
+      },
+    });
+    // Nothing per turn: the profile belongs to the thread.
+    for (const p of env.bridge.turnStarts()) expect(Object.keys(p).sort()).toEqual(["input", "invisible", "threadId", "turnTrigger"]);
+    expect(env.state.init!.threadBlocks).toEqual({ T1: ["/w/a.env", "/w/secrets"] });
+    // The list stays for the next chat.
+    expect(env.state.composer.files.map((f) => f.path)).toEqual(["/w/a.env", "/w/secrets"]);
+  });
+
+  test("resuming a chat that blocked files gives it the same profile back", async () => {
+    const { bridge, ctl } = setup({ init: { ...init, threadBlocks: { OLD: ["/w/a.env"] } } });
+    await ctl.resume("OLD");
+    const resume = bridge.calls.find((c) => c.method === "thread/resume")!.params;
+    expect(resume.config[`permissions.${BLOCK_PROFILE_ID}`].filesystem).toEqual({ "/w/a.env": "deny" });
   });
 
   test("large pastes are expanded before sending", async () => {

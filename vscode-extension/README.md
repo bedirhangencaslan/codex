@@ -14,7 +14,8 @@ spawns `exec --experimental-json` per turn and cannot drive a live session. The 
 talks to the app-server but has no UI.
 
 The TUI itself is an app-server client (`tui/src/app_server_session.rs`), so the app-server
-protocol is the existing seam for a second UI. This extension uses it and changes no Rust code.
+protocol is the existing seam for a second UI. This extension uses it. The only Rust change, which
+the owner approved, puts the fork's `grep` and `glob` tools under Codex's sandbox (see *Blocked files*).
 
 ## Architecture
 
@@ -63,7 +64,37 @@ The webview may call only the methods listed in `ALLOWED_RPC_METHODS` (`src/shar
 | 11 | Retention ↔ compaction sync | `shared/compactionSync.ts`. It only warns and never changes anything. Findings: the running thread froze a different limit; the value differs from the retention window of 80000; the value is clamped to 9/10 of the context window; the `body_after_prefix` scope is unclamped. |
 | 13 | Meters | Context left, cache % of the last request, speed, total cost. |
 | 14 | Themes | Nine palettes as `--sf-*` CSS variables. |
-| 15 | Panels under the composer | Invisible, mode (default/plan/goal/review/permissions), skills, file and folder tree (the picked paths are written into the message, as the TUI's `@` picker does), model + reasoning effort. |
+| 15 | Panels under the composer | Invisible, mode (default/plan/goal/review/permissions), skills, file and folder tree that **blocks** what you tick (see *Blocked files* below), model + reasoning effort. |
+
+## Blocked files
+
+The tree under the composer blocks files and folders. It never sends them to the model. The block is
+enforced by Codex's own permission machinery; no check is added outside it.
+
+- **Profile per chat.** A chat that blocks files starts with a session-scoped permission profile in
+  `thread/start.config`: `default_permissions = "suffice-block"` plus a `[permissions.suffice-block]`
+  profile. This is the same shape Codex's app-server tests use. The profile extends `:workspace`,
+  keeps the network on, and has one `deny` entry per blocked path. `thread/resume` gives a resumed
+  chat the same profile. Nothing is written to config.toml, so the TUI and other chats are untouched.
+- **Enforced by Codex.** Codex enforces the profile for `exec_command` (the OS sandbox), for `read`
+  and `view_image` (the sandboxed file helper), and for `apply_patch`.
+- **The fork's search tools.** `grep` and `glob` used to run ripgrep and the directory walker
+  outside the sandbox. They now run ripgrep through Codex's own exec pipeline (`build_exec_request`
+  and `execute_env`, the path `exec_command` uses) inside the turn's sandbox whenever the profile
+  narrows reads (`core/src/tools/handlers/search_rg.rs` `run_in_turn_sandbox`). `glob` uses
+  `rg --files`. If no sandbox can be selected they refuse to search instead of running unconfined.
+  Without a narrowing profile they run exactly as before.
+- **One list per chat.** A running chat keeps the list it started with. Edits apply to a new chat;
+  the panel offers "Apply in a new chat".
+- **What the model sees.** Codex lists the denied paths to the model in its permissions instructions
+  ("Denied filesystem reads"). The owner approved this.
+- **Windows.** Upstream Codex refuses read restrictions on the unelevated sandbox, and a chat that
+  blocks files does not even start there. Blocking needs `[windows] sandbox = "elevated"`, set up
+  once with `/setup-default-sandbox` in the terminal UI. The panel says so.
+- **Codex quirk.** A blocked path that no longer exists is recreated as an empty folder by the
+  Windows sandbox before it is locked.
+- **Select mode.** Not implemented yet. When it is, it will be the complement: everything in the
+  workspace except the picks becomes `deny`.
 
 ## Cost guarantees (tested in `tests/controller.test.ts`)
 

@@ -351,7 +351,9 @@ impl GlobHandler {
     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let ToolInvocation {
             step_context,
+            turn,
             payload,
+            cancellation_token,
             ..
         } = invocation;
         let arguments = function_arguments(payload)?;
@@ -381,14 +383,43 @@ impl GlobHandler {
                 root.inferred_native_path_string()
             )));
         }
-        let walked = walk(
-            filesystem,
-            sandbox,
-            &root,
-            Some(pattern),
-            /*include_hidden*/ false,
-        )
-        .await?;
+        // A profile that narrows reads is enforced by the sandbox, not here: the listing runs as
+        // `rg --files` inside the turn's sandbox, so a directory the profile denies is never
+        // entered. Otherwise the walk is the unconfined one, exactly as before.
+        let walked = if !turn_environment.environment.is_remote()
+            && sandbox.is_some_and(FileSystemSandboxContext::should_read_from_sandbox)
+        {
+            let cwd = turn_environment.cwd().to_abs_path().map_err(|error| {
+                FunctionCallError::RespondToModel(format!("glob failed: {error}"))
+            })?;
+            let stdout = search_rg::run_in_turn_sandbox(
+                &InstallContext::current().rg_command(),
+                search_rg::rg_files_args(&pattern, &root.to_path_buf()),
+                &cwd,
+                &turn,
+                turn_environment,
+                &cancellation_token,
+            )
+            .await?;
+            let mut files: Vec<String> = stdout
+                .lines()
+                .filter(|line| !line.is_empty())
+                .map(str::to_string)
+                .collect();
+            files.sort();
+            let truncated = files.len() > MAX_WALKED_FILES;
+            files.truncate(MAX_WALKED_FILES);
+            Walked { files, truncated }
+        } else {
+            walk(
+                filesystem,
+                sandbox,
+                &root,
+                Some(pattern),
+                /*include_hidden*/ false,
+            )
+            .await?
+        };
 
         // `glob`'s answer is nothing but paths, so the path length *is* the result size: measured
         // over 3,210 real result paths it averages 90 characters absolute against 36 relative, and
@@ -508,6 +539,7 @@ impl GrepHandler {
     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let ToolInvocation {
             step_context,
+            turn,
             payload,
             cancellation_token,
             ..
@@ -554,6 +586,38 @@ impl GrepHandler {
             return Err(FunctionCallError::RespondToModel(format!(
                 "cannot search {}: reading it is not permitted in this session",
                 display_path(base, &target.to_string_lossy())
+            )));
+        }
+
+        // A profile that narrows reads is enforced by the sandbox, not here: ripgrep runs inside the
+        // turn's sandbox, so the operating system refuses every file the profile denies (glob
+        // denies included) and ripgrep never reads one. No unconfined fallback exists on this path.
+        if !turn_environment.environment.is_remote() && sandbox_context.should_read_from_sandbox() {
+            let request = search_rg::RgRequest {
+                program: InstallContext::current().rg_command(),
+                cwd: cwd.clone(),
+                display_base: base.map(Path::to_path_buf),
+                target: target.clone(),
+                pattern: pattern.clone(),
+                include: single_file.is_none().then_some(include.clone()).flatten(),
+                read_guard: read_guard.clone(),
+            };
+            let cwd = turn_environment.cwd().to_abs_path().map_err(|error| {
+                FunctionCallError::RespondToModel(format!("grep failed: {error}"))
+            })?;
+            let stdout = search_rg::run_in_turn_sandbox(
+                &request.program,
+                search_rg::rg_args(&request),
+                &cwd,
+                &turn,
+                turn_environment,
+                &cancellation_token,
+            )
+            .await?;
+            let scan = search_rg::collect_json(&stdout, base, &read_guard);
+            return Ok(boxed_tool_output(FunctionToolOutput::from_text(
+                render_grep(scan.found, &scan.per_file, scan.stopped_early),
+                Some(true),
             )));
         }
 

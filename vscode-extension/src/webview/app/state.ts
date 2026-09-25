@@ -22,6 +22,8 @@ export interface ConfigSnapshot {
   compactionLimit: number | null;
   compactionScope: CompactionScope;
   contextWindow: number | null;
+  /** `[windows] sandbox` from config.toml; blocking files needs "elevated" on Windows. */
+  windowsSandbox: string | null;
 }
 
 export interface PendingServerRequest {
@@ -41,6 +43,8 @@ export interface ComposerState {
   mode: ModeChoice | null;
   permission: PermissionPreset | null;
   invisible: boolean;
+  /** Files and folders the next chat blocks (the thread's permission profile denies them). The
+   * list stays for later chats until it is changed; a running chat keeps the list it started with. */
   files: AttachedFile[];
   panel: ComposerPanel;
   /** Text to place in the composer (from the command guide's "Try it"). */

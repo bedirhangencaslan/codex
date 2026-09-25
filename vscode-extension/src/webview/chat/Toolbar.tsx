@@ -10,7 +10,7 @@ import type { MessageKey } from "../../shared/i18n";
 import { useApp } from "../app/context";
 import type { PermissionPreset } from "../app/state";
 import { Icon } from "../components/icons";
-import { Button, Chip, Empty } from "../components/ui";
+import { Button, Chip, Empty, Notice } from "../components/ui";
 
 export function Toolbar() {
   const { state, ctl, t } = useApp();
@@ -31,8 +31,8 @@ export function Toolbar() {
       <Chip icon="sparkles" active={c.panel === "skills"} onClick={() => ctl.togglePanel("skills")} title={t("panel.skillsTitle")} badge={attachedSkills}>
         {t("panel.skills")}
       </Chip>
-      <Chip icon="folder" active={c.panel === "files"} onClick={() => ctl.togglePanel("files")} title={t("panel.filesTitle")} badge={c.files.length}>
-        {t("panel.files")}
+      <Chip icon="folder" active={c.panel === "files" || c.files.length > 0} onClick={() => ctl.togglePanel("files")} title={t("panel.filesTitle")} badge={c.files.length}>
+        {c.files.length > 0 ? t("panel.filesChipBlocked") : t("panel.files")}
       </Chip>
       <span className="sf-toolbar-spacer" />
       <Chip icon="chip" active={c.panel === "model"} onClick={() => ctl.togglePanel("model")} title={`${t("panel.model")} · ${t("panel.effort")}`}>
@@ -223,6 +223,13 @@ function FilesPanel() {
   const [filter, setFilter] = useState("");
   const [hits, setHits] = useState<TreeNode[] | null>(null);
   const selected = new Set(state.composer.files.map((f) => f.path));
+  // A running chat keeps the list it started with; an edit applies to the next chat.
+  const chatBlocks = ctl.chatBlocks;
+  const changedForChat =
+    chatBlocks !== null && (chatBlocks.length !== selected.size || chatBlocks.some((path) => !selected.has(path)));
+  // Upstream Codex: the unelevated Windows sandbox refuses any read restriction, so blocking needs
+  // the elevated one (windows-sandbox-rs/src/lib.rs).
+  const needsElevated = selected.size > 0 && /^[A-Za-z]:[\\/]/.test(root ?? "") && state.config?.windowsSandbox !== "elevated";
 
   const load = async (dir: string) => {
     if (children[dir]) return;
@@ -291,8 +298,29 @@ function FilesPanel() {
 
   return (
     <PanelFrame title={t("panel.filesTitle")}>
+      <p className="sf-muted sf-small">{t("panel.filesDesc")}</p>
+      {changedForChat && (
+        <Notice tone="info">
+          <div className="sf-stack-tight">
+            <span>{t("panel.filesLocked", { count: chatBlocks!.length })}</span>
+            <div>
+              <Button variant="secondary" icon="plus" onClick={() => ctl.newThread()}>
+                {t("panel.filesApplyNew")}
+              </Button>
+            </div>
+          </div>
+        </Notice>
+      )}
+      {needsElevated && <Notice tone="warning">{t("panel.filesElevated")}</Notice>}
       <input className="sf-input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("panel.filesFilter")} aria-label={t("panel.filesFilter")} />
-      {state.composer.files.length > 0 && <p className="sf-muted">{t("panel.filesSelected", { count: state.composer.files.length })}</p>}
+      {state.composer.files.length > 0 && (
+        <div className="sf-row sf-wrap">
+          <span className="sf-muted">{t("panel.filesSelected", { count: state.composer.files.length })}</span>
+          <Button variant="ghost" icon="x" onClick={() => ctl.clearFiles()}>
+            {t("panel.filesClear")}
+          </Button>
+        </div>
+      )}
       <ul className="sf-tree sf-tree-root">
         {hits
           ? hits.map((node) => (

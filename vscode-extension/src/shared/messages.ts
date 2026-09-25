@@ -34,6 +34,9 @@ export interface PersistedState {
   threadStartCompaction: Record<string, number | null>;
   /** Slash command course progress: commands run, quiz answers, reference entries opened (globalState). */
   learning: LearningProgress;
+  /** threadId -> files and folders that thread blocks (workspaceState). Given to the thread's
+   * permission profile when it starts, and again when it is resumed. */
+  threadBlocks: Record<string, string[]>;
 }
 
 export interface InitState extends PersistedState {

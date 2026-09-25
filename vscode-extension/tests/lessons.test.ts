@@ -117,7 +117,7 @@ describe("the controller records practice", () => {
   const init: InitState = {
     locale: "en", languageSetting: "auto", themeId: "vscode", workspaceFolders: [{ name: "w", path: "/w" }], envKeys: [],
     extensionVersion: "0", prices: {}, preferences: "", attachedSkills: [], invisibleTurns: {}, threadStartCompaction: {},
-    learning: EMPTY_PROGRESS,
+    learning: EMPTY_PROGRESS, threadBlocks: {},
   };
   function setup() {
     const bridge = new Bridge();

@@ -46,7 +46,7 @@ export const learnTr = {
   "learn.cost.invisible": "Görünmez mod sonraki turları ekranda tutar ama sonraki isteklerin dışında bırakır: bir yan soruyu, bedelini sonraki her istekte ödemeden sorarsın.",
   "learn.cost.try.invisible": "Görünmez modu aç. Kapatmak için komutu yeniden çalıştır (ya da Görünmez düğmesine tıkla).",
   "learn.cost.try.invisible.draft": "/invisible",
-  "learn.cost.mention": "Suffice'i doğru dosyaya yönlendirmek, aramasına bırakmaktan ucuzdur. /mention dosya ağacını açar; sohbet kutusunda @ yazmak dosyaları adıyla arar. Seçilen dosyalar bir sonraki mesajınla gider.",
+  "learn.cost.mention": "Suffice'i doğru dosyaya yönlendirmek, aramasına bırakmaktan ucuzdur. /mention dosya ağacını açar: dosya ya da klasör işaretleyip engelle; Codex'in sandbox'ı bir sonraki sohbette Suffice'in onları okumasını engeller. Sohbet kutusunda @ yazmak dosyaları adıyla arar ve yolu mesajına yazar.",
   "learn.cost.try.mention": "Sohbet kutusunun altındaki dosya ağacını aç.",
   "learn.cost.try.mention.draft": "/mention",
   "learn.cost.try.skills": "Skill panelini aç: bir skill'i ekle, bu projede her mesajınla gitsin.",

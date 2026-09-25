@@ -51,7 +51,22 @@ use std::time::Instant;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
+use crate::exec::ExecCapturePolicy;
+use crate::exec::ExecExpiration;
+use crate::exec::ExecParams;
+use crate::exec::build_exec_request;
 use crate::function_tool::FunctionCallError;
+use crate::sandboxing::SandboxPermissions;
+use crate::sandboxing::execute_env;
+use crate::session::turn_context::TurnContext;
+use crate::session::turn_context::TurnEnvironment;
+use codex_protocol::error::CodexErrorDetails;
+use codex_protocol::error::SandboxErr;
+use codex_sandboxing::SandboxManager;
+use codex_sandboxing::SandboxType;
+use codex_sandboxing::SandboxablePreference;
+use codex_utils_absolute_path::AbsolutePathBuf;
+use std::collections::HashMap;
 use crate::tools::handlers::search::FileMatches;
 use crate::tools::handlers::search::MAX_GREP_MATCHES;
 use crate::tools::handlers::search::MAX_MATCH_LINE_BYTES;
@@ -254,6 +269,134 @@ pub(super) fn run_rg(
         )));
     }
     Ok(Some(scan.into_result()))
+}
+
+/// `rg --files` for `glob` under a narrowed profile: the same walk as `walk_local` (ripgrep's own
+/// `ignore` crate: `.gitignore` honoured, hidden files skipped, `.git` excluded) with the pattern
+/// installed exactly as `walk_local` installs it, as a `--glob` override.
+pub(super) fn rg_files_args(pattern: &str, root: &Path) -> Vec<OsString> {
+    vec![
+        "--files".into(),
+        "--no-config".into(),
+        "--glob".into(),
+        pattern.into(),
+        "--".into(),
+        root.as_os_str().to_owned(),
+    ]
+}
+
+/// Runs ripgrep inside the turn's sandbox, through Codex's own exec pipeline: the
+/// `SandboxManager` transform and `execute_env` that `exec_command` and the shell snapshot use
+/// (`build_exec_request` in `exec.rs`). It is what the search tools do when the turn's permission
+/// profile narrows reads, so the operating system - not a check in this module - refuses every
+/// file the profile denies, glob patterns included.
+///
+/// Fails closed: when no sandbox can be selected on this host it refuses rather than running
+/// ripgrep unconfined.
+pub(super) async fn run_in_turn_sandbox(
+    program: &Path,
+    args: Vec<OsString>,
+    cwd: &AbsolutePathBuf,
+    turn: &TurnContext,
+    environment: &TurnEnvironment,
+    cancellation: &CancellationToken,
+) -> Result<String, FunctionCallError> {
+    let config = environment.config();
+    let permissions = environment.permission_profile_with_workspace_roots();
+    let windows_sandbox_type = codex_protocol::sandbox::effective_windows_sandbox_type(
+        config.windows_sandbox_type,
+        config.windows_sandbox_level,
+    );
+    let sandbox = SandboxManager::new().select_initial(
+        &permissions,
+        SandboxablePreference::Auto,
+        windows_sandbox_type,
+        /*enforce_managed_network*/ false,
+    );
+    if sandbox == SandboxType::None {
+        return Err(FunctionCallError::RespondToModel(
+            "cannot search: file access is restricted in this session and the sandbox that \
+             enforces it is not available on this host"
+                .to_string(),
+        ));
+    }
+    let command = std::iter::once(program.as_os_str().to_owned())
+        .chain(args)
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    // Nothing else from the environment: `RIPGREP_CONFIG_PATH` could inject `--pre` (see the
+    // module header). `PATH` finds a bare `rg`; `SystemRoot` is what Windows processes need.
+    let env: HashMap<String, String> = ["PATH", "SystemRoot"]
+        .into_iter()
+        .filter_map(|key| std::env::var(key).ok().map(|value| (key.to_string(), value)))
+        .collect();
+    let params = ExecParams {
+        command,
+        cwd: cwd.clone(),
+        expiration: ExecExpiration::TimeoutOrCancellation {
+            timeout: RG_TIMEOUT,
+            cancellation: cancellation.child_token(),
+        },
+        capture_policy: ExecCapturePolicy::FullBufferWithExpiration,
+        env,
+        network: None,
+        network_environment_id: None,
+        sandbox_permissions: SandboxPermissions::default(),
+        windows_sandbox_level: config.windows_sandbox_level,
+        justification: None,
+        arg0: None,
+    };
+    let sandbox_cwd = environment.cwd().to_abs_path().map_err(|error| {
+        FunctionCallError::RespondToModel(format!("search failed: {error}"))
+    })?;
+    let request = build_exec_request(
+        params,
+        &permissions,
+        &sandbox_cwd,
+        environment.workspace_roots(),
+        &turn.config.codex_linux_sandbox_exe,
+        &turn.config.codex_self_exe,
+        windows_sandbox_type,
+        config.use_legacy_landlock,
+    )
+    .map_err(|error| FunctionCallError::RespondToModel(format!("search failed: {error}")))?;
+    let output = match execute_env(request, /*stdout_stream*/ None).await {
+        Ok(output) => output,
+        Err(error) => match error.details() {
+            // ripgrep exits 2 when it met files it could not open, and a denied read is exactly
+            // that, so the sandbox reports a denial. The search itself ran; its output stands.
+            CodexErrorDetails::Sandbox(SandboxErr::Denied { output, .. }) => (**output).clone(),
+            _ => {
+                return Err(FunctionCallError::RespondToModel(format!(
+                    "search failed: {error}"
+                )));
+            }
+        },
+    };
+    if cancellation.is_cancelled() {
+        return Err(FunctionCallError::RespondToModel(
+            "search was cancelled".to_string(),
+        ));
+    }
+    Ok(output.stdout.text)
+}
+
+/// Reads a whole `rg --json` stream that has already been captured, with the same collector
+/// and caps as [`run_rg`].
+pub(super) fn collect_json(stdout: &str, display_base: Option<&Path>, read_guard: &ReadGuard) -> GrepScan {
+    let mut collector = Collector::new(display_base, read_guard);
+    for line in stdout.lines() {
+        if line.len() > MAX_RG_LINE_BYTES {
+            collector.stopped_early = true;
+            continue;
+        }
+        collector.accept(trim_line_ending(line));
+        if collector.found >= MAX_RG_MATCH_EVENTS {
+            collector.stopped_early = true;
+            break;
+        }
+    }
+    collector.finish().into_result()
 }
 
 /// One `\n`, then one `\r`, and nothing else.
@@ -478,6 +621,38 @@ mod tests {
             collector.accept(line);
         }
         collector.finish()
+    }
+
+    /// The sandboxed path reads ripgrep's stream after the fact; it must count, cap and order
+    /// exactly as the live reader does, CRLF endings included.
+    #[test]
+    fn a_captured_stream_is_collected_like_a_live_one() {
+        let stdout = [
+            match_event("repo/z.rs", 2, "hit z"),
+            match_event("repo/a.rs", 1, "hit a"),
+            serde_json::json!({"type": "summary"}).to_string(),
+        ]
+        .join("\r\n");
+        let scan = collect_json(&stdout, Some(Path::new("repo")), &ReadGuard::Unrestricted);
+        assert_eq!(scan.found, 2);
+        assert!(!scan.stopped_early);
+        let names: Vec<&str> = scan.per_file.iter().map(|f| f.display.as_str()).collect();
+        assert_eq!(names, vec!["a.rs", "z.rs"]);
+    }
+
+    /// `glob` under a narrowed profile lists with `rg --files`: the pattern travels as a `--glob`
+    /// override, as `walk_local` installs it, and the root after `--`.
+    #[test]
+    fn files_args_install_the_pattern_the_way_the_walker_does() {
+        let args = rg_files_args("**/*.rs", Path::new("repo"));
+        let args: Vec<String> = args
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args,
+            vec!["--files", "--no-config", "--glob", "**/*.rs", "--", "repo"]
+        );
     }
 
     #[test]

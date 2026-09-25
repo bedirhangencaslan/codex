@@ -46,7 +46,7 @@ export const learnEn = {
   "learn.cost.invisible": "Invisible mode keeps the next turns on screen but leaves them out of later requests: ask a side question without paying for it on every request after.",
   "learn.cost.try.invisible": "Turn invisible mode on. Run the command again (or click the Invisible chip) to turn it off.",
   "learn.cost.try.invisible.draft": "/invisible",
-  "learn.cost.mention": "Pointing Suffice at the right file is cheaper than letting it search. /mention opens the file tree; typing @ in the chat box searches files by name. Picked files go with your next message.",
+  "learn.cost.mention": "Pointing Suffice at the right file is cheaper than letting it search. /mention opens the file tree: tick files or folders to block them, and Codex's sandbox keeps Suffice from reading them in the next chat. Typing @ in the chat box searches files by name and writes the path into your message.",
   "learn.cost.try.mention": "Open the file tree under the chat box.",
   "learn.cost.try.mention.draft": "/mention",
   "learn.cost.try.skills": "Open the skills panel: attach a skill so it goes with every message in this project.",

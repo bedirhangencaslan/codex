@@ -55,6 +55,17 @@ Possible fix (a Rust change inside a cost mechanism, so only with approval): der
 from the session's effective auto-compact limit. This is not a prompt change, but it changes how
 much reasoning is kept, so it changes model input.
 
+## P4: blocked files are listed to the model (APPROVED by the owner, 2026-09-25, applied)
+
+A chat that blocks files runs under a permission profile with `deny` entries. Codex then renders its
+own "## Denied filesystem reads" section into the `<permissions instructions>` developer message.
+That section names every blocked path, and the sandbox-mode sentence changes to `workspace-write`.
+
+- **Where it appears:** the text is Codex's own, not the extension's. The profile belongs to the
+  chat, so the section is part of that chat's context from its first request.
+- **Cost:** about 150-300 tokens depending on the number of paths.
+- **Owner's instruction:** use Codex's pipe for this, not text written by the extension.
+
 ## Order when approved
 
 1. P1 option A (small, cache-friendly).

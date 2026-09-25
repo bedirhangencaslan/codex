@@ -1,14 +1,14 @@
 // The webview controller against a real app-server, through a bridge backed by the extension's
 // SessionHost — the same path as in VS Code minus postMessage. Uses a throwaway SUFFICE_HOME.
 //   SUFFICE_BIN=<suffice.exe> npx jest tests/controller.integration.test.ts          (free)
-//   + LIVE_TURN=1 ZAI_API_KEY=<key>   also sends one small invisible turn with a picked file (paid)
+//   + LIVE_TURN=1 ZAI_API_KEY=<key>   also sends one small invisible turn (paid)
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionHost } from "../src/extension/sessionHost";
 import { localeByCode, translate } from "../src/shared/i18n";
 import type { HostToWebview, InitState, WebviewToHost } from "../src/shared/messages";
-import { Controller } from "../src/webview/app/controller";
+import { BLOCK_PROFILE_ID, blockProfileConfig, Controller, isUnelevatedDenyReadRefusal } from "../src/webview/app/controller";
 import { appReducer, initialState, type AppAction, type AppState } from "../src/webview/app/state";
 import { BaseBridge } from "../src/webview/host";
 import { lastAgentText } from "../src/webview/state/chatReducer";
@@ -67,7 +67,7 @@ maybe("controller on a real app-server", () => {
     const init: InitState = {
       locale: "en", languageSetting: "auto", themeId: "vscode", workspaceFolders: [{ name: "w", path: work }],
       envKeys: [], extensionVersion: "0", prices: {}, preferences: "", attachedSkills: [], invisibleTurns: {}, threadStartCompaction: {},
-  learning: { practiced: [], quizzes: {}, explored: [] },
+  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {},
     };
     state = { ...initialState, init, server: host.currentStatus };
     const dispatch = (action: AppAction) => {
@@ -102,19 +102,33 @@ maybe("controller on a real app-server", () => {
     expect(state.config?.compactionLimit).toBeNull();
   });
 
+  test("a chat that blocks files starts under the session profile that denies them", async () => {
+    // Codex's own pipe: a session-scoped [permissions.<id>] profile selected by default_permissions.
+    // Either Codex runs the chat under it, or - on the unelevated Windows sandbox, which upstream
+    // Codex does not let enforce read denials - it refuses to start rather than run unconfined.
+    try {
+      const started = (await host.request("thread/start", {
+        cwd: work,
+        config: blockProfileConfig([join(work, "notes.txt")]),
+      })) as { activePermissionProfile?: { id: string; extends?: string | null } | null };
+      expect(started.activePermissionProfile?.id).toBe(BLOCK_PROFILE_ID);
+      expect(started.activePermissionProfile?.extends).toBe(":workspace");
+    } catch (error) {
+      expect(isUnelevatedDenyReadRefusal(error)).toBe(true);
+    }
+  });
+
   live(
-    "an invisible turn with a picked file runs to completion",
+    "an invisible turn runs to completion",
     async () => {
-      ctl.attachFile({ name: "notes.txt", path: join(work, "notes.txt") });
       ctl.toggleInvisible();
-      expect(await ctl.send("What is the secret word in the attached file? Answer with the word only.")).toBe(true);
+      expect(await ctl.send("What is the secret word in notes.txt? Answer with the word only.")).toBe(true);
       const deadline = Date.now() + 120_000;
       while (!notifications.includes("turn/completed") && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
       const turn = state.chat.turns[0]!;
       expect(turn.status).toBe("completed");
       const user = turn.items.find((i) => i.type === "userMessage");
-      // The picked file reaches the model as a path in the message text, as the TUI's @ picker writes it.
-      expect(user && user.type === "userMessage" && user.content.some((c) => c.type === "text" && c.text.includes("notes.txt"))).toBe(true);
+      expect(user && user.type === "userMessage").toBe(true);
       // The last answer, not the commentary the model may send first.
       expect(lastAgentText(state.chat)?.toUpperCase()).toContain("PAPRIKA");
       expect(state.init!.invisibleTurns[state.chat.threadId!]).toEqual([turn.id]);

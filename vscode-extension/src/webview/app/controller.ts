@@ -6,6 +6,7 @@ import type { SandboxPolicy } from "@protocol/v2/SandboxPolicy";
 import type { AskForApproval } from "@protocol/v2/AskForApproval";
 import type { SkillMetadata } from "@protocol/v2/SkillMetadata";
 import type { UserInput } from "@protocol/v2/UserInput";
+import type { JsonValue } from "@protocol/serde_json/JsonValue";
 import type { ThreadGoalStatus } from "@protocol/v2/ThreadGoalStatus";
 import { AppServerSession } from "../../protocol/session";
 import type { TurnStartParamsWithMode } from "../../protocol/experimental";
@@ -35,17 +36,37 @@ export const LARGE_PASTE_CHARS = 1000;
 type Translate = (key: MessageKey, params?: Params) => string;
 
 /**
- * A file as the TUI's @ picker writes it into the message: relative to the working folder when it
- * is inside it (fuzzy search results are), with forward slashes, quoted when it has whitespace.
+ * The upstream refusal to start a chat whose profile denies reads on the unelevated Windows sandbox
+ * (it cannot enforce them and will not run unconfined; windows-sandbox-rs / sandboxing windows.rs).
  */
-export function filePathToken(path: string, cwd: string | null): string {
-  let p = path;
-  if (cwd) {
-    const root = cwd.replace(/[\\/]+$/, "");
-    const inside = p.toLowerCase().startsWith(`${root.toLowerCase()}\\`) || p.startsWith(`${root}/`);
-    if (inside) p = p.slice(root.length + 1).replace(/\\/g, "/");
-  }
-  return /\s/.test(p) && !p.includes('"') ? `"${p}"` : p;
+export function isUnelevatedDenyReadRefusal(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return /unelevated/i.test(text) && /deny-read/i.test(text);
+}
+
+/** The permission profile a chat that blocks files runs under. */
+export const BLOCK_PROFILE_ID = "suffice-block";
+
+/**
+ * `thread/start.config` (and `thread/resume.config`) for a chat that blocks `paths`. It is Codex's
+ * own mechanism, the shape its app-server tests use (thread_settings_update.rs): a session-scoped
+ * `[permissions.<id>]` profile plus `default_permissions` selecting it. Nothing is written to the
+ * user's config.toml, so the TUI and other chats are untouched.
+ *
+ * The profile extends `:workspace` (the only built-in a profile with deny entries can extend) and
+ * keeps the network on; each blocked path is a `deny` entry, so Codex's enforcement refuses it for
+ * `exec_command`, `read`, `view_image`, `apply_patch`, `grep` and `glob` alike. Codex lists the
+ * denied paths to the model in its permissions instructions (approved by the owner).
+ */
+export function blockProfileConfig(paths: string[]): Record<string, JsonValue> {
+  return {
+    default_permissions: BLOCK_PROFILE_ID,
+    [`permissions.${BLOCK_PROFILE_ID}`]: {
+      extends: ":workspace",
+      filesystem: Object.fromEntries(paths.map((path) => [path, "deny"])),
+      network: { enabled: true },
+    },
+  };
 }
 
 export class Controller {
@@ -126,6 +147,10 @@ export class Controller {
     if (text) setTimeout(() => this.dispatch({ type: "toast", text: null }), 4000);
   }
   private fail(error: unknown): void {
+    if (isUnelevatedDenyReadRefusal(error)) {
+      this.toast(this.t()("panel.filesElevated"));
+      return;
+    }
     this.toast(error instanceof Error ? error.message : String(error));
   }
   restartServer(): void {
@@ -199,6 +224,7 @@ export class Controller {
           compactionLimit: typeof c.model_auto_compact_token_limit === "number" ? c.model_auto_compact_token_limit : null,
           compactionScope: scope as CompactionScope,
           contextWindow: typeof c.model_context_window === "number" ? c.model_context_window : null,
+          windowsSandbox: typeof (c.windows as { sandbox?: unknown } | undefined)?.sandbox === "string" ? String((c.windows as { sandbox: string }).sandbox) : null,
         },
       });
     } catch (error) {
@@ -210,7 +236,7 @@ export class Controller {
   newThread(): void {
     this.dispatch({ type: "chat", action: { type: "threadCleared" } });
     this.dispatch({ type: "thread", cwd: null, model: null });
-    this.dispatch({ type: "composer", patch: { files: [], panel: null } });
+    this.dispatch({ type: "composer", patch: { panel: null } });
     this.go("chat");
   }
 
@@ -224,7 +250,9 @@ export class Controller {
 
   private async ensureThread(): Promise<string> {
     if (this.state.chat.threadId) return this.state.chat.threadId;
-    const started = await this.session.threadStart({ cwd: this.cwd });
+    const blocked = this.state.composer.files.map((f) => f.path);
+    const started = await this.session.threadStart({ cwd: this.cwd, ...(blocked.length > 0 ? { config: blockProfileConfig(blocked) } : {}) });
+    if (blocked.length > 0) this.persist("threadBlocks", { ...(this.state.init?.threadBlocks ?? {}), [started.thread.id]: blocked });
     this.dispatch({ type: "chat", action: { type: "threadLoaded", threadId: started.thread.id, name: started.thread.name, turns: [] } });
     this.dispatch({ type: "thread", cwd: started.cwd, model: started.model });
     await this.rememberStartCompaction(started.thread.id);
@@ -233,7 +261,10 @@ export class Controller {
 
   async resume(threadId: string): Promise<void> {
     try {
-      const resumed = await this.session.threadResume({ threadId });
+      // A chat that blocked files gets the same profile back; the panel shows its list.
+      const blocked = this.state.init?.threadBlocks?.[threadId] ?? [];
+      const resumed = await this.session.threadResume({ threadId, ...(blocked.length > 0 ? { config: blockProfileConfig(blocked) } : {}) });
+      this.dispatch({ type: "composer", patch: { files: blocked.map((path) => ({ name: path.split(/[\\/]/).pop() ?? path, path })) } });
       this.dispatch({ type: "chat", action: { type: "threadLoaded", threadId, name: resumed.thread.name, turns: resumed.thread.turns } });
       this.dispatch({ type: "thread", cwd: resumed.cwd, model: resumed.model });
       // A thread left in Plan mode resumes in Plan; the composer follows it.
@@ -260,8 +291,6 @@ export class Controller {
   buildInput(text: string, pastes: Map<string, string>): UserInput[] {
     let expanded = text;
     for (const [placeholder, content] of pastes) expanded = expanded.split(placeholder).join(content);
-    const paths = this.state.composer.files.map((f) => filePathToken(f.path, this.cwd));
-    if (paths.length) expanded = `${expanded}\n\n${paths.join(" ")}`;
     const input: UserInput[] = [{ type: "text", text: expanded, text_elements: [] }];
     for (const s of this.state.init?.attachedSkills ?? []) input.push({ type: "skill", name: s.name, path: s.path });
     return input;
@@ -285,7 +314,6 @@ export class Controller {
         map[threadId] = [...(map[threadId] ?? []), started.turn.id];
         this.persist("invisibleTurns", map);
       }
-      this.dispatch({ type: "composer", patch: { files: [] } });
       return true;
     } catch (error) {
       this.fail(error);
@@ -565,6 +593,14 @@ export class Controller {
   attachFile(file: { name: string; path: string }): void {
     if (this.state.composer.files.some((f) => f.path === file.path)) return;
     this.dispatch({ type: "composer", patch: { files: [...this.state.composer.files, file] } });
+  }
+  clearFiles(): void {
+    this.dispatch({ type: "composer", patch: { files: [] } });
+  }
+  /** The files the current chat blocks, or null before a chat has started. */
+  get chatBlocks(): string[] | null {
+    const threadId = this.state.chat.threadId;
+    return threadId ? (this.state.init?.threadBlocks?.[threadId] ?? []) : null;
   }
   detachFile(path: string): void {
     this.dispatch({ type: "composer", patch: { files: this.state.composer.files.filter((f) => f.path !== path) } });

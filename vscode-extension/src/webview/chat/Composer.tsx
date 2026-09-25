@@ -7,7 +7,7 @@ import type { FuzzyFileSearchResult } from "@protocol/FuzzyFileSearchResult";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { matchCommands, type SlashCommandEntry } from "../../shared/slashCommands";
 import { useApp } from "../app/context";
-import { filePathToken, LARGE_PASTE_CHARS } from "../app/controller";
+import { LARGE_PASTE_CHARS } from "../app/controller";
 import { Icon } from "../components/icons";
 
 interface ViewState {
@@ -96,7 +96,8 @@ export function Composer() {
     }
     // Like the TUI (chat_composer.rs insert_selected_path): the `@token` becomes the path itself.
     const file = popup.items[index]!;
-    const rel = filePathToken(file.path.replace(/\\/g, "/"), null);
+    const path = file.path.replace(/\\/g, "/");
+    const rel = /\s/.test(path) && !path.includes('"') ? `"${path}"` : path;
     const next = `${text.slice(0, popup.start)}${rel} ${text.slice(popup.start + 1 + popup.query.length)}`;
     setText(next);
     setPopup(null);
