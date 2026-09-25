@@ -143,7 +143,6 @@ const base = {
   "panel.mode": "Mode",
   "panel.modeDefault": "Default",
   "panel.modePlan": "Plan",
-  "panel.modeGoal": "Goal",
   "panel.modeReview": "Review",
   "panel.modePlanDesc": "Suffice plans and asks before changing anything.",
   "panel.modeDefaultDesc": "Suffice works directly on the task.",

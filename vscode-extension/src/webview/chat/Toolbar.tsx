@@ -16,7 +16,7 @@ export function Toolbar() {
   const { state, ctl, t } = useApp();
   const c = state.composer;
   const attachedSkills = state.init?.attachedSkills.length ?? 0;
-  const modeLabel = state.chat.goal ? t("panel.modeGoal") : c.mode === "plan" ? t("panel.modePlan") : t("panel.modeDefault");
+  const modeLabel = c.mode === "plan" ? t("panel.modePlan") : t("panel.modeDefault");
   const modelEntry = state.models.find((m) => m.id === (c.model ?? state.threadModel ?? state.config?.model));
   const modelLabel = modelEntry?.displayName ?? c.model ?? state.threadModel ?? state.config?.model ?? t("panel.modelDefault");
   const effort = c.effort ?? modelEntry?.defaultReasoningEffort ?? null;
@@ -25,7 +25,7 @@ export function Toolbar() {
       <Chip icon={c.invisible ? "eyeOff" : "eye"} active={c.invisible} onClick={() => ctl.toggleInvisible()} title={t("panel.invisibleTitle")}>
         {t("panel.invisible")}
       </Chip>
-      <Chip icon="layers" active={c.panel === "mode" || c.mode === "plan" || !!state.chat.goal} onClick={() => ctl.togglePanel("mode")} title={t("panel.mode")}>
+      <Chip icon="layers" active={c.panel === "mode" || c.mode === "plan"} onClick={() => ctl.togglePanel("mode")} title={t("panel.mode")}>
         {modeLabel}
       </Chip>
       <Chip icon="sparkles" active={c.panel === "skills"} onClick={() => ctl.togglePanel("skills")} title={t("panel.skillsTitle")} badge={attachedSkills}>

@@ -142,7 +142,6 @@ const base = {
   "panel.mode": "Mod",
   "panel.modeDefault": "Varsayılan",
   "panel.modePlan": "Plan",
-  "panel.modeGoal": "Hedef",
   "panel.modeReview": "İnceleme",
   "panel.modePlanDesc": "Suffice önce plan yapar, bir şey değiştirmeden önce sorar.",
   "panel.modeDefaultDesc": "Suffice doğrudan görev üzerinde çalışır.",
