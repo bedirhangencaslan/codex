@@ -1066,6 +1066,7 @@ fn responses_request_includes_encrypted_reasoning_by_default() {
                 /*parent_thread_id*/ None,
                 TestCodexResponsesRequestKind::Turn,
             ),
+            /*include_internal*/ true,
         )
         .expect("build responses request");
     assert_eq!(
@@ -1093,6 +1094,7 @@ fn responses_request_omits_encrypted_reasoning_when_model_does_not_support_it() 
                 /*parent_thread_id*/ None,
                 TestCodexResponsesRequestKind::Turn,
             ),
+            /*include_internal*/ true,
         )
         .expect("build responses request");
     assert!(request.include.is_empty());
@@ -1138,6 +1140,7 @@ fn responses_request_forwards_reasoning_items_from_input() {
                 /*parent_thread_id*/ None,
                 TestCodexResponsesRequestKind::Turn,
             ),
+            /*include_internal*/ true,
         )
         .expect("build responses request");
 
