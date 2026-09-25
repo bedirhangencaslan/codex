@@ -1,13 +1,13 @@
 // The chat input, evolved from the TUI composer (codex-rs/tui/src/bottom_pane/chat_composer.rs):
 // Enter submits and Shift+Enter breaks the line; while a turn runs, Enter queues (the TUI's Tab);
 // Up/Down recall earlier messages; `/` opens the command popup (command_popup.rs matching);
-// `@` searches files like the file_search popup and attaches the pick as a mention; pastes over
+// `@` searches files like the file_search popup and writes the picked path into the text; pastes over
 // LARGE_PASTE_CHARS become a "[Pasted Content N chars]" placeholder expanded on send.
 import type { FuzzyFileSearchResult } from "@protocol/FuzzyFileSearchResult";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { matchCommands, type SlashCommandEntry } from "../../shared/slashCommands";
 import { useApp } from "../app/context";
-import { LARGE_PASTE_CHARS } from "../app/controller";
+import { filePathToken, LARGE_PASTE_CHARS } from "../app/controller";
 import { Icon } from "../components/icons";
 
 interface ViewState {
@@ -94,16 +94,11 @@ export function Composer() {
       if (!cmd.inlineArgs) void submit(`/${cmd.name}`);
       return;
     }
+    // Like the TUI (chat_composer.rs insert_selected_path): the `@token` becomes the path itself.
     const file = popup.items[index]!;
-    const rel = file.path.replace(/\\/g, "/");
-    const next = `${text.slice(0, popup.start)}@${rel} ${text.slice(popup.start + 1 + popup.query.length)}`;
+    const rel = filePathToken(file.path.replace(/\\/g, "/"), null);
+    const next = `${text.slice(0, popup.start)}${rel} ${text.slice(popup.start + 1 + popup.query.length)}`;
     setText(next);
-    // The pick joins the files chosen in the file tree panel as a mention of the next turn.
-    const separator = file.root.includes("\\") ? "\\" : "/";
-    ctl.attachFile({
-      name: file.file_name,
-      path: `${file.root.replace(/[\\/]$/, "")}${separator}${file.path.replace(/[\\/]/g, separator)}`,
-    });
     setPopup(null);
   };
 

@@ -2,7 +2,8 @@
 // Claude Code extension (chips under the box, panels opening above it). Every control maps to an
 // existing protocol field: turn/start.invisible, turn/start.collaborationMode (from
 // collaborationMode/list), thread/goal/*, review/start, the TUI's permission presets
-// (approvalPolicy + sandboxPolicy), UserInput skill/mention items, turn/start.model/effort.
+// (approvalPolicy + sandboxPolicy), UserInput skill items, picked file/folder paths written into
+// the message text like the TUI's @ picker, turn/start.model/effort.
 import type { ReasoningEffort } from "@protocol/ReasoningEffort";
 import { useEffect, useState } from "react";
 import type { MessageKey } from "../../shared/i18n";
@@ -245,7 +246,7 @@ function FilesPanel() {
     const handle = setTimeout(() => {
       void ctl.session
         .fuzzyFileSearch({ query: filter, roots: [root], cancellationToken: null })
-        .then((r) => setHits(r.files.filter((f) => f.match_type === "file").slice(0, 30).map((f) => ({ name: f.file_name, path: joinPath(f.root, f.path), dir: false }))))
+        .then((r) => setHits(r.files.slice(0, 30).map((f) => ({ name: f.file_name, path: joinPath(f.root, f.path), dir: f.match_type === "directory" }))))
         .catch(() => setHits([]));
     }, 150);
     return () => clearTimeout(handle);
@@ -257,10 +258,11 @@ function FilesPanel() {
     (children[dir] ?? []).map((node) => (
       <li key={node.path}>
         {node.dir ? (
-          <button
+          <div className="sf-tree-row" style={{ paddingLeft: 8 + depth * 14 }}>
+            <input type="checkbox" checked={selected.has(node.path)} onChange={() => toggleFile(node)} aria-label={node.name} />
+            <button
             type="button"
-            className="sf-tree-row"
-            style={{ paddingLeft: 8 + depth * 14 }}
+            className="sf-tree-toggle"
             onClick={() => {
               const next = new Set(open);
               if (next.has(node.path)) next.delete(node.path);
@@ -274,10 +276,12 @@ function FilesPanel() {
           >
             <Icon name={open.has(node.path) ? "chevronDown" : "chevronRight"} size={12} />
             <Icon name="folder" size={13} /> {node.name}
-          </button>
+            </button>
+          </div>
         ) : (
-          <label className="sf-tree-row" style={{ paddingLeft: 22 + depth * 14 }}>
+          <label className="sf-tree-row" style={{ paddingLeft: 8 + depth * 14 }}>
             <input type="checkbox" checked={selected.has(node.path)} onChange={() => toggleFile(node)} />
+            <span className="sf-tree-spacer" aria-hidden="true" />
             <Icon name="file" size={13} /> {node.name}
           </label>
         )}
@@ -295,7 +299,7 @@ function FilesPanel() {
               <li key={node.path}>
                 <label className="sf-tree-row">
                   <input type="checkbox" checked={selected.has(node.path)} onChange={() => toggleFile(node)} />
-                  <Icon name="file" size={13} /> {node.path.replace(`${root}`, "").replace(/^[\\/]/, "")}
+                  <Icon name={node.dir ? "folder" : "file"} size={13} /> {node.path.replace(`${root}`, "").replace(/^[\\/]/, "")}
                 </label>
               </li>
             ))

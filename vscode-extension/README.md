@@ -63,7 +63,7 @@ The webview may call only the methods listed in `ALLOWED_RPC_METHODS` (`src/shar
 | 11 | Retention ↔ compaction sync | `shared/compactionSync.ts`. It only warns and never changes anything. Findings: the running thread froze a different limit; the value differs from the retention window of 80000; the value is clamped to 9/10 of the context window; the `body_after_prefix` scope is unclamped. |
 | 13 | Meters | Context left, cache % of the last request, speed, total cost. |
 | 14 | Themes | Nine palettes as `--sf-*` CSS variables. |
-| 15 | Panels under the composer | Invisible, mode (default/plan/goal/review/permissions), skills, file tree (`mention` items like `@file`), model + reasoning effort. |
+| 15 | Panels under the composer | Invisible, mode (default/plan/goal/review/permissions), skills, file and folder tree (the picked paths are written into the message, as the TUI's `@` picker does), model + reasoning effort. |
 
 ## Cost guarantees (tested in `tests/controller.test.ts`)
 

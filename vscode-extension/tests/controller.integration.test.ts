@@ -1,7 +1,7 @@
 // The webview controller against a real app-server, through a bridge backed by the extension's
 // SessionHost — the same path as in VS Code minus postMessage. Uses a throwaway SUFFICE_HOME.
 //   SUFFICE_BIN=<suffice.exe> npx jest tests/controller.integration.test.ts          (free)
-//   + LIVE_TURN=1 ZAI_API_KEY=<key>   also sends one small invisible turn with a mention (paid)
+//   + LIVE_TURN=1 ZAI_API_KEY=<key>   also sends one small invisible turn with a picked file (paid)
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -103,7 +103,7 @@ maybe("controller on a real app-server", () => {
   });
 
   live(
-    "an invisible turn with a mention runs to completion",
+    "an invisible turn with a picked file runs to completion",
     async () => {
       ctl.attachFile({ name: "notes.txt", path: join(work, "notes.txt") });
       ctl.toggleInvisible();
@@ -113,7 +113,8 @@ maybe("controller on a real app-server", () => {
       const turn = state.chat.turns[0]!;
       expect(turn.status).toBe("completed");
       const user = turn.items.find((i) => i.type === "userMessage");
-      expect(user && user.type === "userMessage" && user.content.some((c) => c.type === "mention")).toBe(true);
+      // The picked file reaches the model as a path in the message text, as the TUI's @ picker writes it.
+      expect(user && user.type === "userMessage" && user.content.some((c) => c.type === "text" && c.text.includes("notes.txt"))).toBe(true);
       // The last answer, not the commentary the model may send first.
       expect(lastAgentText(state.chat)?.toUpperCase()).toContain("PAPRIKA");
       expect(state.init!.invisibleTurns[state.chat.threadId!]).toEqual([turn.id]);

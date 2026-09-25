@@ -34,6 +34,20 @@ export const LARGE_PASTE_CHARS = 1000;
 
 type Translate = (key: MessageKey, params?: Params) => string;
 
+/**
+ * A file as the TUI's @ picker writes it into the message: relative to the working folder when it
+ * is inside it (fuzzy search results are), with forward slashes, quoted when it has whitespace.
+ */
+export function filePathToken(path: string, cwd: string | null): string {
+  let p = path;
+  if (cwd) {
+    const root = cwd.replace(/[\\/]+$/, "");
+    const inside = p.toLowerCase().startsWith(`${root.toLowerCase()}\\`) || p.startsWith(`${root}/`);
+    if (inside) p = p.slice(root.length + 1).replace(/\\/g, "/");
+  }
+  return /\s/.test(p) && !p.includes('"') ? `"${p}"` : p;
+}
+
 export class Controller {
   readonly session: AppServerSession;
   private state: AppState;
@@ -236,12 +250,19 @@ export class Controller {
   }
 
   // --- turns -----------------------------------------------------------------------------
-  /** Builds the turn input the way the TUI does: the text, then @file mentions, then skills. */
+  /**
+   * Builds the turn input the way the TUI does. Files picked in the tree are written into the
+   * text as paths, exactly what the TUI's @ picker inserts (chat_composer.rs insert_selected_path:
+   * the path, quoted when it has whitespace). A `mention` item would not work for files: core only
+   * resolves app:// and plugin:// mentions and adds no content for anything else
+   * (protocol/src/models.rs). Attached skills are `skill` items, as the TUI sends for $skill.
+   */
   buildInput(text: string, pastes: Map<string, string>): UserInput[] {
     let expanded = text;
     for (const [placeholder, content] of pastes) expanded = expanded.split(placeholder).join(content);
+    const paths = this.state.composer.files.map((f) => filePathToken(f.path, this.cwd));
+    if (paths.length) expanded = `${expanded}\n\n${paths.join(" ")}`;
     const input: UserInput[] = [{ type: "text", text: expanded, text_elements: [] }];
-    for (const f of this.state.composer.files) input.push({ type: "mention", name: f.name, path: f.path });
     for (const s of this.state.init?.attachedSkills ?? []) input.push({ type: "skill", name: s.name, path: s.path });
     return input;
   }

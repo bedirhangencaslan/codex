@@ -378,3 +378,5 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-quiz-option.is-right { border-color: var(--sf-success); color: var(--sf-success); opacity: 1; background: color-mix(in srgb, var(--sf-success) 12%, transparent); }
 .sf-quiz-option.is-wrong { border-color: var(--sf-danger); color: var(--sf-danger); }
 .sf-stack > p { margin: 0; }
+.sf-tree-toggle { flex: 1; display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; text-align: left; min-width: 0; }
+.sf-tree-spacer { flex: none; width: 12px; }

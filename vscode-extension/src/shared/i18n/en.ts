@@ -169,7 +169,7 @@ const base = {
   "panel.skillsTitle": "Skills attached to your next messages in this project",
   "panel.skillsEmpty": "No skills found for this workspace.",
   "panel.files": "Files",
-  "panel.filesTitle": "Files attached to your next message",
+  "panel.filesTitle": "Files and folders for your next message",
   "panel.filesSelected": "{count} attached",
   "panel.filesFilter": "Filter files",
   "panel.model": "Model",

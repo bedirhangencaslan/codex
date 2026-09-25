@@ -168,7 +168,7 @@ const base = {
   "panel.skillsTitle": "Bu projede sonraki mesajlarına eklenecek skill'ler",
   "panel.skillsEmpty": "Bu çalışma alanında skill bulunamadı.",
   "panel.files": "Dosyalar",
-  "panel.filesTitle": "Sonraki mesajına eklenecek dosyalar",
+  "panel.filesTitle": "Sonraki mesajına eklenecek dosya ve klasörler",
   "panel.filesSelected": "{count} eklendi",
   "panel.filesFilter": "Dosyaları filtrele",
   "panel.model": "Model",

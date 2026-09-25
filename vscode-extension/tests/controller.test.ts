@@ -1,7 +1,7 @@
 // What the webview sends to the model is the whole point of rule 6: only existing protocol
 // fields, and nothing extra when the user chose nothing. These tests drive the controller with a
 // fake bridge and check every turn/start it makes.
-import { Controller, PERMISSION_PRESETS } from "../src/webview/app/controller";
+import { Controller, filePathToken, PERMISSION_PRESETS } from "../src/webview/app/controller";
 import { appReducer, initialState, type AppAction, type AppState } from "../src/webview/app/state";
 import { BaseBridge } from "../src/webview/host";
 import { translate, localeByCode } from "../src/shared/i18n";
@@ -79,15 +79,29 @@ describe("turn/start is exactly what the TUI would send", () => {
     expect(JSON.stringify(bridge.calls)).not.toContain("Answer in Turkish");
   });
 
-  test("files and attached skills become mention/skill items, like @file and $skill", async () => {
+  test("picked files are written into the text like the TUI's @ picker; skills are skill items like $skill", async () => {
     const { bridge, ctl } = setup({ init: { ...init, attachedSkills: [{ name: "pdf", path: "/s/pdf/SKILL.md" }] } });
     ctl.attachFile({ name: "a.ts", path: "/w/a.ts" });
     await ctl.send("look");
     expect(bridge.turnStarts()[0].input).toEqual([
-      { type: "text", text: "look", text_elements: [] },
-      { type: "mention", name: "a.ts", path: "/w/a.ts" },
+      { type: "text", text: "look\n\na.ts", text_elements: [] },
       { type: "skill", name: "pdf", path: "/s/pdf/SKILL.md" },
     ]);
+  });
+
+  test("file paths are written like the TUI's @ picker: relative inside the folder, quoted with spaces", () => {
+    expect(filePathToken("C:\\work\\app\\src\\a.ts", "C:\\work\\app")).toBe("src/a.ts");
+    expect(filePathToken("c:\\work\\app\\My Docs\\b.md", "C:\\work\\app\\")).toBe('"My Docs/b.md"');
+    expect(filePathToken("/home/u/app/src", "/home/u/app")).toBe("src");
+    expect(filePathToken("D:\\other\\c.ts", "C:\\work\\app")).toBe("D:\\other\\c.ts");
+  });
+
+  test("a picked folder goes into the text too", async () => {
+    const { bridge, ctl } = setup();
+    ctl.attachFile({ name: "src", path: "/w/src" });
+    ctl.attachFile({ name: "b c.ts", path: "/w/b c.ts" });
+    await ctl.send("explain");
+    expect(bridge.turnStarts()[0].input).toEqual([{ type: "text", text: 'explain\n\nsrc "b c.ts"', text_elements: [] }]);
   });
 
   test("large pastes are expanded before sending", async () => {
