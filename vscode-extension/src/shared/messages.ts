@@ -73,7 +73,9 @@ export type HostToWebview =
   | { type: "serverRequest"; requestId: number; method: string; params: unknown }
   | { type: "rpcResult"; id: number; result?: unknown; error?: { message: string; code?: number } }
   | { type: "stateChanged"; patch: Partial<InitState> }
-  | { type: "command"; command: HostCommand };
+  | { type: "command"; command: HostCommand }
+  /** Context windows (tokens) from models.dev, by model id; models it does not know are absent. */
+  | { type: "modelLimitsResult"; id: number; limits: Record<string, number> };
 
 export type WebviewToHost =
   | { type: "ready" }
@@ -85,7 +87,9 @@ export type WebviewToHost =
   | { type: "restartServer" }
   | { type: "openSettings" }
   | { type: "openFile"; path: string }
-  | { type: "copy"; text: string };
+  | { type: "copy"; text: string }
+  /** Asks the host for the context windows of these models (models.dev, cached for a day). */
+  | { type: "modelLimits"; id: number; provider: string | null; models: string[] };
 
 /** Protocol methods the webview may call through the host. */
 export const ALLOWED_RPC_METHODS = new Set([

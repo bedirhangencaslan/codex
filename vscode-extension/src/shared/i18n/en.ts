@@ -239,6 +239,8 @@ const base = {
   "panel.filesModeBlockDesc": "Suffice cannot read the files and folders you tick. Codex's sandbox refuses them for every tool: read, grep, glob, view_image and shell commands.",
   "panel.filesModeSelectDesc": "Suffice can read only what you tick: at each level of the workspace on the way to your picks, everything else is blocked (AGENTS.md stays readable). Codex's sandbox enforces it for every tool.",
   "panel.filesChipSelected": "Only selected",
+  "meter.compaction": "compaction {value}",
+  "meter.compactionTitle": "Compaction limit: Suffice summarises the chat when it reaches {value} tokens. Range {min} to {max}: from the chat's current size up to the model's context window (models.dev).",
   "commands.tabLessons": "Lessons",
   "commands.tabReference": "Reference",
   "learn.lessonsDone": "{done} of {total} lessons complete",

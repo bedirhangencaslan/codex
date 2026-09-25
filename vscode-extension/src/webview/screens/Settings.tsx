@@ -5,7 +5,9 @@ import { MODEL_FACTS } from "../../shared/catalog";
 import { checkCompactionSync, type CompactionSyncFinding } from "../../shared/compactionSync";
 import { formatNumber, LOCALES, type MessageKey } from "../../shared/i18n";
 import { THEMES, type Palette } from "../../shared/themes";
+import { COMMIT_KEYS, COMPACTION_STEP } from "../app/compaction";
 import { useApp } from "../app/context";
+import { useCompactionSlider } from "../app/useCompactionSlider";
 import { Button, Notice, Section } from "../components/ui";
 
 export function SettingsScreen() {
@@ -85,8 +87,6 @@ function Preferences() {
   );
 }
 
-const MIN_LIMIT = 10_000;
-const STEP = 1_000;
 
 function Compaction() {
   const { state, ctl, t, locale } = useApp();
@@ -95,21 +95,23 @@ function Compaction() {
   }, [state.server.state]);
 
   const config = state.config;
-  const model = state.threadModel ?? config?.model ?? state.models.find((m) => m.isDefault)?.id ?? null;
+  const contextTokens = state.chat.tokenUsage?.last.totalTokens ?? 0;
+  const slider = useCompactionSlider(contextTokens);
+  const { range } = slider;
+  const model = range.model;
   const facts = model ? MODEL_FACTS[model] : undefined;
-  // The clamp works on the raw window (catalog), not the effective one token usage reports.
-  const rawWindow = facts?.contextWindow ?? config?.contextWindow ?? null;
-  const max = rawWindow ?? 200_000;
-  const modelDefault = facts ? (facts.autoCompactTokenLimit ?? Math.floor((max * 9) / 10)) : null;
-  const configured = config?.compactionLimit ?? null;
-  const [value, setValue] = useState<number>(configured ?? modelDefault ?? Math.floor(max * 0.4));
+  // The clamp works on the raw window Suffice knows (an override, else the catalog), not the
+  // effective one token usage reports.
+  const rawWindow = config?.contextWindow ?? facts?.contextWindow ?? null;
+  const modelDefault = range.defaultValue;
+  const configured = range.configured;
+  const value = slider.value;
   const [savedNote, setSavedNote] = useState(false);
-  useEffect(() => setValue(configured ?? modelDefault ?? Math.floor(max * 0.4)), [configured, modelDefault, max]);
 
   const fmt = (n: number) => formatNumber(locale, n);
   const commit = async (next: number | null) => {
     if (next === configured) return;
-    setSavedNote(await ctl.writeCompactionLimit(next));
+    setSavedNote(await slider.commit(next));
   };
 
   const threadId = state.chat.threadId;
@@ -141,16 +143,16 @@ function Compaction() {
           <input
             type="range"
             className="sf-slider"
-            min={MIN_LIMIT}
-            max={max}
-            step={STEP}
-            value={Math.min(Math.max(value, MIN_LIMIT), max)}
-            onChange={(e) => (setValue(Number(e.target.value)), setSavedNote(false))}
+            min={range.min}
+            max={range.max}
+            step={COMPACTION_STEP}
+            value={value}
+            onChange={(e) => (slider.setValue(Number(e.target.value)), setSavedNote(false))}
             onPointerUp={() => void commit(value)}
-            onKeyUp={(e) => ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(e.key) && void commit(value)}
+            onKeyUp={(e) => COMMIT_KEYS.includes(e.key) && void commit(value)}
             aria-label={t("settings.compactionTitle")}
             aria-valuetext={t("settings.compactionValue", { value: fmt(value) })}
-            disabled={state.server.state !== "ready"}
+            disabled={slider.disabled}
           />
           <output className="sf-slider-value">{t("settings.compactionValue", { value: fmt(value) })}</output>
         </div>
@@ -160,7 +162,7 @@ function Compaction() {
             {t("settings.compactionUseDefault")}
           </Button>
         </div>
-        {!rawWindow && <p className="sf-muted">{t("settings.compactionUnknownWindow", { model: model ?? "–", max: fmt(max) })}</p>}
+        {!range.realWindow && <p className="sf-muted">{t("settings.compactionUnknownWindow", { model: model ?? "–", max: fmt(range.max) })}</p>}
         {savedNote && <Notice tone="success">{t("settings.compactionSaved")}</Notice>}
       </Section>
 

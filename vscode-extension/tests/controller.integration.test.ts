@@ -26,6 +26,10 @@ class HostBackedBridge extends BaseBridge {
     this.receive(message);
   }
   post(message: WebviewToHost): void {
+    if (message.type === "modelLimits") {
+      this.receive({ type: "modelLimitsResult", id: message.id, limits: {} });
+      return;
+    }
     if (message.type !== "rpc") return;
     this.host.request(message.method, message.params).then(
       (result) => this.receive({ type: "rpcResult", id: message.id, result }),

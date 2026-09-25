@@ -66,6 +66,8 @@ export interface AppState {
   skills: SkillMetadata[];
   skillErrors: string[];
   config: ConfigSnapshot | null;
+  /** Real context windows by model id (models.dev); the compaction slider's upper end. */
+  modelLimits: Record<string, number>;
   serverRequests: PendingServerRequest[];
   composer: ComposerState;
   toast: string | null;
@@ -83,6 +85,7 @@ export const initialState: AppState = {
   skills: [],
   skillErrors: [],
   config: null,
+  modelLimits: {},
   serverRequests: [],
   composer: { model: null, effort: null, mode: null, permission: null, invisible: false, files: [], fileMode: "block", panel: null, draft: null },
   toast: null,
@@ -99,6 +102,7 @@ export type AppAction =
   | { type: "modes"; modes: CollaborationModeMask[] }
   | { type: "skills"; skills: SkillMetadata[]; errors: string[] }
   | { type: "config"; config: ConfigSnapshot }
+  | { type: "modelLimits"; limits: Record<string, number> }
   | { type: "serverRequest"; request: PendingServerRequest }
   | { type: "serverRequestDone"; requestId: number }
   | { type: "composer"; patch: Partial<ComposerState> }
@@ -130,6 +134,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, skills: action.skills, skillErrors: action.errors };
     case "config":
       return { ...state, config: action.config };
+    case "modelLimits":
+      return { ...state, modelLimits: { ...state.modelLimits, ...action.limits } };
     case "serverRequest":
       return state.serverRequests.some((r) => r.requestId === action.request.requestId)
         ? state

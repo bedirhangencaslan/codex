@@ -410,3 +410,10 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-effort-stops { position: relative; height: 6px; }
 .sf-effort-stop { position: absolute; top: 0; width: 6px; height: 6px; border-radius: 50%; transform: translateX(-50%); background: var(--sf-border); }
 .sf-effort-stop.is-filled { background: var(--sf-accent); }
+.sf-effort { max-width: 200px; }
+/* Compaction limit in the meters row: a short slider, a little longer than the context bar. */
+.sf-compaction { cursor: pointer; }
+.sf-compaction-range { width: 64px; height: 12px; margin: 0; accent-color: var(--sf-accent); cursor: pointer; }
+/* No focus ring on a mouse click (VS Code draws its focusBorder around any focused element);
+   keyboard focus keeps the accent ring from :focus-visible. */
+:focus:not(:focus-visible) { outline: none; }

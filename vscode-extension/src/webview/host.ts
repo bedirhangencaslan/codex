@@ -20,6 +20,8 @@ export interface HostBridge extends RpcChannel {
   /** Small per-view UI state that survives the view being hidden (composer history, ...). */
   viewState<T>(): T | undefined;
   setViewState<T>(state: T): void;
+  /** Context windows of these models from models.dev, via the host. */
+  modelLimits(provider: string | null, models: string[]): Promise<Record<string, number>>;
   readonly isPreview: boolean;
 }
 
@@ -36,9 +38,15 @@ export abstract class BaseBridge implements HostBridge {
   private nextId = 1;
   private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   private readonly listeners = new Set<(m: HostToWebview) => void>();
+  private readonly pendingLimits = new Map<number, (limits: Record<string, number>) => void>();
   abstract readonly isPreview: boolean;
 
   protected receive(message: HostToWebview): void {
+    if (message.type === "modelLimitsResult") {
+      this.pendingLimits.get(message.id)?.(message.limits);
+      this.pendingLimits.delete(message.id);
+      return;
+    }
     if (message.type === "rpcResult") {
       const pending = this.pending.get(message.id);
       if (!pending) return;
@@ -64,6 +72,19 @@ export abstract class BaseBridge implements HostBridge {
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
       this.post({ type: "rpc", id, method, params });
+    });
+  }
+
+  modelLimits(provider: string | null, models: string[]): Promise<Record<string, number>> {
+    const id = this.nextId++;
+    return new Promise((resolve) => {
+      // A host that never answers (older host, offline fetch stuck) must not hold up the catalog.
+      const timer = setTimeout(() => {
+        this.pendingLimits.delete(id);
+        resolve({});
+      }, 20_000);
+      this.pendingLimits.set(id, (limits) => (clearTimeout(timer), resolve(limits)));
+      this.post({ type: "modelLimits", id, provider, models });
     });
   }
 

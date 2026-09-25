@@ -160,6 +160,10 @@ export class PreviewBridge extends BaseBridge {
       this.emit({ type: "server", status: { state: "ready", codexHome: "C:\\Users\\me\\.suffice", userAgent: "suffice/preview", cwd: CWD } });
       return;
     }
+    if (message.type === "modelLimits") {
+      this.emit({ type: "modelLimitsResult", id: message.id, limits: { "glm-5.3-flash": 1_000_000 } });
+      return;
+    }
     if (message.type !== "rpc") return;
     if (message.method === "turn/start") {
       this.emit({ type: "rpcResult", id: message.id, result: { turn: { id: "preview-turn", items: [], status: "inProgress", error: null } } });

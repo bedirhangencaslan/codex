@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import { resolveLocale } from "../shared/i18n";
 import { ALLOWED_RPC_METHODS, type HostCommand, type HostToWebview, type InitState, type WebviewToHost } from "../shared/messages";
+import { ModelLimits } from "./modelLimits";
 import type { SessionHost } from "./sessionHost";
 import type { ExtensionStorage } from "./storage";
 
@@ -12,13 +13,16 @@ export class SufficeViewProvider implements vscode.WebviewViewProvider {
   static readonly viewId = "suffice.chat";
   private view: vscode.WebviewView | undefined;
   private readonly queued: HostToWebview[] = [];
+  private readonly limits: ModelLimits;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly host: SessionHost,
     private readonly storage: ExtensionStorage,
     private readonly restartServer: () => Promise<void>,
-  ) {}
+  ) {
+    this.limits = new ModelLimits(context.globalState);
+  }
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
@@ -109,6 +113,9 @@ export class SufficeViewProvider implements vscode.WebviewViewProvider {
       }
       case "copy":
         await vscode.env.clipboard.writeText(message.text);
+        return;
+      case "modelLimits":
+        this.post({ type: "modelLimitsResult", id: message.id, limits: await this.limits.forModels(message.provider, message.models) });
         return;
     }
   }

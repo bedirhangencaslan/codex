@@ -238,6 +238,8 @@ const base = {
   "panel.filesModeBlockDesc": "Suffice işaretlediğin dosya ve klasörleri okuyamaz. Codex'in sandbox'ı bunları her araç için reddeder: read, grep, glob, view_image ve kabuk komutları.",
   "panel.filesModeSelectDesc": "Suffice yalnızca işaretlediklerini okuyabilir: seçtiklerine giden yoldaki her çalışma alanı seviyesinde geri kalan her şey engellenir (AGENTS.md okunabilir kalır). Codex'in sandbox'ı bunu her araç için uygular.",
   "panel.filesChipSelected": "Sadece seçilenler",
+  "meter.compaction": "compaction {value}",
+  "meter.compactionTitle": "Compaction limiti: sohbet {value} token'a ulaşınca Suffice onu özetler. Aralık {min} ile {max}: sohbetin şu anki boyutundan modelin bağlam penceresine kadar (models.dev).",
   "commands.tabLessons": "Dersler",
   "commands.tabReference": "Başvuru",
   "learn.lessonsDone": "{total} dersin {done} tanesi tamamlandı",

@@ -12,6 +12,8 @@ import { AppServerSession } from "../../protocol/session";
 import type { TurnStartParamsWithMode } from "../../protocol/experimental";
 import type { CompactionScope } from "../../shared/compactionSync";
 import type { MessageKey, Params } from "../../shared/i18n";
+import { clampedAutoCompactLimit } from "../../shared/catalog";
+import { compactionRange } from "./compaction";
 import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress } from "../../shared/lessons";
 import type { AttachedSkill, FileAccessMode, HostToWebview, InitState, PersistedState, ThreadFileAccess } from "../../shared/messages";
 import type { ModelPrice } from "../../shared/pricing";
@@ -179,6 +181,19 @@ export class Controller {
   // --- catalog ---------------------------------------------------------------------------
   async loadCatalog(): Promise<void> {
     await Promise.all([this.loadModels(), this.loadModes(), this.loadSkills(), this.loadConfig()]);
+    await this.loadModelLimits();
+  }
+
+  /** The models' real context windows (models.dev via the host) for the compaction slider. */
+  async loadModelLimits(): Promise<void> {
+    const models = this.state.models.map((m) => m.id);
+    if (models.length === 0) return;
+    try {
+      const limits = await this.bridge.modelLimits(this.state.config?.modelProvider ?? null, models);
+      this.dispatch({ type: "modelLimits", limits });
+    } catch {
+      // Unknown windows only lose the slider's upper end; the catalog value stands in.
+    }
   }
 
   async loadModels(): Promise<void> {
@@ -545,6 +560,18 @@ export class Controller {
   // --- config (goal items 10, 11) --------------------------------------------------------
   async writeCompactionLimit(value: number | null): Promise<boolean> {
     try {
+      // Suffice clamps the limit to 9/10 of the context window it knows (its catalog). When the
+      // chosen limit only fits the model's real window, that window goes to Codex's own
+      // `model_context_window` setting so the limit is applied as chosen; below the clamp the
+      // setting is removed again (only if it holds the value this slider wrote).
+      const range = compactionRange(this.state, 0);
+      const needsWindow =
+        value !== null && range.catalogWindow !== null && range.realWindow !== null && range.realWindow > range.catalogWindow && value > clampedAutoCompactLimit(null, range.catalogWindow);
+      const current = this.state.config?.contextWindow ?? null;
+      const desired = needsWindow ? range.realWindow : current === range.realWindow ? null : current;
+      if (desired !== current) {
+        await this.session.configValueWrite({ keyPath: "model_context_window", value: desired, mergeStrategy: "replace" });
+      }
       await this.session.configValueWrite({ keyPath: "model_auto_compact_token_limit", value, mergeStrategy: "replace" });
       await this.loadConfig();
       return true;
