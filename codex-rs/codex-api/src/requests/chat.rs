@@ -8,6 +8,7 @@
 use crate::common::ResponsesApiRequest;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
+use codex_protocol::models::ImageReference;
 use codex_protocol::models::ReasoningItemContent;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
@@ -39,7 +40,10 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                             text.push_str(t);
                             parts.push(json!({"type": "text", "text": t}));
                         }
-                        ContentItem::InputImage { image_url, .. } => {
+                        ContentItem::InputImage {
+                            image: ImageReference::Inline { image_url },
+                            ..
+                        } => {
                             saw_image = true;
                             parts.push(json!({"type": "image_url", "image_url": {"url": image_url}}));
                         }
@@ -105,7 +109,10 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                                 FunctionCallOutputContentItem::InputText { text } => {
                                     Some(json!({"type": "text", "text": text}))
                                 }
-                                FunctionCallOutputContentItem::InputImage { image_url, .. } => {
+                                FunctionCallOutputContentItem::InputImage {
+                                    image: ImageReference::Inline { image_url },
+                                    ..
+                                } => {
                                     Some(json!({"type": "image_url", "image_url": {"url": image_url}}))
                                 }
                                 _ => None,

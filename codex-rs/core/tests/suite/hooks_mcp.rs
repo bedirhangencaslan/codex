@@ -13,6 +13,7 @@ use codex_core::config::Config;
 use codex_features::Feature;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::protocol::AskForApproval;
+use codex_utils_path_uri::LegacyAppPathString;
 use core_test_support::hooks::trust_discovered_hooks;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;
@@ -285,12 +286,14 @@ fn insert_rmcp_test_server(
                 args: Vec::new(),
                 env: None,
                 env_vars: Vec::new(),
-                cwd: None,
+                cwd: Some(LegacyAppPathString::from_path(config.cwd.as_path())),
             },
             environment_id,
             enabled: true,
             required: false,
+            startup_readiness: Default::default(),
             supports_parallel_tool_calls: false,
+            tool_input_schema_max_bytes: None,
             omit_tools_from: None,
             disabled_reason: None,
             startup_timeout_sec: Some(Duration::from_secs(10)),

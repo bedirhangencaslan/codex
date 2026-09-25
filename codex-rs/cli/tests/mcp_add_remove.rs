@@ -74,6 +74,53 @@ async fn add_and_remove_server_updates_global_config() -> Result<()> {
 }
 
 #[tokio::test]
+async fn npm_server_names_round_trip_through_cli() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let name = "npm:@modelcontextprotocol/server-sequential.thinking";
+
+    codex_command(codex_home.path())?
+        .args(["mcp", "add", name, "--", "echo", "hello"])
+        .assert()
+        .success();
+
+    let config = std::fs::read_to_string(codex_home.path().join("config.toml"))?;
+    assert!(config.contains(&format!("[mcp_servers.\"{name}\"]")));
+    let servers = load_global_mcp_servers(codex_home.path()).await?;
+    assert_eq!(
+        servers.keys().map(String::as_str).collect::<Vec<_>>(),
+        vec![name]
+    );
+
+    let output = codex_command(codex_home.path())?
+        .args(["mcp", "get", name, "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let server: serde_json::Value = serde_json::from_slice(&output)?;
+    assert_eq!(server["name"], name);
+
+    let output = codex_command(codex_home.path())?
+        .args(["mcp", "list", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let listed: Vec<serde_json::Value> = serde_json::from_slice(&output)?;
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0]["name"], name);
+
+    codex_command(codex_home.path())?
+        .args(["mcp", "remove", name])
+        .assert()
+        .success();
+    assert!(load_global_mcp_servers(codex_home.path()).await?.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
 async fn add_and_login_discover_oauth_through_configured_http_proxy() -> Result<()> {
     let codex_home = TempDir::new()?;
     let proxy = MockServer::start().await;
@@ -297,6 +344,40 @@ async fn add_streamable_http_without_manual_token() -> Result<()> {
     assert!(!config.contains("client_registration"));
     assert!(!config.contains("[mcp_servers.github.oauth]"));
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn add_rejects_blank_client_credentials_before_saving() -> Result<()> {
+    let mut errors = Vec::new();
+    for (client_id, client_secret) in [("registered-client", "   "), ("   ", "cli-secret-marker")] {
+        let codex_home = TempDir::new()?;
+        let output = codex_command(codex_home.path())?
+            .args([
+                "mcp",
+                "add",
+                "private",
+                "--url",
+                "http://127.0.0.1:9/mcp",
+                "--oauth-client-id",
+                client_id,
+                "--oauth-client-secret",
+                client_secret,
+            ])
+            .assert()
+            .failure()
+            .get_output()
+            .clone();
+        let stderr = String::from_utf8(output.stderr)?;
+        assert!(!stderr.contains("cli-secret-marker"));
+        assert!(!String::from_utf8(output.stdout)?.contains("cli-secret-marker"));
+        assert!(load_global_mcp_servers(codex_home.path()).await?.is_empty());
+        errors.push(stderr.trim().to_string());
+    }
+    insta::assert_snapshot!(errors.join("\n"), @r"
+    Error: --oauth-client-secret must not be empty
+    Error: --oauth-client-secret requires a nonempty --oauth-client-id
+    ");
     Ok(())
 }
 

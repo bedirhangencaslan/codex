@@ -1263,8 +1263,13 @@ async fn plugin_catalogs_skip_invalid_project_config_and_report_cwd_error() -> R
     )?;
     write_installed_plugin(&codex_home, "valid-marketplace", "sample")?;
 
+    let home = codex_home.path().to_string_lossy().into_owned();
     let mut server = TestAppServer::builder()
         .with_codex_home(codex_home.path())
+        .with_env_overrides(&[
+            ("HOME", Some(home.as_str())),
+            ("USERPROFILE", Some(home.as_str())),
+        ])
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)
         .await?;
     let invalid_cwd = AbsolutePathBuf::try_from(invalid_repo.as_path())?;
@@ -2083,12 +2088,14 @@ enum ProjectPluginConfiguration {
     Invalid,
 }
 
-#[test_case(ProjectPluginConfiguration::None; "without project override")]
-#[test_case(ProjectPluginConfiguration::Disabled; "project disables local plugins")]
-#[test_case(ProjectPluginConfiguration::Invalid; "invalid project preserves remote plugins")]
+#[test_case(ProjectPluginConfiguration::None, None; "without project override")]
+#[test_case(ProjectPluginConfiguration::Disabled, None; "project disables local plugins")]
+#[test_case(ProjectPluginConfiguration::Invalid, None; "invalid project preserves remote plugins")]
+#[test_case(ProjectPluginConfiguration::None, Some("tpp"); "configured product sku")]
 #[tokio::test]
 async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled(
     project_configuration: ProjectPluginConfiguration,
+    product_sku: Option<&str>,
 ) -> Result<()> {
     let codex_home = TempDir::new()?;
     let server = MockServer::start().await;
@@ -2203,13 +2210,14 @@ async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled(
   }
 }"#;
 
+    let expected_product_sku = product_sku.unwrap_or("codex");
     Mock::given(method("GET"))
         .and(path("/backend-api/ps/plugins/list"))
         .and(query_param("scope", "GLOBAL"))
         .and(query_param("limit", "200"))
         .and(header("authorization", "Bearer chatgpt-token"))
         .and(header("chatgpt-account-id", "account-123"))
-        .and(header("oai-product-sku", "codex"))
+        .and(header("oai-product-sku", expected_product_sku))
         .respond_with(ResponseTemplate::new(200).set_body_string(global_directory_body))
         .mount(&server)
         .await;
@@ -2219,7 +2227,7 @@ async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled(
         .and(query_param("limit", "200"))
         .and(header("authorization", "Bearer chatgpt-token"))
         .and(header("chatgpt-account-id", "account-123"))
-        .and(header("oai-product-sku", "codex"))
+        .and(header("oai-product-sku", expected_product_sku))
         .respond_with(ResponseTemplate::new(200).set_body_string(empty_page_body))
         .mount(&server)
         .await;
@@ -2228,7 +2236,7 @@ async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled(
         .and(query_param("scope", "GLOBAL"))
         .and(header("authorization", "Bearer chatgpt-token"))
         .and(header("chatgpt-account-id", "account-123"))
-        .and(header("oai-product-sku", "codex"))
+        .and(header("oai-product-sku", expected_product_sku))
         .respond_with(ResponseTemplate::new(200).set_body_string(global_installed_body))
         .mount(&server)
         .await;
@@ -2237,7 +2245,7 @@ async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled(
         .and(query_param("scope", "WORKSPACE"))
         .and(header("authorization", "Bearer chatgpt-token"))
         .and(header("chatgpt-account-id", "account-123"))
-        .and(header("oai-product-sku", "codex"))
+        .and(header("oai-product-sku", expected_product_sku))
         .respond_with(ResponseTemplate::new(200).set_body_string(empty_page_body))
         .mount(&server)
         .await;
@@ -2250,8 +2258,11 @@ async fn plugin_list_includes_remote_marketplaces_when_remote_plugin_enabled(
         .mount(&server)
         .await;
 
-    let mut mcp = TestAppServer::builder()
-        .with_codex_home(codex_home.path())
+    let mut builder = TestAppServer::builder().with_codex_home(codex_home.path());
+    if let Some(product_sku) = product_sku {
+        builder = builder.with_args(&["-c", &format!("apps_mcp_product_sku=\"{product_sku}\"")]);
+    }
+    let mut mcp = builder
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)
         .await?;
 
@@ -4781,8 +4792,13 @@ remote_plugin = true
     let repo_cwd = AbsolutePathBuf::try_from(repo.path())?;
     let cwds = project_enables_plugins.then(|| vec![repo_cwd]);
 
+    let home = codex_home.path().to_string_lossy().into_owned();
     let mut mcp = TestAppServer::builder()
         .with_codex_home(codex_home.path())
+        .with_env_overrides(&[
+            ("HOME", Some(home.as_str())),
+            ("USERPROFILE", Some(home.as_str())),
+        ])
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)
         .await?;
 
@@ -4866,8 +4882,13 @@ async fn plugin_list_omits_featured_plugin_ids_without_chatgpt_auth() -> Result<
         .mount(&server)
         .await;
 
+    let home = codex_home.path().to_string_lossy().into_owned();
     let mut mcp = TestAppServer::builder()
         .with_codex_home(codex_home.path())
+        .with_env_overrides(&[
+            ("HOME", Some(home.as_str())),
+            ("USERPROFILE", Some(home.as_str())),
+        ])
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)
         .await?;
 
@@ -5053,6 +5074,9 @@ fn cached_remote_catalog_plugin_ids(codex_home: &std::path::Path) -> Result<Vec<
     let mut plugin_ids = Vec::new();
     for entry in std::fs::read_dir(cache_dir)? {
         let path = entry?.path();
+        if path.extension().is_none_or(|ext| ext != "json") {
+            continue;
+        }
         let cached_catalog: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
         let Some(plugins) = cached_catalog["plugins"].as_array() else {
             continue;
@@ -5075,6 +5099,9 @@ fn rewrite_cached_remote_catalog_fetched_at(
     let cache_dir = codex_home.join("cache/remote_plugin_catalog");
     for entry in std::fs::read_dir(cache_dir)? {
         let path = entry?.path();
+        if path.extension().is_none_or(|ext| ext != "json") {
+            continue;
+        }
         let mut cached_catalog: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
         cached_catalog["fetched_at"] = serde_json::json!(fetched_at);
         std::fs::write(path, serde_json::to_vec_pretty(&cached_catalog)?)?;

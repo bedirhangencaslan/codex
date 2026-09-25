@@ -147,6 +147,30 @@ fn discovers_allowlisted_executor_plugin_hook_sources() {
 }
 
 #[test]
+fn discovers_unified_computer_use_cleanup_hooks() {
+    let mut manifest = cleanup_hook_manifest();
+    manifest["name"] = json!("unified-computer-use");
+    manifest["hooks"]["hooks"]["Stop"][0]["hooks"][0]["server"] = json!("cua_repl");
+    let snapshot = snapshot_for_manifest(
+        "unified-computer-use@openai-bundled",
+        "executor-a",
+        "file:///plugins/computer-use/.codex-plugin/plugin.json",
+        manifest,
+    );
+    let mut expected = expected_source(/*index*/ 0);
+    expected.plugin_id = PluginId::parse("unified-computer-use@openai-bundled").expect("plugin id");
+    let HookHandlerConfig::McpTool { server, .. } = &mut expected.hooks.stop[0].hooks[0] else {
+        panic!("expected an MCP tool hook");
+    };
+    *server = "cua_repl".to_string();
+
+    assert_eq!(
+        executor_plugin_hook_sources(&snapshot, |_, _| None),
+        vec![expected]
+    );
+}
+
+#[test]
 fn filters_mixed_handlers_without_rewriting_allowed_groups() {
     let mut expected = expected_source(/*index*/ 0);
     let mut second_handler = expected.hooks.stop[0].hooks[0].clone();
@@ -267,6 +291,30 @@ fn resolves_apps_hook_metadata_from_the_registered_connector() {
             json!({}),
             routing.clone(),
             true,
+        ),
+        (
+            "registered interrupted app",
+            "Interrupt",
+            Some("connector_openai_browser"),
+            json!({}),
+            routing.clone(),
+            true,
+        ),
+        (
+            "colliding interrupt tool name",
+            "Interrupt",
+            Some("connector_other_browser"),
+            json!({}),
+            routing.clone(),
+            false,
+        ),
+        (
+            "interrupt manifest arguments",
+            "Interrupt",
+            Some("connector_openai_browser"),
+            json!({ "untrusted": "manifest-provided input" }),
+            routing.clone(),
+            false,
         ),
         (
             "colliding subagent tool name",

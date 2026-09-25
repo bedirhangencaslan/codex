@@ -84,7 +84,7 @@ pub(crate) async fn process_chat_sse<S>(
 {
     let mut stream = stream.eventsource();
     let mut turn = ChatTurn::default();
-    let _ = tx_event.send(Ok(ResponseEvent::Created)).await;
+    let _ = tx_event.send(Ok(ResponseEvent::Created { response_id: None })).await;
 
     loop {
         let start = Instant::now();
