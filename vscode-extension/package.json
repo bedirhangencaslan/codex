@@ -1,7 +1,7 @@
 {
   "name": "suffice-vscode",
   "displayName": "Suffice",
-  "description": "Suffice chat, skills and cost meters in the VS Code side bar, over the documented app-server protocol.",
+  "description": "%extension.description%",
   "version": "0.1.0",
   "private": true,
   "publisher": "suffice",
@@ -20,7 +20,7 @@
       "activitybar": [
         {
           "id": "suffice",
-          "title": "Suffice",
+          "title": "%suffice.container%",
           "icon": "media/suffice.svg"
         }
       ]
@@ -30,35 +30,35 @@
         {
           "type": "webview",
           "id": "suffice.chat",
-          "name": "Suffice"
+          "name": "%suffice.view%"
         }
       ]
     },
     "commands": [
       {
         "command": "suffice.focus",
-        "title": "Suffice: Open"
+        "title": "%command.focus%"
       },
       {
         "command": "suffice.newThread",
-        "title": "Suffice: New Chat"
+        "title": "%command.newThread%"
       },
       {
         "command": "suffice.showInterfaces",
-        "title": "Suffice: Show Interfaces"
+        "title": "%command.showInterfaces%"
       },
       {
         "command": "suffice.restartServer",
-        "title": "Suffice: Restart App Server"
+        "title": "%command.restartServer%"
       }
     ],
     "configuration": {
-      "title": "Suffice",
+      "title": "%config.title%",
       "properties": {
         "suffice.binaryPath": {
           "type": "string",
           "default": "",
-          "description": "Path to the suffice executable. Empty: look for `suffice` on PATH."
+          "description": "%config.binaryPath%"
         },
         "suffice.language": {
           "type": "string",
@@ -68,12 +68,12 @@
             "tr"
           ],
           "default": "auto",
-          "description": "Interface language. `auto` follows the VS Code display language."
+          "description": "%config.language%"
         },
         "suffice.theme": {
           "type": "string",
           "default": "vscode",
-          "description": "Interface theme id (see the Settings screen). `vscode` follows the editor theme."
+          "description": "%config.theme%"
         }
       }
     }

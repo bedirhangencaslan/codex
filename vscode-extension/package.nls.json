@@ -1,0 +1,13 @@
+{
+  "extension.description": "Suffice chat, skills and cost meters in the VS Code side bar, over the documented app-server protocol.",
+  "suffice.container": "Suffice",
+  "suffice.view": "Suffice",
+  "command.focus": "Suffice: Open",
+  "command.newThread": "Suffice: New Chat",
+  "command.showInterfaces": "Suffice: Show Interfaces",
+  "command.restartServer": "Suffice: Restart App Server",
+  "config.title": "Suffice",
+  "config.binaryPath": "Path to the suffice executable. Empty: look for `suffice` on PATH, then for a Suffice build in the workspace.",
+  "config.language": "Interface language. `auto` follows the VS Code display language.",
+  "config.theme": "Interface theme id (see the Settings screen). `vscode` follows the editor theme."
+}

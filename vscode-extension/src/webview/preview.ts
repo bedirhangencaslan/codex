@@ -169,6 +169,26 @@ export class PreviewBridge extends BaseBridge {
       const text = JSON.stringify(n.params).split(recordedThread).join(THREAD).split("<home>").join(CWD.replace(/\\/g, "\\\\"));
       setTimeout(() => this.emit({ type: "notification", method: n.method, params: JSON.parse(text) }), 120 * (i + 1));
     });
+    if (params.get("demo") === "approval") {
+      const at = 120 * (steps.length + 1);
+      setTimeout(() => {
+        this.emit({
+          type: "serverRequest",
+          requestId: 1,
+          method: "item/commandExecution/requestApproval",
+          params: { kind: "command", threadId: THREAD, turnId: "t", itemId: "i", startedAtMs: 0, command: "npm install left-pad", reason: "needs network access", environmentId: null },
+        });
+        this.emit({
+          type: "serverRequest",
+          requestId: 2,
+          method: "item/tool/requestUserInput",
+          params: {
+            threadId: THREAD, turnId: "t", itemId: "q", isBlocking: true, autoResolutionMs: null,
+            questions: [{ id: "db", header: "Database", question: "Which database should the plan target?", isOther: true, isSecret: false, options: [{ label: "SQLite", description: "Single file, no server" }, { label: "Postgres", description: "The production database" }] }],
+          },
+        });
+      }, at);
+    }
   }
 
   viewState<T>(): T | undefined {

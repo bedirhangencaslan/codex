@@ -1,0 +1,13 @@
+{
+  "extension.description": "Belgelenmiş app-server protokolü üzerinden VS Code yan panelinde Suffice sohbeti, skill'ler ve maliyet göstergeleri.",
+  "suffice.container": "Suffice",
+  "suffice.view": "Suffice",
+  "command.focus": "Suffice: Aç",
+  "command.newThread": "Suffice: Yeni Sohbet",
+  "command.showInterfaces": "Suffice: Arayüzleri Göster",
+  "command.restartServer": "Suffice: Uygulama Sunucusunu Yeniden Başlat",
+  "config.title": "Suffice",
+  "config.binaryPath": "suffice çalıştırılabilir dosyasının yolu. Boşsa önce PATH'te, sonra çalışma alanındaki bir Suffice derlemesinde aranır.",
+  "config.language": "Arayüz dili. `auto`, VS Code'un görüntüleme dilini izler.",
+  "config.theme": "Arayüz teması kimliği (Ayarlar ekranına bak). `vscode`, editör temasını izler."
+}
