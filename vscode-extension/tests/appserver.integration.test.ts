@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { JsonRpcConnection } from "../src/protocol/jsonrpc";
 import { AppServerSession } from "../src/protocol/session";
 import { StdioTransport } from "../src/protocol/stdioTransport";
+import { SessionHost } from "../src/extension/sessionHost";
 
 const binary = process.env.SUFFICE_BIN;
 const maybe = binary ? describe : describe.skip;
@@ -58,5 +59,28 @@ maybe("real app-server", () => {
   test("collaborationMode/list is available with experimentalApi", async () => {
     const modes = await session.collaborationModeList();
     expect(modes.data.map((m) => m.mode)).toEqual(expect.arrayContaining(["plan", "default"]));
+  });
+
+  test("SessionHost starts, relays a request, reports stop", async () => {
+    const statuses: string[] = [];
+    const host = new SessionHost({
+      status: (s) => statuses.push(s.state),
+      notification: () => {},
+      serverRequest: () => {},
+      log: () => {},
+    });
+    await host.start({ binary: binary!, cwd: home, env: { ...process.env, SUFFICE_HOME: home }, version: "0.0.0" });
+    expect(host.currentStatus.state).toBe("ready");
+    const models = (await host.request("model/list", {})) as { data: unknown[] };
+    expect(models.data.length).toBeGreaterThan(0);
+    host.stop();
+    await expect(host.request("model/list", {})).rejects.toThrow("not running");
+    expect(statuses.slice(0, 2)).toEqual(["starting", "ready"]);
+  }, 60_000);
+
+  test("SessionHost without a binary reports noBinary", async () => {
+    const host = new SessionHost({ status: () => {}, notification: () => {}, serverRequest: () => {}, log: () => {} });
+    await host.start({ binary: undefined, cwd: home, env: process.env, version: "0" });
+    expect(host.currentStatus).toEqual({ state: "noBinary" });
   });
 });
