@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Opens the built webview outside VS Code with sample data (src/webview/preview.ts), for design
+     review and screenshots: preview.html?screen=home|chat|history|skills|commands|api|settings
+     &lang=en|tr&theme=<theme id>&width=<px, to imitate a narrow side bar>. Build first. -->
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Suffice webview preview</title>
+<link rel="stylesheet" href="dist/webview.css" />
+<style>
+  html.sf-framed { background: #0000; }
+  html.sf-framed #root { border-right: 1px dashed #888; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  const width = new URLSearchParams(location.search).get("width");
+  if (width) {
+    document.documentElement.classList.add("sf-framed");
+    document.getElementById("root").style.width = width + "px";
+  }
+</script>
+<script src="dist/webview.js"></script>
+</body>
+</html>

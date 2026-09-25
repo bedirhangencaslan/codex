@@ -39,6 +39,7 @@ maybe(
       await session.turnStart({
         threadId: started.thread.id,
         input: [{ type: "text", text: "Run the shell command `echo hello-suffice` and then reply with one short sentence saying what it printed.", text_elements: [] }],
+        invisible: false,
       });
       await completed;
     } finally {
