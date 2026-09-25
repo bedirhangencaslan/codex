@@ -118,6 +118,10 @@ export class PreviewBridge extends BaseBridge {
 
   constructor() {
     super();
+    // ?lesson=<id> opens that lesson on the Commands screen; ?tab=reference opens the reference.
+    if (params.get("lesson") || params.get("tab")) {
+      this.state = { commandsTab: params.get("tab") ?? "lessons", openLesson: params.get("lesson") };
+    }
   }
 
   private initState(): InitState {
@@ -133,6 +137,9 @@ export class PreviewBridge extends BaseBridge {
       attachedSkills: [],
       invisibleTurns: {},
       threadStartCompaction: {},
+      learning: params.get("learning") === "some"
+        ? { practiced: ["status", "pwd", "rename"], quizzes: { "basics.folder": "pwd", "sessions.unrelated": "compact" }, explored: [] }
+        : { practiced: [], quizzes: {}, explored: [] },
     };
   }
 

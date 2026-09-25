@@ -11,7 +11,8 @@ import { AppServerSession } from "../../protocol/session";
 import type { TurnStartParamsWithMode } from "../../protocol/experimental";
 import type { CompactionScope } from "../../shared/compactionSync";
 import type { MessageKey, Params } from "../../shared/i18n";
-import type { AttachedSkill, HostToWebview, InitState } from "../../shared/messages";
+import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress } from "../../shared/lessons";
+import type { AttachedSkill, HostToWebview, InitState, PersistedState } from "../../shared/messages";
 import type { ModelPrice } from "../../shared/pricing";
 import { findCommand, parseSlashInput } from "../../shared/slashCommands";
 import { lastAgentText } from "../state/chatReducer";
@@ -126,7 +127,7 @@ export class Controller {
     this.bridge.post({ type: "copy", text });
     this.toast(this.t()("common.copied"));
   }
-  private persist<K extends keyof InitState>(key: K & ("prices" | "preferences" | "attachedSkills" | "invisibleTurns" | "threadStartCompaction"), value: InitState[K]): void {
+  private persist<K extends keyof InitState>(key: K & keyof PersistedState, value: InitState[K]): void {
     this.dispatch({ type: "initPatch", patch: { [key]: value } as Partial<InitState> });
     this.bridge.post({ type: "setState", key, value });
   }
@@ -321,6 +322,7 @@ export class Controller {
       notice(t("chat.slashUnsupported", { name: command.name }));
       return true;
     }
+    this.recordPractice(command.name);
     switch (command.guiAction) {
       case "newThread":
         this.newThread();
@@ -385,6 +387,33 @@ export class Controller {
         notice(this.cwd ?? "–");
         return true;
     }
+  }
+
+  // --- slash command course (goal item 3) ------------------------------------------------
+  get learning(): LearningProgress {
+    return this.state.init?.learning ?? EMPTY_PROGRESS;
+  }
+
+  /** A command the extension actually ran; completes the lesson steps that ask for it. */
+  private recordPractice(name: string): void {
+    const next = recordPracticed(this.learning, name);
+    if (next === this.learning) return;
+    this.persist("learning", next);
+    const taught = lessonSets().some((s) => s.lessons.some((l) => l.steps.some((st) => st.kind === "try" && st.command === name)));
+    if (taught) this.toast(this.t()("learn.practicedToast", { name }));
+  }
+
+  answerQuiz(quizId: string, option: string): void {
+    this.persist("learning", { ...this.learning, quizzes: { ...this.learning.quizzes, [quizId]: option } });
+  }
+
+  markExplored(key: string): void {
+    if (this.learning.explored.includes(key)) return;
+    this.persist("learning", { ...this.learning, explored: [...this.learning.explored, key] });
+  }
+
+  resetLearning(): void {
+    this.persist("learning", EMPTY_PROGRESS);
   }
 
   toggleInvisible(): void {

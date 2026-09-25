@@ -1,4 +1,5 @@
 import type { MessageKey } from "./en";
+import { learnTr } from "./learn.tr";
 import { slashTr } from "./slash.tr";
 
 const base = {
@@ -40,8 +41,8 @@ const base = {
   "home.history.desc": "Suffice'in yerelde kaydettiği oturumlar; istediğine kaldığın yerden devam et.",
   "home.skills.title": "Skill seçimi",
   "home.skills.desc": "Skill'leri aç/kapat ve bu projede mesajlara hangilerinin ekleneceğini seç.",
-  "home.commands.title": "Slash komut rehberi",
-  "home.commands.desc": "Her / komutunun ne yaptığı, ne zaman kullanılacağı ve nasıl deneneceği.",
+  "home.commands.title": "Slash komut eğitimi",
+  "home.commands.desc": "Alıştırmalı ve kısa kontrollü dersler, ayrıca her / komutu için bir başvuru listesi.",
   "home.api.title": "API anahtarları ve fiyatlar",
   "home.api.desc": "Sağlayıcı anahtarları, hesap durumu ve her modelin milyon token fiyatı.",
   "home.settings.title": "Ayarlar",
@@ -207,8 +208,8 @@ const base = {
   "skills.empty": "Hiç skill bulunamadı.",
 
   // --- slash command guide
-  "commands.title": "Slash komut rehberi",
-  "commands.intro": "Komutlar / ile başlar. Sohbet kutusuna yaz; aşağıdaki liste her birini açıklar. Yeni komut setleri bu ekranı değiştirmeden eklenebilir.",
+  "commands.title": "Slash komut eğitimi",
+  "commands.intro": "/ komutlarını adım adım öğren ya da başvuru listesinde birine bak. Yeni dersler ve komut setleri bu ekranı değiştirmeden eklenebilir.",
   "commands.search": "Komutları filtrele",
   "commands.flagDuringTask": "Suffice meşgulken çalışır",
   "commands.flagArgs": "argüman alır",
@@ -227,6 +228,30 @@ const base = {
   "commands.category.interface": "Arayüz",
   "commands.category.account": "Hesap ve sistem",
   "commands.lessonProgress": "{total} komutun {done} tanesi incelendi",
+  "commands.tabLessons": "Dersler",
+  "commands.tabReference": "Başvuru",
+  "learn.lessonsDone": "{total} dersin {done} tanesi tamamlandı",
+  "learn.stepsDone": "{done}/{total}",
+  "learn.start": "Başla",
+  "learn.continue": "Devam et",
+  "learn.again": "Tekrar et",
+  "learn.tryButton": "Sohbette dene",
+  "learn.tryHint": "Komut sohbet kutusuna yazılır; çalıştırmak için Enter'a bas, sonra buraya dön.",
+  "learn.practiced": "Yapıldı",
+  "learn.quizTitle": "Kısa kontrol",
+  "learn.correct": "Doğru.",
+  "learn.wrong": "Tam değil, başka bir cevap dene.",
+  "learn.completeBadge": "Tamamlandı",
+  "learn.lessonComplete": "Ders tamamlandı.",
+  "learn.nextLesson": "Sonraki ders: {title}",
+  "learn.allDone": "Bütün dersleri bitirdin. Başvuru sekmesi diğer bütün komutları açıklar.",
+  "learn.back": "Bütün dersler",
+  "learn.reset": "İlerlemeyi sıfırla",
+  "learn.practicedToast": "Ders adımı tamamlandı: /{name}",
+  "learn.covers": "Kapsadığı komutlar",
+  "chat.learnLink": "/ komutlarında yeni misin? Kısa eğitime göz at.",
+  "panel.permDefault": "Yapılandırmadaki gibi",
+  "panel.permDefaultDesc": "Suffice yapılandırmandaki onay ve sandbox ayarlarını kullanır.",
 
   // --- API & pricing
   "api.title": "API anahtarları ve fiyatlar",
@@ -299,4 +324,4 @@ const base = {
   "theme.oneHalfDark": "One Half (koyu)",
 };
 
-export const tr = { ...base, ...slashTr } satisfies Record<MessageKey, string>;
+export const tr = { ...base, ...slashTr, ...learnTr } satisfies Record<MessageKey, string>;

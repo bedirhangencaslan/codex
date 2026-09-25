@@ -1,5 +1,6 @@
 // Reference dictionary: its keys are the full set of UI strings. Keep keys grouped by screen.
 // Slash command texts live in slash.en.ts / slash.tr.ts and are merged in below.
+import { learnEn } from "./learn.en";
 import { slashEn } from "./slash.en";
 
 const base = {
@@ -41,8 +42,8 @@ const base = {
   "home.history.desc": "Local sessions saved by Suffice; resume any of them.",
   "home.skills.title": "Skill selection",
   "home.skills.desc": "Turn skills on or off and choose which ones this project attaches to its turns.",
-  "home.commands.title": "Slash command guide",
-  "home.commands.desc": "What every / command does, when to use it, and how to try it.",
+  "home.commands.title": "Slash command course",
+  "home.commands.desc": "Short lessons with practice and quick checks, plus a reference of every / command.",
   "home.api.title": "API keys & pricing",
   "home.api.desc": "Provider keys, account status and the price per million tokens of each model.",
   "home.settings.title": "Settings",
@@ -208,8 +209,8 @@ const base = {
   "skills.empty": "No skills were found.",
 
   // --- slash command guide (goal item 3)
-  "commands.title": "Slash command guide",
-  "commands.intro": "Commands start with /. Type one in the chat box; the list below explains each one. Sets can be added later without changing this screen.",
+  "commands.title": "Slash command course",
+  "commands.intro": "Learn the / commands step by step, or look one up in the reference. New lessons and command sets can be added without changing this screen.",
   "commands.search": "Filter commands",
   "commands.flagDuringTask": "works while Suffice is busy",
   "commands.flagArgs": "takes arguments",
@@ -228,6 +229,30 @@ const base = {
   "commands.category.interface": "Interface",
   "commands.category.account": "Account & system",
   "commands.lessonProgress": "{done} of {total} explored",
+  "commands.tabLessons": "Lessons",
+  "commands.tabReference": "Reference",
+  "learn.lessonsDone": "{done} of {total} lessons complete",
+  "learn.stepsDone": "{done}/{total}",
+  "learn.start": "Start",
+  "learn.continue": "Continue",
+  "learn.again": "Review",
+  "learn.tryButton": "Try in chat",
+  "learn.tryHint": "The command goes into the chat box; press Enter to run it, then come back here.",
+  "learn.practiced": "Done",
+  "learn.quizTitle": "Quick check",
+  "learn.correct": "Correct.",
+  "learn.wrong": "Not quite, try another answer.",
+  "learn.completeBadge": "Complete",
+  "learn.lessonComplete": "Lesson complete.",
+  "learn.nextLesson": "Next lesson: {title}",
+  "learn.allDone": "You finished every lesson. The Reference tab explains all the other commands.",
+  "learn.back": "All lessons",
+  "learn.reset": "Reset progress",
+  "learn.practicedToast": "Lesson step done: /{name}",
+  "learn.covers": "Covers",
+  "chat.learnLink": "New to / commands? Take the short course.",
+  "panel.permDefault": "As configured",
+  "panel.permDefaultDesc": "Uses the approval and sandbox settings from your Suffice configuration.",
 
   // --- API & pricing (goal item 9)
   "api.title": "API keys & pricing",
@@ -300,6 +325,6 @@ const base = {
   "theme.oneHalfDark": "One Half (dark)",
 };
 
-export const en = { ...base, ...slashEn };
+export const en = { ...base, ...slashEn, ...learnEn };
 
 export type MessageKey = keyof typeof en;

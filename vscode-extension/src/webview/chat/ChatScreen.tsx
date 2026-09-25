@@ -2,8 +2,10 @@
 // server's pending requests inline, the meters, the composer and the panel row under it.
 import { useEffect, useRef } from "react";
 import type { Notice, TurnView } from "../state/chatReducer";
+import { EMPTY_PROGRESS, nextLesson } from "../../shared/lessons";
 import { useApp } from "../app/context";
 import { Icon } from "../components/icons";
+import { Button } from "../components/ui";
 import { ItemCell } from "./cells";
 import { Composer } from "./Composer";
 import { Meters } from "./Meters";
@@ -38,6 +40,11 @@ export function ChatScreen() {
             <Icon name="chat" size={28} />
             <h2>{t("chat.emptyTitle")}</h2>
             <p className="sf-muted">{t("chat.emptyBody", { cwd: ctl.cwd ?? "–" })}</p>
+            {nextLesson(state.init?.learning ?? EMPTY_PROGRESS) && (
+              <Button variant="ghost" icon="book" onClick={() => ctl.go("commands")}>
+                {t("chat.learnLink")}
+              </Button>
+            )}
           </div>
         ) : (
           <>

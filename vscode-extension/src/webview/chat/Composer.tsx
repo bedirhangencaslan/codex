@@ -112,7 +112,8 @@ export function Composer() {
     if (!trimmed || !ready) return;
     history.current = [trimmed, ...history.current.filter((h) => h !== trimmed)].slice(0, HISTORY_LIMIT);
     historyIndex.current = null;
-    ctl.bridge.setViewState<ViewState>({ history: history.current });
+    // Merge: other screens keep their own view state (open lesson, tab) in the same object.
+    ctl.bridge.setViewState<ViewState>({ ...(ctl.bridge.viewState<ViewState>() ?? {}), history: history.current });
     const usedPastes = new Map([...pastes.current].filter(([k]) => trimmed.includes(k)));
     setText("");
     setPopup(null);

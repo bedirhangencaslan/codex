@@ -44,6 +44,7 @@ const init: InitState = {
   attachedSkills: [],
   invisibleTurns: {},
   threadStartCompaction: {},
+  learning: { practiced: [], quizzes: {}, explored: [] },
 };
 
 function setup(patch: Partial<AppState> = {}) {
@@ -153,6 +154,10 @@ describe("turn/start is exactly what the TUI would send", () => {
 });
 
 describe("slash commands typed in the composer", () => {
+  // Practising a taught command shows a toast that clears itself after 4s.
+  beforeEach(() => jest.useFakeTimers({ doNotFake: ["queueMicrotask", "nextTick"] }));
+  afterEach(() => jest.useRealTimers());
+
   test("/invisible toggles without calling the model", async () => {
     const env = setup();
     const { bridge, ctl } = env;

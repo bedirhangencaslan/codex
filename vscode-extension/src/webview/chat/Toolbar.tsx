@@ -164,7 +164,7 @@ function ModePanel() {
         <div className="sf-panel-subtitle">
           <Icon name="key" size={13} /> {t("panel.permissions")}
         </div>
-        <Radio checked={state.composer.permission === null} onChange={() => ctl.setPermission(null)} label={t("settings.defaultValue")} />
+        <Radio checked={state.composer.permission === null} onChange={() => ctl.setPermission(null)} label={t("panel.permDefault")} description={t("panel.permDefaultDesc")} />
         {PERMISSIONS.map((p) => (
           <Radio key={p.id} checked={state.composer.permission === p.id} onChange={() => ctl.setPermission(p.id)} label={t(p.label)} description={t(p.desc)} />
         ))}

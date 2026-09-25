@@ -55,7 +55,7 @@ The webview may call only the methods listed in `ALLOWED_RPC_METHODS` (`src/shar
 |---|---|---|
 | 1 | Interface list with previews | Home screen. Each card is a live, scaled, inert render of the real screen. |
 | 2 | Skill selection | Skills screen: global on/off via `skills/config/write` (as in the TUI) and a per-workspace "attach" list sent as `skill` input items (like `$skill`). |
-| 3 | Slash command guide | Commands screen. More sets are added with `registerCommandSet()` without changing the screen. |
+| 3 | Slash command course | Commands screen, two tabs. **Lessons** (`shared/lessons.ts`): six short lessons, each with explanations, practice steps that are ticked only when the extension actually runs the command, and quick-check quizzes. Progress is kept in globalState. **Reference**: every command with its availability, when to use it and an example. More lessons come from `registerLessonSet()` and more commands from `registerCommandSet()`, without changing the screen. |
 | 7 | i18n | `shared/i18n/{en,tr}.ts` plus `package.nls{,.tr}.json`. `tests/noHardcodedText.test.ts` fails on Turkish text outside the dictionaries. |
 | 8 | Conversation preferences | Settings text box, stored in globalState. **Not sent to the model yet**; see `PROMPT-CHANGE-PLAN.md`. |
 | 9 | API keys and prices | API screen. Keys live in VS Code SecretStorage and are passed to the app-server as env vars (default `ZAI_API_KEY`); the server restarts on change. Built-in glm-5.3-flash prices can be overridden. |

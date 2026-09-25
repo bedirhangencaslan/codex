@@ -1,6 +1,7 @@
 // The postMessage contract between the extension host and the webview. The webview never talks
 // to the app-server directly: it sends `rpc` messages the host forwards (to an allow-list of
 // protocol methods), and receives the server's notifications and requests verbatim.
+import type { LearningProgress } from "./lessons";
 import type { ModelPrice } from "./pricing";
 
 export interface WorkspaceFolderInfo {
@@ -31,6 +32,8 @@ export interface PersistedState {
   /** threadId -> model_auto_compact_token_limit config value when the thread was started or
    * resumed, the value its reasoning shrink and compaction froze (workspaceState, item 11). */
   threadStartCompaction: Record<string, number | null>;
+  /** Slash command course progress: commands run, quiz answers, reference entries opened (globalState). */
+  learning: LearningProgress;
 }
 
 export interface InitState extends PersistedState {
