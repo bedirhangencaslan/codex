@@ -252,6 +252,10 @@ impl ExecCommandHandler {
                 )));
             }
         };
+        // Whether the call named a wait itself; the lean spec never offers one (see below).
+        let yield_time_given = serde_json::from_str::<serde_json::Value>(&arguments)
+            .ok()
+            .is_some_and(|value| value.get("yield_time_ms").is_some());
         let mut args: ExecCommandArgs = match native_cwd.as_ref() {
             Some(native_cwd) => {
                 // The base path only resolves paths nested in the permissions config types.
@@ -319,7 +323,7 @@ impl ExecCommandHandler {
         let shell_type = resolved_command.shell_type;
         let ExecCommandArgs {
             mut tty,
-            yield_time_ms,
+            mut yield_time_ms,
             timeout_ms,
             max_output_tokens,
             sandbox_permissions: _,
@@ -328,6 +332,15 @@ impl ExecCommandHandler {
             prefix_rule,
             ..
         } = args;
+        // The lean spec offers no `yield_time_ms` (see `lean_exec_command_tool`), so the model has
+        // no way to ask for a longer wait: a test run or build that outlasts the 10 s default came
+        // back "still running" and every poll after it was one more request carrying the whole
+        // context. With nobody to approve anything, wait up to the 30 s ceiling in the one call; a
+        // command that finishes sooner still returns as soon as it exits. A wait the call names
+        // itself is kept.
+        if self.options.lean_parameters && !yield_time_given {
+            yield_time_ms = crate::unified_exec::MAX_YIELD_TIME_MS;
+        }
         let completion_timeout = match self.lifetime {
             ExecCommandLifetime::Interactive => None,
             ExecCommandLifetime::OneShot => {
