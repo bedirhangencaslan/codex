@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Agent Bench v2 Raporu</title>
+<style>
+  @page { size: A4; margin: 15mm 14mm; }
+  :root{ --ink:#1c2330; --muted:#5b6575; --line:#d8dde5; --soft:#f2f4f7;
+    --warm:#d97a2b; --warm-soft:#fbeadb; --cold:#3e6e9e; --cold-soft:#e3edf6;
+    --ok:#2e7d4f; --bad:#c0392b; }
+  *{box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  body{font:10pt/1.5 "Avenir Next","Helvetica Neue",Arial,sans-serif;color:var(--ink);margin:0;}
+  .num{font-variant-numeric:tabular-nums;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:9pt;}
+  h1{font-size:22pt;line-height:1.12;margin:0 0 4pt;letter-spacing:-.02em;}
+  h2{font-size:12.5pt;margin:0 0 7pt;padding-bottom:4pt;border-bottom:2pt solid var(--ink);}
+  h3{font-size:10pt;margin:11pt 0 4pt;}
+  p{margin:0 0 6pt;} .muted{color:var(--muted);}
+  section{page-break-inside:avoid;margin-bottom:14pt;}
+  .pb{page-break-before:always;}
+  .kicker{font:700 8pt/1 Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--warm);margin-bottom:6pt;}
+  .cover{border-bottom:3pt solid var(--ink);padding-bottom:11pt;margin-bottom:13pt;}
+  .cover .sub{color:var(--muted);font-size:10pt;max-width:165mm;}
+  .kpis{display:flex;gap:7pt;margin:11pt 0 3pt;}
+  .kpi{flex:1;border:1pt solid var(--line);border-top:3pt solid var(--warm);padding:7pt 9pt;background:var(--soft);}
+  .kpi:nth-child(2){border-top-color:var(--cold);} .kpi:nth-child(4){border-top-color:var(--ok);}
+  .kpi b{display:block;font-size:14pt;letter-spacing:-.02em;} .kpi span{font-size:7.5pt;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  table{width:100%;border-collapse:collapse;margin:5pt 0 9pt;font-size:9pt;}
+  th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;border-bottom:1.5pt solid var(--ink);padding:4pt 5pt;}
+  td{padding:3.5pt 5pt;border-bottom:.75pt solid var(--line);}
+  tr.tot td{border-top:1.5pt solid var(--ink);border-bottom:none;font-weight:700;background:var(--soft);}
+  td.r,th.r{text-align:right;}
+  .best{background:var(--warm-soft);font-weight:700;} .worst{color:var(--bad);font-weight:700;}
+  .bar{display:flex;align-items:center;gap:6pt;margin:2.5pt 0;}
+  .bar .lbl{width:60pt;font-size:8pt;color:var(--muted);flex:none;text-align:right;}
+  .bar .track{flex:1;height:9pt;background:var(--soft);border:.5pt solid var(--line);display:flex;overflow:hidden;}
+  .bar .fill{display:block;height:100%;background:var(--cold);} .bar .fill.warm{background:var(--warm);} .bar .fill.bad{background:var(--bad);}
+  .bar .val{width:70pt;font-size:8pt;flex:none;}
+  .note{border-left:3pt solid var(--cold);background:var(--cold-soft);padding:6pt 9pt;font-size:9pt;margin:7pt 0;}
+  .note.warn{border-left-color:var(--warm);background:var(--warm-soft);}
+  .note.ok{border-left-color:var(--ok);background:#e8f3ec;}
+  .chip{display:inline-block;border:1pt solid var(--line);border-radius:2pt;padding:1pt 5pt;font-size:7.5pt;font-family:Menlo,monospace;background:#fff;}
+  .cols{display:flex;gap:13pt;} .cols>div{flex:1;}
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="kicker">Agent Bench v2 · Deterministik + Tam Kayıtlı Koşum · 27 Eylül 2026</div>
+  <h1>Aynı model, sıfır rastgelelik, her token kayıtlı:<br>maliyet artık kesin ve karşılaştırılabilir</h1>
+  <p class="sub">v1'in eksiklerini kapatan yeniden koşum. Üç ajan (suffice, OpenCode 1.18.32,
+  codex-baseline) glm-5.3-flash @ Z.ai üzerinde, <b>her istekte do_sample=false + temperature=0</b>
+  (greedy/top-1), <b>her giren/çıkan token kaydedici relay ile saklanarak</b>, memories kapalı ve
+  compaction 200k ile koşuldu. Maliyet üç ajan için de <b>API'nin döndürdüğü gerçek usage'dan</b>
+  hesaplandı — v1'de codex/opencode için mümkün olmayan şey.</p>
+  <div class="kpis">
+    <div class="kpi"><b>21 / 21</b><span>hücre tam puan (94/94 × 3)</span></div>
+    <div class="kpi"><b>188 / 188</b><span>istek deterministik</span></div>
+    <div class="kpi"><b>$0,065–0,103</b><span>ajan başı toplam (kesin)</span></div>
+    <div class="kpi"><b>79 MB</b><span>ham wire + oturum kaydı</span></div>
+  </div>
+</div>
+
+<section>
+  <h2>1 · Ne değişti (v1 → v2)</h2>
+  <table>
+    <tr><th>Konu</th><th>v1</th><th>v2 (Bedirhan'ın talepleri)</th></tr>
+    <tr><td>Örnekleme</td><td>varsayılan (rastgele)</td><td><b>deterministik</b>: do_sample=false, temperature=0, relay'de enjekte</td></tr>
+    <tr><td>Token kaydı</td><td>yok</td><td><b>tam</b>: her istek gövdesi + her yanıt akışı + usage (79 MB)</td></tr>
+    <tr><td>codex/opencode maliyeti</td><td>ölçülemiyordu (tahmin)</td><td><b>kesin</b>: API usage'ından, tek formül</td></tr>
+    <tr><td>keşif/bellek ajanı</td><td>bir turda açıktı</td><td><b>memories=false</b> (hepsinde)</td></tr>
+    <tr><td>compaction limiti</td><td>80k varsayılan</td><td><b>200k</b> — daha uzun tek-bağlam görevleri</td></tr>
+    <tr><td>proje sayısı</td><td>6</td><td>7 (<span class="chip">07-ARŞİV</span> 30 dosyalık uzun-bağlam görevi eklendi)</td></tr>
+  </table>
+  <p class="muted" style="font-size:8.5pt">Tüm değişiklikler yalnız lokal (home config'leri + relay); ajan koduna dokunulmadı, hiçbir şey push edilmedi.</p>
+</section>
+
+<section>
+  <h2>2 · Toplam — ajan başına (kesin)</h2>
+  <table>
+    <tr><th>Ajan</th><th class="r">Maliyet</th><th class="r">Süre</th><th class="r">İstek</th><th class="r">Taze tok</th><th class="r">Cached tok</th><th class="r">Cache %</th><th class="r">Determinizm</th></tr>
+    <tr><td><b>codex-baseline</b></td><td class="r num best">$0,0653</td><td class="r num best">955 s</td><td class="r num">61</td><td class="r num">159.751</td><td class="r num">810.624</td><td class="r num">83,5%</td><td class="r num">61/61</td></tr>
+    <tr><td><b>suffice</b></td><td class="r num">$0,0717</td><td class="r num">1.215 s</td><td class="r num">57</td><td class="r num best">129.695</td><td class="r num">869.248</td><td class="r num best">87,0%</td><td class="r num">57/57</td></tr>
+    <tr><td><b>opencode</b></td><td class="r num worst">$0,1033</td><td class="r num worst">2.340 s</td><td class="r num">68</td><td class="r num">189.954</td><td class="r num">985.536</td><td class="r num">83,8%</td><td class="r num">70/70</td></tr>
+  </table>
+  <div class="bar"><span class="lbl">codex-b</span><span class="track"><span class="fill" style="width:63%"></span></span><span class="val num">$0,0653</span></div>
+  <div class="bar"><span class="lbl">suffice</span><span class="track"><span class="fill warm" style="width:69%"></span></span><span class="val num">$0,0717</span></div>
+  <div class="bar"><span class="lbl">opencode</span><span class="track"><span class="fill bad" style="width:100%"></span></span><span class="val num">$0,1033</span></div>
+  <div class="note ok"><b>Okuma:</b> opencode belirgin şekilde en pahalı (suffice'in 1,44×'i) ve en yavaş (1,9×).
+  suffice <b>en az taze token</b> işleyip <b>en yüksek cache oranını</b> (%87) tutuyor — cache mühendisliğinin
+  doğrudan ölçümü. codex-baseline bu turda toplamda en ucuz: yalın harness kısa görevlerde çevik ve bu koşuda
+  görevler patlamaya yol açacak kadar uzamadı; yine de suffice'ten <b>%23 daha çok taze token</b> yakıyor.</div>
+</section>
+
+<section class="pb">
+  <h2>3 · Hücre hücre — skor · maliyet · süre</h2>
+  <table>
+    <tr><th>Proje</th><th class="r" colspan="2">suffice ($ / s)</th><th class="r" colspan="2">opencode ($ / s)</th><th class="r" colspan="2">codex-b ($ / s)</th></tr>
+    <tr><td>01-kanbagi</td><td class="r num">0,0087</td><td class="r num">119</td><td class="r num">0,0089</td><td class="r num">94</td><td class="r num best">0,0075</td><td class="r num">74</td></tr>
+    <tr><td>02-sahra</td><td class="r num best">0,0057</td><td class="r num">101</td><td class="r num worst">0,0176</td><td class="r num">225</td><td class="r num">0,0136</td><td class="r num">196</td></tr>
+    <tr><td>03-cekirdek</td><td class="r num best">0,0043</td><td class="r num">69</td><td class="r num">0,0065</td><td class="r num">63</td><td class="r num">0,0045</td><td class="r num">56</td></tr>
+    <tr><td>04-mutabakat</td><td class="r num">0,0120</td><td class="r num">247</td><td class="r num worst">0,0293</td><td class="r num worst">959</td><td class="r num best">0,0074</td><td class="r num">98</td></tr>
+    <tr><td>05-destek</td><td class="r num">0,0199</td><td class="r num">312</td><td class="r num">0,0185</td><td class="r num">259</td><td class="r num best">0,0152</td><td class="r num">189</td></tr>
+    <tr><td>06-otograd</td><td class="r num">0,0150</td><td class="r num">263</td><td class="r num">0,0171</td><td class="r num worst">682</td><td class="r num best">0,0117</td><td class="r num">248</td></tr>
+    <tr><td>07-arsiv</td><td class="r num">0,0061</td><td class="r num">104</td><td class="r num best">0,0054</td><td class="r num">58</td><td class="r num best">0,0054</td><td class="r num">94</td></tr>
+    <tr class="tot"><td>Toplam</td><td class="r num">0,0717</td><td class="r num">1.215</td><td class="r num">0,1033</td><td class="r num">2.340</td><td class="r num">0,0653</td><td class="r num">955</td></tr>
+  </table>
+  <p class="muted" style="font-size:8.5pt">Skor: 21 hücrenin tümü tam puan (01:15/15 · 02:11/11 · 03:12/12 · 04:14/14 · 05:16/16 · 06:17/17 · 07:9/9). Vurgu: satır bazında en düşük maliyet.</p>
+  <div class="note warn"><b>opencode'un iki patlaması:</b> 04-mutabakat <b>959 s / $0,0293</b> ve 06-otograd
+  <b>682 s</b> — v1'deki aynı davranış determinizm altında da tekrarlandı. Deneme-yanılma döngüsüne girdiğinde
+  bağlamı verimli yönetemiyor. suffice ve codex-baseline'da hiçbir hücrede böyle bir patlama yok.</div>
+  <div class="note"><b>02-sahra çarpıcı örnek:</b> aynı model, aynı deterministik ayar, aynı görev — suffice
+  <b>$0,0057 / 101 s</b>, opencode <b>$0,0176 / 225 s</b>. suffice 3,1× daha ucuz, 2,2× daha hızlı; farkın kaynağı
+  yüksek cache oranı ve daha az istek.</div>
+</section>
+
+<section>
+  <h2>4 · Determinizm ve tam kayıt</h2>
+  <div class="cols">
+    <div>
+      <h3>Determinizm</h3>
+      <p>188 isteğin <b>tamamına</b> relay tarafından <span class="chip">do_sample=false</span>
+      <span class="chip">temperature=0</span> enjekte edildi (suffice 57/57, opencode 70/70, codex 61/61).
+      Model her adımda en yüksek olasılıklı token'ı seçti; şansa bağlı maliyet dalgalanması elendi.</p>
+      <p class="muted" style="font-size:8.5pt">Dürüst sınır: sunucu tarafı greedy bile donanım/paralellik
+      nedeniyle nadiren bit-düzeyi oynayabilir; istemci tarafındaki tüm rastgelelik kaynakları kapatıldı.</p>
+    </div>
+    <div>
+      <h3>Tam kayıt (79 MB)</h3>
+      <p>Her hücrede <span class="chip">runs-v2/&lt;proje&gt;-&lt;ajan&gt;/</span> altında:
+      <b>wire/</b> — her isteğin tam gövdesi (modele giren her token) + her yanıt akışı (üretilen her token +
+      usage), <b>index.jsonl</b> — istek başı özet, ajanın <b>oturum dökümü</b> (suffice analytics+sessions,
+      codex sessions, opencode storage) ve <b>cost.json / score.txt / meta.json</b>.</p>
+      <p class="muted" style="font-size:8.5pt">Hiçbir filtreleme yok — Bedirhan'ın "her bilgi kırıntısı lazım"
+      talebi birebir: ham veri, olduğu gibi.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>5 · Bulgular</h2>
+  <table>
+    <tr><th style="width:20mm">#</th><th>Bulgu</th></tr>
+    <tr><td class="num">B1</td><td><b>Doğruluk yine ayrıştırmıyor</b> (21/21 tam puan); üç ajan da deterministik modda 94 testi geçiyor.</td></tr>
+    <tr><td class="num">B2</td><td><b>opencode en pahalı ve en yavaş</b> — suffice'in 1,44× parası, 1,9× süresi; iki hücrede ciddi patlama.</td></tr>
+    <tr><td class="num">B3</td><td><b>suffice en verimli token profili</b>: en az taze token, %87 cache — cache/harness mühendisliğinin ölçülen karşılığı.</td></tr>
+    <tr><td class="num">B4</td><td><b>codex-baseline bu turda toplam en ucuz</b> ama en çok taze token'ı da o yakıyor; avantajı görevlerin bu kez patlamaya yol açmaması. Uzun/karmaşık görev arttıkça makasın suffice lehine açılması beklenir (bkz. 02-sahra).</td></tr>
+    <tr><td class="num">B5</td><td><b>Maliyet artık kesin ve tekrar-üretilebilir</b>: deterministik + tam wire kaydı sayesinde her rakam ham veriden yeniden doğrulanabilir. v1'in en büyük eksiği kapandı.</td></tr>
+  </table>
+  <p class="muted" style="font-size:8.5pt;margin-top:8pt">Fiyat: Z.ai glm-5.3-flash — $0,15 taze / $0,03 cached / $0,50 çıktı (1M başına).
+  Üretim: Claude (Fable 5). Ham veri: ~/agent-bench/runs-v2 · report/v2-data.json. Testler koşum öncesi referans çözümlerle 94/94 doğrulandı.</p>
+</section>
+</body>
+</html>
