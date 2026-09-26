@@ -1,0 +1,249 @@
+{
+  "cells": {
+    "01-kanbagi-suffice": {
+      "score": "15/15",
+      "cost": 0.0087,
+      "dur": 119,
+      "fresh": 20500,
+      "cached": 99392,
+      "out": 5208,
+      "reqs": 8,
+      "det": "8/8"
+    },
+    "01-kanbagi-opencode": {
+      "score": "15/15",
+      "cost": 0.0089,
+      "dur": 94,
+      "fresh": 29402,
+      "cached": 69888,
+      "out": 4853,
+      "reqs": 8,
+      "det": "8/8"
+    },
+    "01-kanbagi-codex": {
+      "score": "15/15",
+      "cost": 0.0075,
+      "dur": 74,
+      "fresh": 25740,
+      "cached": 70144,
+      "out": 3134,
+      "reqs": 7,
+      "det": "7/7"
+    },
+    "02-sahra-suffice": {
+      "score": "11/11",
+      "cost": 0.0057,
+      "dur": 101,
+      "fresh": 9142,
+      "cached": 77568,
+      "out": 4095,
+      "reqs": 6,
+      "det": "6/6"
+    },
+    "02-sahra-opencode": {
+      "score": "11/11",
+      "cost": 0.0176,
+      "dur": 225,
+      "fresh": 32845,
+      "cached": 211520,
+      "out": 12719,
+      "reqs": 13,
+      "det": "13/13"
+    },
+    "02-sahra-codex": {
+      "score": "11/11",
+      "cost": 0.0136,
+      "dur": 196,
+      "fresh": 22426,
+      "cached": 237440,
+      "out": 6163,
+      "reqs": 16,
+      "det": "16/16"
+    },
+    "03-cekirdek-suffice": {
+      "score": "12/12",
+      "cost": 0.0043,
+      "dur": 69,
+      "fresh": 6482,
+      "cached": 68224,
+      "out": 2655,
+      "reqs": 6,
+      "det": "6/6"
+    },
+    "03-cekirdek-opencode": {
+      "score": "12/12",
+      "cost": 0.0065,
+      "dur": 63,
+      "fresh": 18640,
+      "cached": 68416,
+      "out": 3209,
+      "reqs": 8,
+      "det": "8/8"
+    },
+    "03-cekirdek-codex": {
+      "score": "12/12",
+      "cost": 0.0045,
+      "dur": 56,
+      "fresh": 14266,
+      "cached": 41984,
+      "out": 2133,
+      "reqs": 5,
+      "det": "5/5"
+    },
+    "04-mutabakat-suffice": {
+      "score": "14/14",
+      "cost": 0.012,
+      "dur": 247,
+      "fresh": 16582,
+      "cached": 143424,
+      "out": 10515,
+      "reqs": 9,
+      "det": "9/9"
+    },
+    "04-mutabakat-opencode": {
+      "score": "14/14",
+      "cost": 0.0293,
+      "dur": 959,
+      "fresh": 35819,
+      "cached": 300544,
+      "out": 29792,
+      "reqs": 13,
+      "det": "14/14"
+    },
+    "04-mutabakat-codex": {
+      "score": "14/14",
+      "cost": 0.0074,
+      "dur": 98,
+      "fresh": 19128,
+      "cached": 66560,
+      "out": 5114,
+      "reqs": 6,
+      "det": "6/6"
+    },
+    "05-destek-suffice": {
+      "score": "16/16",
+      "cost": 0.0199,
+      "dur": 312,
+      "fresh": 32058,
+      "cached": 252672,
+      "out": 15030,
+      "reqs": 12,
+      "det": "12/12"
+    },
+    "05-destek-opencode": {
+      "score": "16/16",
+      "cost": 0.0185,
+      "dur": 259,
+      "fresh": 36163,
+      "cached": 164224,
+      "out": 16266,
+      "reqs": 11,
+      "det": "11/11"
+    },
+    "05-destek-codex": {
+      "score": "16/16",
+      "cost": 0.0152,
+      "dur": 189,
+      "fresh": 29833,
+      "cached": 237952,
+      "out": 7216,
+      "reqs": 13,
+      "det": "13/13"
+    },
+    "06-otograd-suffice": {
+      "score": "17/17",
+      "cost": 0.015,
+      "dur": 263,
+      "fresh": 27992,
+      "cached": 150656,
+      "out": 12647,
+      "reqs": 9,
+      "det": "9/9"
+    },
+    "06-otograd-opencode": {
+      "score": "17/17",
+      "cost": 0.0171,
+      "dur": 682,
+      "fresh": 26906,
+      "cached": 89472,
+      "out": 20819,
+      "reqs": 7,
+      "det": "8/8"
+    },
+    "06-otograd-codex": {
+      "score": "17/17",
+      "cost": 0.0117,
+      "dur": 248,
+      "fresh": 32686,
+      "cached": 110016,
+      "out": 6972,
+      "reqs": 9,
+      "det": "9/9"
+    },
+    "07-arsiv-suffice": {
+      "score": "9/9",
+      "cost": 0.0061,
+      "dur": 104,
+      "fresh": 16939,
+      "cached": 77312,
+      "out": 2529,
+      "reqs": 7,
+      "det": "7/7"
+    },
+    "07-arsiv-opencode": {
+      "score": "9/9",
+      "cost": 0.0054,
+      "dur": 58,
+      "fresh": 10179,
+      "cached": 81472,
+      "out": 2909,
+      "reqs": 8,
+      "det": "8/8"
+    },
+    "07-arsiv-codex": {
+      "score": "9/9",
+      "cost": 0.0054,
+      "dur": 94,
+      "fresh": 15672,
+      "cached": 46528,
+      "out": 3344,
+      "reqs": 5,
+      "det": "5/5"
+    }
+  },
+  "totals": {
+    "suffice": {
+      "cost": 0.0717,
+      "dur": 1215,
+      "fresh": 129695,
+      "cached": 869248,
+      "out": 52679,
+      "reqs": 57,
+      "inj": 57,
+      "tot": 57,
+      "cache_pct": 87.0
+    },
+    "opencode": {
+      "cost": 0.1033,
+      "dur": 2340,
+      "fresh": 189954,
+      "cached": 985536,
+      "out": 90567,
+      "reqs": 68,
+      "inj": 70,
+      "tot": 70,
+      "cache_pct": 83.8
+    },
+    "codex": {
+      "cost": 0.0653,
+      "dur": 955,
+      "fresh": 159751,
+      "cached": 810624,
+      "out": 34076,
+      "reqs": 61,
+      "inj": 61,
+      "tot": 61,
+      "cache_pct": 83.5
+    }
+  }
+}
