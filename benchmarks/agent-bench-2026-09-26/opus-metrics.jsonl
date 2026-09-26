@@ -1,0 +1,6 @@
+{"cell":"03-cekirdek-opus","score_selfreport":"12 passed","tokens":40276,"tool_uses":6,"duration_s":41.8}
+{"cell":"01-kanbagi-opus","score_selfreport":"15 passed","tokens":44190,"tool_uses":8,"duration_s":61.2}
+{"cell":"02-sahra-opus","score_selfreport":"11 passed","tokens":45353,"tool_uses":7,"duration_s":81.2}
+{"cell":"06-otograd-opus","score_selfreport":"17 passed","tokens":45243,"tool_uses":11,"duration_s":98.7}
+{"cell":"04-mutabakat-opus","score_selfreport":"14 passed","tokens":49623,"tool_uses":7,"duration_s":127.3}
+{"cell":"05-destek-opus","score_selfreport":"16 passed","tokens":58045,"tool_uses":7,"duration_s":189.8}
