@@ -1,0 +1,5 @@
+[
+  {"id": "w1", "city": "Ankara", "stock": {"su": 40, "battaniye": 50, "konserve": 200}},
+  {"id": "w2", "city": "Kayseri", "stock": {"su": 30, "konserve": 80, "cadir": 6}},
+  {"id": "w3", "city": "Adana", "stock": {"battaniye": 20, "cadir": 10}}
+]

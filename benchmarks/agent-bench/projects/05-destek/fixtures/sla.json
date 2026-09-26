@@ -1,0 +1,4 @@
+{"P1": {"first_response": 30, "resolve": 240},
+ "P2": {"first_response": 60, "resolve": 480},
+ "P3": {"first_response": 240, "resolve": 1440},
+ "P4": {"first_response": 480, "resolve": 2880}}
