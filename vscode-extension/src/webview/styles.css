@@ -228,19 +228,18 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-exec-time { font-size: .85em; flex: none; }
 /* Speech bubble level with the one-line command, shifted right with its tail on the line's
    terminal icon; mirrored (opening to the left, tail on the right end) in a view docked on the
-   right of the window; growing upwards when there is no room below. */
-.sf-exec-pop { --tail: 7px; --bubble-border: var(--sf-border); position: absolute; top: 2px; left: 30px; right: 0; filter: drop-shadow(0 6px 16px rgba(0,0,0,.3)); }
+   right of the window. Placed in the view by ExecCell (top/left/right, --tail-top); up to 90% of
+   the view's height before its output scrolls. */
+.sf-exec-pop { --tail: 7px; --bubble-border: var(--sf-border); position: fixed; top: 0; left: 0; right: 0; filter: drop-shadow(0 6px 16px rgba(0,0,0,.3)); }
 .sf-exec.is-failed .sf-exec-pop { --bubble-border: color-mix(in srgb, var(--sf-danger) 60%, var(--sf-border)); }
-.sf-exec-pop.is-left { left: 0; right: 30px; }
-.sf-exec-pop.is-up { top: auto; bottom: 2px; }
-.sf-exec-pop-body { display: flex; flex-direction: column; max-height: 340px; overflow: hidden; background: var(--sf-surface-raised); border: 1px solid var(--bubble-border); border-radius: var(--sf-radius); }
-.sf-exec-pop::before, .sf-exec-pop::after { content: ""; position: absolute; top: 7px; width: 0; height: 0; border: var(--tail) solid transparent; }
+.sf-exec-pop-body { display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; background: var(--sf-surface-raised); border: 1px solid var(--bubble-border); border-radius: var(--sf-radius); }
+.sf-exec-pop::before, .sf-exec-pop::after { content: ""; position: absolute; top: var(--tail-top, 7px); width: 0; height: 0; border: var(--tail) solid transparent; }
 .sf-exec-pop::before { left: calc(-2 * var(--tail)); border-right-color: var(--bubble-border); }
 .sf-exec-pop::after { left: calc(-2 * var(--tail) + 1.5px); border-right-color: var(--sf-surface-raised); }
 .sf-exec-pop.is-left::before, .sf-exec-pop.is-left::after { left: auto; border-right-color: transparent; }
 .sf-exec-pop.is-left::before { right: calc(-2 * var(--tail)); border-left-color: var(--bubble-border); }
 .sf-exec-pop.is-left::after { right: calc(-2 * var(--tail) + 1.5px); border-left-color: var(--sf-surface-raised); }
-.sf-exec-pop.is-up::before, .sf-exec-pop.is-up::after { top: auto; bottom: 7px; }
+
 .sf-exec-pop-cmd { display: block; padding: 6px 10px; font-size: .88em; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sf-text); border-bottom: 1px solid var(--sf-border); flex: none; max-height: 96px; overflow: auto; }
 .sf-exec-output { margin: 0; padding: 7px 10px; background: var(--sf-code); font-family: var(--sf-mono); font-size: .88em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 0; }
 .sf-exec-empty { padding: 6px 10px; color: var(--sf-muted); font-size: .88em; }

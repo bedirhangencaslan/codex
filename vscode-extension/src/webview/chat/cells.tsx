@@ -3,7 +3,7 @@
 // reasoning summary, one-line exec cell whose command and coloured output open on hover, patch cell with a coloured diff, MCP tool
 // call, web search, proposed plan, compaction and review markers.
 import type { ThreadItem } from "@protocol/v2/ThreadItem";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { parseAnsi } from "../../shared/ansi";
 import { useApp } from "../app/context";
 import { Icon } from "../components/icons";
@@ -149,6 +149,10 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
 }
 
 const HOVER_OPEN_MS = 300;
+/** Horizontal shift of the bubble from the line, and the gap kept to the view's edges. */
+const BUBBLE_SHIFT = 22;
+const BUBBLE_MARGIN = 6;
+const BUBBLE_TAIL = 7;
 
 /**
  * Whether the view sits in the right half of the VS Code window (the secondary side bar, or the
@@ -165,18 +169,20 @@ function dockedRight(e: { screenX: number; clientX: number }): boolean {
  * One line per command, like the TUI's collapsed exec cell. The full command and its output open
  * in a speech bubble level with the line while the pointer rests on it, shifted to the right with
  * its tail on the line; in a view docked on the right of the window it is mirrored and opens to the
- * left. A click (or Enter) keeps it open. It grows upwards when there is no room below. A webview
- * cannot draw outside its own view, so the bubble stays inside the side bar.
+ * left. A click (or Enter) keeps it open. The bubble is up to 90% of the view's height, so most
+ * output shows without scrolling; it starts level with the line and moves up as far as needed to
+ * stay on screen, the tail still on the line. A webview cannot draw outside its own view, so the
+ * bubble stays inside the side bar.
  */
 function ExecCell({ item }: { item: Item<"commandExecution"> }) {
   const { t } = useApp();
   const output = (item.aggregatedOutput ?? "").replace(/\n+$/, "");
   const [hover, setHover] = useState(false);
   const [pinned, setPinned] = useState(false);
-  const [upwards, setUpwards] = useState(false);
   const [toLeft, setToLeft] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLPreElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>();
   const open = hover || pinned;
   const running = item.status === "inProgress";
@@ -185,12 +191,36 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
 
   const measure = (e?: { screenX: number; clientX: number }) => {
     if (e) setToLeft(dockedRight(e));
-    const el = cellRef.current;
-    if (!el) return;
-    const box = el.getBoundingClientRect();
-    const view = scrollParent(el)?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
-    setUpwards(view.bottom - box.bottom < 220 && box.top - view.top > view.bottom - box.bottom);
   };
+  /** Places the bubble in the view: level with the line, moved up only as far as it must be. */
+  const place = () => {
+    const cell = cellRef.current;
+    const pop = popRef.current;
+    if (!cell || !pop) return;
+    const line = cell.getBoundingClientRect();
+    const height = pop.offsetHeight;
+    const top = Math.max(BUBBLE_MARGIN, Math.min(line.top + 2, window.innerHeight - BUBBLE_MARGIN - height));
+    const tail = Math.max(6, Math.min(line.top + line.height / 2 - top - BUBBLE_TAIL, height - 2 * BUBBLE_TAIL - 6));
+    const right = window.innerWidth - line.right;
+    pop.style.top = `${top}px`;
+    pop.style.left = `${toLeft ? line.left : line.left + BUBBLE_SHIFT}px`;
+    pop.style.right = `${toLeft ? right + BUBBLE_SHIFT : right}px`;
+    pop.style.setProperty("--tail-top", `${tail}px`);
+  };
+  useLayoutEffect(() => {
+    if (open) place();
+  });
+  // Follow the line when the chat scrolls or the view is resized while the bubble is open.
+  useEffect(() => {
+    if (!open) return;
+    const scroller = cellRef.current ? scrollParent(cellRef.current) : null;
+    scroller?.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("resize", place);
+    return () => {
+      scroller?.removeEventListener("scroll", place);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, toLeft]);
   // Opens after a short dwell, so moving the pointer across a list of commands opens none of them.
   const enter = (e: MouseEvent<HTMLDivElement>) => {
     const at = { screenX: e.screenX, clientX: e.clientX };
@@ -229,7 +259,7 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
         {running && <span className="sf-spinner" aria-hidden="true" />}
       </button>
       {open && (
-        <div className={`sf-exec-pop ${upwards ? "is-up" : ""} ${toLeft ? "is-left" : ""}`} role="region" aria-label={command}>
+        <div ref={popRef} className={`sf-exec-pop ${toLeft ? "is-left" : ""}`} role="region" aria-label={command}>
           <div className="sf-exec-pop-body">
             <code className="sf-exec-pop-cmd">$ {command}</code>
             {output ? (
