@@ -74,6 +74,7 @@ const base = {
   "chat.runningCommand": "Çalışıyor",
   "chat.exitCode": "çıkış {code}",
   "chat.execExpand": "Komutu ve çıktısını göster (açık tutmak için tıkla)",
+  "chat.diffExpand": "Değişikliğin tamamını göster (açık tutmak için tıkla)",
   "chat.noOutput": "Çıktı yok",
   "chat.edited": "{count} dosya düzenlendi",
   "chat.added": "eklendi",

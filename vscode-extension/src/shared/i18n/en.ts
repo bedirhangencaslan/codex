@@ -75,6 +75,7 @@ const base = {
   "chat.runningCommand": "Running",
   "chat.exitCode": "exit {code}",
   "chat.execExpand": "Show the command and its output (click to keep it open)",
+  "chat.diffExpand": "Show the whole change (click to keep it open)",
   "chat.noOutput": "No output",
   "chat.edited": "Edited {count} file(s)",
   "chat.added": "added",
