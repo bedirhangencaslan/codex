@@ -214,15 +214,26 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-disclosure:hover { color: var(--sf-text); }
 .sf-reasoning .sf-md { margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--sf-border); color: var(--sf-muted); }
 
-.sf-exec, .sf-patch, .sf-plan { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-surface); overflow: hidden; }
+.sf-patch, .sf-plan { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-surface); overflow: hidden; }
+.sf-exec { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-surface); }
+.sf-exec.is-open { z-index: 5; }
 .sf-exec.is-failed { border-color: color-mix(in srgb, var(--sf-danger) 45%, var(--sf-border)); }
-.sf-exec-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px; color: var(--sf-muted); min-width: 0; }
+.sf-exec-head { display: flex; align-items: center; gap: 6px; padding: 5px 10px; color: var(--sf-muted); min-width: 0; width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; border-radius: var(--sf-radius); }
+.sf-exec-head:hover { background: var(--sf-surface-raised); }
+.sf-patch .sf-exec-head { cursor: default; }
+.sf-patch .sf-exec-head:hover { background: transparent; }
 .sf-exec-verb { flex: none; }
 .sf-exec-cmd { color: var(--sf-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .sf-exec-exit { color: var(--sf-danger); font-size: .88em; flex: none; }
 .sf-exec-time { font-size: .85em; flex: none; }
-.sf-exec-output { margin: 0; padding: 7px 10px; border-top: 1px solid var(--sf-border); background: var(--sf-code); font-family: var(--sf-mono); font-size: .88em; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-.sf-exec-more { display: block; margin-top: 6px; border: 0; background: transparent; color: var(--sf-accent); cursor: pointer; padding: 0; font-family: var(--sf-font); }
+/* Details beside the one-line command: indented to the right like the reasoning text, over the
+   cells below (or above, when there is no room). */
+.sf-exec-pop { position: absolute; left: 14px; right: 0; top: calc(100% - 1px); display: flex; flex-direction: column; background: var(--sf-surface-raised); border: 1px solid var(--sf-border); border-left: 2px solid var(--sf-accent); border-radius: var(--sf-radius-sm); box-shadow: 0 8px 24px rgba(0,0,0,.28); max-height: 340px; overflow: hidden; }
+.sf-exec-pop.is-up { top: auto; bottom: calc(100% - 1px); }
+.sf-exec.is-failed .sf-exec-pop { border-left-color: var(--sf-danger); }
+.sf-exec-pop-cmd { display: block; padding: 6px 10px; font-size: .88em; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sf-text); border-bottom: 1px solid var(--sf-border); flex: none; max-height: 96px; overflow: auto; }
+.sf-exec-output { margin: 0; padding: 7px 10px; background: var(--sf-code); font-family: var(--sf-mono); font-size: .88em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 0; }
+.sf-exec-empty { padding: 6px 10px; color: var(--sf-muted); font-size: .88em; }
 .sf-patch-files { list-style: none; margin: 0; padding: 0 10px 8px; display: flex; flex-direction: column; gap: 4px; }
 .sf-patch-path { font-family: var(--sf-mono); color: var(--sf-text); }
 .sf-diff { margin: 6px 0 0; padding: 6px 8px; background: var(--sf-code); border-radius: var(--sf-radius-sm); font-family: var(--sf-mono); font-size: .85em; overflow-x: auto; }
