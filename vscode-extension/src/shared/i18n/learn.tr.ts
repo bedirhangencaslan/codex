@@ -49,7 +49,7 @@ export const learnTr = {
   "learn.cost.mention": "Suffice'i doğru dosyaya yönlendirmek, aramasına bırakmaktan ucuzdur. /mention dosya ağacını açar: dosya ya da klasör işaretleyip engelle; Codex'in sandbox'ı bir sonraki sohbette Suffice'in onları okumasını engeller. Sohbet kutusunda @ yazmak dosyaları adıyla arar ve yolu mesajına yazar.",
   "learn.cost.try.mention": "Sohbet kutusunun altındaki dosya ağacını aç.",
   "learn.cost.try.mention.draft": "/mention",
-  "learn.cost.try.skills": "Skill panelini aç: bir skill'i ekle, bu projede her mesajınla gitsin.",
+  "learn.cost.try.skills": "Skill panelini aç: bu projedeki yeni sohbetlerin kullanabileceği skill'leri işaretle; model diğerlerini görmez.",
   "learn.cost.try.skills.draft": "/skills",
   "learn.cost.quiz.side": "Bir yan soruya, konuşmanın maliyetine eklemeden hızlı bir cevap istiyorsun. Hangi komut?",
   "learn.cost.quiz.side.explain": "/invisible: tur ekranda kalır ama sonraki isteklerle gönderilmez.",

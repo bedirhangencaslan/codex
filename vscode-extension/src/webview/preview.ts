@@ -142,6 +142,7 @@ export class PreviewBridge extends BaseBridge {
         : { practiced: [], quizzes: {}, explored: [] },
       threadBlocks: {},
       threadPreferences: {},
+      threadSkills: {},
     };
   }
 

@@ -2,8 +2,8 @@
 // Claude Code extension (chips under the box, panels opening above it). Every control maps to an
 // existing protocol field: turn/start.invisible, turn/start.collaborationMode (from
 // collaborationMode/list), thread/goal/*, review/start, the TUI's permission presets
-// (approvalPolicy + sandboxPolicy), UserInput skill items, picked file/folder paths written into
-// the message text like the TUI's @ picker, turn/start.model/effort.
+// (approvalPolicy + sandboxPolicy), the chat's skills.config rules and permission profile
+// (thread/start.config), thread/start.developerInstructions, turn/start.model/effort.
 import type { ReasoningEffort } from "@protocol/ReasoningEffort";
 import { useEffect, useState } from "react";
 import type { MessageKey } from "../../shared/i18n";
@@ -141,12 +141,20 @@ function ModePanel() {
   );
 }
 
+/**
+ * The skills a new chat may use. Ticked skills become the chat's `skills.config` rules when it
+ * starts (Controller.skillRules), so like the file access they are fixed for that chat.
+ */
 function SkillsPanel() {
   const { state, ctl, t } = useApp();
   const attached = new Set(state.init?.attachedSkills.map((s) => s.path));
-  const skills = state.skills.filter((s) => s.enabled);
+  const skills = state.skills;
+  const chatSkills = ctl.chatSkills;
+  const differsFromChat =
+    chatSkills !== null && (chatSkills.length !== attached.size || chatSkills.some((p) => !attached.has(p)));
   return (
     <PanelFrame title={t("panel.skillsTitle")}>
+      <p className="sf-muted sf-small">{t(attached.size > 0 ? "panel.skillsDescSelected" : "panel.skillsDescNone")}</p>
       {skills.length === 0 ? (
         <Empty>{t("panel.skillsEmpty")}</Empty>
       ) : (
@@ -163,6 +171,18 @@ function SkillsPanel() {
             </li>
           ))}
         </ul>
+      )}
+      {differsFromChat && (
+        <Notice tone="info">
+          <div className="sf-stack-tight">
+            <span>{t("panel.skillsLocked")}</span>
+            <div>
+              <Button variant="secondary" icon="plus" onClick={() => ctl.newThread()}>
+                {t("panel.filesApplyNew")}
+              </Button>
+            </div>
+          </div>
+        </Notice>
       )}
       <Button variant="ghost" icon="gear" onClick={() => ctl.go("skills")}>
         {t("nav.skills")}

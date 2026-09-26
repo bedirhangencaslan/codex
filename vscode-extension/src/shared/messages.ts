@@ -26,7 +26,7 @@ export interface PersistedState {
   /** Goal item 8: the conversation preference for new chats (globalState). A chat that starts with
    * one gives it to the model once, as `thread/start.developerInstructions`. */
   preferences: string;
-  /** Skills this workspace attaches to every turn (workspaceState). */
+  /** Skills new chats in this workspace may use; empty = Codex's own choice (workspaceState). */
   attachedSkills: AttachedSkill[];
   /** threadId -> turn ids that ran invisibly; the protocol does not record it (workspaceState). */
   invisibleTurns: Record<string, string[]>;
@@ -42,6 +42,15 @@ export interface PersistedState {
   /** threadId -> the preference that thread started with (workspaceState); given again on resume
    * because Codex rebuilds its developer instructions from config at every compaction. */
   threadPreferences: Record<string, string>;
+  /** threadId -> the `skills.config` rules that thread started with (workspaceState); given again
+   * on resume. Missing = the chat started without a skill selection. */
+  threadSkills: Record<string, SkillRule[]>;
+}
+
+/** One `[[skills.config]]` entry, Codex's own per-skill rule (config/src/skills_config.rs). */
+export interface SkillRule {
+  path: string;
+  enabled: boolean;
 }
 
 /** What the files panel asked for: block the picks, or select them and block the rest. */

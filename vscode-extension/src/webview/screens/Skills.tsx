@@ -1,8 +1,8 @@
 // Goal item 2: pick the skills a project uses. Two levels, both existing mechanisms:
 // - On/Off is skills/config/write, the same call the TUI's skills toggle makes (it writes the
 //   user config, so it applies everywhere);
-// - "Attach in this project" is stored per workspace and sends the skill as a `skill` input item
-//   with every message written here — what typing $skill does in the terminal.
+// - "Use in this project" is stored per workspace; a new chat here starts with Codex's own
+//   `skills.config` rules for it (selected on, the rest off), so the model sees only those.
 import type { SkillMetadata } from "@protocol/v2/SkillMetadata";
 import { useEffect, useState } from "react";
 import type { MessageKey } from "../../shared/i18n";
@@ -55,7 +55,7 @@ export function SkillsScreen() {
               <div className="sf-row sf-wrap">
                 <Toggle checked={skill.enabled} onChange={(v) => void ctl.setSkillEnabled(skill, v)} label={skill.enabled ? t("common.on") : t("common.off")} />
                 <label className="sf-check">
-                  <input type="checkbox" checked={attached.has(skill.path)} disabled={!skill.enabled} onChange={() => ctl.toggleAttachedSkill(skill)} />
+                  <input type="checkbox" checked={attached.has(skill.path)} onChange={() => ctl.toggleAttachedSkill(skill)} />
                   <span className="sf-check-label">{t("skills.attach")}</span>
                 </label>
               </div>

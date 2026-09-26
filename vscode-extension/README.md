@@ -55,7 +55,7 @@ The webview may call only the methods listed in `ALLOWED_RPC_METHODS` (`src/shar
 | # | Feature | Implementation |
 |---|---|---|
 | 1 | Interface list with previews | Home screen. Each card is a live, scaled, inert render of the real screen. |
-| 2 | Skill selection | Skills screen: global on/off via `skills/config/write` (as in the TUI) and a per-workspace "attach" list sent as `skill` input items (like `$skill`). |
+| 2 | Skill selection | Skills screen: global on/off via `skills/config/write` (as in the TUI) and a per-workspace selection that limits new chats to the ticked skills (see *Selected skills* below). |
 | 3 | Slash command course | Commands screen, two tabs. **Lessons** (`shared/lessons.ts`): six short lessons, each with explanations, practice steps that are ticked only when the extension actually runs the command, and quick-check quizzes. Progress is kept in globalState. **Reference**: every command with its availability, when to use it and an example. More lessons come from `registerLessonSet()` and more commands from `registerCommandSet()`, without changing the screen. |
 | 7 | i18n | `shared/i18n/{en,tr}.ts` plus `package.nls{,.tr}.json`. `tests/noHardcodedText.test.ts` fails on Turkish text outside the dictionaries. |
 | 8 | Conversation preference | **Preference** button under the chat box. Sent once per chat as `thread/start.developerInstructions` and kept with the chat, including on resume. An edit while a chat is open applies to a new chat. See P1 in `PROMPT-CHANGE-PLAN.md`. |
@@ -101,6 +101,29 @@ enforced by Codex's own permission machinery; no check is added outside it.
   `fs/readDirectory`. A picked folder keeps all of its contents. Nothing outside the workspace is
   denied. `AGENTS.md` stays readable because Codex reads it to build the chat's instructions.
 
+## Selected skills
+
+The skills panel under the chat box, and "Use in this project" on the Skills screen, pick the
+skills a new chat in this workspace may use. With nothing ticked a chat sees every skill that is on,
+exactly as Codex would show it.
+
+- **Mechanism:** Codex's own `[[skills.config]]` rules, given as session config in
+  `thread/start.config` (`"skills.config": [{path, enabled}]`). Every ticked skill is `enabled: true`,
+  every other known skill is `enabled: false`. Codex reads these rules from the session layer as
+  well as from config.toml, the later layer winning (`config/src/skills_config.rs`
+  `skill_config_rules_from_stack`). Nothing is written to config.toml, so the TUI and other chats
+  are untouched.
+- **Effect:** a disabled skill is left out of the "Available skills" list in
+  `<skills_instructions>`, and Codex refuses it when it is named with `$skill` or sent as a skill
+  item (`skills/src/selection.rs`). A ticked skill is on for the chat even when config.toml turns it
+  off. Both verified live against the app-server.
+- **Not blocked:** the skill's files stay on disk and readable. Codex has no skill-level read
+  block; the file access switch can deny the folders if needed.
+- **Fixed per chat:** the rules are stored with the chat and given again on `thread/resume`. A change
+  while a chat is open applies to the next chat, and the panel offers one.
+- **No per-turn cost:** skills are no longer sent as `skill` input items, which made Codex inject the
+  whole SKILL.md into every turn. The model loads a listed skill itself when it needs it.
+
 ## Cost guarantees (tested in `tests/controller.test.ts`)
 
 - A plain message sends only `{threadId, input, turnTrigger, invisible:false}`, with no model,
@@ -109,7 +132,8 @@ enforced by Codex's own permission machinery; no check is added outside it.
 - `collaborationMode` is sent only when the mode changes: into Plan, and once back to Default.
   The TUI sends Default on every turn, which was measured to add about 1.3K characters per
   request. See `PROMPT-CHANGE-PLAN.md` for the parity option.
-- The preferences text never reaches the server.
+- The conversation preference is sent once per chat, as `thread/start.developerInstructions` (P1).
+- Selected skills and blocked files are thread config; nothing is added to the turn input.
 - Invisible mode uses the existing `turn/start.invisible`.
 
 ## Develop

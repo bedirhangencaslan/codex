@@ -47,7 +47,7 @@ const init: InitState = {
   attachedSkills: [],
   invisibleTurns: {},
   threadStartCompaction: {},
-  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {}, threadPreferences: {},
+  learning: { practiced: [], quizzes: {}, explored: [] }, threadBlocks: {}, threadPreferences: {}, threadSkills: {},
 };
 
 function setup(patch: Partial<AppState> = {}) {
@@ -99,14 +99,52 @@ describe("turn/start is exactly what the TUI would send", () => {
     expect(bridge.calls.find((c) => c.method === "thread/resume")!.params.developerInstructions).toBe("<users_conversation_preferences>\nBe brief.\n</users_conversation_preferences>");
   });
 
-  test("attached skills are skill items like $skill; blocked files add nothing to the input", async () => {
+  test("selected skills and blocked files add nothing to the turn input", async () => {
     const { bridge, ctl } = setup({ init: { ...init, attachedSkills: [{ name: "pdf", path: "/s/pdf/SKILL.md" }] } });
     ctl.attachFile({ name: "a.env", path: "/w/a.env" });
     await ctl.send("look");
-    expect(bridge.turnStarts()[0].input).toEqual([
-      { type: "text", text: "look", text_elements: [] },
-      { type: "skill", name: "pdf", path: "/s/pdf/SKILL.md" },
-    ]);
+    await ctl.send("again");
+    for (const turn of bridge.turnStarts()) expect(turn.input).toHaveLength(1);
+  });
+
+  test("selected skills become the chat's skills.config rules: selected on, every other skill off", async () => {
+    const skill = (name: string) => ({ name, description: name, path: `/s/${name}/SKILL.md`, scope: "user", enabled: true });
+    const env = setup({
+      init: { ...init, preferences: "", attachedSkills: [{ name: "pdf", path: "/s/pdf/SKILL.md" }] },
+      skills: [skill("pdf"), skill("docx"), skill("xlsx")] as AppState["skills"],
+    });
+    await env.ctl.send("one");
+    await env.ctl.send("two");
+    const starts = env.bridge.calls.filter((c) => c.method === "thread/start");
+    expect(starts).toHaveLength(1);
+    expect(starts[0]!.params).toEqual({
+      cwd: "/w",
+      config: {
+        "skills.config": [
+          { path: "/s/pdf/SKILL.md", enabled: true },
+          { path: "/s/docx/SKILL.md", enabled: false },
+          { path: "/s/xlsx/SKILL.md", enabled: false },
+        ],
+      },
+    });
+    expect(env.ctl.chatSkills).toEqual(["/s/pdf/SKILL.md"]);
+    expect(env.state.init!.threadSkills.T1).toHaveLength(3);
+  });
+
+  test("skill rules and a block profile share one thread/start.config; resume gives both back", async () => {
+    const rules = [{ path: "/s/pdf/SKILL.md", enabled: true }, { path: "/s/docx/SKILL.md", enabled: false }];
+    const { bridge, ctl } = setup({ init: { ...init, threadBlocks: { OLD: ["/w/a.env"] }, threadSkills: { OLD: rules } } });
+    await ctl.resume("OLD");
+    const config = bridge.calls.find((c) => c.method === "thread/resume")!.params.config;
+    expect(config["skills.config"]).toEqual(rules);
+    expect(config.default_permissions).toBe(BLOCK_PROFILE_ID);
+  });
+
+  test("no skill selection: no skills.config, the chat sees what Codex shows anyway", async () => {
+    const { bridge, ctl } = setup({ init: { ...init, preferences: "" } });
+    await ctl.send("hi");
+    expect(bridge.calls.find((c) => c.method === "thread/start")!.params).not.toHaveProperty("config");
+    expect(ctl.chatSkills).toEqual([]);
   });
 
   test("no blocked files: thread/start carries no config at all", async () => {

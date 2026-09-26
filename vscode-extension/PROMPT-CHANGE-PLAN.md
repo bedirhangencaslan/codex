@@ -65,6 +65,16 @@ That section names every blocked path, and the sandbox-mode sentence changes to 
 - **Cost:** about 150-300 tokens depending on the number of paths.
 - **Owner's instruction:** use Codex's pipe for this, not text written by the extension.
 
+## P5: the skills list follows the skill selection (REQUESTED by the owner, 2026-09-26, applied)
+
+A chat started with a skill selection gets Codex's own `skills.config` rules as session config.
+Codex then leaves the unselected skills out of the "Available skills" lines of
+`<skills_instructions>`; the block's text is otherwise unchanged. With nothing selected nothing is
+sent and the list is what Codex shows today.
+
+- **Cost:** shorter skills list; it is part of the chat's opening context, so it stays cached.
+  The previous "attach" mode sent SKILL.md with every turn and is removed.
+
 ## Order when approved
 
 1. P1 option A (small, cache-friendly).

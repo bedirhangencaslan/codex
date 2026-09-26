@@ -15,7 +15,7 @@ import type { MessageKey, Params } from "../../shared/i18n";
 import { clampedAutoCompactLimit } from "../../shared/catalog";
 import { compactionRange } from "./compaction";
 import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress } from "../../shared/lessons";
-import type { AttachedSkill, FileAccessMode, HostToWebview, InitState, PersistedState, ThreadFileAccess } from "../../shared/messages";
+import type { AttachedSkill, FileAccessMode, HostToWebview, InitState, PersistedState, SkillRule, ThreadFileAccess } from "../../shared/messages";
 import type { ModelPrice } from "../../shared/pricing";
 import { findCommand, parseSlashInput } from "../../shared/slashCommands";
 import { lastAgentText } from "../state/chatReducer";
@@ -55,6 +55,28 @@ export const PREFERENCE_TAG = "users_conversation_preferences";
 export function preferenceInstructions(preference: string | undefined): string | undefined {
   const text = preference?.trim();
   return text ? `<${PREFERENCE_TAG}>\n${text}\n</${PREFERENCE_TAG}>` : undefined;
+}
+
+/**
+ * The `skills.config` rules for a chat started with `selected` skills: every selected skill
+ * enabled, every other known skill disabled. Codex reads these rules from the session layer of the
+ * thread's config as well as from the user's config.toml (skill_config_rules_from_stack), later
+ * rules winning, so a selected skill is on even when it is off in config.toml. A disabled skill is
+ * left out of the skills list the model sees and cannot be invoked by name or path. No selection
+ * means no rules: the chat sees what Codex would show anyway.
+ */
+export function skillRules(selected: AttachedSkill[], skills: SkillMetadata[]): SkillRule[] {
+  if (selected.length === 0) return [];
+  const chosen = new Set(selected.map((s) => s.path));
+  const rules: SkillRule[] = skills.map((s) => ({ path: s.path, enabled: chosen.has(s.path) }));
+  const known = new Set(skills.map((s) => s.path));
+  for (const s of selected) if (!known.has(s.path)) rules.push({ path: s.path, enabled: true });
+  return rules;
+}
+
+/** `thread/start.config` (and `thread/resume.config`) carrying a chat's skill rules. */
+export function skillsConfig(rules: SkillRule[]): Record<string, JsonValue> {
+  return rules.length > 0 ? { "skills.config": rules.map((r) => ({ path: r.path, enabled: r.enabled })) } : {};
 }
 
 /** The permission profile a chat that blocks files runs under. */
@@ -282,12 +304,15 @@ export class Controller {
     // Goal item 8 (approved, PROMPT-CHANGE-PLAN P1): Codex's own field, rendered once into the
     // chat's opening developer instructions and cached from then on. Fixed for the chat.
     const preference = (this.state.init?.preferences ?? "").trim();
+    const rules = skillRules(this.state.init?.attachedSkills ?? [], this.state.skills);
+    const config = { ...(denied.length > 0 ? blockProfileConfig(denied) : {}), ...skillsConfig(rules) };
     const started = await this.session.threadStart({
       cwd: this.cwd,
-      ...(denied.length > 0 ? { config: blockProfileConfig(denied) } : {}),
+      ...(Object.keys(config).length > 0 ? { config } : {}),
       ...(preference ? { developerInstructions: preferenceInstructions(preference) } : {}),
     });
     if (preference) this.persist("threadPreferences", { ...(this.state.init?.threadPreferences ?? {}), [started.thread.id]: preference });
+    if (rules.length > 0) this.persist("threadSkills", { ...(this.state.init?.threadSkills ?? {}), [started.thread.id]: rules });
     if (picks.length > 0) {
       const access: ThreadFileAccess = { mode, picks, denied };
       this.persist("threadBlocks", { ...(this.state.init?.threadBlocks ?? {}), [started.thread.id]: access });
@@ -303,9 +328,11 @@ export class Controller {
       // A chat that blocked files gets the same profile back; the panel shows its list.
       const access = this.threadAccess(threadId);
       const preference = this.state.init?.threadPreferences?.[threadId];
+      const rules = this.state.init?.threadSkills?.[threadId] ?? [];
+      const config = { ...(access.denied.length > 0 ? blockProfileConfig(access.denied) : {}), ...skillsConfig(rules) };
       const resumed = await this.session.threadResume({
         threadId,
-        ...(access.denied.length > 0 ? { config: blockProfileConfig(access.denied) } : {}),
+        ...(Object.keys(config).length > 0 ? { config } : {}),
         ...(preference ? { developerInstructions: preferenceInstructions(preference) } : {}),
       });
       this.dispatch({
@@ -333,14 +360,13 @@ export class Controller {
    * text as paths, exactly what the TUI's @ picker inserts (chat_composer.rs insert_selected_path:
    * the path, quoted when it has whitespace). A `mention` item would not work for files: core only
    * resolves app:// and plugin:// mentions and adds no content for anything else
-   * (protocol/src/models.rs). Attached skills are `skill` items, as the TUI sends for $skill.
+   * (protocol/src/models.rs). Selected skills are not turn input: they are the chat's
+   * `skills.config` rules (skillRules), so no SKILL.md is resent with every message.
    */
   buildInput(text: string, pastes: Map<string, string>): UserInput[] {
     let expanded = text;
     for (const [placeholder, content] of pastes) expanded = expanded.split(placeholder).join(content);
-    const input: UserInput[] = [{ type: "text", text: expanded, text_elements: [] }];
-    for (const s of this.state.init?.attachedSkills ?? []) input.push({ type: "skill", name: s.name, path: s.path });
-    return input;
+    return [{ type: "text", text: expanded, text_elements: [] }];
   }
 
   async send(text: string, pastes: Map<string, string> = new Map()): Promise<boolean> {
@@ -669,6 +695,13 @@ export class Controller {
   get chatPreference(): string | null {
     const threadId = this.state.chat.threadId;
     return threadId ? (this.state.init?.threadPreferences?.[threadId] ?? "") : null;
+  }
+
+  /** Paths of the skills the current chat was limited to ([] = no selection), or null before a chat has started. */
+  get chatSkills(): string[] | null {
+    const threadId = this.state.chat.threadId;
+    if (!threadId) return null;
+    return (this.state.init?.threadSkills?.[threadId] ?? []).filter((r) => r.enabled).map((r) => r.path);
   }
 
   /** The file access the current chat started with, or null before a chat has started. */

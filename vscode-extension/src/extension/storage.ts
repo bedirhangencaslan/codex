@@ -1,5 +1,5 @@
 // Persistence for the webview. Global things (prices, the preferences text, course progress, the
-// list of env-key names) live in globalState; per-project things (attached skills, invisible turns, the
+// list of env-key names) live in globalState; per-project things (selected skills, invisible turns, the
 // compaction value each thread started with) in workspaceState. API keys only ever live in
 // SecretStorage and reach Suffice as environment variables of the spawned app-server.
 import type * as vscode from "vscode";
@@ -7,7 +7,7 @@ import { EMPTY_PROGRESS } from "../shared/lessons";
 import type { EnvKeyInfo, PersistedState } from "../shared/messages";
 
 const GLOBAL_KEYS: Array<keyof PersistedState> = ["prices", "preferences", "learning"];
-const WORKSPACE_KEYS: Array<keyof PersistedState> = ["attachedSkills", "invisibleTurns", "threadStartCompaction", "threadBlocks", "threadPreferences"];
+const WORKSPACE_KEYS: Array<keyof PersistedState> = ["attachedSkills", "invisibleTurns", "threadStartCompaction", "threadBlocks", "threadPreferences", "threadSkills"];
 
 const DEFAULTS: PersistedState = {
   prices: {},
@@ -18,6 +18,7 @@ const DEFAULTS: PersistedState = {
   learning: EMPTY_PROGRESS,
   threadBlocks: {},
   threadPreferences: {},
+  threadSkills: {},
 };
 
 /** Env var names offered even before the user adds any: the provider this fork ships for. */
