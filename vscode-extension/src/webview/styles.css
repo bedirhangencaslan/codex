@@ -195,6 +195,16 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-md ul, .sf-md ol { padding-left: 1.4em; }
 .sf-md pre { background: var(--sf-code); border: 1px solid var(--sf-border); border-radius: var(--sf-radius-sm); padding: 8px 10px; overflow-x: auto; }
 .sf-md :not(pre) > code { background: var(--sf-code); border-radius: 4px; padding: 0 4px; }
+/* Code block highlighting (highlight.js classes) in the active theme's own colours. */
+.sf-md .hljs-keyword, .sf-md .hljs-selector-tag, .sf-md .hljs-meta .hljs-keyword, .sf-md .hljs-doctag { color: var(--sf-accent); }
+.sf-md .hljs-string, .sf-md .hljs-regexp, .sf-md .hljs-addition, .sf-md .hljs-selector-attr { color: var(--sf-success); }
+.sf-md .hljs-number, .sf-md .hljs-literal, .sf-md .hljs-built_in, .sf-md .hljs-type, .sf-md .hljs-symbol, .sf-md .hljs-variable.language_ { color: var(--sf-warning); }
+.sf-md .hljs-title, .sf-md .hljs-section, .sf-md .hljs-selector-id, .sf-md .hljs-selector-class, .sf-md .hljs-name { color: color-mix(in srgb, var(--sf-accent) 60%, var(--sf-text)); font-weight: 600; }
+.sf-md .hljs-attr, .sf-md .hljs-attribute, .sf-md .hljs-property, .sf-md .hljs-params, .sf-md .hljs-meta { color: color-mix(in srgb, var(--sf-warning) 45%, var(--sf-text)); }
+.sf-md .hljs-comment, .sf-md .hljs-quote { color: var(--sf-muted); font-style: italic; }
+.sf-md .hljs-deletion { color: var(--sf-danger); }
+.sf-md .hljs-emphasis { font-style: italic; }
+.sf-md .hljs-strong { font-weight: 600; }
 .sf-md a { color: var(--sf-accent); text-decoration: none; }
 .sf-md a:hover { text-decoration: underline; }
 .sf-md blockquote { border-left: 3px solid var(--sf-border); padding-left: 10px; color: var(--sf-muted); }
