@@ -2,7 +2,7 @@
 // the line for a moment, or on a click (which keeps it open). Used by command and file-change cells.
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
-const HOVER_OPEN_MS = 300;
+const HOVER_OPEN_MS = 1500;
 /** Horizontal shift of the bubble from the line, the gap kept to the view's edges, the tail size. */
 const BUBBLE_SHIFT = 22;
 const BUBBLE_MARGIN = 6;
