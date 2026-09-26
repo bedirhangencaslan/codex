@@ -3,7 +3,7 @@
 // reasoning summary, one-line exec cell whose command and coloured output open on hover, patch cell with a coloured diff, MCP tool
 // call, web search, proposed plan, compaction and review markers.
 import type { ThreadItem } from "@protocol/v2/ThreadItem";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { parseAnsi } from "../../shared/ansi";
 import { useApp } from "../app/context";
 import { Icon } from "../components/icons";
@@ -151,9 +151,22 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
 const HOVER_OPEN_MS = 300;
 
 /**
+ * Whether the view sits in the right half of the VS Code window (the secondary side bar, or the
+ * side bar moved to the right). A webview is told nothing about where it is docked, so this
+ * compares the pointer's screen and view coordinates with the window's own position.
+ */
+function dockedRight(e: { screenX: number; clientX: number }): boolean {
+  if (!window.outerWidth) return false;
+  const viewCenter = e.screenX - e.clientX + window.innerWidth / 2;
+  return viewCenter > window.screenX + window.outerWidth / 2;
+}
+
+/**
  * One line per command, like the TUI's collapsed exec cell. The full command and its output open
- * in a box beside the line while the pointer rests on it, indented like the reasoning text; a
- * click (or Enter) keeps it open. It opens upwards when there is no room below.
+ * in a speech bubble level with the line while the pointer rests on it, shifted to the right with
+ * its tail on the line; in a view docked on the right of the window it is mirrored and opens to the
+ * left. A click (or Enter) keeps it open. It grows upwards when there is no room below. A webview
+ * cannot draw outside its own view, so the bubble stays inside the side bar.
  */
 function ExecCell({ item }: { item: Item<"commandExecution"> }) {
   const { t } = useApp();
@@ -161,6 +174,7 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
   const [hover, setHover] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [upwards, setUpwards] = useState(false);
+  const [toLeft, setToLeft] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLPreElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -169,7 +183,8 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
   const failed = item.status === "failed" || (item.exitCode !== null && item.exitCode !== 0);
   const command = displayCommand(item);
 
-  const measure = () => {
+  const measure = (e?: { screenX: number; clientX: number }) => {
+    if (e) setToLeft(dockedRight(e));
     const el = cellRef.current;
     if (!el) return;
     const box = el.getBoundingClientRect();
@@ -177,9 +192,10 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
     setUpwards(view.bottom - box.bottom < 220 && box.top - view.top > view.bottom - box.bottom);
   };
   // Opens after a short dwell, so moving the pointer across a list of commands opens none of them.
-  const enter = () => {
+  const enter = (e: MouseEvent<HTMLDivElement>) => {
+    const at = { screenX: e.screenX, clientX: e.clientX };
     clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => (measure(), setHover(true)), HOVER_OPEN_MS);
+    hoverTimer.current = setTimeout(() => (measure(at), setHover(true)), HOVER_OPEN_MS);
   };
   const leave = () => {
     clearTimeout(hoverTimer.current);
@@ -201,7 +217,7 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
       <button
         type="button"
         className="sf-exec-head"
-        onClick={() => (measure(), setPinned(!pinned))}
+        onClick={(e) => (measure(e.detail > 0 ? e : undefined), setPinned(!pinned))}
         aria-expanded={open}
         title={t("chat.execExpand")}
       >
@@ -213,15 +229,17 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
         {running && <span className="sf-spinner" aria-hidden="true" />}
       </button>
       {open && (
-        <div className={`sf-exec-pop ${upwards ? "is-up" : ""}`} role="region" aria-label={command}>
-          <code className="sf-exec-pop-cmd">$ {command}</code>
-          {output ? (
-            <pre ref={outputRef} className="sf-exec-output">
-              <AnsiText text={output} />
-            </pre>
-          ) : (
-            <div className="sf-exec-empty">{running ? <span className="sf-spinner" aria-hidden="true" /> : t("chat.noOutput")}</div>
-          )}
+        <div className={`sf-exec-pop ${upwards ? "is-up" : ""} ${toLeft ? "is-left" : ""}`} role="region" aria-label={command}>
+          <div className="sf-exec-pop-body">
+            <code className="sf-exec-pop-cmd">$ {command}</code>
+            {output ? (
+              <pre ref={outputRef} className="sf-exec-output">
+                <AnsiText text={output} />
+              </pre>
+            ) : (
+              <div className="sf-exec-empty">{running ? <span className="sf-spinner" aria-hidden="true" /> : t("chat.noOutput")}</div>
+            )}
+          </div>
         </div>
       )}
     </div>
