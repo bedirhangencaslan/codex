@@ -10,7 +10,7 @@ Within that envelope, you get a sequence of file operations.
 You MUST include a header to specify the action you are taking.
 Each operation starts with one of three headers:
 
-*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).
+*** Add File: <path> - create a new file. Every following line is the initial contents.
 *** Delete File: <path> - remove an existing file. Nothing follows.
 *** Update File: <path> - patch an existing file in place (optionally with a rename).
 
@@ -32,4 +32,3 @@ Example patch:
 It is important to remember:
 
 - You must include a header with your intended action (Add/Delete/Update)
-- You must prefix new lines with `+` even when creating a new file, and that includes blank lines: an empty line without its `+` is read as a header and the patch is rejected

@@ -199,19 +199,13 @@ impl StreamingPatchParser {
                 if self.handle_hunk_headers_and_end_patch(trimmed)? {
                     return Ok(());
                 }
-                if let Some(line_to_add) = line.strip_prefix('+')
-                    && let Some(AddFile { contents, .. }) = self.state.hunks.last_mut()
-                {
+                // A line without its `+` is still the file's content: the prefix is added here.
+                let line_to_add = line.strip_prefix('+').unwrap_or(line);
+                if let Some(AddFile { contents, .. }) = self.state.hunks.last_mut() {
                     contents.push_str(line_to_add);
                     contents.push('\n');
-                    return Ok(());
                 }
-                Err(InvalidHunkError {
-                    message: format!(
-                        "'{trimmed}' is not a valid hunk header. Valid hunk headers: '*** Add File: {{path}}', '*** Delete File: {{path}}', '*** Update File: {{path}}'"
-                    ),
-                    line_number: self.line_number,
-                })
+                Ok(())
             }
             StreamingParserMode::DeleteFile => {
                 if self.handle_hunk_headers_and_end_patch(trimmed)? {
@@ -831,14 +825,14 @@ mod tests {
             })
         );
 
+        // An Add File line without its `+`, blank or not, is kept as content.
         let mut parser = StreamingPatchParser::default();
         assert_eq!(
-            parser.push_delta("*** Begin Patch\n*** Add File: file.txt\nbad\n"),
-            Err(InvalidHunkError {
-                message: "'bad' is not a valid hunk header. Valid hunk headers: '*** Add File: {path}', '*** Delete File: {path}', '*** Update File: {path}'"
-                    .to_string(),
-                line_number: 3,
-            })
+            parser.push_delta("*** Begin Patch\n*** Add File: file.txt\n+\"\"\"Title.\n\nbad\n+ok\n"),
+            Ok(vec![AddFile {
+                path: PathBuf::from("file.txt"),
+                contents: "\"\"\"Title.\n\nbad\nok\n".to_string(),
+            }])
         );
 
         let mut parser = StreamingPatchParser::default();
