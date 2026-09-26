@@ -1,13 +1,14 @@
 // Transcript cells. Each one is the webview counterpart of a TUI history cell
 // (codex-rs/tui/src/history_cell/*): user message (with the invisible tag), agent markdown,
-// reasoning summary, one-line exec cell whose command and coloured output open on hover, patch cell with a coloured diff, MCP tool
+// reasoning summary, one-line exec cell whose command and coloured output open on hover, patch cell laid out like a GitHub diff, MCP tool
 // call, web search, proposed plan, compaction and review markers.
 import type { ThreadItem } from "@protocol/v2/ThreadItem";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { parseAnsi } from "../../shared/ansi";
 import { useApp } from "../app/context";
 import { Icon } from "../components/icons";
-import { Markdown } from "../components/Markdown";
+import { highlightCode, Markdown } from "../components/Markdown";
+import { diffStatBlocks, parseDiff, relativePath, type DiffRow } from "../../shared/diff";
 
 type Item<T extends ThreadItem["type"]> = Extract<ThreadItem, { type: T }>;
 
@@ -276,51 +277,93 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
   );
 }
 
+/** Diffs longer than this start collapsed; the header still shows their size. */
+const DIFF_OPEN_ROWS = 300;
+
+/**
+ * File changes laid out like a GitHub diff: one box per file with its path, kind, +/- counts and
+ * the five-block bar, then numbered rows (old and new line), green and red lines, hunk headers and
+ * the code highlighted by the file's extension. The TUI draws the same patch in diff_render.rs.
+ */
 function PatchCell({ item }: { item: Item<"fileChange"> }) {
-  const { t, ctl } = useApp();
-  const [open, setOpen] = useState<string | null>(null);
+  const { t, state } = useApp();
+  const failed = item.status === "failed" || item.status === "declined";
   return (
     <div className="sf-cell sf-patch">
-      <div className="sf-exec-head">
+      <div className="sf-patch-head">
         <Icon name="file" size={13} />
-        <span className="sf-exec-verb">{t("chat.edited", { count: item.changes.length })}</span>
+        <span>{t("chat.edited", { count: item.changes.length })}</span>
+        {failed && <span className="sf-exec-exit">{t(item.status === "declined" ? "chat.patchDeclined" : "chat.patchFailed")}</span>}
       </div>
-      <ul className="sf-patch-files">
-        {item.changes.map((c) => {
-          const added = (c.diff.match(/^\+(?!\+\+)/gm) ?? []).length;
-          const removed = (c.diff.match(/^-(?!--)/gm) ?? []).length;
-          const kind = c.kind.type === "add" ? t("chat.added") : c.kind.type === "delete" ? t("chat.deleted") : t("chat.updated");
-          return (
-            <li key={c.path}>
-              <button type="button" className="sf-disclosure" onClick={() => setOpen(open === c.path ? null : c.path)}>
-                <Icon name={open === c.path ? "chevronDown" : "chevronRight"} size={12} />
-                <span className="sf-patch-path" onDoubleClick={() => ctl.openFile(c.path)}>{c.path}</span>
-                <span className="sf-muted">{kind}</span>
-                <span className="sf-diff-add">+{added}</span>
-                <span className="sf-diff-del">−{removed}</span>
-              </button>
-              {open === c.path && <Diff diff={c.diff} />}
-            </li>
-          );
-        })}
-      </ul>
+      {item.changes.map((c) => (
+        <PatchFile key={c.path} change={c} cwd={state.threadCwd ?? null} />
+      ))}
     </div>
   );
 }
 
-function Diff({ diff }: { diff: string }) {
+function PatchFile({ change, cwd }: { change: Item<"fileChange">["changes"][number]; cwd: string | null }) {
+  const { t, ctl } = useApp();
+  const kind = change.kind.type;
+  const parsed = useMemo(() => parseDiff(kind, change.diff), [kind, change.diff]);
+  const [open, setOpen] = useState(parsed.rows.length <= DIFF_OPEN_ROWS);
+  const language = /\.([a-z0-9]+)$/i.exec(parsed.movedTo ?? change.path)?.[1];
+  const shownPath = relativePath(change.path, cwd);
   return (
-    <pre className="sf-diff">
-      {diff.split("\n").map((line, i) => {
-        const cls = line.startsWith("+") ? "sf-diff-add" : line.startsWith("-") ? "sf-diff-del" : line.startsWith("@@") ? "sf-diff-hunk" : "";
-        return (
-          <span key={i} className={cls}>
-            {line}
-            {"\n"}
+    <div className="sf-patch-file">
+      <div className="sf-patch-file-head">
+        <button type="button" className="sf-patch-toggle" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={shownPath}>
+          <Icon name={open ? "chevronDown" : "chevronRight"} size={12} />
+        </button>
+        <button type="button" className="sf-patch-path" onClick={() => ctl.openFile(change.path)} title={change.path}>
+          {shownPath}
+        </button>
+        {kind === "add" && <span className="sf-patch-kind is-add">{t("chat.added")}</span>}
+        {kind === "delete" && <span className="sf-patch-kind is-del">{t("chat.deleted")}</span>}
+        {parsed.movedTo && <span className="sf-patch-kind" title={parsed.movedTo}>{t("chat.movedTo", { path: relativePath(parsed.movedTo, cwd) })}</span>}
+        <span className="sf-patch-stat">
+          <span className="sf-diff-add">+{parsed.added}</span>
+          <span className="sf-diff-del">−{parsed.removed}</span>
+          <span className="sf-diffstat" aria-hidden="true">
+            {diffStatBlocks(parsed.added, parsed.removed).map((b, i) => (
+              <i key={i} className={`is-${b}`} />
+            ))}
           </span>
-        );
-      })}
-    </pre>
+        </span>
+      </div>
+      {open && parsed.rows.length > 0 && <DiffTable rows={parsed.rows} language={language} />}
+    </div>
+  );
+}
+
+function DiffTable({ rows, language }: { rows: DiffRow[]; language: string | undefined }) {
+  return (
+    <div className="sf-diff-wrap">
+      <table className="sf-diff">
+        <tbody>
+          {rows.map((row, i) => {
+            if (row.type === "hunk" || row.type === "note") {
+              return (
+                <tr key={i} className={`is-${row.type}`}>
+                  <td colSpan={3}>{row.text}</td>
+                </tr>
+              );
+            }
+            const sign = row.type === "add" ? "+" : row.type === "del" ? "-" : " ";
+            return (
+              <tr key={i} className={`is-${row.type}`}>
+                <td className="sf-diff-num">{row.oldLine ?? ""}</td>
+                <td className="sf-diff-num">{row.newLine ?? ""}</td>
+                <td className="sf-diff-code">
+                  <span className="sf-diff-sign">{sign}</span>
+                  <span dangerouslySetInnerHTML={{ __html: highlightCode(row.text, language).html }} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
