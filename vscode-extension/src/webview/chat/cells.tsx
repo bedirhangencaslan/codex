@@ -6,7 +6,7 @@ import type { ThreadItem } from "@protocol/v2/ThreadItem";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { parseAnsi } from "../../shared/ansi";
 import { useApp } from "../app/context";
-import { HoverBubble } from "../components/HoverBubble";
+import { ExpandBubble } from "../components/ExpandBubble";
 import { Icon } from "../components/icons";
 import { highlightCode, Markdown } from "../components/Markdown";
 import { diffStatBlocks, parseDiff, relativePath, type DiffRow } from "../../shared/diff";
@@ -157,7 +157,7 @@ function ExecOutput({ output, running }: { output: string; running: boolean }) {
 
 /**
  * One line per command, like the TUI's collapsed exec cell; the full command and its coloured
- * output open in a speech bubble beside it (HoverBubble).
+ * output open in a speech bubble beside it, from the expand button (ExpandBubble).
  */
 function ExecCell({ item }: { item: Item<"commandExecution"> }) {
   const { t } = useApp();
@@ -166,18 +166,28 @@ function ExecCell({ item }: { item: Item<"commandExecution"> }) {
   const failed = item.status === "failed" || (item.exitCode !== null && item.exitCode !== 0);
   const command = displayCommand(item);
   return (
-    <HoverBubble
+    <ExpandBubble
       className={`sf-cell sf-exec ${failed ? "is-failed" : ""}`}
       label={command}
-      head={({ open, toggle }) => (
-        <button type="button" className="sf-exec-head" onClick={toggle} aria-expanded={open} title={t("chat.execExpand")}>
+      expandLabel={t("chat.execExpand")}
+      collapseLabel={t("chat.collapse")}
+      head={({ open, toggle, expand }) => (
+        <div
+          className="sf-exec-head"
+          role="button"
+          tabIndex={0}
+          aria-expanded={open}
+          onClick={(e) => toggle(e)}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle())}
+        >
           <Icon name="terminal" size={13} />
           <span className="sf-exec-verb">{running ? t("chat.runningCommand") : t("chat.ranCommand")}</span>
           <code className="sf-exec-cmd">{command}</code>
           {item.exitCode !== null && item.exitCode !== 0 && <span className="sf-exec-exit">{t("chat.exitCode", { code: item.exitCode })}</span>}
           {item.durationMs !== null && <span className="sf-exec-time">{(item.durationMs / 1000).toFixed(1)}s</span>}
           {running && <span className="sf-spinner" aria-hidden="true" />}
-        </button>
+          {expand}
+        </div>
       )}
       bubble={() => (
         <>
@@ -207,7 +217,7 @@ function previewRows(rows: DiffRow[]): DiffRow[] {
  * File changes laid out like a GitHub diff: one box per file with its path, kind, +/- counts and
  * the five-block bar, then the first rows of the change. The whole diff (numbered rows, green and
  * red lines, hunk headers, code highlighted by the file's extension) opens in a speech bubble
- * beside it, like a command's output. The TUI draws the same patch in diff_render.rs.
+ * beside it from the expand button, like a command's output. The TUI draws the same patch in diff_render.rs.
  */
 function PatchCell({ item }: { item: Item<"fileChange"> }) {
   const { t, state } = useApp();
@@ -260,21 +270,23 @@ function PatchFile({ change, cwd }: { change: Item<"fileChange">["changes"][numb
     </>
   );
   return (
-    <HoverBubble
+    <ExpandBubble
       className={`sf-patch-file ${complete ? "" : "has-more"}`}
       label={shownPath}
+      expandLabel={t("chat.diffExpand")}
+      collapseLabel={t("chat.collapse")}
       disabled={complete}
-      head={({ open, toggle }) => (
+      head={({ open, toggle, expand }) => (
         <div
           className="sf-patch-file-head"
           role={complete ? undefined : "button"}
           tabIndex={complete ? undefined : 0}
           aria-expanded={complete ? undefined : open}
-          title={complete ? undefined : t("chat.diffExpand")}
           onClick={(e) => toggle(e)}
           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle())}
         >
           {header}
+          {expand}
         </div>
       )}
       bubble={() => (
@@ -285,7 +297,7 @@ function PatchFile({ change, cwd }: { change: Item<"fileChange">["changes"][numb
       )}
     >
       {preview.length > 0 && <DiffTable rows={preview} language={language} />}
-    </HoverBubble>
+    </ExpandBubble>
   );
 }
 

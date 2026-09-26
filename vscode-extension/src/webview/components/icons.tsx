@@ -17,6 +17,8 @@ const paths: Record<string, string> = {
   chip: "M4.5 4.5h7v7h-7zM6.5 2v2.5M9.5 2v2.5M6.5 11.5V14M9.5 11.5V14M2 6.5h2.5M2 9.5h2.5M11.5 6.5H14M11.5 9.5H14",
   chevronDown: "M4 6l4 4 4-4",
   chevronRight: "M6 4l4 4-4 4",
+  expand: "M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9",
+  collapse: "M13.5 2.5 9.5 6.5M9.5 3v3.5H13M2.5 13.5l4-4M6.5 13V9.5H3",
   check: "M3 8.5l3 3 7-7",
   copy: "M5.5 5.5h7v8h-7zM3.5 10.5v-8h7",
   terminal: "M2 3h12v10H2zM4.5 6l2 2-2 2M8 10h3.5",

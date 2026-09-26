@@ -224,11 +224,13 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-exec-cmd { color: var(--sf-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .sf-exec-exit { color: var(--sf-danger); font-size: .88em; flex: none; }
 .sf-exec-time { font-size: .85em; flex: none; }
-/* Speech bubble beside a transcript line (components/HoverBubble.tsx): level with the line,
+/* Speech bubble beside a transcript line (components/ExpandBubble.tsx): level with the line,
    shifted right with its tail on it; mirrored (opening to the left, tail on the right) in a view
-   docked on the right of the window. Placed in the view by HoverBubble (top/left/right,
+   docked on the right of the window. Placed in the view by ExpandBubble (top/left/right,
    --tail-top); up to 90% of the view's height before its content scrolls. */
 .sf-exec.is-open, .sf-patch-file.is-open { z-index: 5; }
+.sf-expand { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin: -3px -4px -3px 2px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--sf-muted); cursor: pointer; padding: 0; }
+.sf-expand:hover, .sf-expand[aria-expanded="true"] { color: var(--sf-text); background: var(--sf-surface); border-color: var(--sf-border); }
 .sf-bubble { --tail: 7px; --bubble-border: var(--sf-border); position: fixed; top: 0; left: 0; right: 0; filter: drop-shadow(0 6px 16px rgba(0,0,0,.3)); cursor: auto; }
 .sf-exec.is-failed .sf-bubble { --bubble-border: color-mix(in srgb, var(--sf-danger) 60%, var(--sf-border)); }
 .sf-bubble-body { display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; background: var(--sf-surface-raised); border: 1px solid var(--bubble-border); border-radius: var(--sf-radius); }
@@ -239,7 +241,9 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-bubble.is-left::before, .sf-bubble.is-left::after { left: auto; border-right-color: transparent; }
 .sf-bubble.is-left::before { right: calc(-2 * var(--tail)); border-left-color: var(--bubble-border); }
 .sf-bubble.is-left::after { right: calc(-2 * var(--tail) + 1.5px); border-left-color: var(--sf-surface-raised); }
-.sf-bubble-title { display: block; padding: 6px 10px; font-size: .88em; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sf-text); border-bottom: 1px solid var(--sf-border); flex: none; max-height: 96px; overflow: auto; }
+.sf-bubble-close { position: absolute; top: 5px; right: 6px; margin: 0; background: var(--sf-surface-raised); }
+.sf-bubble.is-left .sf-bubble-close { right: 6px; }
+.sf-bubble-title { display: block; padding: 6px 34px 6px 10px; font-size: .88em; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--sf-text); border-bottom: 1px solid var(--sf-border); flex: none; max-height: 96px; overflow: auto; }
 .sf-exec-output { margin: 0; padding: 7px 10px; background: var(--sf-code); font-family: var(--sf-mono); font-size: .88em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 0; }
 .sf-exec-empty { padding: 6px 10px; color: var(--sf-muted); font-size: .88em; }
 /* File changes, laid out like a GitHub diff. */
