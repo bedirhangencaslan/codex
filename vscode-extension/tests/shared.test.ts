@@ -68,7 +68,7 @@ describe("meters use the TUI footer formulas", () => {
   });
 
   test("thread cost = fresh + cached + output from the TOTAL breakdown", () => {
-    // report.py: 43,326 fresh / 227,200 cached / 4,584 out -> $0.0078 (rep145)
+    // 43,326 fresh / 227,200 cached / 4,584 out -> $0.0078
     const cost = costOf(
       { inputTokens: 43_326 + 227_200, cachedInputTokens: 227_200, outputTokens: 4_584 },
       BUILTIN_PRICES["glm-5.3-flash"]!,
@@ -101,7 +101,7 @@ describe("meters use the TUI footer formulas", () => {
   });
 });
 
-describe("compaction sync check (goal item 11)", () => {
+describe("compaction sync check", () => {
   const glm = { contextWindow: 200_000, catalogLimit: 80_000, scope: "total" as const };
 
   test("the shipped setup is in sync", () => {

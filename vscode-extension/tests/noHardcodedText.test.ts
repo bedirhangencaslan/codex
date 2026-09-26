@@ -1,4 +1,4 @@
-// Goal item 7: no user-facing Turkish is written outside the dictionaries. Letters that only
+// No user-facing Turkish is written outside the dictionaries. Letters that only
 // Turkish uses must not appear in code; the dictionaries (and the Turkish manifest strings) are
 // the only place for them.
 import { readdirSync, readFileSync, statSync } from "node:fs";

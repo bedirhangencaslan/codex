@@ -5,7 +5,7 @@ export const learnEn = {
   "learn.levelIntermediate": "Intermediate",
   "learn.levelIntermediateDesc": "Shape how Suffice works: modes, model, permissions, file access, skills and your preference.",
   "learn.levelAdvanced": "Advanced",
-  "learn.levelAdvancedDesc": "What the bill is made of, what Suffice does under the hood to keep it low, and the settings behind it.",
+  "learn.levelAdvancedDesc": "What the bill is made of, the compaction limit, keys and prices.",
 
   // --- beginner ---
   "learn.basics.title": "First steps",
@@ -57,7 +57,7 @@ export const learnEn = {
   "learn.control.model": "/model picks the model and its reasoning level for the next messages. GLM 5.3 Flash offers low, high and max: more reasoning helps on hard tasks but spends more tokens, low is faster and cheaper for simple work.",
   "learn.control.try.model": "Open the model and reasoning panel.",
   "learn.control.try.model.draft": "/model",
-  "learn.control.permissions": "/permissions sets what Suffice may do: read only, work inside the workspace, or everything without asking. Suffice's default is full access, because every approval pause lets the cache go cold; untrusted projects still start read only.",
+  "learn.control.permissions": "/permissions sets what Suffice may do: read only, work inside the workspace, or everything without asking. Suffice's default is full access; untrusted projects still start read only.",
   "learn.control.try.permissions": "Open the panel with the permission choices.",
   "learn.control.try.permissions.draft": "/permissions",
 
@@ -88,25 +88,16 @@ export const learnEn = {
   "learn.cost.intro": "What you pay for, and the habits that keep it low.",
   "learn.cost.context": "Every request sends the whole chat again. What the provider has already seen is billed as cached input, at a fifth of the fresh price; only the new part is billed in full. Output is the most expensive, but it is small.",
   "learn.cost.cache": "The cache matches the request from its start up to the first difference. A chat that only grows at the end stays cheap; anything that changes earlier content makes the rest of the request fresh again.",
-  "learn.cost.breaks": "What breaks the cache: compaction (the history becomes a summary), switching the model mid-chat, and long idle gaps. Suffice keeps the cache warm while you read or type (see the next lesson), but a new chat is still cheaper than a long, unrelated one.",
+  "learn.cost.breaks": "What breaks the cache: compaction (the history becomes a summary), switching the model mid-chat, and long idle gaps. A new chat is still cheaper than a long, unrelated one.",
   "learn.cost.invisible": "Invisible mode keeps the next turns on screen but leaves them out of later requests: ask a side question without paying for it on every request after.",
   "learn.cost.try.invisible": "Turn invisible mode on. Run the command again (or click the Invisible chip) to turn it off.",
   "learn.cost.try.invisible.draft": "/invisible",
 
-  "learn.engine.title": "Under the hood",
-  "learn.engine.intro": "Suffice is Codex tuned for cost. These run by themselves; knowing them explains what you see.",
-  "learn.engine.reasoning": "Reasoning retention: after each turn Suffice works out whether dropping the model's old reasoning from the history saves more than the cache miss it causes. Small reasoning (low) is usually kept, large (max) usually dropped, and a decision is never changed later.",
-  "learn.engine.tools": "Suffice gives the model its own read, grep and glob tools with budgets: read returns numbered lines in slices (by default up to 2,000 lines), grep answers with file:line hits and counts instead of dumping everything, glob lists up to 100 paths. The model reads what it needs, not whole folders.",
-  "learn.engine.output": "Command output is cleaned before the model sees it: colour codes and noise go, dependency folders are left out, long builds keep their start, end, errors and warnings. When something is cut, the full output is saved to a file and the model gets its path, so it can read the rest if it must.",
-  "learn.engine.patch": "Edits go through apply_patch, described to the model in plain text rather than a grammar (fewer tokens in every request). When a hunk does not fit, Suffice returns the file's current text so the next try succeeds.",
-  "learn.engine.parallel": "The model may ask for several reads and searches at once and they run in parallel; at most one helper agent runs per chat, so the bill does not multiply.",
-  "learn.engine.keepalive": "Cache keep-alive: while you read or type, Suffice resends the last request with a one-token answer every seven minutes, at most four times, so the provider's cache does not expire and your next message stays cheap.",
-
   "learn.compaction.title": "The compaction limit",
   "learn.compaction.intro": "When Suffice summarises a long chat, and how to choose the limit.",
   "learn.compaction.what": "When a chat's context reaches the compaction limit, Suffice replaces the history with a dense summary and keeps the latest answers word for word. Requests get smaller again, at the price of one fresh request.",
-  "learn.compaction.slider": "The slider at the left of the meters sets the limit, from just above the current context up to the model's full context window (read from models.dev). 80K is the tested default: lower limits made the model re-read files and compact more often, which cost more.",
-  "learn.compaction.frozen": "Moving the slider applies at once: the open chat uses the new limit from its next message, and Suffice's reasoning retention plans with it too. New chats start with it as well.",
+  "learn.compaction.slider": "The slider at the left of the meters sets the limit, from just above the current context up to the model's full context window (read from models.dev). The default is 80K.",
+  "learn.compaction.frozen": "Moving the slider applies at once: the open chat uses the new limit from its next message, and new chats start with it too.",
   "learn.compaction.sync": "Settings shows a compaction check: it warns when the limit is above what the model's context window allows, so Suffice would apply a lower one.",
   "learn.compaction.show.screen_settings": "Open Settings and look at the compaction check.",
 

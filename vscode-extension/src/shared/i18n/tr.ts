@@ -46,7 +46,7 @@ const base = {
   "home.api.title": "API anahtarları ve fiyatlar",
   "home.api.desc": "Sağlayıcı anahtarları, hesap durumu ve her modelin milyon token fiyatı.",
   "home.settings.title": "Ayarlar",
-  "home.settings.desc": "Dil, tema ve reasoning shrink / compaction kontrolü.",
+  "home.settings.desc": "Dil, tema ve compaction kontrolü.",
 
   // --- server connection
   "server.connecting": "Suffice başlatılıyor…",
@@ -293,7 +293,7 @@ const base = {
   "api.accountNotRequired": "Ayarlı sağlayıcı OpenAI girişi gerektirmiyor.",
   "api.openaiKeyLogin": "OpenAI API anahtarıyla giriş yap",
   "api.pricingTitle": "Model fiyatları (1M token başına USD)",
-  "api.pricingIntro": "Sohbetteki maliyet göstergesi bunları kullanır. Yerleşik satırlar bu fork'un ölçümlerde kullandığı değerlerdir; değiştirmek için herhangi bir satırı düzenle.",
+  "api.pricingIntro": "Sohbetteki maliyet göstergesi için kullanılır. Yerleşik satırlar sağlayıcının liste fiyatlarıdır; değiştirmek için herhangi bir satırı düzenle.",
   "api.colModel": "Model",
   "api.colInput": "Girdi",
   "api.colCached": "Önbellekli girdi",
@@ -314,8 +314,8 @@ const base = {
   "settings.prefsSaved": "Kaydedildi.",
   "settings.compactionTitle": "Compaction limiti",
   "settings.compactionValue": "{value} token",
-  "settings.syncTitle": "Reasoning shrink ↔ compaction",
-  "settings.syncOk": "Senkron: reasoning shrink ve compaction senin ayarladığın {value} token değerini kullanıyor.",
+  "settings.syncTitle": "Compaction kontrolü",
+  "settings.syncOk": "Senkron: compaction senin ayarladığın {value} token değerini kullanıyor.",
   "settings.syncNoThread": "Çalışan sohbet yok; kontrol yeni sohbetlerin kullanacağı değeri kapsıyor.",
   "settings.sync.threadFrozen": "Çalışan sohbet {thread} değerini kullanıyor, ayar ise {slider}. Limit Suffice dışında (örneğin terminalde) değiştirilmiş olabilir; kaydırıcıyı oynatmak değeri açık sohbete de hemen uygular. Hiçbir şey değiştirilmedi.",
   "settings.sync.clamped": "{requested}, bağlam penceresinin 9/10'unun üstünde; Suffice {applied} uyguluyor. Hiçbir şey değiştirilmedi.",

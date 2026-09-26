@@ -33,7 +33,7 @@ const base = {
   "nav.api": "API & Pricing",
   "nav.settings": "Settings",
 
-  // --- home: interface list (goal item 1)
+  // --- home: interface list
   "home.title": "Interfaces",
   "home.subtitle": "Every screen of the extension, each with a live preview. Pick one to open it.",
   "home.chat.title": "Chat",
@@ -47,7 +47,7 @@ const base = {
   "home.api.title": "API keys & pricing",
   "home.api.desc": "Provider keys, account status and the price per million tokens of each model.",
   "home.settings.title": "Settings",
-  "home.settings.desc": "Language, theme and the reasoning shrink / compaction check.",
+  "home.settings.desc": "Language, theme and the compaction check.",
 
   // --- server connection
   "server.connecting": "Starting Suffice…",
@@ -59,7 +59,7 @@ const base = {
   "server.binaryHint": "Set “suffice.binaryPath” in the VS Code settings, or put suffice on PATH.",
   "server.openSettings": "Open settings",
 
-  // --- chat (goal item 12)
+  // --- chat
   "chat.newChat": "New chat",
   "chat.placeholder": "Ask Suffice… ( / commands, @ files )",
   "chat.placeholderBusy": "Suffice is working… Enter queues your message",
@@ -128,7 +128,7 @@ const base = {
   "history.untitled": "Untitled chat",
   "history.loadMore": "Load more",
 
-  // --- indicators (goal item 13)
+  // --- indicators
   "meter.context": "{percent}% context",
   "meter.contextTitle": "{used} of {window} tokens in the last request",
   "meter.contextUnknown": "context –",
@@ -142,7 +142,7 @@ const base = {
   "meter.fast": "● Fast",
   "meter.warming": "◌ Warming up",
 
-  // --- composer panels (goal item 15)
+  // --- composer panels
   "panel.invisible": "Invisible",
   "panel.invisibleTitle": "Keep the next turns out of later requests",
   "panel.mode": "Mode",
@@ -192,7 +192,7 @@ const base = {
   "goal.budgetLimited": "budget limited",
   "goal.complete": "complete",
 
-  // --- skills screen (goal item 2)
+  // --- skills screen
   "skills.title": "Skill selection",
   "skills.intro": "On/Off changes whether Suffice may use a skill anywhere (your user config). “Use in this project” limits new chats in this workspace to the ticked skills; the model does not see the others.",
   "skills.search": "Filter skills",
@@ -205,7 +205,7 @@ const base = {
   "skills.errors": "Some skills could not be loaded:",
   "skills.empty": "No skills were found.",
 
-  // --- slash command guide (goal item 3)
+  // --- slash command guide
   "commands.title": "Suffice course",
   "commands.intro": "Learn everything Suffice offers, level by level: run the real commands, open the panels being taught and check yourself. The Reference tab lists every / command.",
   "commands.search": "Filter commands",
@@ -273,7 +273,7 @@ const base = {
   "panel.permDefault": "As configured",
   "panel.permDefaultDesc": "Uses the approval and sandbox settings from your Suffice configuration.",
 
-  // --- API & pricing (goal item 9)
+  // --- API & pricing
   "api.title": "API keys & pricing",
   "api.intro": "Keys are kept in VS Code's secret storage and handed to the Suffice process as environment variables; they are never written to a file.",
   "api.providersTitle": "Providers",
@@ -294,7 +294,7 @@ const base = {
   "api.accountNotRequired": "The configured provider does not need an OpenAI sign-in.",
   "api.openaiKeyLogin": "Sign in with an OpenAI API key",
   "api.pricingTitle": "Model prices (USD per 1M tokens)",
-  "api.pricingIntro": "Used for the cost meter in the chat. Built-in rows are the figures this fork measures with; edit any row to override it.",
+  "api.pricingIntro": "Used for the cost meter in the chat. Built-in rows are the provider's list prices; edit any row to override it.",
   "api.colModel": "Model",
   "api.colInput": "Input",
   "api.colCached": "Cached input",
@@ -306,7 +306,7 @@ const base = {
   "api.invalidPrice": "Enter three non-negative numbers.",
   "api.exampleCost": "A 10K-token request with 80% cache hits and 500 output tokens costs {cost}.",
 
-  // --- settings (goal items 7, 8, 10, 11, 14)
+  // --- settings
   "settings.title": "Settings",
   "settings.language": "Language",
   "settings.languageAuto": "Follow VS Code",
@@ -315,15 +315,15 @@ const base = {
   "settings.prefsSaved": "Saved.",
   "settings.compactionTitle": "Compaction limit",
   "settings.compactionValue": "{value} tokens",
-  "settings.syncTitle": "Reasoning shrink ↔ compaction",
-  "settings.syncOk": "In sync: reasoning shrink and compaction use {value} tokens, the value you set.",
+  "settings.syncTitle": "Compaction check",
+  "settings.syncOk": "In sync: compaction uses {value} tokens, the value you set.",
   "settings.syncNoThread": "No chat is running; the check covers the value new chats will use.",
   "settings.sync.threadFrozen": "The open chat uses {thread} while the setting is {slider}. The limit may have been changed outside the extension (in the terminal, for example); moving the slider applies it to the open chat at once. Nothing was changed.",
   "settings.sync.clamped": "{requested} is above 9/10 of the context window; Suffice applies {applied}. Nothing was changed.",
   "settings.sync.scopeUnclamped": "With the body_after_prefix scope, compaction uses {requested} unclamped while the read tool budgets against {clamped}. Nothing was changed.",
   "settings.defaultValue": "default",
 
-  // --- theme names (goal item 14)
+  // --- theme names
   "theme.vscode": "VS Code (follow editor)",
   "theme.catppuccinMocha": "Catppuccin Mocha (dark)",
   "theme.catppuccinLatte": "Catppuccin Latte (light)",

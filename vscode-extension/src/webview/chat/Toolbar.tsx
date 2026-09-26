@@ -1,4 +1,4 @@
-// Goal item 15: the row under the chat input and the panels it expands, laid out like the
+// The row under the chat input and the panels it expands, laid out like the
 // Claude Code extension (chips under the box, panels opening above it). Every control maps to an
 // existing protocol field: turn/start.invisible, turn/start.collaborationMode (from
 // collaborationMode/list), the TUI's permission presets
@@ -395,7 +395,7 @@ function EffortSlider({
 }
 
 /**
- * Goal item 8: how Suffice should talk to you. The text is saved for new chats; a chat takes the
+ * How Suffice should talk to you. The text is saved for new chats; a chat takes the
  * preference it starts with (Codex fixes developer instructions for a running chat), so an edit
  * while a chat is open applies to the next one.
  */

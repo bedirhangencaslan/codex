@@ -23,7 +23,7 @@ export interface EnvKeyInfo {
 export interface PersistedState {
   /** User price overrides, by model id (globalState). */
   prices: Record<string, ModelPrice>;
-  /** Goal item 8: the conversation preference for new chats (globalState). A chat that starts with
+  /** The conversation preference for new chats (globalState). A chat that starts with
    * one gives it to the model once, as `thread/start.developerInstructions`. */
   preferences: string;
   /** Skills new chats in this workspace may use; empty = Codex's own choice (workspaceState). */
@@ -31,7 +31,7 @@ export interface PersistedState {
   /** threadId -> turn ids that ran invisibly; the protocol does not record it (workspaceState). */
   invisibleTurns: Record<string, string[]>;
   /** threadId -> model_auto_compact_token_limit config value when the thread was started or
-   * resumed, the value its reasoning shrink and compaction froze (workspaceState, item 11). */
+   * resumed, updated when the slider changes it (workspaceState). */
   threadStartCompaction: Record<string, number | null>;
   /** Slash command course progress: commands run, quiz answers, reference entries opened (globalState). */
   learning: LearningProgress;

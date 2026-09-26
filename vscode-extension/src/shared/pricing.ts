@@ -1,7 +1,6 @@
-// Prices per million tokens and the cost of a token breakdown. The formula is the one this
-// fork measures with (suffice-labs report.py, _sim/FINDINGS.md §1): input that was served from
-// the provider's cache is billed at the cached rate, the rest of the input at the fresh rate,
-// and output (which includes reasoning tokens) at the output rate.
+// Prices per million tokens and the cost of a token breakdown: input that was served from the
+// provider's cache is billed at the cached rate, the rest of the input at the fresh rate, and
+// output (which includes reasoning tokens) at the output rate.
 
 export interface ModelPrice {
   /** USD per million fresh (uncached) input tokens. */
@@ -21,7 +20,7 @@ export const BUILTIN_PRICES: Record<string, ModelPrice> = {
     cachedInputPerMillion: 0.015,
     outputPerMillion: 0.25,
     source: "builtin",
-    note: "Z.ai card this fork measures against (_sim/FINDINGS.md §1)",
+    note: "Z.ai list price",
   },
 };
 

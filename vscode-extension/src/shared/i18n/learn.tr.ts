@@ -5,7 +5,7 @@ export const learnTr = {
   "learn.levelIntermediate": "Orta",
   "learn.levelIntermediateDesc": "Suffice'in nasıl çalışacağını belirle: modlar, model, izinler, dosya erişimi, skill'ler ve tercihin.",
   "learn.levelAdvanced": "İleri",
-  "learn.levelAdvancedDesc": "Faturanın nelerden oluştuğu, Suffice'in onu düşük tutmak için arka planda ne yaptığı ve bunun ayarları.",
+  "learn.levelAdvancedDesc": "Faturanın nelerden oluştuğu, compaction limiti, anahtarlar ve fiyatlar.",
 
   // --- başlangıç ---
   "learn.basics.title": "İlk adımlar",
@@ -57,7 +57,7 @@ export const learnTr = {
   "learn.control.model": "/model, sonraki mesajlar için modeli ve düşünme seviyesini seçer. GLM 5.3 Flash düşük, yüksek ve maksimum sunar: daha fazla düşünme zor işlerde yardımcı olur ama daha çok token harcar; düşük, basit işler için daha hızlı ve ucuzdur.",
   "learn.control.try.model": "Model ve düşünme seviyesi panelini aç.",
   "learn.control.try.model.draft": "/model",
-  "learn.control.permissions": "/permissions, Suffice'in neler yapabileceğini belirler: salt okuma, çalışma alanı içinde çalışma ya da sormadan her şey. Suffice'in varsayılanı tam erişimdir, çünkü her onay beklemesi önbelleği soğutur; güvenilmeyen projeler yine salt okunur başlar.",
+  "learn.control.permissions": "/permissions, Suffice'in neler yapabileceğini belirler: salt okuma, çalışma alanı içinde çalışma ya da sormadan her şey. Suffice'in varsayılanı tam erişimdir; güvenilmeyen projeler yine salt okunur başlar.",
   "learn.control.try.permissions": "İzin seçeneklerinin olduğu paneli aç.",
   "learn.control.try.permissions.draft": "/permissions",
 
@@ -88,25 +88,16 @@ export const learnTr = {
   "learn.cost.intro": "Neye para ödediğin ve bunu düşük tutan alışkanlıklar.",
   "learn.cost.context": "Her istek sohbetin tamamını yeniden gönderir. Sağlayıcının daha önce gördüğü kısım önbellekli girdi olarak, yeni fiyatın beşte birinden faturalanır; yalnızca yeni kısım tam fiyattır. Çıktı en pahalısıdır ama küçüktür.",
   "learn.cost.cache": "Önbellek isteği baştan ilk farka kadar eşleştirir. Yalnızca sonuna eklenerek büyüyen bir sohbet ucuz kalır; daha önceki içeriği değiştiren her şey isteğin geri kalanını yeniden yeni yapar.",
-  "learn.cost.breaks": "Önbelleği bozanlar: compaction (geçmiş bir özete dönüşür), sohbet ortasında model değiştirmek ve uzun boşta kalma aralıkları. Sen okurken ya da yazarken Suffice önbelleği sıcak tutar (sonraki derse bak), ama yeni bir sohbet yine de uzun ve ilgisiz bir sohbetten ucuzdur.",
+  "learn.cost.breaks": "Önbelleği bozanlar: compaction (geçmiş bir özete dönüşür), sohbet ortasında model değiştirmek ve uzun boşta kalma aralıkları. Yeni bir sohbet yine de uzun ve ilgisiz bir sohbetten ucuzdur.",
   "learn.cost.invisible": "Görünmez mod sonraki turları ekranda tutar ama sonraki isteklerin dışında bırakır: bir yan soruyu, bedelini sonraki her istekte ödemeden sorarsın.",
   "learn.cost.try.invisible": "Görünmez modu aç. Kapatmak için komutu yeniden çalıştır (ya da Görünmez düğmesine tıkla).",
   "learn.cost.try.invisible.draft": "/invisible",
 
-  "learn.engine.title": "Perde arkası",
-  "learn.engine.intro": "Suffice, maliyet için ayarlanmış Codex'tir. Bunlar kendiliğinden çalışır; bilmek gördüklerini açıklar.",
-  "learn.engine.reasoning": "Düşünce saklama (reasoning retention): Suffice her turdan sonra modelin eski düşüncelerini geçmişten atmanın, yol açacağı önbellek kaybından daha çok tasarruf edip etmediğini hesaplar. Küçük düşünceler (düşük) genellikle tutulur, büyükler (maksimum) genellikle atılır ve verilen karar sonradan değişmez.",
-  "learn.engine.tools": "Suffice modele bütçeli kendi read, grep ve glob araçlarını verir: read numaralı satırları dilimler halinde döndürür (varsayılan en fazla 2.000 satır), grep her şeyi dökmek yerine dosya:satır eşleşmeleri ve sayılarla yanıtlar, glob en fazla 100 yol listeler. Model bütün klasörleri değil, ihtiyacı olanı okur.",
-  "learn.engine.output": "Komut çıktısı model görmeden temizlenir: renk kodları ve gürültü gider, bağımlılık klasörleri dışarıda kalır, uzun derlemelerin başı, sonu, hataları ve uyarıları tutulur. Bir şey kesildiğinde tam çıktı bir dosyaya kaydedilir ve modele yolu verilir; gerekirse gerisini okuyabilir.",
-  "learn.engine.patch": "Düzenlemeler apply_patch'ten geçer; bu araç modele bir dilbilgisi yerine düz metinle anlatılır (her istekte daha az token). Bir parça tutmazsa Suffice dosyanın güncel halini döndürür, böylece sonraki deneme başarılı olur.",
-  "learn.engine.parallel": "Model aynı anda birkaç okuma ve arama isteyebilir, bunlar paralel çalışır; sohbet başına en fazla bir yardımcı ajan çalışır, böylece fatura katlanmaz.",
-  "learn.engine.keepalive": "Önbelleği sıcak tutma: sen okurken ya da yazarken Suffice son isteği tek token'lık bir yanıtla her yedi dakikada bir, en fazla dört kez yeniden gönderir; sağlayıcının önbelleği dolmaz ve bir sonraki mesajın ucuz kalır.",
-
   "learn.compaction.title": "Compaction limiti",
   "learn.compaction.intro": "Suffice uzun bir sohbeti ne zaman özetler ve limit nasıl seçilir.",
   "learn.compaction.what": "Bir sohbetin bağlamı compaction limitine ulaştığında Suffice geçmişi yoğun bir özetle değiştirir ve son yanıtları kelimesi kelimesine tutar. İstekler yeniden küçülür; bedeli bir kez yeni fiyattan ödenen istektir.",
-  "learn.compaction.slider": "Göstergelerin solundaki kaydırıcı limiti belirler: mevcut bağlamın hemen üstünden modelin tam bağlam penceresine kadar (models.dev'den okunur). 80K test edilmiş varsayılandır: daha düşük limitler modelin dosyaları yeniden okumasına ve daha sık compaction yapmasına yol açtı, bu da daha pahalıya geldi.",
-  "learn.compaction.frozen": "Kaydırıcıyı oynatmak hemen geçerli olur: açık sohbet bir sonraki mesajından itibaren yeni limiti kullanır, Suffice'in düşünce saklaması da onunla plan yapar. Yeni sohbetler de onunla başlar.",
+  "learn.compaction.slider": "Göstergelerin solundaki kaydırıcı limiti belirler: mevcut bağlamın hemen üstünden modelin tam bağlam penceresine kadar (models.dev'den okunur). Varsayılan 80K'dır.",
+  "learn.compaction.frozen": "Kaydırıcıyı oynatmak hemen geçerli olur: açık sohbet bir sonraki mesajından itibaren yeni limiti kullanır, yeni sohbetler de onunla başlar.",
   "learn.compaction.sync": "Ayarlar bir compaction kontrolü gösterir: limit modelin bağlam penceresinin izin verdiğinin üstündeyse, yani Suffice daha düşüğünü uygulayacaksa uyarır.",
   "learn.compaction.show.screen_settings": "Ayarlar'ı aç ve compaction kontrolüne bak.",
 

@@ -3,7 +3,7 @@
 //   max      the model's real context window (models.dev), else the catalog's
 //   min      the chat's current context + 1: a limit below what the chat already holds would
 //            compact on the next request, so the slider stops there instead
-//   default  80K, the project default the owner chose (also the catalog's value for GLM 5.3)
+//   default  80K (also the catalog's value for GLM 5.3)
 import { MODEL_FACTS } from "../../shared/catalog";
 import type { AppState } from "./state";
 

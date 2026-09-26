@@ -21,7 +21,7 @@ const DEFAULTS: PersistedState = {
   threadSkills: {},
 };
 
-/** Env var names offered even before the user adds any: the provider this fork ships for. */
+/** Env var names offered even before the user adds any: the default provider. */
 const DEFAULT_ENV_KEYS = ["ZAI_API_KEY"];
 const ENV_KEY_NAMES = "suffice.envKeyNames";
 const secretKey = (name: string) => `suffice.env.${name}`;

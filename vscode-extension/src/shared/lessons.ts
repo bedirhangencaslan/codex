@@ -1,4 +1,4 @@
-// The Suffice course (goal item 3): everything the extension offers, taught in three levels.
+// The Suffice course: everything the extension offers, taught in three levels.
 // The command reference list is the other half of the screen.
 //
 // A lesson is a short sequence of steps:
@@ -9,8 +9,7 @@
 //             the lesson (LearningProgress.opened)
 //   quiz    - pick the command for a situation; exactly one option is right
 //   choice  - pick the right statement; exactly one option is right
-// The built-in course asks no questions (the owner's choice); quiz and choice remain for
-// registered sets. A lesson with nothing to run or open is done once it has been read.
+// The built-in course asks no questions; quiz and choice remain for registered sets. A lesson with nothing to run or open is done once it has been read.
 // Lessons are grouped in sets, one per level. registerLessonSet() adds more (a project's own
 // commands, a later course) without changing the screen. Texts: `learn.<lesson>.*` in
 // learn.en.ts / learn.tr.ts.
@@ -172,15 +171,6 @@ const advanced: LessonSet = {
       read("cost", "breaks"),
       read("cost", "invisible"),
       tryIt("cost", "invisible"),
-    ]),
-    lesson("engine", [], [
-      read("engine", "intro"),
-      read("engine", "reasoning"),
-      read("engine", "tools"),
-      read("engine", "output"),
-      read("engine", "patch"),
-      read("engine", "parallel"),
-      read("engine", "keepalive"),
     ]),
     lesson("compaction", ["compact"], [
       read("compaction", "what"),

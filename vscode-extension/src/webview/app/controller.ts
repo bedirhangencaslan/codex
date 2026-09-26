@@ -48,7 +48,7 @@ export function isUnelevatedDenyReadRefusal(error: unknown): boolean {
 }
 
 /** Model-facing tag around the conversation preference, in the style of Codex's other context
- * sections (`<skills_instructions>`, `<permissions instructions>`). Owner-approved; English on
+ * sections (`<skills_instructions>`, `<permissions instructions>`). English on
  * purpose, it is prompt text, not interface text. Only sent with a non-empty preference. */
 export const PREFERENCE_TAG = "users_conversation_preferences";
 
@@ -92,7 +92,7 @@ export const BLOCK_PROFILE_ID = "suffice-block";
  * The profile extends `:workspace` (the only built-in a profile with deny entries can extend) and
  * keeps the network on; each blocked path is a `deny` entry, so Codex's enforcement refuses it for
  * `exec_command`, `read`, `view_image`, `apply_patch`, `grep` and `glob` alike. Codex lists the
- * denied paths to the model in its permissions instructions (approved by the owner).
+ * denied paths to the model in its permissions instructions.
  */
 export function blockProfileConfig(paths: string[]): Record<string, JsonValue> {
   return {
@@ -289,7 +289,7 @@ export class Controller {
     this.go("chat");
   }
 
-  /** Records the compaction value a thread starts with (goal item 11: it is frozen from here). */
+  /** Records the compaction value a thread starts with. */
   private async rememberStartCompaction(threadId: string): Promise<void> {
     await this.loadConfig();
     const value = this.state.config?.compactionLimit ?? null;
@@ -302,7 +302,7 @@ export class Controller {
     const mode = this.state.composer.fileMode;
     const picks = this.state.composer.files.map((f) => f.path);
     const denied = picks.length > 0 ? await this.deniedPathsFor(mode, picks) : [];
-    // Goal item 8 (approved, PROMPT-CHANGE-PLAN P1): Codex's own field, rendered once into the
+    // The conversation preference: Codex's own field, rendered once into the
     // chat's opening developer instructions and cached from then on. Fixed for the chat.
     const preference = (this.state.init?.preferences ?? "").trim();
     const rules = skillRules(this.state.init?.attachedSkills ?? [], this.state.skills);
@@ -401,10 +401,10 @@ export class Controller {
   /**
    * turn/start.collaborationMode, sent only when the thread's mode actually changes: into Plan,
    * or back to Default from Plan (the server keeps a mode for later turns, so leaving Plan needs
-   * one explicit Default). Measured: every turn that carries a mode adds the mode's built-in
+   * one explicit Default). Every turn that carries a mode adds the mode's built-in
    * `<collaboration_mode>` block (~1.3K chars for Default) to the request, so a thread that never
    * used Plan sends nothing — the same model input as `suffice exec`. The TUI instead sends Default
-   * on every turn; matching it is a model-input change left to the owner (PROMPT-CHANGE-PLAN.md).
+   * on every turn; this extension does not.
    */
   private collaborationMode(threadId: string): TurnStartParamsWithMode["collaborationMode"] {
     const choice = this.state.composer.mode;
@@ -521,7 +521,7 @@ export class Controller {
     }
   }
 
-  // --- slash command course (goal item 3) ------------------------------------------------
+  // --- slash command course ------------------------------------------------
   get learning(): LearningProgress {
     return this.state.init?.learning ?? EMPTY_PROGRESS;
   }
@@ -618,7 +618,7 @@ export class Controller {
     }
   }
 
-  // --- skills (goal item 2) --------------------------------------------------------------
+  // --- skills --------------------------------------------------------------
   async setSkillEnabled(skill: SkillMetadata, enabled: boolean): Promise<void> {
     try {
       await this.session.skillsConfigWrite({ path: skill.path, enabled });
@@ -636,7 +636,7 @@ export class Controller {
     this.persist("attachedSkills", next);
   }
 
-  // --- config (goal items 10, 11) --------------------------------------------------------
+  // --- config --------------------------------------------------------
   async writeCompactionLimit(value: number | null): Promise<boolean> {
     try {
       // Suffice clamps the limit to 9/10 of the context window it knows (its catalog). When the
@@ -665,7 +665,7 @@ export class Controller {
     }
   }
 
-  // --- API keys & prices (goal item 9) ---------------------------------------------------
+  // --- API keys & prices ---------------------------------------------------
   saveKey(name: string, value: string | null): void {
     this.bridge.post({ type: "setSecret", name, value });
   }
@@ -686,7 +686,7 @@ export class Controller {
     this.persist("prices", prices);
   }
 
-  // --- preferences, language, theme (goal items 7, 8, 14) --------------------------------
+  // --- preferences, language, theme --------------------------------
   savePreferences(text: string): void {
     this.persist("preferences", text);
   }

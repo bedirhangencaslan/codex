@@ -1,4 +1,4 @@
-// Goal item 3: the Suffice course. Two tabs:
+// The Suffice course. Two tabs:
 //   Lessons   - everything the extension offers, in three levels (shared/lessons.ts): read, run the
 //               real command in the chat box, open the panel or screen being taught. A "try" step
 //               completes only when the controller actually runs the command and a "show" step when

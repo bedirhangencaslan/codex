@@ -1,4 +1,4 @@
-// Slash command sets for the chat composer and the command guide (goal item 3).
+// Slash command sets for the chat composer and the command guide.
 //
 // A set is a named list of commands with their availability flags. The built-in set is the
 // TUI's own enum (generated/slash-commands.json, regenerated from codex-rs/tui/src/

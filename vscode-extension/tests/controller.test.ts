@@ -276,7 +276,7 @@ describe("turn/start is exactly what the TUI would send", () => {
     expect(p.sandboxPolicy).toEqual({ type: "readOnly", networkAccess: false });
   });
 
-  test("the thread's starting compaction value is remembered (goal item 11)", async () => {
+  test("the thread's starting compaction value is remembered", async () => {
     const env = setup();
     const { ctl } = env;
     await ctl.send("hi");

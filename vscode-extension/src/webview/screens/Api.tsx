@@ -1,4 +1,4 @@
-// Goal item 9: API keys and prices. Keys go to VS Code's SecretStorage and reach Suffice as
+// API keys and prices. Keys go to VS Code's SecretStorage and reach Suffice as
 // environment variables of the app-server the extension starts (a custom provider's env_key,
 // e.g. ZAI_API_KEY); an OpenAI key goes through account/login/start. Prices feed the chat's cost
 // meter: built-in figures plus the user's own, per model.

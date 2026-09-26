@@ -1,4 +1,4 @@
-// Goal item 2: pick the skills a project uses. Two levels, both existing mechanisms:
+// Pick the skills a project uses. Two levels, both existing mechanisms:
 // - On/Off is skills/config/write, the same call the TUI's skills toggle makes (it writes the
 //   user config, so it applies everywhere);
 // - "Use in this project" is stored per workspace; a new chat here starts with Codex's own

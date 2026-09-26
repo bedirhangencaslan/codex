@@ -1,6 +1,5 @@
-// Goal items 7, 11 and 14: language, the reasoning-shrink / compaction sync check and the theme
-// picker. The compaction slider (item 10) and the conversation preference (item 8) live under the
-// chat box.
+// Language, the compaction check and the theme picker. The compaction slider and the
+// conversation preference live under the chat box.
 import { useEffect, useState } from "react";
 import { MODEL_FACTS } from "../../shared/catalog";
 import { checkCompactionSync, type CompactionSyncFinding } from "../../shared/compactionSync";
@@ -70,7 +69,7 @@ function Theme() {
 
 
 /**
- * Goal item 11: whether reasoning shrink and compaction use the limit set with the compaction slider
+ * Whether compaction uses the limit set with the compaction slider
  * under the chat box. Report only: nothing is changed from here.
  */
 function CompactionSync() {

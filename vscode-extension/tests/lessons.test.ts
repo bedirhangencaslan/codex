@@ -1,4 +1,4 @@
-// The Suffice course (goal item 3): lessons must only teach commands that exist, practice only
+// The Suffice course: lessons must only teach commands that exist, practice only
 // commands the extension can run, open only panels and screens that exist, quizzes must have one
 // right answer, and every text must exist in every locale.
 import { en } from "../src/shared/i18n/en";

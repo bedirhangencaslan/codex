@@ -1,4 +1,4 @@
-// Goal item 13: context fill, cached share and the chat's total cost, as small indicators above
+// Context fill, cached share and the chat's total cost, as small indicators above
 // the input. The numbers come from thread/tokenUsage/updated through the TUI footer's formulas
 // (shared/meters.ts); the cost uses the price table of the API & Pricing screen.
 import { MODEL_FACTS } from "../../shared/catalog";

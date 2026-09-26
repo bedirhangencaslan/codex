@@ -1,4 +1,4 @@
-// Goal item 1: the list of the extension's interfaces, each with a preview under its title. The
+// The list of the extension's interfaces, each with a preview under its title. The
 // preview is the real screen rendered small and inert (not a picture that can go stale), so it
 // always shows what opening it will show, with the live data.
 import { useEffect, useRef, useState, type ComponentType } from "react";

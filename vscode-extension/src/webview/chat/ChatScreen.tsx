@@ -1,4 +1,4 @@
-// Goal item 12: the chat, evolved from the TUI's ChatWidget — transcript of history cells, the
+// The chat, evolved from the TUI's ChatWidget — transcript of history cells, the
 // server's pending requests inline, the meters, the composer and the panel row under it.
 import { useEffect, useRef } from "react";
 import type { Notice, TurnView } from "../state/chatReducer";

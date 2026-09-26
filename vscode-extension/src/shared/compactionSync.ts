@@ -1,16 +1,8 @@
-// Goal item 11: is the compaction value the reasoning-shrink computation uses in sync with the
-// value the user set with the slider? This only detects and reports; it never writes anything.
+// The Settings compaction check: does the open chat use the limit set with the slider, and will
+// that limit be applied as set? It only reports; it never writes anything.
 //
-// How the server behaves (traced in codex-rs, see CLAUDE.md notes):
-// - The auto-compact limit is taken when a thread's session is created (core/src/session/mod.rs,
-//   ModelInfoOverrides) and refreshed by a config write with reloadUserConfig (Suffice's
-//   refresh_runtime_config_inner), which the slider uses; a plain config/value/write from another
-//   client leaves a running thread on its old value. Reasoning retention and auto-compaction both
-//   read the thread's value, so they agree with each other.
-// - Reasoning retention (core/src/reasoning_retention.rs horizon()) prices against the budget left
-//   under that same limit (session/context_window.rs base_window_tokens_remaining). Its 80K
-//   WINDOW_TOKENS is only the unit the user's request density is measured in and cancels out, so
-//   any limit is in step with it.
+// - The slider writes the limit with a config reload, so an open chat takes it from its next turn;
+//   a limit changed elsewhere (another client) can leave an open chat on an older value.
 // - For the `total` scope the limit is clamped to 9/10 of the context window; for
 //   `body_after_prefix` compaction uses the configured value unclamped while the read tool's
 //   budget still uses the clamped one.
@@ -35,7 +27,7 @@ export type CompactionSyncFinding =
   | { kind: "scope-unclamped"; requested: number; clampedForRead: number };
 
 export interface CompactionSyncReport {
-  /** Limit a thread started now would use for compaction and reasoning retention. */
+  /** Limit a thread started now would use for compaction. */
   effectiveLimit: number | null;
   inSync: boolean;
   findings: CompactionSyncFinding[];
