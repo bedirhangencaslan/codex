@@ -1,0 +1,9 @@
+[
+  {"id": "d1", "name": "Ali Demir", "blood_type": "A+", "sex": "E", "birth_date": "1990-05-10", "last_donation": "2026-08-20", "city": "Ankara"},
+  {"id": "d2", "name": "Ayşe Kaya", "blood_type": "O-", "sex": "K", "birth_date": "1985-03-02", "last_donation": "2026-05-01", "city": "Ankara"},
+  {"id": "d3", "name": "Mehmet Öz", "blood_type": "O+", "sex": "E", "birth_date": "2010-01-01", "last_donation": null, "city": "Ankara"},
+  {"id": "d4", "name": "Fatma Şahin", "blood_type": "AB+", "sex": "K", "birth_date": "1970-09-30", "last_donation": null, "city": "İstanbul"},
+  {"id": "d5", "name": "Can Yıldız", "blood_type": "B-", "sex": "E", "birth_date": "1958-01-15", "last_donation": "2025-12-01", "city": "İzmir"},
+  {"id": "d6", "name": "Zehra Acar", "blood_type": "A-", "sex": "K", "birth_date": "1995-12-01", "last_donation": "2026-06-15", "city": "İstanbul"},
+  {"id": "d7", "name": "Ömer Polat", "blood_type": "O-", "sex": "E", "birth_date": "1988-07-07", "last_donation": "2026-01-10", "city": "İzmir"}
+]

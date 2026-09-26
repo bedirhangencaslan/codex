@@ -1,0 +1,17 @@
+[
+  {"ts": "2026-10-26T10:10", "ticket_id": "t1", "type": "agent_reply"},
+  {"ts": "2026-10-26T10:40", "ticket_id": "t1", "type": "tag", "value": "kesinti"},
+  {"ts": "2026-10-26T13:00", "ticket_id": "t2", "type": "agent_reply"},
+  {"ts": "2026-10-26T13:30", "ticket_id": "t2", "type": "status", "to": "pending"},
+  {"ts": "2026-10-26T14:30", "ticket_id": "t1", "type": "status", "to": "resolved"},
+  {"ts": "2026-10-26T15:30", "ticket_id": "t2", "type": "customer_reply"},
+  {"ts": "2026-10-26T16:00", "ticket_id": "t3", "type": "status", "to": "resolved"},
+  {"ts": "2026-10-26T16:30", "ticket_id": "t2", "type": "status", "to": "resolved"},
+  {"ts": "2026-10-26T17:00", "ticket_id": "t1", "type": "customer_reply"},
+  {"ts": "2026-10-26T17:30", "ticket_id": "t1", "type": "status", "to": "closed"},
+  {"ts": "2026-10-27T10:00", "ticket_id": "t2", "type": "status", "to": "closed"},
+  {"ts": "2026-10-27T11:00", "ticket_id": "t4", "type": "agent_reply"},
+  {"ts": "2026-10-27T12:00", "ticket_id": "t6", "type": "status", "to": "resolved"},
+  {"ts": "2026-10-27T15:00", "ticket_id": "t5", "type": "agent_reply"},
+  {"ts": "2026-10-30T09:30", "ticket_id": "t4", "type": "tag", "value": "performans"}
+]

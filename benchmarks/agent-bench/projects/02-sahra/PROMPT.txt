@@ -1,0 +1,10 @@
+Read ../../projects/02-sahra/SPEC.md and GOALS.md. Implement the whole
+specification as solution.py in the CURRENT directory (Python 3.12+, standard
+library only). Fixtures live in ../../projects/02-sahra/fixtures/ and the
+acceptance tests in ../../projects/02-sahra/tests/ — you may read and run
+them, but you must not modify anything under projects/. Work until this passes:
+
+  BENCH_SOLUTION=$PWD ../../.venv/bin/python -m pytest ../../projects/02-sahra/tests -q
+
+Do not hardcode fixture values; the rules must hold for any data shaped like
+the fixtures.

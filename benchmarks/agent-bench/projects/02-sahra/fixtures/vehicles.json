@@ -1,0 +1,6 @@
+[
+  {"id": "v1", "warehouse": "w1", "capacity_kg": 800},
+  {"id": "v2", "warehouse": "w1", "capacity_kg": 300},
+  {"id": "v3", "warehouse": "w2", "capacity_kg": 500},
+  {"id": "v4", "warehouse": "w3", "capacity_kg": 400}
+]
