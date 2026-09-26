@@ -1,7 +1,7 @@
 // Goal item 15: the row under the chat input and the panels it expands, laid out like the
 // Claude Code extension (chips under the box, panels opening above it). Every control maps to an
 // existing protocol field: turn/start.invisible, turn/start.collaborationMode (from
-// collaborationMode/list), thread/goal/*, review/start, the TUI's permission presets
+// collaborationMode/list), the TUI's permission presets
 // (approvalPolicy + sandboxPolicy), the chat's skills.config rules and permission profile
 // (thread/start.config), thread/start.developerInstructions, turn/start.model/effort.
 import type { ReasoningEffort } from "@protocol/ReasoningEffort";
@@ -116,16 +116,6 @@ function ModePanel() {
             description={describe(m.mode)}
           />
         ))}
-      </div>
-
-      <div className="sf-panel-group">
-        <div className="sf-panel-subtitle">
-          <Icon name="search" size={13} /> {t("panel.modeReview")}
-        </div>
-        <p className="sf-muted">{t("panel.modeReviewDesc")}</p>
-        <Button onClick={() => void ctl.startReview()} disabled={state.chat.activeTurnId !== null}>
-          {t("panel.reviewStart")}
-        </Button>
       </div>
 
       <div className="sf-panel-group">
