@@ -14,7 +14,7 @@ import type { CompactionScope } from "../../shared/compactionSync";
 import type { MessageKey, Params } from "../../shared/i18n";
 import { clampedAutoCompactLimit } from "../../shared/catalog";
 import { compactionRange } from "./compaction";
-import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress } from "../../shared/lessons";
+import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress, recordOpened, type ShowTarget } from "../../shared/lessons";
 import type { AttachedSkill, FileAccessMode, HostToWebview, InitState, PersistedState, SkillRule, ThreadFileAccess } from "../../shared/messages";
 import type { ModelPrice } from "../../shared/pricing";
 import { findCommand, parseSlashInput } from "../../shared/slashCommands";
@@ -536,6 +536,19 @@ export class Controller {
 
   answerQuiz(quizId: string, option: string): void {
     this.persist("learning", { ...this.learning, quizzes: { ...this.learning.quizzes, [quizId]: option } });
+  }
+
+  /** A lesson's "show" step: opens the panel (on the chat screen) or the screen it names, and records it. */
+  showLessonTarget(target: ShowTarget): void {
+    const [kind, name] = target.split(":") as ["panel" | "screen", string];
+    if (kind === "panel") {
+      this.go("chat");
+      this.dispatch({ type: "composer", patch: { panel: name as AppState["composer"]["panel"] } });
+    } else {
+      this.go(name as Screen);
+    }
+    const next = recordOpened(this.learning, target);
+    if (next !== this.learning) this.persist("learning", next);
   }
 
   markExplored(key: string): void {

@@ -36,6 +36,7 @@ export function App() {
         <span className="sf-topbar-actions">
           <IconButton icon="plus" label={t("chat.newChat")} onClick={() => ctl.newThread()} />
           <IconButton icon="history" label={t("nav.history")} active={screen === "history"} onClick={() => ctl.go("history")} />
+          <IconButton icon="cap" label={t("nav.commands")} active={screen === "commands"} onClick={() => ctl.go("commands")} />
           <IconButton icon="grid" label={t("nav.home")} active={screen === "home"} onClick={() => ctl.go("home")} />
           <IconButton icon="gear" label={t("nav.settings")} active={screen === "settings"} onClick={() => ctl.go("settings")} />
         </span>

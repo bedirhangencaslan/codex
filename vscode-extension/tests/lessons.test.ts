@@ -1,6 +1,6 @@
-// The slash command course (goal item 3): lessons must only teach commands that exist, practice
-// only commands the extension can run, quizzes must have one right answer among real commands,
-// and every text must exist in every locale.
+// The Suffice course (goal item 3): lessons must only teach commands that exist, practice only
+// commands the extension can run, open only panels and screens that exist, quizzes must have one
+// right answer, and every text must exist in every locale.
 import { en } from "../src/shared/i18n/en";
 import { learnEn } from "../src/shared/i18n/learn.en";
 import { LOCALES } from "../src/shared/i18n";
@@ -10,21 +10,34 @@ import {
   lessonProgress,
   lessonSets,
   nextLesson,
+  recordOpened,
   recordPracticed,
   registerLessonSet,
+  stepDone,
   type LessonStep,
 } from "../src/shared/lessons";
 import { findCommand } from "../src/shared/slashCommands";
 import { Controller } from "../src/webview/app/controller";
-import { appReducer, initialState, type AppAction, type AppState } from "../src/webview/app/state";
+import { appReducer, initialState, SCREENS, type AppAction, type AppState } from "../src/webview/app/state";
 import { BaseBridge } from "../src/webview/host";
 import { localeByCode, translate } from "../src/shared/i18n";
 import type { InitState, WebviewToHost } from "../src/shared/messages";
 
 const lessons = lessonSets().flatMap((s) => s.lessons);
 const steps = lessons.flatMap((l) => l.steps.map((s) => ({ lesson: l.id, step: s })));
-const keysOf = (s: LessonStep): string[] =>
-  s.kind === "read" ? [s.textKey] : s.kind === "try" ? [s.textKey, s.draftKey] : [s.questionKey, s.explainKey];
+const keysOf = (s: LessonStep): string[] => {
+  switch (s.kind) {
+    case "read":
+    case "show":
+      return [s.textKey];
+    case "try":
+      return [s.textKey, s.draftKey];
+    case "quiz":
+      return [s.questionKey, s.explainKey];
+    case "choice":
+      return [s.questionKey, s.explainKey, ...s.optionKeys];
+  }
+};
 
 describe("lesson content", () => {
   test("every covered or practiced command exists; practiced ones run in the extension", () => {
@@ -55,8 +68,40 @@ describe("lesson content", () => {
     }
   });
 
+  test("choice quizzes: unique ids, two to four options, the answer is one of them", () => {
+    const ids = steps.map((s) => s.step).filter((s) => s.kind === "quiz" || s.kind === "choice").map((s) => (s as { id: string }).id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const { step } of steps) {
+      if (step.kind !== "choice") continue;
+      expect(step.optionKeys.length).toBeGreaterThanOrEqual(2);
+      expect(step.optionKeys.length).toBeLessThanOrEqual(4);
+      expect(step.answer).toBeGreaterThanOrEqual(0);
+      expect(step.answer).toBeLessThan(step.optionKeys.length);
+    }
+  });
+
+  test("show steps open panels and screens that exist", () => {
+    const panels = ["mode", "skills", "files", "prefs", "model"];
+    for (const { step } of steps) {
+      if (step.kind !== "show") continue;
+      const [kind, name] = step.target.split(":");
+      if (kind === "panel") expect(panels).toContain(name);
+      else expect(SCREENS).toContain(name);
+    }
+  });
+
+  test("three levels, every lesson in exactly one, each with something to do", () => {
+    expect(lessonSets().slice(0, 3).map((s) => s.id)).toEqual(["suffice-beginner", "suffice-intermediate", "suffice-advanced"]);
+    expect(new Set(lessons.map((l) => l.id)).size).toBe(lessons.length);
+    for (const l of lessons) expect(l.steps.some((s) => s.kind !== "read")).toBe(true);
+  });
+
   test("every lesson text exists in every locale, and no lesson text is unused", () => {
-    const used = new Set<string>(["learn.setBasics"]);
+    const used = new Set<string>();
+    for (const set of lessonSets()) {
+      used.add(set.titleKey);
+      if (set.descKey) used.add(set.descKey);
+    }
     for (const l of lessons) {
       used.add(l.titleKey);
       used.add(l.introKey);
@@ -81,7 +126,7 @@ describe("progress", () => {
     expect(lessonComplete(basics, p)).toBe(false);
     p = { ...p, quizzes: { "basics.folder": "pwd" } };
     expect(lessonComplete(basics, p)).toBe(true);
-    expect(nextLesson(p)?.id).toBe("sessions");
+    expect(nextLesson(p)?.id).toBe("chat");
   });
 
   test("recording a command twice keeps the same object", () => {
@@ -91,9 +136,9 @@ describe("progress", () => {
 
   test("a registered lesson set is appended without touching the built-in one", () => {
     const before = lessonSets().length;
-    registerLessonSet({ id: "extra", titleKey: "learn.setBasics", lessons: [] });
+    registerLessonSet({ id: "extra", titleKey: "learn.levelBeginner", lessons: [] });
     expect(lessonSets()).toHaveLength(before + 1);
-    expect(lessonSets()[0]!.id).toBe("suffice-basics");
+    expect(lessonSets()[0]!.id).toBe("suffice-beginner");
   });
 });
 
@@ -130,7 +175,7 @@ describe("the controller records practice", () => {
     const env = setup();
     await env.ctl.send("/pwd");
     expect(env.state.init!.learning.practiced).toEqual(["pwd"]);
-    expect(env.bridge.posts).toContainEqual({ type: "setState", key: "learning", value: { practiced: ["pwd"], quizzes: {}, explored: [] } });
+    expect(env.bridge.posts).toContainEqual({ type: "setState", key: "learning", value: { practiced: ["pwd"], quizzes: {}, explored: [], opened: [] } });
     expect(env.state.toast).toBe("Lesson step done: /pwd");
   });
 
@@ -144,8 +189,28 @@ describe("the controller records practice", () => {
     const env = setup();
     env.ctl.answerQuiz("basics.folder", "pwd");
     env.ctl.markExplored("suffice-tui:plan");
-    expect(env.state.init!.learning).toEqual({ practiced: [], quizzes: { "basics.folder": "pwd" }, explored: ["suffice-tui:plan"] });
+    expect(env.state.init!.learning).toEqual({ practiced: [], quizzes: { "basics.folder": "pwd" }, explored: ["suffice-tui:plan"], opened: [] });
     env.ctl.resetLearning();
     expect(env.state.init!.learning).toEqual(EMPTY_PROGRESS);
+  });
+
+  test("a show step opens its panel on the chat screen, or its screen, and completes", () => {
+    const env = setup();
+    env.ctl.go("commands");
+    env.ctl.showLessonTarget("panel:files");
+    expect(env.state.screen).toBe("chat");
+    expect(env.state.composer.panel).toBe("files");
+    env.ctl.showLessonTarget("screen:api");
+    expect(env.state.screen).toBe("api");
+    expect(env.state.init!.learning.opened).toEqual(["panel:files", "screen:api"]);
+    const files = lessons.find((l) => l.id === "files")!;
+    expect(files.steps.filter((st) => st.kind === "show").every((st) => stepDone(st, env.state.init!.learning))).toBe(true);
+  });
+
+  test("progress saved before show steps existed still loads", () => {
+    const old = { practiced: ["status"], quizzes: {}, explored: [] };
+    const screen = lessons.find((l) => l.id === "screen")!;
+    expect(lessonProgress(screen, old).done).toBe(0);
+    expect(recordOpened(old, "screen:settings").opened).toEqual(["screen:settings"]);
   });
 });

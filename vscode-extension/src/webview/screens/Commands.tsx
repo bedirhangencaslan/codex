@@ -1,13 +1,27 @@
-// Goal item 3: the slash command course. Two tabs:
-//   Lessons   - short lessons (shared/lessons.ts): read, run the real command in the chat box, then
-//               a quick check. A "try" step completes only when the controller actually runs the
-//               command, so progress means the user has done it, not just clicked.
+// Goal item 3: the Suffice course. Two tabs:
+//   Lessons   - everything the extension offers, in three levels (shared/lessons.ts): read, run the
+//               real command in the chat box, open the panel or screen being taught, then a quick
+//               check. A "try" step completes only when the controller actually runs the command and
+//               a "show" step when the lesson opened its target, so progress means the user did it.
 //   Reference - every command of every registered set, grouped by category.
-// Both render whatever sets are registered; new lessons or command sets need no change here.
-// Progress lives in the host's globalState (`learning`), the open tab/lesson in the view state.
+// Both render whatever sets are registered; new lessons, levels or command sets need no change here.
+// Progress lives in the host's globalState (`learning`); the open tab, level and lesson in the view state.
 import { useState } from "react";
 import type { MessageKey } from "../../shared/i18n";
-import { EMPTY_PROGRESS, lessonComplete, lessonProgress, lessonSets, nextLesson, stepDone, type LearningProgress, type Lesson, type LessonStep } from "../../shared/lessons";
+import {
+  EMPTY_PROGRESS,
+  lessonComplete,
+  lessonProgress,
+  lessonSets,
+  nextLesson,
+  setOf,
+  stepDone,
+  type LearningProgress,
+  type Lesson,
+  type LessonSet,
+  type LessonStep,
+  type ShowTarget,
+} from "../../shared/lessons";
 import { CATEGORY_ORDER, commandSets, type SlashCommandEntry } from "../../shared/slashCommands";
 import { useApp } from "../app/context";
 import type { AppState } from "../app/state";
@@ -21,6 +35,7 @@ const learning = (state: AppState): LearningProgress => state.init?.learning ?? 
 interface ViewState {
   commandsTab?: Tab;
   openLesson?: string | null;
+  level?: string;
 }
 
 export function CommandsScreen() {
@@ -58,7 +73,7 @@ export function CommandsScreen() {
         ))}
       </div>
       {tab === "lessons" ? (
-        <Lessons openLesson={openLesson} setOpenLesson={setOpenLesson} lookUp={lookUp} />
+        <Lessons openLesson={openLesson} setOpenLesson={setOpenLesson} lookUp={lookUp} remember={remember} initialLevel={view.level} />
       ) : (
         <Reference filter={filter} setFilter={setFilter} />
       )}
@@ -68,58 +83,118 @@ export function CommandsScreen() {
 
 // --- lessons ---------------------------------------------------------------------------------
 
-function Lessons({ openLesson, setOpenLesson, lookUp }: { openLesson: string | null; setOpenLesson: (id: string | null) => void; lookUp: (c: string) => void }) {
+function setProgress(set: LessonSet, progress: LearningProgress): { done: number; total: number } {
+  return { done: set.lessons.filter((l) => lessonComplete(l, progress)).length, total: set.lessons.length };
+}
+
+function Lessons({
+  openLesson,
+  setOpenLesson,
+  lookUp,
+  remember,
+  initialLevel,
+}: {
+  openLesson: string | null;
+  setOpenLesson: (id: string | null) => void;
+  lookUp: (c: string) => void;
+  remember: (patch: ViewState) => void;
+  initialLevel: string | undefined;
+}) {
   const { t, ctl, state } = useApp();
   const progress = learning(state);
-  const all = lessonSets().flatMap((s) => s.lessons);
+  const sets = lessonSets();
+  const all = sets.flatMap((s) => s.lessons);
+  const next = nextLesson(progress);
+  const [level, setLevelState] = useState<string>(initialLevel ?? (next ? setOf(next.id)?.id : undefined) ?? sets[0]!.id);
+  const setLevel = (id: string) => {
+    setLevelState(id);
+    remember({ level: id });
+  };
   const current = all.find((l) => l.id === openLesson);
   if (current) return <LessonView lesson={current} onBack={() => setOpenLesson(null)} onOpen={setOpenLesson} lookUp={lookUp} />;
 
-  const next = nextLesson(progress);
+  const doneAll = all.filter((l) => lessonComplete(l, progress)).length;
+  const active = sets.find((s) => s.id === level) ?? sets[0]!;
+  const nextSet = next ? setOf(next.id) : undefined;
   return (
     <div className="sf-stack">
-      {lessonSets().map((set) => {
-        const done = set.lessons.filter((l) => lessonComplete(l, progress)).length;
-        return (
-          <section key={set.id} className="sf-command-set">
-            <header className="sf-command-set-head">
-              <h2>{t(set.titleKey)}</h2>
-              <ProgressBar done={done} total={set.lessons.length} label={t("learn.lessonsDone", { done, total: set.lessons.length })} />
-            </header>
-            <ol className="sf-lesson-list">
-              {set.lessons.map((lesson, i) => {
-                const p = lessonProgress(lesson, progress);
-                const complete = p.done === p.total;
-                const isNext = next?.id === lesson.id;
-                return (
-                  <li key={lesson.id}>
-                    <button type="button" className={`sf-lesson-card ${isNext ? "is-next" : ""} ${complete ? "is-complete" : ""}`} onClick={() => setOpenLesson(lesson.id)}>
-                      <span className="sf-lesson-num" aria-hidden="true">
-                        {complete ? <Icon name="check" size={13} /> : i + 1}
+      <section className="sf-course-hero">
+        <div className="sf-course-hero-top">
+          <span className="sf-course-hero-label">{t("learn.overall")}</span>
+          <ProgressBar done={doneAll} total={all.length} label={t("learn.lessonsDone", { done: doneAll, total: all.length })} wide />
+        </div>
+        {next ? (
+          <button type="button" className="sf-course-next" onClick={() => setOpenLesson(next.id)}>
+            <span className="sf-course-next-main">
+              {nextSet && <span className="sf-course-level-tag">{t(nextSet.titleKey)}</span>}
+              <span className="sf-lesson-title">{t(next.titleKey)}</span>
+              <span className="sf-lesson-intro">{t(next.introKey)}</span>
+            </span>
+            <span className="sf-course-next-go">
+              {t(lessonProgress(next, progress).done > 0 ? "learn.continue" : "learn.start")}
+              <Icon name="chevronRight" size={13} />
+            </span>
+          </button>
+        ) : (
+          <Notice tone="success">{t("learn.allDone")}</Notice>
+        )}
+      </section>
+
+      <div className="sf-level-tabs" role="tablist" aria-label={t("learn.levels")}>
+        {sets.map((set, i) => {
+          const p = setProgress(set, progress);
+          return (
+            <button key={set.id} type="button" role="tab" aria-selected={set.id === active.id} className={`sf-level-tab ${set.id === active.id ? "is-active" : ""} ${p.done === p.total ? "is-complete" : ""}`} onClick={() => setLevel(set.id)}>
+              <span className="sf-level-dots" aria-hidden="true">
+                {Array.from({ length: Math.min(3, i + 1) }, (_, d) => (
+                  <i key={d} />
+                ))}
+              </span>
+              <span className="sf-level-name">{t(set.titleKey)}</span>
+              <span className="sf-level-count">
+                {p.done}/{p.total}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="sf-command-set">
+        {active.descKey && <p className="sf-muted sf-level-desc">{t(active.descKey)}</p>}
+        <ol className="sf-lesson-list">
+          {active.lessons.map((lesson, i) => {
+            const p = lessonProgress(lesson, progress);
+            const complete = p.done === p.total;
+            const isNext = next?.id === lesson.id;
+            return (
+              <li key={lesson.id}>
+                <button type="button" className={`sf-lesson-card ${isNext ? "is-next" : ""} ${complete ? "is-complete" : ""}`} onClick={() => setOpenLesson(lesson.id)}>
+                  <span className="sf-lesson-num" aria-hidden="true">
+                    {complete ? <Icon name="check" size={13} /> : i + 1}
+                  </span>
+                  <span className="sf-lesson-main">
+                    <span className="sf-lesson-title">{t(lesson.titleKey)}</span>
+                    <span className="sf-lesson-intro">{t(lesson.introKey)}</span>
+                    {lesson.commands.length > 0 && (
+                      <span className="sf-lesson-cmds">
+                        {lesson.commands.map((c) => (
+                          <code key={c}>/{c}</code>
+                        ))}
                       </span>
-                      <span className="sf-lesson-main">
-                        <span className="sf-lesson-title">{t(lesson.titleKey)}</span>
-                        <span className="sf-lesson-intro">{t(lesson.introKey)}</span>
-                        <span className="sf-lesson-cmds">
-                          {lesson.commands.map((c) => (
-                            <code key={c}>/{c}</code>
-                          ))}
-                        </span>
-                      </span>
-                      <span className="sf-lesson-side">
-                        {complete ? <Badge tone="success">{t("learn.completeBadge")}</Badge> : <span className="sf-muted">{t("learn.stepsDone", p)}</span>}
-                        <span className="sf-lesson-go">{t(complete ? "learn.again" : p.done > 0 ? "learn.continue" : "learn.start")}</span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </section>
-        );
-      })}
-      {!next && <Notice tone="success">{t("learn.allDone")}</Notice>}
-      {(progress.practiced.length > 0 || Object.keys(progress.quizzes).length > 0) && (
+                    )}
+                  </span>
+                  <span className="sf-lesson-side">
+                    {complete ? <Badge tone="success">{t("learn.completeBadge")}</Badge> : <span className="sf-muted">{t("learn.stepsDone", p)}</span>}
+                    <span className="sf-lesson-go">{t(complete ? "learn.again" : p.done > 0 ? "learn.continue" : "learn.start")}</span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
+      {(progress.practiced.length > 0 || Object.keys(progress.quizzes).length > 0 || (progress.opened ?? []).length > 0) && (
         <div>
           <Button variant="ghost" icon="refresh" onClick={() => ctl.resetLearning()}>
             {t("learn.reset")}
@@ -131,33 +206,39 @@ function Lessons({ openLesson, setOpenLesson, lookUp }: { openLesson: string | n
 }
 
 function LessonView({ lesson, onBack, onOpen, lookUp }: { lesson: Lesson; onBack: () => void; onOpen: (id: string) => void; lookUp: (c: string) => void }) {
-  const { t, ctl, state } = useApp();
+  const { t, state } = useApp();
   const progress = learning(state);
   const p = lessonProgress(lesson, progress);
   const complete = p.done === p.total;
   const all = lessonSets().flatMap((s) => s.lessons);
-  const after = all.slice(all.indexOf(lesson) + 1).find((l) => !lessonComplete(l, progress)) ?? all[all.indexOf(lesson) + 1];
+  const index = all.indexOf(lesson);
+  const previous = all[index - 1];
+  const following = all[index + 1];
+  const set = setOf(lesson.id);
 
   return (
     <article className="sf-stack">
-      <div>
+      <div className="sf-row sf-wrap sf-lesson-crumbs">
         <Button variant="ghost" icon="back" onClick={onBack}>
           {t("learn.back")}
         </Button>
+        {set && <span className="sf-course-level-tag">{t(set.titleKey)}</span>}
       </div>
       <header className="sf-lesson-head">
         <h2>{t(lesson.titleKey)}</h2>
         <ProgressBar done={p.done} total={p.total} label={t("learn.stepsDone", p)} />
       </header>
       <p className="sf-muted">{t(lesson.introKey)}</p>
-      <div className="sf-row sf-wrap">
-        <span className="sf-muted">{t("learn.covers")}:</span>
-        {lesson.commands.map((c) => (
-          <button key={c} type="button" className="sf-cmd-link" onClick={() => lookUp(c)}>
-            /{c}
-          </button>
-        ))}
-      </div>
+      {lesson.commands.length > 0 && (
+        <div className="sf-row sf-wrap">
+          <span className="sf-muted">{t("learn.covers")}:</span>
+          {lesson.commands.map((c) => (
+            <button key={c} type="button" className="sf-cmd-link" onClick={() => lookUp(c)}>
+              /{c}
+            </button>
+          ))}
+        </div>
+      )}
       <ol className="sf-steps">
         {lesson.steps.map((step, i) => (
           <li key={i} className={`sf-step sf-step-${step.kind} ${step.kind !== "read" && stepDone(step, progress) ? "is-done" : ""}`}>
@@ -165,23 +246,37 @@ function LessonView({ lesson, onBack, onOpen, lookUp }: { lesson: Lesson; onBack
           </li>
         ))}
       </ol>
-      {complete && (
-        <Notice tone="success">
-          <div className="sf-stack-tight">
-            <span>{t("learn.lessonComplete")}</span>
-            {after && (
-              <div>
-                <Button variant="primary" icon="chevronRight" onClick={() => onOpen(after.id)}>
-                  {t("learn.nextLesson", { title: t(after.titleKey) })}
-                </Button>
-              </div>
-            )}
-          </div>
-        </Notice>
-      )}
+      {complete && <Notice tone="success">{t("learn.lessonComplete")}</Notice>}
+      <nav className="sf-lesson-nav">
+        {previous ? (
+          <Button variant="ghost" icon="back" onClick={() => onOpen(previous.id)}>
+            {t(previous.titleKey)}
+          </Button>
+        ) : (
+          <span />
+        )}
+        {following && (
+          <Button variant={complete ? "primary" : "secondary"} onClick={() => onOpen(following.id)}>
+            {t("learn.nextLesson", { title: t(following.titleKey) })}
+            <Icon name="chevronRight" size={13} />
+          </Button>
+        )}
+      </nav>
     </article>
   );
 }
+
+const SHOW_ICON: Record<ShowTarget, "folder" | "sparkles" | "pencil" | "chip" | "layers" | "history" | "key" | "gear"> = {
+  "panel:mode": "layers",
+  "panel:skills": "sparkles",
+  "panel:files": "folder",
+  "panel:prefs": "pencil",
+  "panel:model": "chip",
+  "screen:history": "history",
+  "screen:skills": "sparkles",
+  "screen:api": "key",
+  "screen:settings": "gear",
+};
 
 function Step({ step }: { step: LessonStep }) {
   const { t, ctl, state } = useApp();
@@ -213,8 +308,32 @@ function Step({ step }: { step: LessonStep }) {
     );
   }
 
+  if (step.kind === "show") {
+    const done = stepDone(step, progress);
+    return (
+      <div className="sf-step-box">
+        <div className="sf-step-title">
+          <Icon name={SHOW_ICON[step.target]} size={14} />
+          <span>{t(step.textKey)}</span>
+        </div>
+        <div className="sf-row sf-wrap">
+          <Button variant={done ? "secondary" : "primary"} icon="chevronRight" onClick={() => ctl.showLessonTarget(step.target)}>
+            {t("learn.showButton")}
+          </Button>
+          {done && (
+            <Badge tone="success">
+              <Icon name="check" size={11} /> {t("learn.seen")}
+            </Badge>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const answered = progress.quizzes[step.id];
-  const correct = answered === step.answer;
+  const options = step.kind === "quiz" ? step.options.map((o) => ({ value: o, label: `/${o}` })) : step.optionKeys.map((key, i) => ({ value: String(i), label: t(key) }));
+  const answer = step.kind === "quiz" ? step.answer : String(step.answer);
+  const correct = answered === answer;
   return (
     <div className="sf-step-box">
       <div className="sf-step-title">
@@ -224,13 +343,13 @@ function Step({ step }: { step: LessonStep }) {
           {t(step.questionKey)}
         </span>
       </div>
-      <div className="sf-quiz-options" role="radiogroup" aria-label={t(step.questionKey)}>
-        {step.options.map((option) => {
-          const picked = answered === option;
-          const tone = picked ? (option === step.answer ? "is-right" : "is-wrong") : "";
+      <div className={`sf-quiz-options ${step.kind === "choice" ? "is-statements" : ""}`} role="radiogroup" aria-label={t(step.questionKey)}>
+        {options.map((option) => {
+          const picked = answered === option.value;
+          const tone = picked ? (option.value === answer ? "is-right" : "is-wrong") : "";
           return (
-            <button key={option} type="button" role="radio" aria-checked={picked} className={`sf-quiz-option ${tone}`} disabled={correct} onClick={() => ctl.answerQuiz(step.id, option)}>
-              /{option}
+            <button key={option.value} type="button" role="radio" aria-checked={picked} className={`sf-quiz-option ${tone}`} disabled={correct} onClick={() => ctl.answerQuiz(step.id, option.value)}>
+              {option.label}
             </button>
           );
         })}
@@ -240,9 +359,9 @@ function Step({ step }: { step: LessonStep }) {
   );
 }
 
-function ProgressBar({ done, total, label }: { done: number; total: number; label: string }) {
+function ProgressBar({ done, total, label, wide = false }: { done: number; total: number; label: string; wide?: boolean }) {
   return (
-    <span className="sf-progress">
+    <span className={`sf-progress ${wide ? "is-wide" : ""}`}>
       <span className="sf-progress-bar" aria-hidden="true">
         <span style={{ width: `${(done / Math.max(1, total)) * 100}%` }} />
       </span>

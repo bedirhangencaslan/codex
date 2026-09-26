@@ -408,6 +408,30 @@ form.sf-row > .sf-input { min-width: 150px; }
 .sf-stack-tight { display: flex; flex-direction: column; gap: 6px; }
 .sf-small { font-size: .88em; margin: 0; }
 .sf-tabs { align-self: flex-start; }
+/* Course: overall progress and the next lesson, level tabs, statement quizzes. */
+.sf-course-hero { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: linear-gradient(135deg, color-mix(in srgb, var(--sf-accent) 14%, var(--sf-surface)), var(--sf-surface)); }
+.sf-course-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sf-course-hero-label { font-weight: 600; }
+.sf-progress.is-wide .sf-progress-bar { width: 110px; }
+.sf-course-next { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border: 1px solid var(--sf-accent); border-radius: var(--sf-radius); background: var(--sf-surface); color: var(--sf-text); cursor: pointer; }
+.sf-course-next:hover { background: var(--sf-surface-raised); }
+.sf-course-next-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sf-course-next-go { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--sf-accent); font-weight: 600; }
+.sf-course-level-tag { align-self: flex-start; font-size: .75em; text-transform: uppercase; letter-spacing: .05em; color: var(--sf-accent); border: 1px solid color-mix(in srgb, var(--sf-accent) 50%, transparent); border-radius: 999px; padding: 0 7px; }
+.sf-level-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
+.sf-level-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 10px; border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-surface); color: var(--sf-muted); cursor: pointer; text-align: left; min-width: 0; }
+.sf-level-tab:hover { border-color: var(--sf-accent); }
+.sf-level-tab.is-active { border-color: var(--sf-accent); box-shadow: 0 0 0 1px var(--sf-accent) inset; color: var(--sf-text); }
+.sf-level-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.sf-level-count { font-size: .82em; }
+.sf-level-tab.is-complete .sf-level-count { color: var(--sf-success); }
+.sf-level-dots { display: inline-flex; gap: 3px; }
+.sf-level-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--sf-accent); }
+.sf-level-desc { margin: 0 0 8px; }
+.sf-lesson-crumbs { align-items: center; }
+.sf-lesson-nav { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--sf-border); padding-top: 10px; }
+.sf-quiz-options.is-statements { flex-direction: column; }
+.sf-quiz-options.is-statements .sf-quiz-option { font-family: var(--sf-font); text-align: left; line-height: 1.4; padding: 6px 10px; }
 .sf-lesson-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .sf-lesson-card { width: 100%; display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 9px 10px; border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-surface); color: var(--sf-text); cursor: pointer; transition: border-color .15s; }
 .sf-lesson-card:hover { border-color: var(--sf-accent); }
