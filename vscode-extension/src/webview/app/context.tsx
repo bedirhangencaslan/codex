@@ -34,7 +34,7 @@ function useTheme(themeId: string | undefined): void {
 /**
  * Browser preview only (never in VS Code): ?demo=1 sends one message through the real flow
  * (thread/start, turn/start, then the recorded turn plays back); ?panel=mode|skills|files|model
- * opens a composer panel. Used to screenshot states that need interaction.
+ * opens a composer panel; ?modal=uiStyles opens the interface style gallery. Used to screenshot states that need interaction.
  */
 function usePreviewDemo(bridge: HostBridge, ctl: Controller, state: AppState): void {
   const done = useRef(false);
@@ -45,6 +45,7 @@ function usePreviewDemo(bridge: HostBridge, ctl: Controller, state: AppState): v
     const panel = params.get("panel");
     if (params.get("demo")) void ctl.send("Run `echo hello-suffice` and tell me what it printed.");
     if (panel === "mode" || panel === "skills" || panel === "files" || panel === "prefs" || panel === "model") setTimeout(() => ctl.togglePanel(panel), 200);
+    if (params.get("modal") === "uiStyles") setTimeout(() => ctl.openUiStyles(), 300);
   }, [state.server.state, state.models.length]);
 }
 

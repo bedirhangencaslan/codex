@@ -1,6 +1,7 @@
 import type { MessageKey } from "./en";
 import { learnTr } from "./learn.tr";
 import { slashTr } from "./slash.tr";
+import { uiStylesTr } from "./uiStyles.tr";
 
 const base = {
   // --- common
@@ -334,4 +335,4 @@ const base = {
   "theme.oneHalfDark": "One Half (koyu)",
 };
 
-export const tr = { ...base, ...slashTr, ...learnTr } satisfies Record<MessageKey, string>;
+export const tr = { ...base, ...slashTr, ...learnTr, ...uiStylesTr } satisfies Record<MessageKey, string>;

@@ -15,6 +15,7 @@ import type { CompactionScope } from "../../shared/compactionSync";
 import type { MessageKey, Params } from "../../shared/i18n";
 import { clampedAutoCompactLimit } from "../../shared/catalog";
 import { compactionRange } from "./compaction";
+import { isUiStyleSkill } from "../../shared/uiStyles";
 import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress, recordOpened, readMark, type ShowTarget } from "../../shared/lessons";
 import type { AttachedSkill, FileAccessMode, HostToWebview, InitState, PersistedState, SkillRule, ThreadFileAccess } from "../../shared/messages";
 import type { ModelPrice } from "../../shared/pricing";
@@ -65,11 +66,19 @@ export function preferenceInstructions(preference: string | undefined): string |
  * rules winning, so a selected skill is on even when it is off in config.toml. A disabled skill is
  * left out of the skills list the model sees and cannot be invoked by name or path. No selection
  * means no rules: the chat sees what Codex would show anyway.
+ *
+ * Interface styles (shared/uiStyles.ts) are a group of their own: picking a style turns that style
+ * on and the other styles off, but only a selection of regular skills limits the regular skills.
  */
 export function skillRules(selected: AttachedSkill[], skills: SkillMetadata[]): SkillRule[] {
   if (selected.length === 0) return [];
   const chosen = new Set(selected.map((s) => s.path));
-  const rules: SkillRule[] = skills.map((s) => ({ path: s.path, enabled: chosen.has(s.path) }));
+  const limitsRegular = selected.some((s) => !isUiStyleSkill(s.name));
+  const rules: SkillRule[] = [];
+  for (const s of skills) {
+    if (chosen.has(s.path)) rules.push({ path: s.path, enabled: true });
+    else if (limitsRegular || isUiStyleSkill(s.name)) rules.push({ path: s.path, enabled: false });
+  }
   const known = new Set(skills.map((s) => s.path));
   for (const s of selected) if (!known.has(s.path)) rules.push({ path: s.path, enabled: true });
   return rules;
@@ -626,6 +635,14 @@ export class Controller {
     } catch (error) {
       this.fail(error);
     }
+  }
+
+  /** Opens the interface style gallery over the whole view. */
+  openUiStyles(): void {
+    this.dispatch({ type: "modal", modal: "uiStyles" });
+  }
+  closeModal(): void {
+    this.dispatch({ type: "modal", modal: null });
   }
 
   toggleAttachedSkill(skill: SkillMetadata): void {

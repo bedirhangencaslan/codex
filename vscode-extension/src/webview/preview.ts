@@ -1,6 +1,7 @@
 // Stand-in host for opening the webview bundle in a plain browser (design review, screenshots).
 // Answers protocol calls with sample data and plays back the recorded real turn when a message
 // is sent. URL parameters: ?lang=tr&theme=nord&screen=home|chat|history|skills|commands|api|settings
+import { UI_STYLES, skillName } from "../shared/uiStyles";
 import recorded from "../../tests/fixtures/turn-notifications.json";
 import type { HostToWebview, InitState, WebviewToHost } from "../shared/messages";
 import { BaseBridge } from "./host";
@@ -58,6 +59,7 @@ const responses: Record<string, (p: any) => unknown> = {
           { name: "pdf", description: "Read, merge and fill PDF files.", path: "C:\\Users\\me\\.suffice\\skills\\pdf\\SKILL.md", scope: "user", enabled: true, pluginId: null },
           { name: "release-notes", description: "Draft release notes from merged PRs.", path: `${CWD}\\.suffice\\skills\\release-notes\\SKILL.md`, scope: "repo", enabled: true, pluginId: null },
           { name: "skill-creator", description: "Create a new skill from a description.", path: "<system>/skill-creator/SKILL.md", scope: "system", enabled: false, pluginId: null },
+          ...UI_STYLES.map((s) => ({ name: skillName(s.id), description: s.skill.summary, path: `C:/Users/me/.suffice/skills/ui-styles/${s.id}/SKILL.md`, scope: "user", enabled: false, pluginId: null })),
         ],
       },
     ],

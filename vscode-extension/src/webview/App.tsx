@@ -1,3 +1,4 @@
+import { UiStylesGallery } from "./components/UiStylesGallery";
 import type { MessageKey } from "../shared/i18n";
 import { useApp } from "./app/context";
 import type { Screen } from "./app/state";
@@ -51,6 +52,7 @@ export function App() {
         {screen === "api" && <ApiScreen />}
         {screen === "settings" && <SettingsScreen />}
       </main>
+      {state.modal === "uiStyles" && <UiStylesGallery />}
       {state.toast && (
         <div className="sf-toast" role="status">
           {state.toast}

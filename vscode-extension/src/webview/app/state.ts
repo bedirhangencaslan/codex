@@ -70,6 +70,8 @@ export interface AppState {
   modelLimits: Record<string, number>;
   serverRequests: PendingServerRequest[];
   composer: ComposerState;
+  /** A centred window over the whole view. */
+  modal: "uiStyles" | null;
   toast: string | null;
 }
 
@@ -88,6 +90,7 @@ export const initialState: AppState = {
   modelLimits: {},
   serverRequests: [],
   composer: { model: null, effort: null, mode: null, permission: null, invisible: false, files: [], fileMode: "block", panel: null, draft: null },
+  modal: null,
   toast: null,
 };
 
@@ -106,6 +109,7 @@ export type AppAction =
   | { type: "serverRequest"; request: PendingServerRequest }
   | { type: "serverRequestDone"; requestId: number }
   | { type: "composer"; patch: Partial<ComposerState> }
+  | { type: "modal"; modal: AppState["modal"] }
   | { type: "toast"; text: string | null };
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -132,6 +136,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, modes: action.modes };
     case "skills":
       return { ...state, skills: action.skills, skillErrors: action.errors };
+    case "modal":
+      return { ...state, modal: action.modal };
     case "config":
       return { ...state, config: action.config };
     case "modelLimits":

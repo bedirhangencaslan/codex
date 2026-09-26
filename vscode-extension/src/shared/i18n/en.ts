@@ -2,6 +2,7 @@
 // Slash command texts live in slash.en.ts / slash.tr.ts and are merged in below.
 import { learnEn } from "./learn.en";
 import { slashEn } from "./slash.en";
+import { uiStylesEn } from "./uiStyles.en";
 
 const base = {
   // --- common
@@ -335,6 +336,6 @@ const base = {
   "theme.oneHalfDark": "One Half (dark)",
 };
 
-export const en = { ...base, ...slashEn, ...learnEn };
+export const en = { ...base, ...slashEn, ...learnEn, ...uiStylesEn };
 
 export type MessageKey = keyof typeof en;

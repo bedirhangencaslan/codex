@@ -5,6 +5,7 @@ import { resolveLocale } from "../shared/i18n";
 import { findSufficeBinary } from "./binary";
 import { SessionHost } from "./sessionHost";
 import { ExtensionStorage } from "./storage";
+import { installUiStyleSkills } from "./uiStyleSkills";
 import { SufficeViewProvider } from "./viewProvider";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -13,7 +14,15 @@ export function activate(context: vscode.ExtensionContext): void {
   let provider: SufficeViewProvider | undefined;
 
   const host = new SessionHost({
-    status: (status) => provider?.post({ type: "server", status }),
+    status: (status) => {
+      provider?.post({ type: "server", status });
+      // Install the interface style skills once the server is up; tell the view when they change.
+      if (status.state === "ready") {
+        void installUiStyleSkills(status.codexHome, (method, params) => host.request(method, params), (text) => output.appendLine(text))
+          .then((changed) => changed && provider?.post({ type: "notification", method: "skills/changed", params: {} }))
+          .catch((error) => output.appendLine(`style skills: ${error instanceof Error ? error.message : String(error)}`));
+      }
+    },
     notification: (method, params) => provider?.post({ type: "notification", method, params }),
     serverRequest: (requestId, method, params) => provider?.post({ type: "serverRequest", requestId, method, params }),
     log: (text) => output.appendLine(text),

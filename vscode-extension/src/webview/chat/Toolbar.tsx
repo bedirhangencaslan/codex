@@ -10,6 +10,7 @@ import type { MessageKey } from "../../shared/i18n";
 import { useApp } from "../app/context";
 import type { PermissionPreset } from "../app/state";
 import { Icon } from "../components/icons";
+import { isUiStyleSkill } from "../../shared/uiStyles";
 import { Button, Chip, Empty, Notice } from "../components/ui";
 
 export function Toolbar() {
@@ -64,12 +65,13 @@ export function Panels() {
   }
 }
 
-function PanelFrame({ title, children }: { title: string; children: React.ReactNode }) {
+function PanelFrame({ title, children, actions }: { title: string; children: React.ReactNode; actions?: React.ReactNode }) {
   const { ctl, t } = useApp();
   return (
     <div className="sf-panel" role="dialog" aria-label={title}>
       <header className="sf-panel-head">
         <span>{title}</span>
+        {actions && <span className="sf-panel-actions">{actions}</span>}
         <button type="button" className="sf-icon-btn" onClick={() => ctl.togglePanel(null)} aria-label={t("common.close")}>
           <Icon name="x" />
         </button>
@@ -138,13 +140,22 @@ function ModePanel() {
 function SkillsPanel() {
   const { state, ctl, t } = useApp();
   const attached = new Set(state.init?.attachedSkills.map((s) => s.path));
-  const skills = state.skills;
+  const skills = state.skills.filter((s) => !isUiStyleSkill(s.name));
+  const styleCount = state.skills.filter((s) => isUiStyleSkill(s.name) && attached.has(s.path)).length;
   const chatSkills = ctl.chatSkills;
   const differsFromChat =
     chatSkills !== null && (chatSkills.length !== attached.size || chatSkills.some((p) => !attached.has(p)));
   return (
-    <PanelFrame title={t("panel.skillsTitle")}>
-      <p className="sf-muted sf-small">{t(attached.size > 0 ? "panel.skillsDescSelected" : "panel.skillsDescNone")}</p>
+    <PanelFrame
+      title={t("panel.skillsTitle")}
+      actions={
+        <button type="button" className="sf-chip sf-uistyles-open" onClick={() => ctl.openUiStyles()} title={t("uiStyles.openTitle")}>
+          <Icon name="palette" size={13} /> {t("uiStyles.open")}
+          {styleCount > 0 && <span className="sf-chip-badge">{styleCount}</span>}
+        </button>
+      }
+    >
+      <p className="sf-muted sf-small">{t(skills.some((s) => attached.has(s.path)) ? "panel.skillsDescSelected" : "panel.skillsDescNone")}</p>
       {skills.length === 0 ? (
         <Empty>{t("panel.skillsEmpty")}</Empty>
       ) : (
