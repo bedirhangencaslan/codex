@@ -2,10 +2,11 @@
 // value the user set with the slider? This only detects and reports; it never writes anything.
 //
 // How the server behaves (traced in codex-rs, see CLAUDE.md notes):
-// - The auto-compact limit is captured once, when a thread's session is created
-//   (core/src/session/mod.rs, ModelInfoOverrides). config/value/write does not refresh it for a
-//   running thread; only new or resumed threads see a new value. Reasoning retention and
-//   auto-compaction both read that frozen value, so they agree with each other.
+// - The auto-compact limit is taken when a thread's session is created (core/src/session/mod.rs,
+//   ModelInfoOverrides) and refreshed by a config write with reloadUserConfig (Suffice's
+//   refresh_runtime_config_inner), which the slider uses; a plain config/value/write from another
+//   client leaves a running thread on its old value. Reasoning retention and auto-compaction both
+//   read the thread's value, so they agree with each other.
 // - Reasoning retention (core/src/reasoning_retention.rs horizon()) prices against the budget left
 //   under that same limit (session/context_window.rs base_window_tokens_remaining). Its 80K
 //   WINDOW_TOKENS is only the unit the user's request density is measured in and cancels out, so

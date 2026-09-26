@@ -10,6 +10,7 @@ import {
   lessonProgress,
   lessonSets,
   nextLesson,
+  readMark,
   recordOpened,
   recordPracticed,
   registerLessonSet,
@@ -90,10 +91,13 @@ describe("lesson content", () => {
     }
   });
 
-  test("three levels, every lesson in exactly one, each with something to do", () => {
+  test("three levels, every lesson in exactly one", () => {
     expect(lessonSets().slice(0, 3).map((s) => s.id)).toEqual(["suffice-beginner", "suffice-intermediate", "suffice-advanced"]);
     expect(new Set(lessons.map((l) => l.id)).size).toBe(lessons.length);
-    for (const l of lessons) expect(l.steps.some((s) => s.kind !== "read")).toBe(true);
+  });
+
+  test("the built-in course asks no questions", () => {
+    for (const { step } of steps) expect(["read", "try", "show"]).toContain(step.kind);
   });
 
   test("every lesson text exists in every locale, and no lesson text is unused", () => {
@@ -118,15 +122,21 @@ describe("lesson content", () => {
 describe("progress", () => {
   const basics = lessons.find((l) => l.id === "basics")!;
 
-  test("a lesson is complete when its commands were run and its quizzes answered right", () => {
+  test("a lesson is complete when its commands were run", () => {
     let p = EMPTY_PROGRESS;
-    expect(lessonProgress(basics, p)).toEqual({ done: 0, total: 3 });
-    p = recordPracticed(recordPracticed(p, "status"), "pwd");
-    p = { ...p, quizzes: { "basics.folder": "status" } };
+    expect(lessonProgress(basics, p)).toEqual({ done: 0, total: 2 });
+    p = recordPracticed(p, "status");
     expect(lessonComplete(basics, p)).toBe(false);
-    p = { ...p, quizzes: { "basics.folder": "pwd" } };
+    p = recordPracticed(p, "pwd");
     expect(lessonComplete(basics, p)).toBe(true);
     expect(nextLesson(p)?.id).toBe("chat");
+  });
+
+  test("a lesson with only reading is complete once it has been opened", () => {
+    const chat = lessons.find((l) => l.id === "chat")!;
+    expect(chat.steps.every((st) => st.kind === "read")).toBe(true);
+    expect(lessonComplete(chat, EMPTY_PROGRESS)).toBe(false);
+    expect(lessonComplete(chat, recordOpened(EMPTY_PROGRESS, readMark("chat")))).toBe(true);
   });
 
   test("recording a command twice keeps the same object", () => {

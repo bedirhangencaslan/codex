@@ -7,6 +7,7 @@ import type { AskForApproval } from "@protocol/v2/AskForApproval";
 import type { SkillMetadata } from "@protocol/v2/SkillMetadata";
 import type { UserInput } from "@protocol/v2/UserInput";
 import type { JsonValue } from "@protocol/serde_json/JsonValue";
+import type { ConfigEdit } from "@protocol/v2/ConfigEdit";
 import type { ThreadGoalStatus } from "@protocol/v2/ThreadGoalStatus";
 import { AppServerSession } from "../../protocol/session";
 import type { TurnStartParamsWithMode } from "../../protocol/experimental";
@@ -14,7 +15,7 @@ import type { CompactionScope } from "../../shared/compactionSync";
 import type { MessageKey, Params } from "../../shared/i18n";
 import { clampedAutoCompactLimit } from "../../shared/catalog";
 import { compactionRange } from "./compaction";
-import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress, recordOpened, type ShowTarget } from "../../shared/lessons";
+import { EMPTY_PROGRESS, lessonSets, recordPracticed, type LearningProgress, recordOpened, readMark, type ShowTarget } from "../../shared/lessons";
 import type { AttachedSkill, FileAccessMode, HostToWebview, InitState, PersistedState, SkillRule, ThreadFileAccess } from "../../shared/messages";
 import type { ModelPrice } from "../../shared/pricing";
 import { findCommand, parseSlashInput } from "../../shared/slashCommands";
@@ -551,6 +552,12 @@ export class Controller {
     if (next !== this.learning) this.persist("learning", next);
   }
 
+  /** A lesson was opened; one with nothing to run or open is complete by that. */
+  markLessonRead(lessonId: string): void {
+    const next = recordOpened(this.learning, readMark(lessonId));
+    if (next !== this.learning) this.persist("learning", next);
+  }
+
   markExplored(key: string): void {
     if (this.learning.explored.includes(key)) return;
     this.persist("learning", { ...this.learning, explored: [...this.learning.explored, key] });
@@ -636,16 +643,21 @@ export class Controller {
       // chosen limit only fits the model's real window, that window goes to Codex's own
       // `model_context_window` setting so the limit is applied as chosen; below the clamp the
       // setting is removed again (only if it holds the value this slider wrote).
+      // Both go in one config/batchWrite with reloadUserConfig, Codex's hot reload: loaded threads
+      // take the new limit from their next turn, so the open chat follows the slider at once.
       const range = compactionRange(this.state, 0);
       const needsWindow =
         value !== null && range.catalogWindow !== null && range.realWindow !== null && range.realWindow > range.catalogWindow && value > clampedAutoCompactLimit(null, range.catalogWindow);
       const current = this.state.config?.contextWindow ?? null;
       const desired = needsWindow ? range.realWindow : current === range.realWindow ? null : current;
-      if (desired !== current) {
-        await this.session.configValueWrite({ keyPath: "model_context_window", value: desired, mergeStrategy: "replace" });
-      }
-      await this.session.configValueWrite({ keyPath: "model_auto_compact_token_limit", value, mergeStrategy: "replace" });
+      const edits: ConfigEdit[] = [];
+      if (desired !== current) edits.push({ keyPath: "model_context_window", value: desired, mergeStrategy: "replace" });
+      edits.push({ keyPath: "model_auto_compact_token_limit", value, mergeStrategy: "replace" });
+      await this.session.configBatchWrite({ edits, reloadUserConfig: true });
       await this.loadConfig();
+      // The open chat now runs with this limit too.
+      const threadId = this.state.chat.threadId;
+      if (threadId) this.persist("threadStartCompaction", { ...(this.state.init?.threadStartCompaction ?? {}), [threadId]: value });
       return true;
     } catch (error) {
       this.fail(error);

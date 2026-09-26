@@ -49,9 +49,15 @@ describe("writing the limit", () => {
   class Bridge extends BaseBridge {
     readonly isPreview = false;
     writes: Array<{ keyPath: string; value: unknown }> = [];
+    batches: Array<{ reloadUserConfig?: boolean }> = [];
     post(m: WebviewToHost) {
       if (m.type !== "rpc") return;
       if (m.method === "config/value/write") this.writes.push(m.params as { keyPath: string; value: unknown });
+      if (m.method === "config/batchWrite") {
+        const params = m.params as { edits: Array<{ keyPath: string; value: unknown }>; reloadUserConfig?: boolean };
+        this.batches.push(params);
+        this.writes.push(...params.edits);
+      }
       queueMicrotask(() => this.receive({ type: "rpcResult", id: m.id, result: {} } as HostToWebview));
     }
     viewState<T>(): T | undefined {
@@ -70,6 +76,11 @@ describe("writing the limit", () => {
     const { bridge, ctl } = setup(state());
     await ctl.writeCompactionLimit(120_000);
     expect(bridge.writes.map((w) => w.keyPath)).toEqual(["model_auto_compact_token_limit"]);
+  });
+  test("the write hot-reloads loaded threads, so the open chat takes the limit at once", async () => {
+    const { bridge, ctl } = setup(state());
+    await ctl.writeCompactionLimit(120_000);
+    expect(bridge.batches).toEqual([expect.objectContaining({ reloadUserConfig: true })]);
   });
   test("a limit past the catalog clamp also gives Codex the model's real window", async () => {
     const { bridge, ctl } = setup(state());

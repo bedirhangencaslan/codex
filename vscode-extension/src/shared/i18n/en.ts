@@ -318,7 +318,7 @@ const base = {
   "settings.syncTitle": "Reasoning shrink ↔ compaction",
   "settings.syncOk": "In sync: reasoning shrink and compaction use {value} tokens, the value you set.",
   "settings.syncNoThread": "No chat is running; the check covers the value new chats will use.",
-  "settings.sync.threadFrozen": "The running chat still uses {thread}. Reasoning shrink and compaction captured it when the chat started; your new value {slider} applies to new or resumed chats only. Nothing was changed.",
+  "settings.sync.threadFrozen": "The open chat uses {thread} while the setting is {slider}. The limit may have been changed outside the extension (in the terminal, for example); moving the slider applies it to the open chat at once. Nothing was changed.",
   "settings.sync.clamped": "{requested} is above 9/10 of the context window; Suffice applies {applied}. Nothing was changed.",
   "settings.sync.scopeUnclamped": "With the body_after_prefix scope, compaction uses {requested} unclamped while the read tool budgets against {clamped}. Nothing was changed.",
   "settings.defaultValue": "default",

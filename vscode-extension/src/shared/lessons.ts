@@ -9,6 +9,8 @@
 //             the lesson (LearningProgress.opened)
 //   quiz    - pick the command for a situation; exactly one option is right
 //   choice  - pick the right statement; exactly one option is right
+// The built-in course asks no questions (the owner's choice); quiz and choice remain for
+// registered sets. A lesson with nothing to run or open is done once it has been read.
 // Lessons are grouped in sets, one per level. registerLessonSet() adds more (a project's own
 // commands, a later course) without changing the screen. Texts: `learn.<lesson>.*` in
 // learn.en.ts / learn.tr.ts.
@@ -58,7 +60,8 @@ export interface LearningProgress {
   quizzes: Record<string, string>;
   /** Reference entries the user has opened (`<set>:<command>`). */
   explored: string[];
-  /** Panels and screens opened from a lesson's `show` step. Missing in progress saved before it existed. */
+  /** Panels and screens opened from a lesson's `show` step, and `lesson:<id>` for lessons read.
+   * Missing in progress saved before it existed. */
   opened?: string[];
 }
 
@@ -77,24 +80,6 @@ const show = (lesson: string, target: ShowTarget): LessonStep => ({
   target,
   textKey: k(lesson, `show.${target.replace(":", "_")}`),
 });
-const quiz = (lesson: string, id: string, options: string[], answer: string): LessonStep => ({
-  kind: "quiz",
-  id: `${lesson}.${id}`,
-  questionKey: k(lesson, `quiz.${id}`),
-  options,
-  answer,
-  explainKey: k(lesson, `quiz.${id}.explain`),
-});
-/** A statement quiz with `count` options (`learn.<lesson>.choice.<id>.a|b|c|d`); `answer` is the right one's index. */
-const choice = (lesson: string, id: string, count: number, answer: number): LessonStep => ({
-  kind: "choice",
-  id: `${lesson}.${id}`,
-  questionKey: k(lesson, `choice.${id}`),
-  optionKeys: ["a", "b", "c", "d"].slice(0, count).map((o) => k(lesson, `choice.${id}.${o}`)),
-  answer,
-  explainKey: k(lesson, `choice.${id}.explain`),
-});
-
 const lesson = (id: string, commands: string[], steps: LessonStep[]): Lesson => ({
   id,
   titleKey: k(id, "title"),
@@ -113,15 +98,12 @@ const beginner: LessonSet = {
       read("basics", "popup"),
       tryIt("basics", "status"),
       tryIt("basics", "pwd"),
-      quiz("basics", "folder", ["status", "pwd", "new"], "pwd"),
     ]),
     lesson("chat", [], [
       read("chat", "send"),
       read("chat", "context"),
       read("chat", "stop"),
       read("chat", "approvals"),
-      choice("chat", "newline", 3, 1),
-      choice("chat", "approve", 3, 2),
     ]),
     lesson("screen", [], [
       read("screen", "meters"),
@@ -129,15 +111,12 @@ const beginner: LessonSet = {
       read("screen", "diffs"),
       read("screen", "reasoning"),
       show("screen", "screen:settings"),
-      choice("screen", "cache", 3, 0),
     ]),
     lesson("sessions", ["new", "resume", "rename", "compact"], [
       read("sessions", "fresh"),
       tryIt("sessions", "rename"),
       read("sessions", "compact"),
       tryIt("sessions", "resume"),
-      quiz("sessions", "unrelated", ["compact", "new", "resume"], "new"),
-      quiz("sessions", "long", ["compact", "new", "copy"], "compact"),
     ]),
   ],
 };
@@ -153,15 +132,12 @@ const intermediate: LessonSet = {
       read("modes", "goal"),
       tryIt("modes", "goal"),
       read("modes", "review"),
-      quiz("modes", "approach", ["goal", "plan", "review"], "plan"),
-      quiz("modes", "longTask", ["goal", "plan", "review"], "goal"),
     ]),
     lesson("control", ["model", "permissions"], [
       read("control", "model"),
       tryIt("control", "model"),
       read("control", "permissions"),
       tryIt("control", "permissions"),
-      quiz("control", "readOnly", ["model", "permissions", "status"], "permissions"),
     ]),
     lesson("files", ["mention"], [
       read("files", "why"),
@@ -169,8 +145,6 @@ const intermediate: LessonSet = {
       read("files", "select"),
       read("files", "locked"),
       show("files", "panel:files"),
-      choice("files", "secret", 3, 0),
-      choice("files", "only", 3, 1),
     ]),
     lesson("skills", ["skills"], [
       read("skills", "what"),
@@ -178,13 +152,11 @@ const intermediate: LessonSet = {
       read("skills", "global"),
       show("skills", "panel:skills"),
       show("skills", "screen:skills"),
-      choice("skills", "none", 3, 2),
     ]),
     lesson("prefs", [], [
       read("prefs", "what"),
       read("prefs", "once"),
       show("prefs", "panel:prefs"),
-      choice("prefs", "change", 3, 1),
     ]),
   ],
 };
@@ -200,8 +172,6 @@ const advanced: LessonSet = {
       read("cost", "breaks"),
       read("cost", "invisible"),
       tryIt("cost", "invisible"),
-      quiz("cost", "side", ["invisible", "new", "compact"], "invisible"),
-      choice("cost", "breaker", 3, 1),
     ]),
     lesson("engine", [], [
       read("engine", "intro"),
@@ -211,8 +181,6 @@ const advanced: LessonSet = {
       read("engine", "patch"),
       read("engine", "parallel"),
       read("engine", "keepalive"),
-      choice("engine", "reasoning", 3, 0),
-      choice("engine", "output", 3, 2),
     ]),
     lesson("compaction", ["compact"], [
       read("compaction", "what"),
@@ -220,18 +188,15 @@ const advanced: LessonSet = {
       read("compaction", "frozen"),
       read("compaction", "sync"),
       show("compaction", "screen:settings"),
-      choice("compaction", "frozen", 3, 1),
     ]),
     lesson("keys", [], [
       read("keys", "keys"),
       read("keys", "prices"),
       show("keys", "screen:api"),
-      choice("keys", "where", 3, 0),
     ]),
     lesson("terminal", ["vim", "theme", "mcp", "diff"], [
       read("terminal", "why"),
       read("terminal", "where"),
-      quiz("terminal", "which", ["plan", "vim", "invisible"], "vim"),
     ]),
   ],
 };
@@ -259,7 +224,13 @@ export function stepDone(step: LessonStep, progress: LearningProgress): boolean 
 
 export function lessonProgress(lesson: Lesson, progress: LearningProgress): { done: number; total: number } {
   const graded = lesson.steps.filter((s) => s.kind !== "read");
+  if (graded.length === 0) return { done: (progress.opened ?? []).includes(readMark(lesson.id)) ? 1 : 0, total: 1 };
   return { done: graded.filter((s) => stepDone(s, progress)).length, total: graded.length };
+}
+
+/** The mark a lesson without anything to do gets once it has been opened. */
+export function readMark(lessonId: string): string {
+  return `lesson:${lessonId}`;
 }
 
 export function lessonComplete(lesson: Lesson, progress: LearningProgress): boolean {
@@ -282,8 +253,8 @@ export function recordPracticed(progress: LearningProgress, command: string): Le
   return progress.practiced.includes(command) ? progress : { ...progress, practiced: [...progress.practiced, command] };
 }
 
-/** Records a panel or screen opened from a lesson; returns the new progress (unchanged object if already known). */
-export function recordOpened(progress: LearningProgress, target: ShowTarget): LearningProgress {
+/** Records a panel or screen opened from a lesson, or a lesson read (readMark); returns the new progress (unchanged object if already known). */
+export function recordOpened(progress: LearningProgress, target: ShowTarget | string): LearningProgress {
   const opened = progress.opened ?? [];
   return opened.includes(target) ? progress : { ...progress, opened: [...opened, target] };
 }

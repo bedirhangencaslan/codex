@@ -1,12 +1,12 @@
 // Goal item 3: the Suffice course. Two tabs:
 //   Lessons   - everything the extension offers, in three levels (shared/lessons.ts): read, run the
-//               real command in the chat box, open the panel or screen being taught, then a quick
-//               check. A "try" step completes only when the controller actually runs the command and
-//               a "show" step when the lesson opened its target, so progress means the user did it.
+//               real command in the chat box, open the panel or screen being taught. A "try" step
+//               completes only when the controller actually runs the command and a "show" step when
+//               the lesson opened its target, so progress means the user did it.
 //   Reference - every command of every registered set, grouped by category.
 // Both render whatever sets are registered; new lessons, levels or command sets need no change here.
 // Progress lives in the host's globalState (`learning`); the open tab, level and lesson in the view state.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MessageKey } from "../../shared/i18n";
 import {
   EMPTY_PROGRESS,
@@ -206,7 +206,8 @@ function Lessons({
 }
 
 function LessonView({ lesson, onBack, onOpen, lookUp }: { lesson: Lesson; onBack: () => void; onOpen: (id: string) => void; lookUp: (c: string) => void }) {
-  const { t, state } = useApp();
+  const { t, ctl, state } = useApp();
+  useEffect(() => ctl.markLessonRead(lesson.id), [lesson.id]);
   const progress = learning(state);
   const p = lessonProgress(lesson, progress);
   const complete = p.done === p.total;
