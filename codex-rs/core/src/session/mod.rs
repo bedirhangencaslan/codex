@@ -2060,6 +2060,15 @@ impl Session {
                 .with_user_layer_from(&next_config.config_layer_stack);
             config.tool_suggest =
                 resolve_tool_suggest_config_from_layer_stack(&config.config_layer_stack);
+            // The compaction limit and context window follow the refreshed config, so a limit
+            // changed while the thread is open applies from its next turn. `next_config` is
+            // built with this thread's session layers, which still take precedence.
+            config.model_auto_compact_token_limit = next_config.model_auto_compact_token_limit;
+            config.model_context_window = next_config.model_context_window;
+            state.session_configuration.model_info_overrides.auto_compact_token_limit =
+                next_config.model_auto_compact_token_limit;
+            state.session_configuration.model_info_overrides.context_window =
+                next_config.model_context_window;
             config.mcp_servers = next_config.mcp_servers.clone();
             config.mcp_optional_startup_grace = next_config.mcp_optional_startup_grace;
             config.mcp_oauth_credentials_store_mode = next_config.mcp_oauth_credentials_store_mode;

@@ -2059,6 +2059,27 @@ disabled_tools = [
 }
 
 #[tokio::test]
+async fn refresh_runtime_config_applies_compaction_limit_to_the_next_turn() {
+    let (session, _turn_context) = make_session_and_context().await;
+    let before = session.new_default_turn().await;
+
+    let mut next_config = load_latest_config_for_session(&session).await;
+    next_config.model_context_window = Some(1_000_000);
+    next_config.model_auto_compact_token_limit = Some(120_000);
+    session.refresh_runtime_config(next_config).await;
+
+    let config = session.get_config().await;
+    assert_eq!(config.model_auto_compact_token_limit, Some(120_000));
+    assert_eq!(config.model_context_window, Some(1_000_000));
+    let after = session.new_default_turn().await;
+    assert_eq!(after.model_info().auto_compact_token_limit(), Some(120_000));
+    assert_ne!(
+        before.model_info().auto_compact_token_limit(),
+        after.model_info().auto_compact_token_limit()
+    );
+}
+
+#[tokio::test]
 async fn refresh_runtime_config_updates_runtime_refreshable_fields_and_keeps_session_static_settings()
  {
     let (session, _turn_context) = make_session_and_context().await;

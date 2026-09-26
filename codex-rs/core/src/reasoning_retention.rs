@@ -41,11 +41,12 @@ use crate::request_density::WINDOW_TOKENS;
 /// and the list price keeps the same ratio. A carried token is a fifth of a re-prefilled one,
 /// not a tenth: the smaller figure made every verdict twice as willing to keep.
 const CACHED_INPUT_PRICE_RATIO: f64 = 0.2;
-/// Bounds on the horizon. Zero is an answer, not a degenerate case: with the budget spent,
+/// Lower bound on the horizon. Zero is an answer, not a degenerate case: with the budget spent,
 /// compaction rewrites the prefix before another request is billed for a retained token, so
 /// there is nothing left to amortise a re-prefill over and breaking the prefix can only lose.
+/// There is no upper bound: a larger compaction limit leaves more windows of budget, and the
+/// horizon grows with it in proportion to the requests measured per window.
 const MIN_HORIZON: i64 = 0;
-const MAX_HORIZON: i64 = 200;
 
 pub(crate) struct RetentionInputs {
     /// Tokens left before the next auto-compaction.
@@ -63,8 +64,7 @@ pub(crate) struct RetentionInputs {
 /// retained token would actually be re-billed on.
 pub(crate) fn horizon(inputs: &RetentionInputs) -> i64 {
     let windows_remaining = inputs.budget_remaining.max(0) as f64 / WINDOW_TOKENS as f64;
-    ((windows_remaining * inputs.requests_per_window).round() as i64)
-        .clamp(MIN_HORIZON, MAX_HORIZON)
+    ((windows_remaining * inputs.requests_per_window).round() as i64).max(MIN_HORIZON)
 }
 
 /// Cost of breaking the prefix at one candidate, in uncached-input token equivalents.
@@ -355,6 +355,21 @@ mod tests {
             budget_remaining: 0,
             requests_per_window: 40.0,
         }
+    }
+
+    #[test]
+    fn horizon_scales_with_the_budget_in_windows_of_measured_density() {
+        let at = |budget_remaining| {
+            horizon(&RetentionInputs {
+                budget_remaining,
+                requests_per_window: 70.0,
+            })
+        };
+        assert_eq!(at(WINDOW_TOKENS), 70);
+        // A 500K limit is 6.25 windows: 6.25 x 70 requests, not capped.
+        assert_eq!(at(500_000), 438);
+        assert_eq!(at(0), 0);
+        assert_eq!(at(-5), 0);
     }
 
     #[test]
