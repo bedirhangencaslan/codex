@@ -55,7 +55,7 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: READ_TOOL_NAME.to_string(),
-        description: "Read one file or directory from the local filesystem. If the path does not exist, an error is returned.
+        description: "Use this tool to read a file's contents or list a directory, one path per call. If the path does not exist, an error is returned.
 
 Usage:
 - Prefer a filePath relative to the working directory; absolute also works.

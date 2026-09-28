@@ -68,10 +68,9 @@ pub fn create_glob_tool(options: SearchToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: GLOB_TOOL_NAME.to_string(),
-        description: "- Fast file pattern matching tool that works with any codebase size
+        description: "- Use this tool to find files: it matches file names and paths against a pattern, in a codebase of any size
 - Supports glob patterns like \"**/*.js\" or \"src/**/*.ts\"
 - Returns matching file paths
-- Use this tool when you need to find files by name patterns
 - You have the capability to call multiple tools in a single response. It is always better to \
 speculatively perform multiple searches as a batch that are potentially useful."
             .to_string(),
@@ -115,12 +114,11 @@ pub fn create_grep_tool(options: SearchToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: GREP_TOOL_NAME.to_string(),
-        description: "- Fast content search tool that works with any codebase size
+        description: "- Use this tool to search inside files: it finds where a text or pattern appears, in a codebase of any size
 - Searches file contents using regular expressions
 - Supports full regex syntax (eg. \"log.*Error\", \"function\\s+\\w+\", etc.)
 - Filter files by pattern with the include parameter (eg. \"*.js\", \"*.{ts,tsx}\")
 - Returns file paths and line numbers with matching lines
-- Use this tool when you need to find files containing specific patterns
 - Every result opens with the total number of matches, and a result too large to list in full \
 answers with the count per file instead."
             .to_string(),

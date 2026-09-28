@@ -222,9 +222,10 @@ fn lean_exec_command_tool(
     })
 }
 
-/// The file-editing line as `ce2f24aae` left it: it lets a script write the file it computed,
-/// which was the only way to do generated work in one step before code mode.
-const EDIT_LINE_WITH_SCRIPT_STEER: &str = "- Edit or create a file whose content you are writing yourself: Use `apply_patch` (NOT `Set-Content`, `sed`, or `awk`). A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.";
+/// The file-editing line: why `apply_patch` is the tool for content the model writes, and, as
+/// `ce2f24aae` left it, that a script writes the file it computed, which was the only way to do
+/// generated work in one step before code mode.
+const EDIT_LINE_WITH_SCRIPT_STEER: &str = "- Edit or create a file whose content you are writing yourself with `apply_patch`: it changes only the lines you name, checks them against the file before it writes, keeps the file's encoding and line endings, and needs no shell quoting, none of which `Set-Content`, `sed` or `awk` gives you. A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.";
 
 /// The same line before that commit, used whenever `exec` is offered: generated content then goes
 /// through `tools.apply_patch` inside `exec`, and nothing needs the shell to write a file.
@@ -238,6 +239,14 @@ const EDIT_LINE: &str =
 /// names the cmdlets. What is new is everything around it - the shell notes, the pre-flight steps,
 /// the usage notes and the git section - which is the shape the measurement moved, not any single
 /// sentence in it.
+///
+/// Trimmed on 2026-09-28, unmeasured: the git section, the pre-flight steps (two sentences left),
+/// OpenCode's generic PowerShell lines (the two traps runs fell into stay, as formats), the `;` and
+/// newline rules, the `cmd`/`timeout_ms` lines the schema already carries, the `workdir` repeat,
+/// the file-tool routing list, whose purpose now opens each of `read`, `glob` and `grep`, and
+/// OpenCode's `Write-Output` line. The `apply_patch` line now says why the tool is better rather
+/// than only forbidding the alternatives; it is `EDIT_LINE_WITH_SCRIPT_STEER`, which code mode's
+/// `replacen` matches.
 fn lean_usage_guidance() -> &'static str {
     r#"Be aware: OS: win32, Shell: powershell
 
@@ -246,64 +255,22 @@ All commands run in the turn's working directory by default. Use the `workdir` p
 IMPORTANT: This tool is for terminal operations such as `git`, `cargo`, `npm`, and `docker`. Do NOT use it for file operations - reading, writing, editing, searching, or finding files. Use the dedicated tools for those instead.
 
 # Windows PowerShell (5.1) shell notes
-- Use `cmd1; if ($?) { cmd2 }` to chain dependent commands; `&&` and `||` do not exist in this shell.
-- Use double quotes for interpolated strings (`"Hello $name"`), single quotes for verbatim strings.
-- Prefer full cmdlet names like `Get-ChildItem`, `Set-Content`, `Remove-Item`, and `New-Item` over aliases.
-- Use `$(...)` for subexpressions. Use `@(...)` for array expressions.
-- To call a native executable whose path contains spaces, use the call operator: `& "path/to/exe" args`.
-- An argument to a native program loses its inner double quotes: `python -c 'print("hi")'` arrives as `print(hi)`. Quote it the other way round: `python -c "print('hi')"`. A payload that needs double quotes of its own cannot be escaped into one: `\"` ends the string rather than escaping the quote. Pipe it in instead: `@'` on its own line, the script, then `'@ | python -`.
-- Here-documents do not exist; `<<` is a reserved operator that was never implemented. The here-string `@'...'@` is a different construct; it does exist, and nothing inside it is interpreted.
-- Escape special characters with the PowerShell backtick character.
-
-Before executing the command, please follow these steps:
-
-1. Directory Verification:
-   - If the command will create new directories or files, first use `Test-Path -LiteralPath <parent>` to verify the parent directory exists and is the correct location
-   - For example, before creating `foo\bar`, first use `Test-Path -LiteralPath "foo"` to check that `foo` exists and is the intended parent directory
-
-2. Command Execution:
-   - Always quote file paths that contain spaces with double quotes (e.g., Remove-Item -LiteralPath "path with spaces\file.txt")
-   - Examples of proper quoting:
-     - New-Item -ItemType Directory -Path "My Documents" (correct)
-     - New-Item -ItemType Directory -Path My Documents (incorrect - path is split)
-     - & "path with spaces\script.ps1" (correct)
-     - path with spaces\script.ps1 (incorrect - path is split and not invoked)
-   - After ensuring proper quoting, execute the command.
-   - Capture the output of the command.
+- `&&`, `||` and here-documents (`<<`) do not exist in this shell.
+- Several commands can run in one call, one after another: separate them with `;` to run each whatever happens, or write `cmd1; if ($?) { cmd2 }` to stop at the first failure.
+- Inline Python: double quotes outside, single inside - `python -c "print('hi')"`.
+- A script that needs double quotes of its own goes in through a here-string, `@'` and `'@` each on a line of their own:
+  @'
+  print("hi")
+  '@ | python -
 
 Usage notes:
-  - The `cmd` argument is required.
-  - You can specify an optional `timeout_ms`. If not specified, commands time out after 10000 ms.
-  - Output is capped and truncated at that point, and the full output is written to a file whose path the response names. Use `read` with `offset`/`limit` on that path to see a section of it, or `grep` to search it; do NOT use `Select-Object -First`, `Select-Object -Last`, or other commands that trim output, because the whole of it is in that file already. Do NOT pull bulk file text through here to work around the cap either: `read` and `grep` return the same content in windows you choose. Whatever comes back through here stays in context for every later request, so a listing or a bulk read taken this way is paid for again on each one.
-  - Avoid using this tool with the file and content commands listed below unless explicitly instructed, or when one of them is truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
-    - File search: Use `glob` (NOT `Get-ChildItem`, `ls`, or `find`)
-    - Content search: Use `grep` (NOT `Select-String` or `rg`)
-    - Read files: Use `read` (NOT `Get-Content`, `cat`, `head`, or `tail`)
-    - Edit or create a file whose content you are writing yourself: Use `apply_patch` (NOT `Set-Content`, `sed`, or `awk`). A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.
-    - Communication: Output text directly (NOT `Write-Output`/`Write-Host`)
+  - Before creating a directory or file, check that its parent directory exists.
+  - Put paths that contain spaces in double quotes.
+  - Long output is cut, and the full text is saved to a file named in the response. The best way to see the rest is `read` on that file with `offset`/`limit`, or `grep` to search it: you get exactly the part you need, and every later request stays small.
+  - Avoid using this tool with file and content commands unless explicitly instructed, or when one of them is truly necessary for the task. Instead, always prefer using the dedicated tools.
+  - Edit or create a file whose content you are writing yourself with `apply_patch`: it changes only the lines you name, checks them against the file before it writes, keeps the file's encoding and line endings, and needs no shell quoting, none of which `Set-Content`, `sed` or `awk` gives you. A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.
   - Reach for the shell on file work only for what the dedicated tools do not do.
-  - When issuing multiple commands:
-    - If the commands are independent and can run in parallel, make multiple `exec_command` calls in a single message.
-    - If the commands depend on each other and must run sequentially, use `cmd1; if ($?) { cmd2 }` rather than `;` alone, because PowerShell does not stop at the first failure and reports only the last statement's exit code.
-    - Use `;` only when you need to run commands sequentially but don't care if earlier commands fail.
-    - DO NOT use newlines to separate commands (newlines are ok in quoted strings).
-  - AVOID changing directories inside the command. Use the `workdir` parameter to change directories instead.
-    <good-example>
-    Use workdir="project\subdir" with cmd: cargo test
-    </good-example>
-    <bad-example>
-    Set-Location -LiteralPath "project\subdir"; if ($?) { cargo test }
-    </bad-example>
-
-# Git and GitHub
-- Only commit, amend, push, or create PRs when explicitly requested.
-- Before committing, inspect `git status`, `git diff`, and `git log --oneline -10`; stage only intended files and never commit secrets.
-- Write a concise commit message that matches the repo style.
-- Do not update git config, skip hooks, use interactive `-i`, force-push, or create empty commits unless explicitly requested.
-- If a commit fails or hooks reject it, fix the issue and create a new commit; do not amend the failed commit.
-- Before creating a PR, inspect status, diff, remote tracking, recent commits, and the diff from the base branch.
-- Review all commits included in the PR, not just the latest commit.
-- Use `gh` for GitHub tasks, including PRs, issues, checks, and releases; return the PR URL when done."#
+  - If commands are independent and can run in parallel, make multiple `exec_command` calls in a single message."#
 }
 
 pub fn create_write_stdin_tool() -> ToolSpec {
