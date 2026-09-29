@@ -270,7 +270,7 @@ fn request_permissions_tool_includes_full_permission_schema() {
 }
 
 #[test]
-fn offering_exec_puts_the_edit_line_back_as_it_was_before_the_script_steer() {
+fn offering_exec_leaves_the_description_as_it_is() {
     let description = |code_mode_offered| {
         let ToolSpec::Function(tool) = create_exec_command_tool_with_environment_id(
             CommandToolOptions {
@@ -288,10 +288,5 @@ fn offering_exec_puts_the_edit_line_back_as_it_was_before_the_script_steer() {
         tool.description
     };
 
-    let direct = description(false);
-    assert!(direct.contains(EDIT_LINE_WITH_SCRIPT_STEER));
-    assert_eq!(
-        description(true),
-        direct.replacen(EDIT_LINE_WITH_SCRIPT_STEER, EDIT_LINE, 1)
-    );
+    assert_eq!(description(true), description(false));
 }

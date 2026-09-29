@@ -292,16 +292,20 @@ fn chat_function_from_freeform(obj: &serde_json::Map<String, Value>) -> Option<V
         "type": "function",
         "function": {
             "name": name,
-            "description": format!(
-                "{description} Send the entire body as the `input` string; it is passed \
-                 through verbatim, so do not add any wrapper of your own."
-            ),
+            "description": if name == "apply_patch" {
+                "Edits files with a patch in the format described in the instructions. Send the patch as `input`, verbatim.".to_string()
+            } else {
+                format!(
+                    "{description} Send the entire body as the `input` string; it is passed \
+                     through verbatim, so do not add any wrapper of your own."
+                )
+            },
             "parameters": {
                 "type": "object",
                 "properties": {
                     "input": {
                         "type": "string",
-                        "description": "The complete tool body, exactly as it would be written.",
+                        "description": if name == "apply_patch" { "The whole patch, from `*** Begin Patch` to `*** End Patch`." } else { "The complete tool body, exactly as it would be written." },
                     }
                 },
                 "required": ["input"],

@@ -50,13 +50,12 @@ pub fn create_glob_tool(options: SearchToolOptions) -> ToolSpec {
     let mut properties = BTreeMap::from([
         (
             "pattern".to_string(),
-            JsonSchema::string(Some("The glob pattern to match files against".to_string())),
+            JsonSchema::string(Some("Glob pattern to match.".to_string())),
         ),
         (
             "path".to_string(),
             JsonSchema::string(Some(
-                "The directory to search in. If not specified, the current working directory will \
-                 be used."
+                "Directory to search. Defaults to the turn cwd."
                     .to_string(),
             )),
         ),
@@ -68,11 +67,7 @@ pub fn create_glob_tool(options: SearchToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: GLOB_TOOL_NAME.to_string(),
-        description: "- Use this tool to find files: it matches file names and paths against a pattern, in a codebase of any size
-- Supports glob patterns like \"**/*.js\" or \"src/**/*.ts\"
-- Returns matching file paths
-- You have the capability to call multiple tools in a single response. It is always better to \
-speculatively perform multiple searches as a batch that are potentially useful."
+        description: "Finds files whose paths match a glob pattern (e.g. `src/**/*.ts`) and returns their paths."
             .to_string(),
         strict: false,
         defer_loading: None,
@@ -90,20 +85,20 @@ pub fn create_grep_tool(options: SearchToolOptions) -> ToolSpec {
         (
             "pattern".to_string(),
             JsonSchema::string(Some(
-                "The regex pattern to search for in file contents".to_string(),
+                "Regex to search for.".to_string(),
             )),
         ),
         (
             "path".to_string(),
             JsonSchema::string(Some(
-                "The directory to search in. Defaults to the current working directory."
+                "Directory to search. Defaults to the turn cwd."
                     .to_string(),
             )),
         ),
         (
             "include".to_string(),
             JsonSchema::string(Some(
-                "File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")".to_string(),
+                "File pattern to limit the search (e.g. `*.py`).".to_string(),
             )),
         ),
     ]);
@@ -114,13 +109,7 @@ pub fn create_grep_tool(options: SearchToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: GREP_TOOL_NAME.to_string(),
-        description: "- Use this tool to search inside files: it finds where a text or pattern appears, in a codebase of any size
-- Searches file contents using regular expressions
-- Supports full regex syntax (eg. \"log.*Error\", \"function\\s+\\w+\", etc.)
-- Filter files by pattern with the include parameter (eg. \"*.js\", \"*.{ts,tsx}\")
-- Returns file paths and line numbers with matching lines
-- Every result opens with the total number of matches, and a result too large to list in full \
-answers with the count per file instead."
+        description: "Finds lines matching a regex in file contents (cheaper than reading whole files) and returns them with file paths and line numbers, after the total match count; a result too large to list gives counts per file."
             .to_string(),
         strict: false,
         defer_loading: None,

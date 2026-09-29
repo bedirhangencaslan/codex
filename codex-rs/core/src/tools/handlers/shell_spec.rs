@@ -191,11 +191,10 @@ fn lean_exec_command_tool(
         );
     }
 
-    let usage_guidance = if code_mode_offered {
-        lean_usage_guidance().replacen(EDIT_LINE_WITH_SCRIPT_STEER, EDIT_LINE, 1)
-    } else {
-        lean_usage_guidance().to_string()
-    };
+    // Code mode used to swap the `apply_patch` line for its pre-script-steer form; the description
+    // no longer carries that line, so both modes get the same text.
+    let _ = code_mode_offered;
+    let usage_guidance = lean_usage_guidance();
     let description = if include_windows_shell_guidance {
         format!(
             "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}\n\n{}",
@@ -222,55 +221,16 @@ fn lean_exec_command_tool(
     })
 }
 
-/// The file-editing line: why `apply_patch` is the tool for content the model writes, and, as
-/// `ce2f24aae` left it, that a script writes the file it computed, which was the only way to do
-/// generated work in one step before code mode.
-const EDIT_LINE_WITH_SCRIPT_STEER: &str = "- Edit or create a file whose content you are writing yourself with `apply_patch`: it changes only the lines you name, checks them against the file before it writes, keeps the file's encoding and line endings, and needs no shell quoting, none of which `Set-Content`, `sed` or `awk` gives you. A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.";
-
-/// The same line before that commit, used whenever `exec` is offered: generated content then goes
-/// through `tools.apply_patch` inside `exec`, and nothing needs the shell to write a file.
-const EDIT_LINE: &str =
-    "- Edit or create files: Use `apply_patch` (NOT `Set-Content`, `sed`, `awk`, or output redirection)";
-
-/// OpenCode's `bash` description, section for section, with our tool names and our shell.
+/// What sits between Codex's own opening sentence and its Windows safety rules: one line on running
+/// commands in parallel and in sequence, which PowerShell makes worth saying (`&&` does not exist).
 ///
-/// Kept deliberately: its anti-shell list is the part that was already measured to collapse shell
-/// file work from 79,052 characters to 635, and it is more specific than OpenCode's because it
-/// names the cmdlets. What is new is everything around it - the shell notes, the pre-flight steps,
-/// the usage notes and the git section - which is the shape the measurement moved, not any single
-/// sentence in it.
-///
-/// Trimmed on 2026-09-28, unmeasured: the git section, the pre-flight steps (two sentences left),
-/// OpenCode's generic PowerShell lines (the two traps runs fell into stay, as formats), the `;` and
-/// newline rules, the `cmd`/`timeout_ms` lines the schema already carries, the `workdir` repeat,
-/// the file-tool routing list, whose purpose now opens each of `read`, `glob` and `grep`, and
-/// OpenCode's `Write-Output` line. The `apply_patch` line now says why the tool is better rather
-/// than only forbidding the alternatives; it is `EDIT_LINE_WITH_SCRIPT_STEER`, which code mode's
-/// `replacen` matches.
+/// Until 2026-09-29 this was OpenCode's `bash` description, section for section, trimmed. With it,
+/// glm-5.3-flash never settled into the clipped notes it writes under stock Codex (0 of 8 sessions);
+/// with Codex's description it did in about half, and the text, not the three parameters, made the
+/// difference. The routing it carried now lives in `read`, `glob` and `grep` themselves. Wire runs
+/// rep176-178: every read bounded, 44/44 citations, $0.0089-$0.0095.
 fn lean_usage_guidance() -> &'static str {
-    r#"Be aware: OS: win32, Shell: powershell
-
-All commands run in the turn's working directory by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID changing directories inside the command - use `workdir` instead.
-
-IMPORTANT: This tool is for terminal operations such as `git`, `cargo`, `npm`, and `docker`. Do NOT use it for file operations - reading, writing, editing, searching, or finding files. Use the dedicated tools for those instead.
-
-# Windows PowerShell (5.1) shell notes
-- `&&`, `||` and here-documents (`<<`) do not exist in this shell.
-- Several commands can run in one call, one after another: separate them with `;` to run each whatever happens, or write `cmd1; if ($?) { cmd2 }` to stop at the first failure.
-- Inline Python: double quotes outside, single inside - `python -c "print('hi')"`.
-- A script that needs double quotes of its own goes in through a here-string, `@'` and `'@` each on a line of their own:
-  @'
-  print("hi")
-  '@ | python -
-
-Usage notes:
-  - Before creating a directory or file, check that its parent directory exists.
-  - Put paths that contain spaces in double quotes.
-  - Long output is cut, and the full text is saved to a file named in the response. The best way to see the rest is `read` on that file with `offset`/`limit`, or `grep` to search it: you get exactly the part you need, and every later request stays small.
-  - Avoid using this tool with file and content commands unless explicitly instructed, or when one of them is truly necessary for the task. Instead, always prefer using the dedicated tools.
-  - Edit or create a file whose content you are writing yourself with `apply_patch`: it changes only the lines you name, checks them against the file before it writes, keeps the file's encoding and line endings, and needs no shell quoting, none of which `Set-Content`, `sed` or `awk` gives you. A program that computes its own output - a generator, a formatter - writes its file itself and needs none of this.
-  - Reach for the shell on file work only for what the dedicated tools do not do.
-  - If commands are independent and can run in parallel, make multiple `exec_command` calls in a single message."#
+    r#"- Independent: parallel calls. Sequential: `cmd1; if ($?) { cmd2 }`."#
 }
 
 pub fn create_write_stdin_tool() -> ToolSpec {

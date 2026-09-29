@@ -28,18 +28,18 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
     let mut properties = BTreeMap::from([
         (
             "filePath".to_string(),
-            JsonSchema::string(Some("File or directory to read".to_string())),
+            JsonSchema::string(Some("File or directory; relative to the turn cwd or absolute.".to_string())),
         ),
         (
             "offset".to_string(),
             JsonSchema::integer(Some(
-                "The line number to start reading from (1-indexed)".to_string(),
+                "First line to return (1-indexed).".to_string(),
             )),
         ),
         (
             "limit".to_string(),
             JsonSchema::integer(Some(format!(
-                "The maximum number of lines to read (defaults to {DEFAULT_LINE_LIMIT})"
+                "Maximum lines to return. Defaults to {DEFAULT_LINE_LIMIT}."
             ))),
         ),
     ]);
@@ -55,21 +55,13 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: READ_TOOL_NAME.to_string(),
-        description: "Use this tool to read a file's contents or list a directory, one path per call. If the path does not exist, an error is returned.
+        description: "Reads a file with 1-indexed line numbers (`<line>: <content>`), or lists a directory (subdirectories end in `/`).
 
-Usage:
-- Prefer a filePath relative to the working directory; absolute also works.
-- By default, this tool returns up to 2000 lines from the start of the file.
-- The offset parameter is the line number to start from (1-indexed).
-- To read later sections, call this tool again with a larger offset.
-- What a file is for, and one citation backing it, is almost always in its first hundred or so lines: ask for a window that size rather than the whole file. Whatever you read stays in context for every later request, so a whole-file read you did not need is paid for again on each one.
-- Use the grep tool to find specific content in large files or files with long lines.
-- If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.
-- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents \"foo\\n\", you will receive \"1: foo\\n\". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.
-- Any line longer than 2000 characters is truncated.
-- Call this tool in parallel when you know there are multiple files you want to read: several `read` calls in one response run together and each answers on its own.
-- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.
-- Line numbers are display only; never copy them into `apply_patch`."
+- Returns up to 2000 lines from `offset`; lines over 2000 characters are cut.
+- A file's purpose is usually in its first ~100 lines: read a window that size, not the whole file.
+- Everything read stays in context and is paid for on every later request.
+- Line numbers are display only; never copy them into `apply_patch`.
+- Several reads in one response run in parallel."
             .to_string(),
         strict: false,
         defer_loading: None,
