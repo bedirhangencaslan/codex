@@ -347,7 +347,7 @@ fn prose_models_get_the_canonical_block_exactly_once() {
     // The model's own drifted copy is replaced by the canonical text, not appended to.
     assert!(!template.contains("has since drifted"), "{template}");
     assert!(
-        template.contains("Every following line is the initial contents."),
+        template.contains("Every following line is a + line (the initial contents)."),
         "the canonical Add File rule must survive: {template}"
     );
     assert!(template.contains("## Something else"), "{template}");
