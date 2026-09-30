@@ -24,7 +24,7 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
     }
 
     let input = request.input.as_slice();
-    let reasoning_by_anchor_index = anchor_trailing_reasoning(input);
+    let reasoning_by_anchor_index = anchor_reasoning(input);
     let mut last_assistant_text: Option<String> = None;
 
     for (idx, item) in input.iter().enumerate() {
@@ -256,25 +256,17 @@ fn chat_tools_from_responses_tools(tools: &crate::common::ResponsesApiTools) -> 
         .collect()
 }
 
-/// Attaches each trailing `Reasoning` item to the assistant message or tool call
-/// it belongs to, so it can ride along as `reasoning_content`.
+/// Attaches each `Reasoning` item to the assistant message or tool call it belongs
+/// to, so it can ride along as `reasoning_content`.
 ///
-/// Only reasoning produced after the last user message is carried; earlier
-/// reasoning is history the provider does not need and we do not want to pay for.
-fn anchor_trailing_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
+/// Every reasoning item in `input` is carried, as upstream's Responses path sends
+/// every reasoning item history holds. What reaches the model is decided above this
+/// module; dropping earlier turns' reasoning here would make the Chat wire alone
+/// show the model less of its own history than the Responses wire does.
+fn anchor_reasoning(input: &[ResponseItem]) -> HashMap<usize, String> {
     let mut anchored: HashMap<usize, String> = HashMap::new();
 
-    let last_user_index = input.iter().rposition(
-        |item| matches!(item, ResponseItem::Message { role, .. } if role == "user"),
-    );
-
     for (idx, item) in input.iter().enumerate() {
-        if let Some(user_idx) = last_user_index
-            && idx <= user_idx
-        {
-            continue;
-        }
-
         let ResponseItem::Reasoning {
             content: Some(items),
             ..
@@ -539,7 +531,7 @@ mod tests {
     }
 
     #[test]
-    fn carries_trailing_reasoning_on_the_tool_call_it_explains() {
+    fn carries_reasoning_on_the_tool_call_it_explains() {
         let body = chat_body_from_responses_request(&request(
             vec![
                 user("go"),
@@ -561,5 +553,41 @@ mod tests {
         let assistant = messages.last().expect("assistant message");
         assert_eq!(assistant["role"], "assistant");
         assert_eq!(assistant["reasoning_content"], "check the file");
+    }
+
+    #[test]
+    fn carries_reasoning_from_an_earlier_turn() {
+        let thinking = |text: &str| ResponseItem::Reasoning {
+            id: None,
+            summary: Vec::new(),
+            content: Some(vec![ReasoningItemContent::ReasoningText {
+                text: text.to_string(),
+            }]),
+            encrypted_content: None,
+            internal_chat_message_metadata_passthrough: None,
+        };
+
+        let body = chat_body_from_responses_request(&request(
+            vec![
+                user("go"),
+                thinking("check the file"),
+                call("call-a", "read_file", "{}"),
+                user("now do the next thing"),
+                thinking("write the file"),
+                call("call-b", "write_file", "{}"),
+            ],
+            None,
+        ));
+
+        // A later user message does not end what the earlier turn's reasoning rides on:
+        // the Responses wire would send it, so the Chat wire does too.
+        let messages = body["messages"].as_array().expect("messages");
+        let earlier = messages
+            .iter()
+            .find(|message| message["tool_calls"][0]["id"] == "call-a")
+            .expect("earlier tool call");
+        assert_eq!(earlier["reasoning_content"], "check the file");
+        let later = messages.last().expect("later tool call");
+        assert_eq!(later["reasoning_content"], "write the file");
     }
 }
