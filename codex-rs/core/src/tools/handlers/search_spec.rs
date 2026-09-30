@@ -109,7 +109,7 @@ pub fn create_grep_tool(options: SearchToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: GREP_TOOL_NAME.to_string(),
-        description: "Finds lines matching a regex in file contents (cheaper than reading whole files) and returns them with file paths and line numbers, after the total match count; a result too large to list gives counts per file."
+        description: "Finds lines matching a regex in file contents with ripgrep (cheaper than reading whole files) and returns them with file paths and line numbers, after the total match count; a result too large to list gives counts per file."
             .to_string(),
         strict: false,
         defer_loading: None,

@@ -39,7 +39,7 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
         (
             "limit".to_string(),
             JsonSchema::integer(Some(format!(
-                "Maximum lines to return. Defaults to {DEFAULT_LINE_LIMIT}."
+                "Maximum lines to return. Defaults to {DEFAULT_LINE_LIMIT}; set it to read only the part you need."
             ))),
         ),
     ]);
@@ -58,8 +58,7 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
         description: "Reads a file with 1-indexed line numbers (`<line>: <content>`), or lists a directory (subdirectories end in `/`).
 
 - Returns up to 2000 lines from `offset`; lines over 2000 characters are cut.
-- A file's purpose is usually in its first ~100 lines: read a window that size, not the whole file.
-- Everything read stays in context and is paid for on every later request.
+- A file's purpose shows in its opening docstring and first definitions: read that part first, and widen with `offset`/`limit` only when you need more.
 - Line numbers are display only; never copy them into `apply_patch`.
 - Several reads in one response run in parallel."
             .to_string(),

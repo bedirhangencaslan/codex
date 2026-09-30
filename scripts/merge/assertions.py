@@ -44,10 +44,14 @@ HEAD = "HEAD"
 # Edits made to GLM's template on purpose after OURS, as (old, new). The template must equal
 # OURS's with exactly these applied - so an intended change passes and nothing else does.
 GLM_TEMPLATE_EDITS = [
-    # The template was copied from a GPT entry and told GLM it was GPT-5.
-    ("an agent based on GPT-5.", "an agent based on GLM 5.3 Flash."),
+    # 2026-09-30: the identity is GPT-5 again, as OURS has it (the GLM 5.3 Flash line is gone:
+    # under Codex's own environment it cut clipped-note sessions from 10 of 12 to 1 of 4).
+    # The three search/read bullets fold into one line; what they said now opens `grep` (ripgrep)
+    # and `read` (parallel reads, display-only line numbers).
+    ('- When you search for files by name you use `glob`, and when you search their contents you use `grep`; both walk the workspace directly and `grep` answers with the line numbers a citation needs. It runs ripgrep underneath and opens every result with the total number of matches, so searching through the shell gains nothing.\n- You read files with the `read` tool. It takes one `filePath`, so when you already know you need several files you send several `read` calls in one response and they run in parallel. Each call may carry its own `offset` and `limit`. When an error or a search result already names a file and a line, you read a window around that line rather than the whole file.\n- Every read comes back with its lines numbered, and a read that was cut tells you the offset to resume from. You send those follow-up windows together with whatever else you already know you need, in one response, rather than spending a round trip on each, and you ask for a window wide enough to answer the question rather than walking a file in thirty-line steps. Those numbers are display only; you never copy them into `apply_patch`.\n',
+     '- Cut reads name the offset to resume from. Follow-up windows: batched in one response, wide enough to answer, never thirty-line steps.\n'),
 ]
-GLM_TEMPLATE_CHARS = 16174
+GLM_TEMPLATE_CHARS = 15175
 
 CORE = "codex-rs/core/src/"
 MM = "codex-rs/models-manager/"
@@ -236,9 +240,11 @@ def catalog():
     for slug in ("gpt-5.2", "gpt-5.4-mini"):
         out.append(("%s korunmus" % slug, "T2", "-", slug in ib))
 
+    # The glm-5.3-flash template dropped this line on purpose on 2026-09-30 (see
+    # GLM_TEMPLATE_EDITS); the check still guards every other model that carries it.
     key = "you use `glob`"
-    na = sum(1 for m in ia.values() if key in tpl(m))
-    nb = sum(1 for m in ib.values() if key in tpl(m))
+    na = sum(1 for s, m in ia.items() if s != "glm-5.3-flash" and key in tpl(m))
+    nb = sum(1 for s, m in ib.items() if s != "glm-5.3-flash" and key in tpl(m))
     out.append(("olculen glob/grep satiri", "T1", "%d -> %d model" % (na, nb), nb >= na))
     return out
 
