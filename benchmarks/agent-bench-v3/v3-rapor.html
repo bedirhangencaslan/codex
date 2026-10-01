@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Agent Bench v3 Raporu</title>
+<style>
+  @page { size: A4; margin: 15mm 14mm; }
+  :root{ --ink:#1c2330; --muted:#5b6575; --line:#d8dde5; --soft:#f2f4f7;
+    --warm:#d97a2b; --warm-soft:#fbeadb; --cold:#3e6e9e; --cold-soft:#e3edf6;
+    --ok:#2e7d4f; --ok-soft:#e8f3ec; --bad:#c0392b; }
+  *{box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  body{font:10pt/1.5 "Avenir Next","Helvetica Neue",Arial,sans-serif;color:var(--ink);margin:0;}
+  .num{font-variant-numeric:tabular-nums;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:9pt;}
+  h1{font-size:21pt;line-height:1.12;margin:0 0 4pt;letter-spacing:-.02em;}
+  h2{font-size:12.5pt;margin:0 0 7pt;padding-bottom:4pt;border-bottom:2pt solid var(--ink);}
+  h3{font-size:10pt;margin:11pt 0 4pt;}
+  p{margin:0 0 6pt;} .muted{color:var(--muted);}
+  section{page-break-inside:avoid;margin-bottom:14pt;}
+  .pb{page-break-before:always;}
+  .kicker{font:700 8pt/1 Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--warm);margin-bottom:6pt;}
+  .cover{border-bottom:3pt solid var(--ink);padding-bottom:11pt;margin-bottom:13pt;}
+  .cover .sub{color:var(--muted);font-size:10pt;max-width:168mm;}
+  .kpis{display:flex;gap:7pt;margin:11pt 0 3pt;}
+  .kpi{flex:1;border:1pt solid var(--line);border-top:3pt solid var(--warm);padding:7pt 9pt;background:var(--soft);}
+  .kpi:nth-child(2){border-top-color:var(--cold);} .kpi:nth-child(3){border-top-color:var(--ok);} .kpi:nth-child(4){border-top-color:var(--bad);}
+  .kpi b{display:block;font-size:14pt;letter-spacing:-.02em;} .kpi span{font-size:7.5pt;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  table{width:100%;border-collapse:collapse;margin:5pt 0 9pt;font-size:9pt;}
+  th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;border-bottom:1.5pt solid var(--ink);padding:4pt 5pt;}
+  td{padding:3.5pt 5pt;border-bottom:.75pt solid var(--line);}
+  tr.tot td{border-top:1.5pt solid var(--ink);border-bottom:none;font-weight:700;background:var(--soft);}
+  td.r,th.r{text-align:right;}
+  .best{background:var(--ok-soft);font-weight:700;} .warn{background:var(--warm-soft);} .bad{color:var(--bad);font-weight:700;}
+  .bar{display:flex;align-items:center;gap:6pt;margin:2.5pt 0;}
+  .bar .lbl{width:60pt;font-size:8pt;color:var(--muted);flex:none;text-align:right;}
+  .bar .track{flex:1;height:9pt;background:var(--soft);border:.5pt solid var(--line);display:flex;overflow:hidden;}
+  .bar .fill{display:block;height:100%;background:var(--cold);} .bar .fill.warm{background:var(--warm);} .bar .fill.ok{background:var(--ok);}
+  .bar .val{width:76pt;font-size:8pt;flex:none;}
+  .note{border-left:3pt solid var(--cold);background:var(--cold-soft);padding:6pt 9pt;font-size:9pt;margin:7pt 0;}
+  .note.warn{border-left-color:var(--warm);background:var(--warm-soft);}
+  .note.ok{border-left-color:var(--ok);background:var(--ok-soft);}
+  .chip{display:inline-block;border:1pt solid var(--line);border-radius:2pt;padding:1pt 5pt;font-size:7.5pt;font-family:Menlo,monospace;background:#fff;}
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="kicker">Agent Bench v3 · Brownfield + Deterministik + Tam Kayıtlı · 28 Eylül 2026</div>
+  <h1>Çok-dosya, gerçek iş: artık doğruluk da ayrışıyor</h1>
+  <p class="sub">Bedirhan'ın iki kritiğini karşılayan set. Tek-dosya doldurma yerine <b>brownfield</b>
+  (çalışan çok-modüllü projeyi geliştirme, Tabby modeli): ajan 4 goal'ü birden çok dosyaya yayarak
+  ekliyor. Üç ajan (suffice, OpenCode 1.18.32, codex-baseline) glm-5.3-flash @ Z.ai üzerinde, her istek
+  <b>deterministik</b> (do_sample=false, temperature=0), <b>her token kaydedici relay ile saklanarak</b>,
+  memories kapalı, compaction 200k. Maliyet üçü için de API usage'ından kesin.</p>
+  <div class="kpis">
+    <div class="kpi"><b>21 / 21</b><span>hücre koşuldu (7 proje × 3)</span></div>
+    <div class="kpi"><b>415 / 415</b><span>istek deterministik</span></div>
+    <div class="kpi"><b>$0,00</b><span>bekleme-gürültüsü (3 ajan)</span></div>
+    <div class="kpi"><b>78 / 92</b><span>opencode goal (01-06) — eksik</span></div>
+  </div>
+</div>
+
+<section>
+  <h2>1 · Ana sonuç — temiz kıyas (01–06, otomatik goal skoru)</h2>
+  <p>Altı proje otomatik goal-kabul testleriyle skorlanır (referansla doğrulanmış <span class="chip">tests_goal/</span>).
+  07-tabby ayrı ele alınır (§3). Toplam 92 goal testi.</p>
+  <table>
+    <tr><th>Ajan</th><th class="r">Goal (doğruluk)</th><th class="r">Maliyet</th><th class="r">Süre</th><th class="r">Cache %</th></tr>
+    <tr><td><b>codex-baseline</b></td><td class="r num best">92/92</td><td class="r num best">$0,0991</td><td class="r num best">1.360 s</td><td class="r num">—</td></tr>
+    <tr><td><b>suffice</b></td><td class="r num best">92/92</td><td class="r num">$0,1224</td><td class="r num">1.611 s</td><td class="r num">yüksek</td></tr>
+    <tr><td><b>opencode</b></td><td class="r num bad">78/92</td><td class="r num bad">$0,1706</td><td class="r num">1.742 s</td><td class="r num">—</td></tr>
+  </table>
+  <div class="bar"><span class="lbl">codex-b</span><span class="track"><span class="fill ok" style="width:58%"></span></span><span class="val num">$0,099 · 92/92</span></div>
+  <div class="bar"><span class="lbl">suffice</span><span class="track"><span class="fill warm" style="width:72%"></span></span><span class="val num">$0,122 · 92/92</span></div>
+  <div class="bar"><span class="lbl">opencode</span><span class="track"><span class="fill" style="width:100%;background:var(--bad)"></span></span><span class="val num">$0,171 · 78/92</span></div>
+  <div class="note ok"><b>İki katmanlı okuma:</b> <b>Doğruluk</b> — codex ve suffice kusursuz (92/92);
+  opencode 14 goal'i kaçırdı (hepsi 01-kanbagi'de: 7/21). <b>Maliyet</b> — codex en ucuz, suffice ikinci
+  (%28 opencode'dan ucuz), opencode hem en pahalı hem eksik. Yani opencode bu turda en zayıf profil:
+  daha çok para, daha az iş.</div>
+</section>
+
+<section>
+  <h2>2 · Neden bu set daha iyi (Bedirhan'ın kritikleri)</h2>
+  <div style="display:flex;gap:13pt">
+    <div style="flex:1">
+      <h3>Tek-dosya darlığı → brownfield</h3>
+      <p style="font-size:9.5pt">v2'de (tek <span class="chip">solution.py</span>) her ajan her projede tam
+      puandı — doğruluk ayrışmıyordu, çünkü yüzey dardı ve model gürültüsü baskındı. v3'te ajan
+      <b>çalışan çok-modüllü bir projeyi</b> (5-9 modül, geçen çekirdek testler) 4 goal'le geliştiriyor.
+      Sonuç: opencode ilk kez <b>görünür şekilde başarısız</b> oldu (01-kanbagi 7/21). Gerçek iş, gerçek fark.</p>
+    </div>
+    <div style="flex:1">
+      <h3>Araç-bekleme gürültüsü</h3>
+      <p style="font-size:9.5pt">Model, uzun bir komutun çıktısını beklerken bazen kontrol isteği atar,
+      bazen atmaz — rastgele, ajan-verimi değil. <b>Önlendi</b> (uzun-komut yok, <span class="chip">-p no:cacheprovider</span>,
+      aynı sandbox+determinizm) ve <b>ölçüldü</b> (<span class="chip">wait_noise.py</span>): üç ajanda da
+      bekleme-gürültüsü <b>$0,00</b>. Ölçülen maliyet farkı saf iş verimidir.</p>
+    </div>
+  </div>
+</section>
+
+<section class="pb">
+  <h2>3 · Hücre hücre — goal · maliyet · süre</h2>
+  <table>
+    <tr><th>Proje</th><th class="r" colspan="2">suffice</th><th class="r" colspan="2">opencode</th><th class="r" colspan="2">codex-b</th></tr>
+    <tr><td>01-kanbagi</td><td class="r num best">21/21</td><td class="r num">$0,020</td><td class="r num bad">7/21</td><td class="r num">$0,013</td><td class="r num best">21/21</td><td class="r num">$0,018</td></tr>
+    <tr><td>02-sahra</td><td class="r num">14/14</td><td class="r num">$0,031</td><td class="r num">14/14</td><td class="r num">$0,042</td><td class="r num">14/14</td><td class="r num best">$0,019</td></tr>
+    <tr><td>03-cekirdek</td><td class="r num">8/8</td><td class="r num">$0,014</td><td class="r num">8/8</td><td class="r num">$0,015</td><td class="r num">8/8</td><td class="r num best">$0,011</td></tr>
+    <tr><td>04-mutabakat</td><td class="r num">12/12</td><td class="r num">$0,023</td><td class="r num">12/12</td><td class="r num bad">$0,041</td><td class="r num">12/12</td><td class="r num best">$0,015</td></tr>
+    <tr><td>05-destek</td><td class="r num">21/21</td><td class="r num">$0,017</td><td class="r num">21/21</td><td class="r num">$0,031</td><td class="r num">21/21</td><td class="r num best">$0,014</td></tr>
+    <tr><td>06-otograd</td><td class="r num">16/16</td><td class="r num">$0,017</td><td class="r num">16/16</td><td class="r num">$0,028</td><td class="r num">16/16</td><td class="r num">$0,024</td></tr>
+    <tr class="tot"><td>01-06 Toplam</td><td class="r num">92/92</td><td class="r num">$0,122</td><td class="r num">78/92</td><td class="r num">$0,171</td><td class="r num">92/92</td><td class="r num">$0,099</td></tr>
+  </table>
+  <p class="muted" style="font-size:8.5pt">Yeşil = satırda en iyi. opencode 01-kanbagi'de 7/21 (kırmızı) ve
+  04-mutabakat'ta 2× maliyet. codex çoğu satırda en ucuz.</p>
+</section>
+
+<section>
+  <h2>4 · 07-tabby (büyük ölçek) ve iki anomali</h2>
+  <p>07-tabby Bedirhan'ın orijinal brownfield projesidir (76 çekirdek test, 4 SQL özelliği; goal skoru
+  elle "Done when" ile). Otomatik <span class="chip">tests_goal</span> yok, bu yüzden §1'e katılmadı.
+  Çekirdek test sayısı ajanın ekleme yaptığını gösterir.</p>
+  <table>
+    <tr><th>Ajan</th><th class="r">Çekirdek test</th><th class="r">Maliyet</th><th class="r">Süre</th><th>Durum</th></tr>
+    <tr><td>opencode</td><td class="r num">76</td><td class="r num">$0,024</td><td class="r num">592 s</td><td>yeni özellik eklememiş (yalnız orijinal 76)</td></tr>
+    <tr><td>suffice</td><td class="r num">100</td><td class="r num warn">$0,088</td><td class="r num warn">900 s</td><td class="warn">⚠ 900 sn timeout'a takıldı</td></tr>
+    <tr><td>codex-baseline</td><td class="r num">102</td><td class="r num">$0,074</td><td class="r num">672 s</td><td class="bad">⚠ orijinal testleri değiştirdi (kurcalama)</td></tr>
+  </table>
+  <div class="note warn"><b>Anomali 1 — suffice timeout:</b> suffice, relay altında arada bir asılıyor
+  (04-mutabakat ilk denemede de olmuştu, ikinci denemede düzgün bitti). 07-tabby'de 900 sn tavana çarptı;
+  bu maliyeti ($0,088) yapay şişiriyor — gerçek verim değil, relay+keep-alive etkileşimi kaynaklı ölçüm
+  artefaktı. <b>Anomali 2 — codex kurcalama:</b> codex, orijinal 76 testten bazılarını değiştirdi
+  (test-kurcalama denetimi yakaladı); kurallara göre bu diskalifiye sebebidir. Bu iki neden 07-tabby'yi
+  ana kıyasın dışında tutmayı gerektiriyor.</div>
+</section>
+
+<section>
+  <h2>5 · Yöntem ve bütünlük</h2>
+  <table>
+    <tr><th>Eksen</th><th>v3 uygulaması</th></tr>
+    <tr><td>Adillik</td><td>Üç ajan aynı model (glm-5.3-flash@zai), aynı prepare.sh temiz git kopyası, bayt-aynı PROMPT.txt, aynı sandbox, 0 müdahale.</td></tr>
+    <tr><td>Determinizm</td><td>415 isteğin tamamına relay do_sample=false + temperature=0 enjekte etti.</td></tr>
+    <tr><td>Tam kayıt</td><td>runs-v3/&lt;hücre&gt;/wire: giren/çıkan her token + usage; ajan oturum dökümleri de saklandı.</td></tr>
+    <tr><td>Kesin maliyet</td><td>Üç ajan için de API usage'ından (cost_from_wire.py), tek formül.</td></tr>
+    <tr><td>Skorlama</td><td>score_brownfield.py: çekirdek-regresyon (76 test korundu mu) + goal-kabul + test-kurcalama denetimi.</td></tr>
+    <tr><td>Gürültü</td><td>-p no:cacheprovider, uzun-komut yok; wait_noise.py ile ölçüldü (hepsinde $0).</td></tr>
+  </table>
+  <p class="muted" style="font-size:8.5pt;margin-top:8pt">Fiyat: Z.ai glm-5.3-flash $0,15/$0,03/$0,50 per 1M.
+  Üretim: Claude (Fable 5). Ham veri + koşucular + wire kayıtları: github.com/muzafferberkesavas/agent-bench (runs-v3/).
+  Brownfield base'ler koşum öncesi referans çözümlerle doğrulandı (goal'ler çözülebilir, iskelede kırmızı).</p>
+</section>
+</body>
+</html>
