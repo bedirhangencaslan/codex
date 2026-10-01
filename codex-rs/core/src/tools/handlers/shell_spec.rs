@@ -146,8 +146,8 @@ pub(crate) fn create_exec_command_tool_with_environment_id(
     })
 }
 
-/// `exec_command` with the three parameters a non-interactive run can act on, and a description
-/// written the way OpenCode writes `bash`'s.
+/// `exec_command` with the three parameters a non-interactive run can act on, and Codex's own
+/// description.
 ///
 /// The seven that go: `shell` and `login` (the environment's own shell is the right one),
 /// `tty` and `yield_time_ms` (a resumable session needs a caller who will come back to it),
@@ -194,17 +194,18 @@ fn lean_exec_command_tool(
     // Code mode used to swap the `apply_patch` line for its pre-script-steer form; the description
     // no longer carries that line, so both modes get the same text.
     let _ = code_mode_offered;
-    let usage_guidance = lean_usage_guidance();
+    // Codex's own description, word for word. The one line Suffice added between the opening
+    // sentence and the Windows rules ("- Independent: parallel calls. Sequential: ...") was the
+    // only part of the description that was ours, and with it Codex itself settled into its clipped
+    // notes in 2 of 4 ORDER BY sessions instead of 4 of 4 (2026-10-01, tabby, real binary).
     let description = if include_windows_shell_guidance {
         format!(
-            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}\n\n{}",
-            usage_guidance,
+            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{}",
             windows_shell_guidance()
         )
     } else {
-        format!(
-            "Runs a command in a PTY, returning output or a session ID for ongoing interaction.\n\n{usage_guidance}"
-        )
+        "Runs a command in a PTY, returning output or a session ID for ongoing interaction."
+            .to_string()
     };
 
     ToolSpec::Function(ResponsesApiTool {
@@ -219,18 +220,6 @@ fn lean_exec_command_tool(
         ),
         output_schema: Some(unified_exec_output_schema().into()),
     })
-}
-
-/// What sits between Codex's own opening sentence and its Windows safety rules: one line on running
-/// commands in parallel and in sequence, which PowerShell makes worth saying (`&&` does not exist).
-///
-/// Until 2026-09-29 this was OpenCode's `bash` description, section for section, trimmed. With it,
-/// glm-5.3-flash never settled into the clipped notes it writes under stock Codex (0 of 8 sessions);
-/// with Codex's description it did in about half, and the text, not the three parameters, made the
-/// difference. The routing it carried now lives in `read`, `glob` and `grep` themselves. Wire runs
-/// rep176-178: every read bounded, 44/44 citations, $0.0089-$0.0095.
-fn lean_usage_guidance() -> &'static str {
-    r#"- Independent: parallel calls. Sequential: `cmd1; if ($?) { cmd2 }`."#
 }
 
 pub fn create_write_stdin_tool() -> ToolSpec {
