@@ -79,6 +79,10 @@ const ZAI_PROVIDER_NAME: &str = "Z.ai";
 pub const ZAI_PROVIDER_ID: &str = "zai";
 pub const ZAI_DEFAULT_BASE_URL: &str = "https://api.z.ai/api/paas/v4";
 pub const ZAI_API_KEY_ENV_VAR: &str = "ZAI_API_KEY";
+const OPENAI_API_KEY_PROVIDER_NAME: &str = "OpenAI (API key)";
+pub const OPENAI_API_KEY_PROVIDER_ID: &str = "openai-api";
+pub const OPENAI_API_DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
+pub const OPENAI_API_KEY_ENV_VAR: &str = "OPENAI_API_KEY";
 const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
 pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
 const AMAZON_BEDROCK_RUNTIME_PROVIDER_NAME: &str = "Amazon Bedrock Runtime";
@@ -603,6 +607,41 @@ other non-default provider fields are not supported"
         }
     }
 
+    /// The OpenAI API reached with a plain key from `OPENAI_API_KEY`.
+    ///
+    /// The built-in `openai` provider takes its key from `suffice login`, never from the
+    /// environment, so an editor that only exports the key could not reach the GPT models.
+    /// This one speaks the Responses API, which is what carries `apply_patch`'s Lark grammar;
+    /// on the Chat wire the grammar is dropped. Its name is not `OpenAI` on purpose: the
+    /// ChatGPT backend routes `is_openai()` turns on do not exist on api.openai.com.
+    pub fn create_openai_api_key_provider() -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: OPENAI_API_KEY_PROVIDER_NAME.into(),
+            base_url: Some(OPENAI_API_DEFAULT_BASE_URL.to_string()),
+            model_catalog_url: None,
+            env_key: Some(OPENAI_API_KEY_ENV_VAR.to_string()),
+            env_key_instructions: Some(
+                "Create an API key at https://platform.openai.com/api-keys and export it as OPENAI_API_KEY."
+                    .to_string(),
+            ),
+            experimental_bearer_token: None,
+            auth: None,
+            gateway_oauth: None,
+            aws: None,
+            wire_api: WireApi::Responses,
+            query_params: None,
+            http_headers: None,
+            env_http_headers: None,
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: false,
+            supports_websockets: false,
+            supports_standalone_web_search: false,
+        }
+    }
+
     /// Z.ai's OpenAI-compatible endpoint, which serves the GLM models.
     ///
     /// Z.ai exposes no Responses API, so this provider speaks
@@ -706,6 +745,10 @@ pub fn built_in_model_providers(
     [
         (OPENAI_PROVIDER_ID, openai_provider),
         (ZAI_PROVIDER_ID, P::create_zai_provider()),
+        (
+            OPENAI_API_KEY_PROVIDER_ID,
+            P::create_openai_api_key_provider(),
+        ),
         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
         (
             AMAZON_BEDROCK_RUNTIME_PROVIDER_ID,
