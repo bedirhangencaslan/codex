@@ -1,0 +1,10 @@
+[
+  {"id": "u1", "blood_type": "A+", "collected_on": "2026-08-15", "city": "Ankara"},
+  {"id": "u2", "blood_type": "A+", "collected_on": "2026-09-05", "city": "Ankara"},
+  {"id": "u3", "blood_type": "O+", "collected_on": "2026-09-25", "city": "Ankara"},
+  {"id": "u4", "blood_type": "O-", "collected_on": "2026-08-25", "city": "İstanbul"},
+  {"id": "u5", "blood_type": "B+", "collected_on": "2026-09-20", "city": "İzmir"},
+  {"id": "u6", "blood_type": "A+", "collected_on": "2026-09-28", "city": "İstanbul"},
+  {"id": "u7", "blood_type": "O-", "collected_on": "2026-09-27", "city": "Ankara"},
+  {"id": "u8", "blood_type": "AB-", "collected_on": "2026-08-19", "city": "Ankara"}
+]

@@ -1,0 +1,8 @@
+All 11 tests pass. [solution.py](/Users/muzafferberkesavas/agent-bench/solutions/02-sahra-suffice/solution.py) implements the full spec with standard library only:
+
+- **`priority`** — exact formula, with waiting hours floored via `timedelta` day/second decomposition (exact integer math, no float rounding), so negative waits floor correctly too.
+- **`allocate`** — items processed alphabetically; each step re-picks the warehouse with the *current* highest stock (ties → smaller id), decrements stock in place, and records only positive remainders in `unmet`.
+- **`load_vehicles`** — rows grouped per warehouse and sorted by total weight descending (ties → item name), vehicles in a fixed original-capacity-descending / id-ascending order; rows split by `min(remaining_qty, remaining_capacity // unit_kg)` against the shared `used` dict, which is mutated so successive calls share the fleet. Leftovers land in `unshipped`, sorted by (warehouse, item).
+- **`plan` CLI** — needs ranked by priority descending (ties → id ascending), then processed sequentially against shared stock and vehicle capacity, emitting the exact JSON shape from the spec with `unmet`/`loaded_kg`/`unshipped` filtered to >0 and alphabetically keyed.
+
+I verified the fixture pipeline by hand-tracing it before coding (priorities 532/510/478 → n1, n3, n2; unmet {battaniye: 10, cadir: 4, su: 30}; loaded_kg {v1: 650, v3: 450, v4: 310}), and the acceptance run confirms: `11 passed`. Nothing under `projects/` was modified, and no fixture values are hardcoded — all ordering and aggregation rules derive from the input data.

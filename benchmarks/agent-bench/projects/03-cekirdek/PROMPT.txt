@@ -1,0 +1,9 @@
+Read ../../projects/03-cekirdek/SPEC.md and GOALS.md. Implement the whole
+specification as solution.py in the CURRENT directory (Python 3.12+, numpy
+only — no other ML library). Fixtures live in ../../projects/03-cekirdek/fixtures/
+and the acceptance tests in ../../projects/03-cekirdek/tests/ — you may read and
+run them, but you must not modify anything under projects/. Work until this passes:
+
+  BENCH_SOLUTION=$PWD ../../.venv/bin/python -m pytest ../../projects/03-cekirdek/tests -q
+
+Derive the backward pass by hand; do not memorize fixture data.

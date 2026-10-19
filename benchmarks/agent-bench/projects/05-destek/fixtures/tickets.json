@@ -1,0 +1,8 @@
+[
+  {"id": "t1", "subject": "Sistem çöktü acil", "description": "üretim ortamı kesinti", "customer": "Aras Kargo", "plan": "kurumsal", "channel": "telefon", "category": "teknik", "priority": null, "created_at": "2026-10-26T10:00", "tags": []},
+  {"id": "t2", "subject": "Fatura yanlış", "description": "tutar hatalı görünüyor", "customer": "Nil Ltd", "plan": "standart", "channel": "eposta", "category": "fatura", "priority": null, "created_at": "2026-10-26T11:00", "tags": ["muhasebe"]},
+  {"id": "t3", "subject": "Şifre sıfırlama", "description": "hesabıma giremiyorum", "customer": "Ege AŞ", "plan": "standart", "channel": "portal", "category": "hesap", "priority": null, "created_at": "2026-10-26T12:30", "tags": []},
+  {"id": "t4", "subject": "Rapor ekranı yavaş", "description": "grafikler geç yükleniyor", "customer": "Aras Kargo", "plan": "kurumsal", "channel": "portal", "category": "teknik", "priority": null, "created_at": "2026-10-26T14:00", "tags": []},
+  {"id": "t5", "subject": "API erişimi", "description": "yeni anahtar talebi", "customer": "Nil Ltd", "plan": "standart", "channel": "eposta", "category": "teknik", "priority": "P4", "created_at": "2026-10-26T15:00", "tags": []},
+  {"id": "t6", "subject": "Ek kullanıcı", "description": "lisans artırımı", "customer": "Ege AŞ", "plan": "standart", "channel": "portal", "category": "hesap", "priority": null, "created_at": "2026-10-27T09:30", "tags": []}
+]

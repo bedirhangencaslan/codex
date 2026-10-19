@@ -1,0 +1,10 @@
+Read ../../projects/06-otograd/SPEC.md and GOALS.md. Implement the whole
+specification as solution.py in the CURRENT directory (Python 3.12+, numpy
+only — no other ML library). Fixtures live in ../../projects/06-otograd/fixtures/
+and the acceptance tests in ../../projects/06-otograd/tests/ — you may read and
+run them, but you must not modify anything under projects/. Work until this passes:
+
+  BENCH_SOLUTION=$PWD ../../.venv/bin/python -m pytest ../../projects/06-otograd/tests -q
+
+Build a real reverse-mode autograd engine; the tests differentiate arbitrary
+expression graphs, so hand-coded layer gradients will not pass.

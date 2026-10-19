@@ -1,0 +1,7 @@
+[
+  {"id": "a1", "name": "Elif", "team": "muhendislik", "skills": ["teknik"], "max_open": 3, "senior": true},
+  {"id": "a2", "name": "Burak", "team": "muhendislik", "skills": ["teknik"], "max_open": 2, "senior": false},
+  {"id": "a3", "name": "Seda", "team": "finans", "skills": ["fatura"], "max_open": 2, "senior": false},
+  {"id": "a4", "name": "Mert", "team": "finans", "skills": [], "max_open": 2, "senior": false},
+  {"id": "a5", "name": "Nur", "team": "destek", "skills": ["hesap"], "max_open": 1, "senior": true}
+]

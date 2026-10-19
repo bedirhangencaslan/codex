@@ -1,0 +1,578 @@
+[
+  {
+    "project": "01-kanbagi",
+    "agent": "opencode",
+    "goals": {
+      "test_g1_uyum_stok": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_uygunluk": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_eslestirme": {
+        "passed": 6,
+        "total": 6
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 15,
+    "total": 15
+  },
+  {
+    "project": "01-kanbagi",
+    "agent": "suffice",
+    "goals": {
+      "test_g1_uyum_stok": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_uygunluk": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_eslestirme": {
+        "passed": 6,
+        "total": 6
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 15,
+    "total": 15
+  },
+  {
+    "project": "01-kanbagi",
+    "agent": "codex",
+    "goals": {
+      "test_g1_uyum_stok": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_uygunluk": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_eslestirme": {
+        "passed": 6,
+        "total": 6
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 15,
+    "total": 15
+  },
+  {
+    "project": "01-kanbagi",
+    "agent": "opus",
+    "goals": {
+      "test_g1_uyum_stok": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_uygunluk": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_eslestirme": {
+        "passed": 6,
+        "total": 6
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 15,
+    "total": 15
+  },
+  {
+    "project": "02-sahra",
+    "agent": "opencode",
+    "goals": {
+      "test_g1_oncelik": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_tahsis": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g3_yukleme": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 11,
+    "total": 11
+  },
+  {
+    "project": "02-sahra",
+    "agent": "suffice",
+    "goals": {
+      "test_g1_oncelik": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_tahsis": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g3_yukleme": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 11,
+    "total": 11
+  },
+  {
+    "project": "02-sahra",
+    "agent": "codex",
+    "goals": {
+      "test_g1_oncelik": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_tahsis": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g3_yukleme": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 11,
+    "total": 11
+  },
+  {
+    "project": "02-sahra",
+    "agent": "opus",
+    "goals": {
+      "test_g1_oncelik": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_tahsis": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g3_yukleme": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 11,
+    "total": 11
+  },
+  {
+    "project": "03-cekirdek",
+    "agent": "opencode",
+    "goals": {
+      "test_g1_ileri": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g2_gradyan": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g3_egitim": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 12,
+    "total": 12
+  },
+  {
+    "project": "03-cekirdek",
+    "agent": "suffice",
+    "goals": {
+      "test_g1_ileri": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g2_gradyan": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g3_egitim": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 12,
+    "total": 12
+  },
+  {
+    "project": "03-cekirdek",
+    "agent": "codex",
+    "goals": {
+      "test_g1_ileri": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g2_gradyan": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g3_egitim": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 12,
+    "total": 12
+  },
+  {
+    "project": "03-cekirdek",
+    "agent": "opus",
+    "goals": {
+      "test_g1_ileri": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g2_gradyan": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g3_egitim": {
+        "passed": 2,
+        "total": 2
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 12,
+    "total": 12
+  },
+  {
+    "project": "04-mutabakat",
+    "agent": "opencode",
+    "goals": {
+      "test_g1_yukleme": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_kur": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g3_eslestirme": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 14,
+    "total": 14
+  },
+  {
+    "project": "04-mutabakat",
+    "agent": "suffice",
+    "goals": {
+      "test_g1_yukleme": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_kur": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g3_eslestirme": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 14,
+    "total": 14
+  },
+  {
+    "project": "04-mutabakat",
+    "agent": "codex",
+    "goals": {
+      "test_g1_yukleme": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_kur": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g3_eslestirme": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 14,
+    "total": 14
+  },
+  {
+    "project": "04-mutabakat",
+    "agent": "opus",
+    "goals": {
+      "test_g1_yukleme": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g2_kur": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g3_eslestirme": {
+        "passed": 5,
+        "total": 5
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 14,
+    "total": 14
+  },
+  {
+    "project": "05-destek",
+    "agent": "opencode",
+    "goals": {
+      "test_g1_oncelik_atama": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_sla": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_yasam": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 16,
+    "total": 16
+  },
+  {
+    "project": "05-destek",
+    "agent": "suffice",
+    "goals": {
+      "test_g1_oncelik_atama": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_sla": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_yasam": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 16,
+    "total": 16
+  },
+  {
+    "project": "05-destek",
+    "agent": "codex",
+    "goals": {
+      "test_g1_oncelik_atama": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_sla": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_yasam": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 16,
+    "total": 16
+  },
+  {
+    "project": "05-destek",
+    "agent": "opus",
+    "goals": {
+      "test_g1_oncelik_atama": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_sla": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g3_yasam": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g4_cli": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "passed": 16,
+    "total": 16
+  },
+  {
+    "project": "06-otograd",
+    "agent": "opencode",
+    "goals": {
+      "test_g1_ops": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_backward": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g3_egitim": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 17,
+    "total": 17
+  },
+  {
+    "project": "06-otograd",
+    "agent": "suffice",
+    "goals": {
+      "test_g1_ops": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_backward": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g3_egitim": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 17,
+    "total": 17
+  },
+  {
+    "project": "06-otograd",
+    "agent": "codex",
+    "goals": {
+      "test_g1_ops": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_backward": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g3_egitim": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 17,
+    "total": 17
+  },
+  {
+    "project": "06-otograd",
+    "agent": "opus",
+    "goals": {
+      "test_g1_ops": {
+        "passed": 4,
+        "total": 4
+      },
+      "test_g2_backward": {
+        "passed": 7,
+        "total": 7
+      },
+      "test_g3_egitim": {
+        "passed": 3,
+        "total": 3
+      },
+      "test_g4_genelleme": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "passed": 17,
+    "total": 17
+  }
+]

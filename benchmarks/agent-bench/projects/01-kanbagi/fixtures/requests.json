@@ -1,0 +1,5 @@
+[
+  {"id": "r1", "blood_type": "A+", "units": 3, "urgent": false, "city": "Ankara", "created_at": "2026-09-29"},
+  {"id": "r2", "blood_type": "O-", "units": 2, "urgent": true, "city": "İzmir", "created_at": "2026-09-30"},
+  {"id": "r3", "blood_type": "AB+", "units": 1, "urgent": false, "city": "İstanbul", "created_at": "2026-09-28"}
+]
