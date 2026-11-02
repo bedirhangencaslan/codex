@@ -1,9 +1,15 @@
 //! Shared retry and transport fallback decisions for Responses requests.
+//! Content-filter guidance is recorded for sampling requests before retry decisions.
+//! Server advice controls timing without extending configured retry limits.
 
 use std::time::Duration;
 
+use crate::client::HttpFallbackPolicy;
 use crate::client::ModelClientSession;
+use crate::context::ContentFilterGuidance;
+use crate::context::ContextualUserFragment;
 use crate::session::session::Session;
+use crate::session::step_context::StepContext;
 use crate::session::turn_context::TurnContext;
 use codex_client::RetryOperation;
 use codex_features::Feature;
@@ -24,8 +30,33 @@ pub(crate) enum ResponsesStreamRequest {
     RemoteCompactionV2,
 }
 
+/// Once a logical request uses HTTP, its retries must stay on HTTP too.
+pub(crate) enum ResponsesRequestTransport {
+    Auto,
+    Verifying(tokio::sync::oneshot::Receiver<()>),
+    HttpOnly,
+}
+
+impl ResponsesRequestTransport {
+    /// A recovered socket gets one request to prove that it can carry frames.
+    pub(crate) async fn retry_failed_recovery(&mut self, err: &CodexErr) -> bool {
+        if let Self::Verifying(failed_before_output) = self
+            && failed_before_output.try_recv().is_ok()
+            && err.retry_delay(1).is_some()
+        {
+            *self = Self::HttpOnly;
+            if let Some(advice) = err.retry_after() {
+                tokio::time::sleep_until(advice.deadline()).await;
+            }
+            return true;
+        }
+        false
+    }
+}
+
 pub(crate) struct ResponsesStreamRetryState {
     retries: u64,
+    pub(crate) transport: ResponsesRequestTransport,
     connection_retries: u64,
     connection_retry_delay: Duration,
 }
@@ -34,6 +65,7 @@ impl Default for ResponsesStreamRetryState {
     fn default() -> Self {
         Self {
             retries: 0,
+            transport: ResponsesRequestTransport::Auto,
             connection_retries: 0,
             connection_retry_delay: INITIAL_CONNECTION_RETRY_DELAY,
         }
@@ -49,15 +81,33 @@ pub(crate) struct ExhaustedResponseRetry {
 
 /// Returns `Ok(())` when the caller should retry the request loop, or the original error when
 /// it is terminal or the retry budget is exhausted.
+#[tracing::instrument(level = "trace", skip_all, fields(request = ?request))]
 pub(crate) async fn handle_response_stream_error(
     retry_state: &mut ResponsesStreamRetryState,
     max_retries: u64,
     err: CodexErr,
     client_session: &mut ModelClientSession,
     sess: &Session,
-    turn_context: &TurnContext,
+    step_context: &StepContext,
     request: ResponsesStreamRequest,
 ) -> Result<(), CodexErr> {
+    let turn_context = &step_context.turn;
+    if matches!(request, ResponsesStreamRequest::Sampling)
+        && matches!(err.details(), CodexErrorDetails::ContentFilter)
+    {
+        let model_info = &step_context.settings.model_info;
+        let guidance = ContentFilterGuidance {
+            text: codex_prompts::ResolvedModelMessages::from_model(model_info)
+                .content_filter_guidance()
+                .to_string(),
+        };
+        sess.record_conversation_items(
+            turn_context,
+            model_info,
+            &[ContextualUserFragment::into(guidance)],
+        )
+        .await;
+    }
     let operation = match request {
         ResponsesStreamRequest::Sampling => RetryOperation::Sampling,
         ResponsesStreamRequest::RemoteCompactionV2 => RetryOperation::RemoteCompactionV2,
@@ -66,6 +116,9 @@ pub(crate) async fn handle_response_stream_error(
     let Some(delay) = err.retry_delay(retry_count) else {
         return Err(err);
     };
+    if retry_state.transport.retry_failed_recovery(&err).await {
+        return Ok(());
+    }
     let retry_after = err.retry_after();
 
     if turn_context
@@ -95,13 +148,17 @@ pub(crate) async fn handle_response_stream_error(
         return Ok(());
     }
 
-    // TODO(anp): Respect server retry advice before issuing the fallback HTTP request.
     if retry_state.retries >= max_retries
+        && matches!(retry_state.transport, ResponsesRequestTransport::Auto)
         && client_session.try_switch_fallback_transport(
             &turn_context.session_telemetry,
-            turn_context.model_info(),
+            HttpFallbackPolicy::AllowProbes,
         )
     {
+        // Changing transport must not bypass the server's retry deadline.
+        if let Some(retry_after) = retry_after {
+            tokio::time::sleep_until(retry_after.deadline()).await;
+        }
         sess.send_event(
             turn_context,
             EventMsg::Warning(WarningEvent {
@@ -109,6 +166,7 @@ pub(crate) async fn handle_response_stream_error(
             }),
         )
         .await;
+        retry_state.transport = ResponsesRequestTransport::HttpOnly;
         retry_state.retries = 0;
         return Ok(());
     }
@@ -132,10 +190,10 @@ pub(crate) async fn handle_response_stream_error(
             )
             .await;
         }
-        let retry_at = retry_after
-            .map(RetryAfter::deadline)
-            .unwrap_or_else(|| Instant::now() + delay);
-        let delay = retry_at.saturating_duration_since(Instant::now());
+        // Use one clock sample so local backoff telemetry retains the selected delay.
+        let now = Instant::now();
+        let retry_at = retry_after.map(RetryAfter::deadline).unwrap_or(now + delay);
+        let delay = retry_at.saturating_duration_since(now);
         codex_client::record_retry!(retry_count, delay, operation);
         tokio::time::sleep_until(retry_at).await;
         return Ok(());

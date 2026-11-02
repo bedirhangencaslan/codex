@@ -1,8 +1,8 @@
 //! Builds a redacted doctor report attachment for feedback uploads.
 //!
 //! Feedback upload should never depend on doctor succeeding. This module runs
-//! the configured Suffice executable as a subprocess, accepts only valid JSON from
-//! `suffice doctor --json --feedback`, derives a small set of Sentry tags, and otherwise
+//! the configured Codex executable as a subprocess, accepts only valid JSON from
+//! `codex doctor --json --feedback`, derives a small set of Sentry tags, and otherwise
 //! skips the attachment with a warning. Keeping the report generation out of the
 //! app-server process avoids sharing doctor internals across crates while still
 //! using the CLI's JSON report format with bounded database scans.
@@ -33,10 +33,10 @@ pub(crate) struct DoctorFeedbackReport {
     pub(crate) tags: BTreeMap<String, String>,
 }
 
-/// Runs `suffice --cd <workspace> doctor --json --feedback` and returns a best-effort
+/// Runs `codex --cd <workspace> doctor --json --feedback` and returns a best-effort
 /// feedback attachment.
 ///
-/// Failure to spawn Suffice, finish before the timeout, or parse JSON means the
+/// Failure to spawn Codex, finish before the timeout, or parse JSON means the
 /// feedback upload proceeds without the doctor report. Callers should merge the
 /// returned tags without overriding explicit client-provided tags.
 pub(crate) async fn doctor_feedback_report(
@@ -106,7 +106,7 @@ pub(crate) async fn doctor_feedback_report(
 }
 
 fn doctor_command(executable: &Path, cwd: &Path, codex_home: &Path) -> Command {
-    let mut command = Command::new(executable);
+    let mut command = Command::from(codex_utils_process::background_command(executable));
     command
         .arg("--cd")
         .arg(cwd)

@@ -1,7 +1,9 @@
 use super::*;
+use crate::unified_exec::output::CapturedStream;
 use codex_protocol::models::DEFAULT_IMAGE_DETAIL;
 use codex_protocol::models::ImageReference;
 use codex_protocol::models::SearchToolCallParams;
+use codex_utils_head_tail_buffer::format_output_omission_marker;
 use core_test_support::assert_regex_match;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -420,15 +422,15 @@ fn exec_command_tool_output_formats_truncated_response() {
         event_call_id: "call-42".to_string(),
         chunk_id: "abc123".to_string(),
         wall_time: std::time::Duration::from_millis(1250),
-        raw_output: raw.clone().into_bytes(),
+        raw_output: raw.as_str().into(),
         truncation_policy: TruncationPolicy::Tokens(10_000),
         max_output_tokens: Some(4),
         process_id: None,
         exit_code: Some(0),
         original_token_count: Some(10),
-        output_omitted_bytes: None,
         hook_command: None,
         spill_dir: None,
+        tool_cwd: None,
     };
     assert_eq!(
         output.log_output(),
@@ -469,8 +471,7 @@ fn exec_command_tool_output_reserves_metadata_budget_and_preserves_policy_units(
     };
     let raw_output = (1..=150)
         .map(|line| format!("{line}\n"))
-        .collect::<String>()
-        .into_bytes();
+        .collect::<String>();
 
     for (policy, marker) in [
         (TruncationPolicy::Bytes(200), "chars truncated"),
@@ -480,15 +481,15 @@ fn exec_command_tool_output_reserves_metadata_budget_and_preserves_policy_units(
             event_call_id: "call-42".to_string(),
             chunk_id: "abc123".to_string(),
             wall_time: std::time::Duration::from_millis(/*millis*/ 1250),
-            raw_output: raw_output.clone(),
+            raw_output: raw_output.as_str().into(),
             truncation_policy: policy,
             max_output_tokens: None,
             process_id: None,
             exit_code: Some(0),
             original_token_count: Some(123),
-            output_omitted_bytes: None,
             hook_command: None,
             spill_dir: None,
+            tool_cwd: None,
         }
         .to_response_item("call-42", &payload);
 
@@ -519,34 +520,33 @@ fn exec_command_tool_output_preserves_omission_metadata_when_truncated() {
         "HEAD-{}\n{marker}\nTAIL-{}",
         "a".repeat(/*n*/ 100),
         "z".repeat(/*n*/ 100)
-    )
-    .into_bytes();
+    );
     let mut output = ExecCommandToolOutput {
         event_call_id: "call-omitted".to_string(),
         chunk_id: "abc123".to_string(),
         wall_time: std::time::Duration::from_millis(/*millis*/ 1250),
-        raw_output,
+        raw_output: CapturedStream {
+            text: raw_output.clone(),
+            omitted_bytes: 123_456,
+        },
         truncation_policy: TruncationPolicy::Tokens(10_000),
         max_output_tokens: Some(4),
         process_id: None,
         exit_code: Some(0),
         original_token_count: Some(42_000),
-        output_omitted_bytes: NonZeroUsize::new(/*n*/ 123_456),
         hook_command: None,
         spill_dir: None,
+        tool_cwd: None,
     };
     let expected_header = "Chunk ID: abc123\nWall time: 1.2500 seconds\nProcess exited with code 0\nOriginal token count: 42000\nOutput:\n";
     assert_eq!(
         output.log_output(),
-        format!(
-            "{expected_header}{}",
-            String::from_utf8_lossy(&output.raw_output)
-        )
+        format!("{expected_header}{raw_output}")
     );
     let response = output.to_response_item("call-omitted", &payload);
 
     // Collection may report omitted bytes without including the marker in its text.
-    output.raw_output = b"remaining output".to_vec();
+    output.raw_output.text = "remaining output".to_string();
     assert_eq!(
         output.log_output(),
         format!("{expected_header}{marker}\nremaining output")
@@ -574,7 +574,7 @@ fn exec_output_of_lines(count: usize, spill_dir: Option<PathBuf>) -> ExecCommand
         event_call_id: "call-spill".to_string(),
         chunk_id: "sp1ll".to_string(),
         wall_time: std::time::Duration::from_millis(/*millis*/ 500),
-        raw_output: raw.into_bytes(),
+        raw_output: raw.as_str().into(),
         truncation_policy: TruncationPolicy::Tokens(10_000),
         max_output_tokens: None,
         process_id: None,
@@ -582,9 +582,9 @@ fn exec_output_of_lines(count: usize, spill_dir: Option<PathBuf>) -> ExecCommand
         // that can remove a line here is the budget - which is what these tests are about.
         exit_code: Some(0),
         original_token_count: None,
-        output_omitted_bytes: None,
         hook_command: None,
         spill_dir,
+        tool_cwd: None,
     }
 }
 
@@ -610,7 +610,7 @@ fn output_the_budget_cuts_is_written_whole_and_the_header_names_it() {
     // Byte for byte what the model would have been shown had nothing been cut. Not the raw
     // bytes: condensing runs first, and the file has to match what the truncated body is a
     // window into, or a `read` of it would not line up with what the model already has.
-    assert_eq!(spilled, String::from_utf8_lossy(&output.raw_output));
+    assert_eq!(spilled, output.raw_output.text);
     assert!(text.contains("Warning: truncated output"), "{text}");
     // The notice goes between the harness's own facts and the output it introduces.
     let notice_line = text.find("Full output saved to: ").expect("notice present");
@@ -748,15 +748,15 @@ fn code_mode_result_removes_noise_but_never_drops_content() {
         event_call_id: "call-7".to_string(),
         chunk_id: String::new(),
         wall_time: std::time::Duration::from_millis(500),
-        raw_output: raw.into_bytes(),
+        raw_output: raw.as_str().into(),
         truncation_policy: TruncationPolicy::Tokens(100_000),
         max_output_tokens: None,
         process_id: None,
         exit_code: Some(0),
         original_token_count: None,
-        output_omitted_bytes: None,
         hook_command: None,
         spill_dir: None,
+        tool_cwd: None,
     };
 
     let result = output.code_mode_result(&payload);

@@ -12,7 +12,7 @@ use tempfile::TempDir;
 
 #[test]
 fn readback_ignores_unrelated_malformed_marketplace() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     std::fs::write(
         codex_home.path().join(CONFIG_TOML_FILE),
         r#"
@@ -44,7 +44,7 @@ last_revision = "abc123"
 
 #[test]
 fn one_upgrade_failure_does_not_block_another_marketplace() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let remote_repo = TempDir::new().expect("create remote repository");
     init_marketplace_repo(remote_repo.path(), "good");
     let good_url = url::Url::from_directory_path(remote_repo.path())
@@ -158,7 +158,7 @@ fn automatic_marketplace_git_ignores_inherited_repository_configuration() {
     let project = root.path().join("project");
     let codex_home = project.join("codex-home");
     let remote = root.path().join("remote");
-    std::fs::create_dir_all(&codex_home).expect("create Suffice home");
+    std::fs::create_dir_all(&codex_home).expect("create Codex home");
     std::fs::create_dir_all(&remote).expect("create remote marketplace");
     init_marketplace_repo(&remote, "trusted");
     run_git(&remote, &["switch", "--create", "manual-filter"]);
@@ -226,7 +226,7 @@ fn automatic_marketplace_git_ignores_inherited_repository_configuration() {
 
 #[test]
 fn upgrade_uses_validated_source_for_git_operations() {
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let remote_repo = TempDir::new().expect("create remote repository");
     init_marketplace_repo(remote_repo.path(), "good");
     let normalized_url = url::Url::from_directory_path(remote_repo.path())
@@ -275,7 +275,7 @@ ref = "missing-ref"
 #[test]
 fn up_to_date_fast_path_validates_marketplace_name() {
     const REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let install_root = marketplace_install_root(codex_home.path());
     let destination = install_root.join("good");
     let manifest_dir = destination.join(".agents/plugins");
@@ -311,6 +311,12 @@ fn up_to_date_fast_path_validates_marketplace_name() {
     .expect_err("mismatched marketplace name must not use the up-to-date fast path");
 
     assert!(err.contains("git clone marketplace source failed"));
+    assert_eq!(
+        std::fs::read_dir(install_root.join(".staging"))
+            .expect("read marketplace staging directory")
+            .count(),
+        0
+    );
 }
 
 #[test]
@@ -319,7 +325,7 @@ fn stale_activation_restores_newer_concurrently_installed_marketplace() {
     const STALE_REVISION: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     const NEWER_REVISION: &str = "cccccccccccccccccccccccccccccccccccccccc";
 
-    let codex_home = TempDir::new().expect("create Suffice home");
+    let codex_home = TempDir::new().expect("create Codex home");
     let install_root = marketplace_install_root(codex_home.path());
     let destination = install_root.join("good");
     std::fs::create_dir_all(&destination).expect("create installed marketplace root");
@@ -347,10 +353,9 @@ fn stale_activation_restores_newer_concurrently_installed_marketplace() {
     )
     .expect("write newer installed marketplace metadata");
 
-    let staged_dir = tempfile::Builder::new()
-        .prefix("marketplace-upgrade-")
-        .tempdir_in(&install_root)
-        .expect("create stale upgrade staging directory");
+    let staged_dir =
+        MarketplaceStagingDir::new(&install_root).expect("create stale upgrade staging directory");
+    std::fs::create_dir_all(staged_dir.path()).expect("create stale upgrade checkout");
     std::fs::write(staged_dir.path().join("marker.txt"), "stale snapshot")
         .expect("write stale staged marketplace snapshot");
     super::activation::write_installed_marketplace_metadata(
@@ -362,7 +367,7 @@ fn stale_activation_restores_newer_concurrently_installed_marketplace() {
 
     let err = super::activation::activate_marketplace_root(
         &destination,
-        staged_dir,
+        staged_dir.path(),
         &previous_snapshot,
         || Ok(()),
     )
@@ -384,6 +389,13 @@ fn stale_activation_restores_newer_concurrently_installed_marketplace() {
         &marketplace,
         NEWER_REVISION
     ));
+    drop(staged_dir);
+    assert_eq!(
+        std::fs::read_dir(install_root.join(".staging"))
+            .expect("read marketplace staging directory")
+            .count(),
+        0
+    );
 }
 
 fn config_reloader(codex_home: &Path) -> ConfigLayerReload {
@@ -541,7 +553,7 @@ fn init_marketplace_repo(repo: &Path, marketplace_name: &str) {
     .expect("write marketplace manifest");
     run_git(repo, &["init"]);
     run_git(repo, &["config", "user.email", "codex-test@example.com"]);
-    run_git(repo, &["config", "user.name", "Suffice Test"]);
+    run_git(repo, &["config", "user.name", "Codex Test"]);
     run_git(repo, &["add", "."]);
     run_git(repo, &["commit", "-m", "initial"]);
 }

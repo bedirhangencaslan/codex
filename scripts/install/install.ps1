@@ -81,7 +81,7 @@ function Assert-ValidReleaseVersion {
     )
 
     if ($Version -cne "latest" -and $Version -cnotmatch "^[0-9]+\.[0-9]+\.[0-9]+(?:-alpha(?:\.[0-9]+){0,2}|-beta(?:\.[0-9]+)?)?$") {
-        throw "Invalid Suffice release version: $Version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]."
+        throw "Invalid Codex release version: $Version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]."
     }
 }
 
@@ -197,7 +197,7 @@ function Resolve-ReleaseAssetSelection {
     }
     $packageMetadata = Find-ReleaseAssetMetadata -AssetName $packageAsset -ReleaseMetadata $releaseMetadata -Url $packageUrl -FallbackUrl $packageFallbackUrl
     if ($null -eq $packageMetadata) {
-        throw "Could not find Suffice package or platform npm release assets for Suffice $version."
+        throw "Could not find Codex package or platform npm release assets for Codex $version."
     }
 
     return [PSCustomObject]@{
@@ -214,9 +214,23 @@ function Test-ArchiveDigest {
         [string]$ExpectedDigest
     )
 
-    $actualDigest = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    # A native launcher can pass PowerShell 7 module paths to Windows PowerShell,
+    # preventing Get-FileHash from loading. Hash directly without module lookup.
+    $providerPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ArchivePath)
+    $sha256 = [System.Security.Cryptography.SHA256CryptoServiceProvider]::new()
+    try {
+        $stream = [System.IO.File]::OpenRead($providerPath)
+        try {
+            $actualDigest = [System.BitConverter]::ToString($sha256.ComputeHash($stream)).Replace("-", "").ToLowerInvariant()
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $sha256.Dispose()
+    }
+
     if ($actualDigest -ne $ExpectedDigest) {
-        throw "Downloaded Suffice archive checksum did not match expected digest. Expected $ExpectedDigest but got $actualDigest."
+        throw "Downloaded Codex archive checksum did not match expected digest. Expected $ExpectedDigest but got $actualDigest."
     }
 }
 
@@ -317,7 +331,7 @@ function Resolve-VersionFromReleaseMetadata {
     )
 
     if (-not $ReleaseMetadata.tag_name) {
-        throw "Failed to resolve the latest Suffice release version."
+        throw "Failed to resolve the latest Codex release version."
     }
 
     $resolvedVersion = Normalize-Version -RawVersion $ReleaseMetadata.tag_name
@@ -342,7 +356,7 @@ function Resolve-ReleaseFromGitHub {
     try {
         $releaseMetadata = Invoke-RestMethod -Uri $metadataUri
     } catch {
-        throw "Could not fetch GitHub release metadata for Suffice $requestedRelease. GitHub API may be unavailable or rate limited. $($_.Exception.Message)"
+        throw "Could not fetch GitHub release metadata for Codex $requestedRelease. GitHub API may be unavailable or rate limited. $($_.Exception.Message)"
     }
 
     if ($NormalizedVersion -eq "latest") {
@@ -371,7 +385,7 @@ function Resolve-ReleaseFromReleases {
         $releaseMetadata = [string]$metadataResponse.Content | ConvertFrom-Json -ErrorAction Stop
         $resolvedVersion = Resolve-VersionFromReleaseMetadata -ReleaseMetadata $releaseMetadata
         if ($NormalizedVersion -ne "latest" -and $resolvedVersion -cne $NormalizedVersion) {
-            throw "Release metadata version did not match requested Suffice version $NormalizedVersion."
+            throw "Release metadata version did not match requested Codex version $NormalizedVersion."
         }
         $resolvedRelease = [PSCustomObject]@{
             Version = $resolvedVersion
@@ -494,9 +508,9 @@ function Move-OldStandaloneBinIfApproved {
         return $null
     }
 
-    Write-Step "We found an older Suffice install at $VisibleBinDir"
-    Write-WarningStep "To continue, Suffice needs to update the install at this path."
-    if (-not (Prompt-YesNo "Replace it with the current Suffice setup now?")) {
+    Write-Step "We found an older Codex install at $VisibleBinDir"
+    Write-WarningStep "To continue, Codex needs to update the install at this path."
+    if (-not (Prompt-YesNo "Replace it with the current Codex setup now?")) {
         throw "Cannot replace older standalone install without confirmation: $VisibleBinDir"
     }
 
@@ -508,7 +522,7 @@ function Move-OldStandaloneBinIfApproved {
 
 function Add-JunctionSupportType {
     # Older installer types remain loaded when users rerun irm | iex in one session.
-    if (([System.Management.Automation.PSTypeName]'CodexInstaller.JunctionV2').Type) {
+    if (([System.Management.Automation.PSTypeName]'CodexInstaller.JunctionV3').Type) {
         return
     }
 
@@ -522,7 +536,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace CodexInstaller
 {
-    public static class JunctionV2
+    public static class JunctionV3
     {
         private const uint GENERIC_WRITE = 0x40000000;
         private const uint FILE_SHARE_READ = 0x00000001;
@@ -559,6 +573,35 @@ namespace CodexInstaller
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern uint GetFinalPathNameByHandleW(
             SafeFileHandle file, StringBuilder path, uint length, uint flags);
+
+        // Read the journal entry for the junction itself, never the target.
+        // Unlike a timestamp this changes on an in-place retarget, including away and back.
+        public static string SelectionIdentity(string path)
+        {
+            using (SafeFileHandle handle = CreateFileW(
+                path, 0x80, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                IntPtr.Zero, OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero))
+            {
+                if (handle.IsInvalid) { throw new Win32Exception(Marshal.GetLastWin32Error()); }
+                IntPtr buffer = Marshal.AllocHGlobal(1024);
+                try {
+                    int returned;
+                    // No input requests USN_RECORD_V2. current's filename fits in 1024 bytes.
+                    if (!DeviceIoControl(handle, 0x000900eb, null, 0, buffer, 1024, out returned, IntPtr.Zero)) {
+                        throw new Win32Exception(Marshal.GetLastWin32Error());
+                    }
+                    long usn = Marshal.ReadInt64(buffer, 24);
+                    if (returned < 32 || Marshal.ReadInt16(buffer, 4) != 2 || usn <= 0) {
+                        throw new IOException("No reliable daemon selection journal record.");
+                    }
+                    return Marshal.ReadInt64(buffer, 8).ToString("x")
+                        + " " + usn.ToString("x");
+                } finally {
+                    Marshal.FreeHGlobal(buffer);
+                }
+            }
+        }
 
         public static string ResolveDirectory(string path)
         {
@@ -646,7 +689,7 @@ function Set-JunctionTarget {
     )
 
     Add-JunctionSupportType
-    [CodexInstaller.JunctionV2]::SetTarget($LinkPath, $TargetPath)
+    [CodexInstaller.JunctionV3]::SetTarget($LinkPath, $TargetPath)
 }
 
 function Test-IsJunction {
@@ -677,14 +720,14 @@ function Ensure-Junction {
     $item = Get-Item -LiteralPath $LinkPath -Force
     if (Test-IsJunction -Path $LinkPath) {
         Add-JunctionSupportType
-        $existingTarget = [CodexInstaller.JunctionV2]::ResolveDirectory($LinkPath)
+        $existingTarget = [CodexInstaller.JunctionV3]::ResolveDirectory($LinkPath)
         if (-not [string]::IsNullOrWhiteSpace($InstallerOwnedTargetPrefix)) {
-            $ownedTargetPrefix = [CodexInstaller.JunctionV2]::ResolveDirectory($InstallerOwnedTargetPrefix) + "\"
+            $ownedTargetPrefix = [CodexInstaller.JunctionV3]::ResolveDirectory($InstallerOwnedTargetPrefix) + "\"
             if (-not $existingTarget.StartsWith($ownedTargetPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
                 throw "Refusing to retarget junction at $LinkPath because it is not managed by this installer."
             }
         }
-        if ($existingTarget.Equals([CodexInstaller.JunctionV2]::ResolveDirectory($TargetPath), [System.StringComparison]::OrdinalIgnoreCase)) {
+        if ($existingTarget.Equals([CodexInstaller.JunctionV3]::ResolveDirectory($TargetPath), [System.StringComparison]::OrdinalIgnoreCase)) {
             return
         }
 
@@ -729,6 +772,16 @@ function Test-PackageContentsAreComplete {
         "codex-resources\codex-command-runner.exe",
         "codex-resources\codex-windows-sandbox-setup.exe"
     )
+    try {
+        $metadataPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath((Join-Path $PackageDir "codex-package.json"))
+        $metadata = [System.IO.File]::ReadAllText($metadataPath)
+        # Older canonical packages do not advertise or contain the executor.
+        if ([regex]::IsMatch($metadata, '"execServer"\s*:')) {
+            $expectedFiles += "bin\codex-exec-server.exe"
+        }
+    } catch {
+        return $false
+    }
     foreach ($name in $expectedFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $PackageDir $name) -PathType Leaf)) {
             return $false
@@ -784,7 +837,7 @@ function Test-ReleaseIsComplete {
             $codexPath = Join-Path $ReleaseDir "codex.exe"
         }
         default {
-            throw "Unknown Suffice installer layout: $Layout"
+            throw "Unknown Codex installer layout: $Layout"
         }
     }
 
@@ -837,8 +890,8 @@ function Get-ConflictingInstall {
         return $null
     }
 
-    Write-Step "Detected existing $manager-managed Suffice at $existingPath"
-    Write-WarningStep "Multiple managed Suffice installs can be ambiguous because PATH order decides which one runs."
+    Write-Step "Detected existing $manager-managed Codex at $existingPath"
+    Write-WarningStep "Multiple managed Codex installs can be ambiguous because PATH order decides which one runs."
 
     return [PSCustomObject]@{
         Manager = $manager
@@ -864,15 +917,15 @@ function Maybe-HandleConflictingInstall {
     }
     $uninstallCommand = if ($manager -eq "bun") { "bun" } else { "npm" }
 
-    if (Prompt-YesNo "Uninstall the existing $manager-managed Suffice now?") {
+    if (Prompt-YesNo "Uninstall the existing $manager-managed Codex now?") {
         Write-Step "Running: $uninstallCommand $($uninstallArgs -join ' ')"
         try {
             & $uninstallCommand @uninstallArgs
         } catch {
-            Write-WarningStep "Failed to uninstall the existing $manager-managed Suffice. Continuing with the standalone install."
+            Write-WarningStep "Failed to uninstall the existing $manager-managed Codex. Continuing with the standalone install."
         }
     } else {
-        Write-WarningStep "Leaving the existing $manager-managed Suffice installed. PATH order will determine which codex runs."
+        Write-WarningStep "Leaving the existing $manager-managed Codex installed. PATH order will determine which codex runs."
     }
 }
 
@@ -884,7 +937,7 @@ function Test-VisibleCodexCommand {
     $codexCommand = Join-Path $VisibleBinDir "codex.exe"
     & $codexCommand --version *> $null
     if ($LASTEXITCODE -ne 0) {
-        throw "Installed Suffice command failed verification: $codexCommand --version"
+        throw "Installed Codex command failed verification: $codexCommand --version"
     }
 }
 
@@ -894,7 +947,7 @@ if ($env:OS -ne "Windows_NT") {
 }
 
 if (-not [Environment]::Is64BitOperatingSystem) {
-    Write-Error "Suffice requires a 64-bit version of Windows."
+    Write-Error "Codex requires a 64-bit version of Windows."
     exit 1
 }
 
@@ -936,7 +989,7 @@ if ($deferSelection) {
 $autoUpdateVersion = Join-Path $standaloneRoot "auto-update-version"
 $lockPath = Join-Path $standaloneRoot "install.lock"
 
-$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\Suffice\bin"
+$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\OpenAI\Codex\bin"
 if ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_DIR)) {
     $visibleBinDir = $defaultVisibleBinDir
 } else {
@@ -951,11 +1004,11 @@ $releaseName = "$resolvedVersion-$target"
 $releaseDir = Join-Path $releasesDir $releaseName
 
 if (-not [string]::IsNullOrWhiteSpace($currentVersion) -and $currentVersion -ne $resolvedVersion) {
-    Write-Step "Updating Suffice CLI from $currentVersion to $resolvedVersion"
+    Write-Step "Updating Codex CLI from $currentVersion to $resolvedVersion"
 } elseif (-not [string]::IsNullOrWhiteSpace($currentVersion)) {
-    Write-Step "Updating Suffice CLI"
+    Write-Step "Updating Codex CLI"
 } else {
-    Write-Step "Installing Suffice CLI"
+    Write-Step "Installing Codex CLI"
 }
 Write-Step "Detected platform: $platformLabel"
 Write-Step "Resolved version: $resolvedVersion"
@@ -1016,7 +1069,7 @@ try {
             $currentTarget = if (Test-Path -LiteralPath $currentDir) { (Get-Item -LiteralPath $currentDir).Target } else { $null }
             if ($Release -ne "latest" -or [string]::IsNullOrEmpty($previousRelease) -or [string]::IsNullOrEmpty($currentTarget) -or
                 -not (Test-Path -LiteralPath (Join-Path $releasesDir $previousRelease)) -or
-                [CodexInstaller.JunctionV2]::ResolveDirectory($currentDir) -ne [CodexInstaller.JunctionV2]::ResolveDirectory((Join-Path $releasesDir $previousRelease))) {
+                [CodexInstaller.JunctionV3]::ResolveDirectory($currentDir) -ne [CodexInstaller.JunctionV3]::ResolveDirectory((Join-Path $releasesDir $previousRelease))) {
                 if ($env:CODEX_INSTALL_IF_CURRENT -eq "1") { throw "Daemon selection changed; retry the update." }
                 $script:guardRejected = $true
                 return
@@ -1041,7 +1094,7 @@ try {
             $checksumPath = Join-Path $tempDir $checksumAsset
             $stagingDir = Join-Path $releasesDir ".staging.$releaseName.$PID"
 
-            Write-Step "Downloading Suffice CLI"
+            Write-Step "Downloading Codex CLI"
             if ($installLayout -eq "Package") {
                 Invoke-WebRequestWithFallback -Metadata $checksumMetadata -OutFile $checksumPath -ExpectedDigest $checksumMetadata.Sha256 -AssetName $checksumAsset -ReleaseVersion $resolvedVersion -RequiredManifestAsset $packageAsset
                 $expectedPackageDigest = Get-PackageArchiveDigest -ManifestPath $checksumPath -AssetName $packageAsset
@@ -1058,7 +1111,7 @@ try {
             if ($installLayout -eq "Package") {
                 tar -xzf $archivePath -C $stagingDir
                 if (-not (Test-PackageContentsAreComplete -PackageDir $stagingDir)) {
-                    throw "Downloaded Suffice package archive did not contain the expected package layout."
+                    throw "Downloaded Codex package archive did not contain the expected package layout."
                 }
             } else {
                 $extractDir = Join-Path $tempDir "extract"
@@ -1080,7 +1133,7 @@ try {
                 }
 
                 if (-not (Test-LegacyPlatformNpmContentsAreComplete -PackageDir $stagingDir)) {
-                    throw "Downloaded Suffice npm archive did not contain the expected legacy platform package layout."
+                    throw "Downloaded Codex npm archive did not contain the expected legacy platform package layout."
                 }
             }
 
@@ -1091,7 +1144,7 @@ try {
         }
 
         if (-not (Test-ReleaseIsComplete -ReleaseDir $releaseDir -ExpectedVersion $resolvedVersion -ExpectedTarget $target -Layout $installLayout)) {
-            throw "Installed Suffice command did not report expected version $resolvedVersion."
+            throw "Installed Codex command did not report expected version $resolvedVersion."
         }
 
         New-Item -ItemType Directory -Force -Path $standaloneRoot | Out-Null
@@ -1105,7 +1158,26 @@ try {
                 throw "The production release does not support daemon-owned packages; the current selection was left unchanged."
             }
         }
+        $previousDirectory = $null
+        if ($daemonOnly -and -not $deferSelection) {
+            Add-JunctionSupportType
+            if (Test-Path -LiteralPath $currentDir) {
+                $previousDirectory = [CodexInstaller.JunctionV3]::ResolveDirectory($currentDir)
+            }
+        }
         Ensure-Junction -LinkPath $currentDir -TargetPath $releaseDir -InstallerOwnedTargetPrefix $releasesDir
+        if ($daemonOnly -and -not $deferSelection -and
+            $previousDirectory -cne [CodexInstaller.JunctionV3]::ResolveDirectory($currentDir)) {
+            try {
+                $previousName = if ($null -eq $previousDirectory) { "" } else { Split-Path -Leaf $previousDirectory }
+                $selectionId = [CodexInstaller.JunctionV3]::SelectionIdentity($currentDir)
+                $history = Join-Path $standaloneRoot "selection-history"
+                [System.IO.File]::WriteAllText("$history.tmp.$PID", "$releaseName`n$previousName`n$selectionId`n")
+                Move-Item -LiteralPath "$history.tmp.$PID" -Destination $history -Force -ErrorAction Stop
+            } catch {
+                Write-WarningStep "Could not record daemon selection; pruning will be skipped."
+            }
+        }
         if ($Release -eq "latest") {
             $tempMarker = "$autoUpdateVersion.tmp.$PID"
             [System.IO.File]::WriteAllText($tempMarker, $releaseName)
@@ -1185,10 +1257,10 @@ if ($prioritizeVisibleBin) {
 
 Write-Step "Current PowerShell session: codex"
 Write-Step "Future PowerShell windows: open a new PowerShell window and run: codex"
-Write-Host "Suffice CLI $resolvedVersion installed successfully."
+Write-Host "Codex CLI $resolvedVersion installed successfully."
 
 $codexCommand = Join-Path $visibleBinDir "codex.exe"
-if (Prompt-YesNo "Start Suffice now?") {
-    Write-Step "Launching Suffice"
+if (Prompt-YesNo "Start Codex now?") {
+    Write-Step "Launching Codex"
     & $codexCommand
 }

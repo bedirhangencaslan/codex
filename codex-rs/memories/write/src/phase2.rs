@@ -1,4 +1,5 @@
-﻿use crate::build_consolidation_prompt;
+use crate::MemoryWorkspaceLock;
+use crate::build_consolidation_prompt;
 use crate::memory_root;
 use crate::metrics::MEMORY_PHASE_TWO_E2E_MS;
 use crate::metrics::MEMORY_PHASE_TWO_INPUT;
@@ -64,6 +65,20 @@ pub async fn run(
         .join(config.memories.version.directory_name());
     let max_raw_memories = config.memories.max_raw_memories_for_consolidation;
     let max_unused_days = config.memories.max_unused_days;
+
+    let workspace_lock = match MemoryWorkspaceLock::try_acquire(&root) {
+        Ok(lock) => Arc::new(lock),
+        Err(err) => {
+            let status = if err.kind() == std::io::ErrorKind::WouldBlock {
+                "skipped_workspace_busy"
+            } else {
+                tracing::error!("failed locking memory workspace: {err}");
+                "failed_workspace_lock"
+            };
+            context.counter(MEMORY_PHASE_TWO_JOBS, /*inc*/ 1, &[("status", status)]);
+            return;
+        }
+    };
 
     // 1. Claim the global Phase 2 lock before touching the memory workspace.
     let claim = match job::claim(context.as_ref(), &db).await {
@@ -163,7 +178,7 @@ pub async fn run(
     // 8. Spawn the consolidation agent.
     let prompt = agent::get_prompt(&root, config.memories.version);
     let agent = match context
-        .spawn_consolidation_agent(agent_config, prompt)
+        .spawn_consolidation_agent(agent_config, prompt, Arc::clone(&workspace_lock))
         .await
     {
         Ok(agent) => agent,
@@ -183,6 +198,7 @@ pub async fn run(
         root,
         config.memories.version,
         agent,
+        workspace_lock,
         phase_two_e2e_timer,
     );
 
@@ -323,7 +339,7 @@ mod agent {
             .features
             .disable(Feature::SkillMcpDependencyInstall);
 
-        // Preserve the parent's explicit choice to skip Suffice-managed sandboxing.
+        // Preserve the parent's explicit choice to skip Codex-managed sandboxing.
         match parent_permission_profile {
             PermissionProfile::Disabled => agent_config
                 .permissions
@@ -350,6 +366,7 @@ mod agent {
             config.model.as_deref(),
         ));
         agent_config.model_reasoning_effort = Some(crate::stage_two::REASONING_EFFORT);
+        agent_config.service_tier = Some(config.memories.consolidation_service_tier.clone());
 
         Some(agent_config)
     }
@@ -372,9 +389,11 @@ mod agent {
         memory_root: codex_utils_absolute_path::AbsolutePathBuf,
         version: MemoryVersion,
         agent: SpawnedConsolidationAgent,
+        workspace_lock: Arc<MemoryWorkspaceLock>,
         phase_two_e2e_timer: Option<codex_otel::Timer>,
     ) {
         tokio::spawn(async move {
+            let _workspace_lock = workspace_lock;
             let Some(db) = context.memory_store().await else {
                 return;
             };

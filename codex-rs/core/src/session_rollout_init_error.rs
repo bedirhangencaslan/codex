@@ -19,6 +19,8 @@ pub(crate) fn map_session_init_error(err: &anyhow::Error, codex_home: &Path) -> 
             }
             ThreadStoreError::ThreadNotFound { .. }
             | ThreadStoreError::InvalidRequest { .. }
+            | ThreadStoreError::Retryable { .. }
+            | ThreadStoreError::OutcomeUnknown { .. }
             | ThreadStoreError::Internal { .. } => {}
         }
     }
@@ -38,16 +40,16 @@ fn map_rollout_io_error(io_err: &std::io::Error, codex_home: &Path) -> Option<Co
     let sessions_dir = codex_home.join(SESSIONS_SUBDIR);
     let hint = match io_err.kind() {
         ErrorKind::PermissionDenied => format!(
-            "Suffice cannot access session files at {} (permission denied). If sessions were created using sudo, fix ownership: sudo chown -R $(whoami) {}",
+            "Codex cannot access session files at {} (permission denied). If sessions were created using sudo, fix ownership: sudo chown -R $(whoami) {}",
             sessions_dir.display(),
             codex_home.display()
         ),
         ErrorKind::NotFound => format!(
-            "Session storage missing at {}. Create the directory or choose a different Suffice home.",
+            "Session storage missing at {}. Create the directory or choose a different Codex home.",
             sessions_dir.display()
         ),
         ErrorKind::AlreadyExists => format!(
-            "Session storage path {} is blocked by an existing file. Remove or rename it so Suffice can create sessions.",
+            "Session storage path {} is blocked by an existing file. Remove or rename it so Codex can create sessions.",
             sessions_dir.display()
         ),
         ErrorKind::InvalidData => format!(
@@ -55,7 +57,7 @@ fn map_rollout_io_error(io_err: &std::io::Error, codex_home: &Path) -> Option<Co
             sessions_dir.display()
         ),
         ErrorKind::IsADirectory | ErrorKind::NotADirectory => format!(
-            "Session storage path {} has an unexpected type. Ensure it is a directory Suffice can use for session files.",
+            "Session storage path {} has an unexpected type. Ensure it is a directory Codex can use for session files.",
             sessions_dir.display()
         ),
         _ => return None,
@@ -65,3 +67,7 @@ fn map_rollout_io_error(io_err: &std::io::Error, codex_home: &Path) -> Option<Co
         "{hint} (underlying error: {io_err})"
     )))
 }
+
+#[cfg(test)]
+#[path = "session_rollout_init_error_tests.rs"]
+mod tests;

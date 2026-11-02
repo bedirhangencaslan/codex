@@ -145,7 +145,6 @@ impl ChatWidget {
                     name: preset.display_name.clone(),
                     description,
                     is_current: model.as_str() == current_model,
-                    is_default: preset.is_default,
                     secondary_action: if requires_advanced_selection {
                         None
                     } else {
@@ -244,8 +243,10 @@ impl ChatWidget {
         }
 
         let mut items: Vec<SelectionItem> = Vec::new();
-        let model_ids = presets.iter().map(|preset| preset.model.clone()).collect();
+        // One key per row: a refresh finds the highlighted row by its position in this list.
+        let mut model_ids = Vec::new();
         for preset in presets.into_iter() {
+            model_ids.push(preset.model.clone());
             let description =
                 (!preset.description.is_empty()).then_some(preset.description.to_string());
             let is_current = preset.model.as_str() == self.current_model();
@@ -266,8 +267,7 @@ impl ChatWidget {
             items.push(SelectionItem {
                 name: preset.display_name.clone(),
                 description,
-                is_current: is_current && self.active_mode_kind() != ModeKind::Plan,
-                is_default: preset.is_default,
+                is_current,
                 secondary_action: direct_effort.and_then(|effort| {
                     self.session_model_selection_action(preset.model.clone(), Some(effort))
                 }),
@@ -276,7 +276,10 @@ impl ChatWidget {
                 dismiss_parent_on_child_accept: !single_supported_effort,
                 ..Default::default()
             });
-            items.extend(self.plan_mode_selection_item(&preset));
+            if let Some(plan_item) = self.plan_mode_selection_item(&preset) {
+                model_ids.push(format!("{} Plan", preset.model));
+                items.push(plan_item);
+            }
         }
 
         let header = self.model_menu_header("Select Model and Effort", "");
@@ -350,14 +353,11 @@ impl ChatWidget {
                 });
             } else {
                 tx.send(
-                    AstraModelPickerAction::UpdateModel
-                        .into_picker_event(sparkle_thread, model_for_action.clone()),
+                    AstraModelPickerAction::ApplyModelSelection {
+                        effort: effort_for_action.clone(),
+                    }
+                    .into_picker_event(sparkle_thread, model_for_action.clone()),
                 );
-                tx.send(AppEvent::UpdateReasoningEffort(effort_for_action.clone()));
-                tx.send(AppEvent::PersistModelSelection {
-                    model: model_for_action.clone(),
-                    effort: effort_for_action.clone(),
-                });
             }
             if let Some(warning) = warning.clone() {
                 tx.send(AppEvent::InsertHistoryCell(Box::new(

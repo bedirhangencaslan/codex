@@ -34,7 +34,7 @@ build event upload, downloads, and remote execution are opt-in configurations.
 
 ## BuildBuddy
 
-Suffice uses BuildBuddy for a shared Bazel cache and remoted builds and tests. To use it
+Codex uses BuildBuddy for a shared Bazel cache and remoted builds and tests. To use it
 to speed up your builds and tests you'll need to provide an API key and select a
 configuration.
 
@@ -91,36 +91,36 @@ only enumerate labels and do not need remote caches or execution.
 
 The `Cache/BES` host is also used for remote downloads.
 
-| Invocation/config | Key Required | Cache/BES | Build exec | Test exec |
-| --- | --- | --- | --- | --- |
-| `bazel ...` | No | None | Local | Local |
-| `bazel ... --config=buildbuddy-generic` | Yes | `remote.buildbuddy.io` | Local | Local |
-| `bazel ... --config=buildbuddy-generic-rbe` | Yes | `remote.buildbuddy.io` | Remote | Remote |
-| `bazel ... --config=buildbuddy-openai` | Yes | `openai.buildbuddy.io` | Local | Local |
-| `bazel ... --config=buildbuddy-openai-rbe` | Yes | `openai.buildbuddy.io` | Remote | Remote |
+| Invocation/config                           | Key Required | Cache/BES              | Build exec | Test exec |
+| ------------------------------------------- | ------------ | ---------------------- | ---------- | --------- |
+| `bazel ...`                                 | No           | None                   | Local      | Local     |
+| `bazel ... --config=buildbuddy-generic`     | Yes          | `remote.buildbuddy.io` | Local      | Local     |
+| `bazel ... --config=buildbuddy-generic-rbe` | Yes          | `remote.buildbuddy.io` | Remote     | Remote    |
+| `bazel ... --config=buildbuddy-openai`      | Yes          | `openai.buildbuddy.io` | Local      | Local     |
+| `bazel ... --config=buildbuddy-openai-rbe`  | Yes          | `openai.buildbuddy.io` | Remote     | Remote    |
 
 Without an API key, the wrapper removes remote CI configurations and runs
 locally. With a key, workflows choose the host as follows:
 
-| Run | Key | Uses OpenAI BuildBuddy Host |
-| --- | --- | --- |
-| Push to `main` in `openai/codex` | Yes | Yes |
-| `workflow_dispatch` in `openai/codex` | Yes | Yes |
-| Same-repository pull request in `openai/codex` | Yes | Yes |
-| Fork pull request into `openai/codex` | No | No; local |
-| Push or `workflow_dispatch` in a fork with a key | Yes | No; generic host |
-| Pull request run in a fork repository with a key | Yes | No; generic host |
+| Run                                              | Key | Uses OpenAI BuildBuddy Host |
+| ------------------------------------------------ | --- | --------------------------- |
+| Push to `main` in `openai/codex`                 | Yes | Yes                         |
+| `workflow_dispatch` in `openai/codex`            | Yes | Yes                         |
+| Same-repository pull request in `openai/codex`   | Yes | Yes                         |
+| Fork pull request into `openai/codex`            | No  | No; local                   |
+| Push or `workflow_dispatch` in a fork with a key | Yes | No; generic host            |
+| Pull request run in a fork repository with a key | Yes | No; generic host            |
 
 CI configurations determine whether builds and tests execute remotely:
 
-| CI config | Remote config | Build exec | Test exec |
-| --- | --- | --- | --- |
-| `ci-linux` | `*-rbe` | Remote host | Remote host |
-| `ci-v8` | `*-rbe` | Remote host | Remote host |
-| `ci-macos` | `*-rbe` | Remote host | Local |
-| `ci-windows-cross` | `*-rbe` | Remote host | Local |
-| `ci-windows` | non-RBE | Local | Local |
-| Keyless CI fallback | none | Local | Local |
+| CI config           | Remote config | Build exec  | Test exec   |
+| ------------------- | ------------- | ----------- | ----------- |
+| `ci-linux`          | `*-rbe`       | Remote host | Remote host |
+| `ci-v8`             | `*-rbe`       | Remote host | Remote host |
+| `ci-macos`          | `*-rbe`       | Remote host | Local       |
+| `ci-windows-cross`  | `*-rbe`       | Remote host | Local       |
+| `ci-windows`        | non-RBE       | Local       | Local       |
+| Keyless CI fallback | none          | Local       | Local       |
 
 To exercise the generic remote configuration with your key:
 

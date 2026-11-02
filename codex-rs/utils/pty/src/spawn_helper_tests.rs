@@ -581,7 +581,7 @@ async fn pty_helper_establishes_a_controlling_terminal_without_forking() -> anyh
         &std::env::vars().collect(),
         /*arg0*/ &None,
         crate::TerminalSize::default(),
-        &[],
+        crate::ChildFds::Inherited(&[]),
     )
     .await?;
     let mut output = Vec::new();
@@ -606,7 +606,7 @@ async fn pty_helper_preserves_portable_signal_exit_status() -> anyhow::Result<()
             &env,
             /*arg0*/ &None,
             crate::TerminalSize::default(),
-            &[],
+            crate::ChildFds::Inherited(&[]),
         )
         .await?;
         assert_eq!(spawned.exit_rx.await?, 1);
@@ -619,7 +619,7 @@ fn helper_dispatch_before_rust_initializes_argv() -> anyhow::Result<()> {
     let output = std::process::Command::new(std::env::current_exe()?)
         .args([
             "--exact",
-            "spawn_helper_tests::helper_preserves_cwd_env_arg0_and_streams",
+            "tests::spawn_helper_tests::helper_preserves_cwd_env_arg0_and_streams",
             "--nocapture",
         ])
         .env("CODEX_TEST_EARLY_HELPER_ARGV", "1")
@@ -659,7 +659,7 @@ async fn helper_control_socket_survives_closed_stdio() -> anyhow::Result<()> {
         let output = std::process::Command::new(std::env::current_exe()?)
             .args([
                 "--exact",
-                "spawn_helper_tests::helper_control_socket_survives_closed_stdio",
+                "tests::spawn_helper_tests::helper_control_socket_survives_closed_stdio",
                 "--nocapture",
             ])
             .env("CODEX_TEST_HELPER_CLOSED_STDIO", "1")
@@ -709,7 +709,7 @@ async fn helper_descriptor_pressure_falls_back_to_direct_spawn() -> anyhow::Resu
         let output = std::process::Command::new(std::env::current_exe()?)
             .args([
                 "--exact",
-                "spawn_helper_tests::helper_descriptor_pressure_falls_back_to_direct_spawn",
+                "tests::spawn_helper_tests::helper_descriptor_pressure_falls_back_to_direct_spawn",
                 "--nocapture",
             ])
             .env("CODEX_TEST_HELPER_FD_PRESSURE", "1")
@@ -782,7 +782,7 @@ async fn parent_loader_environment_does_not_disable_helper_dispatch() -> anyhow:
         let output = std::process::Command::new(std::env::current_exe()?)
             .args([
                 "--exact",
-                "spawn_helper_tests::parent_loader_environment_does_not_disable_helper_dispatch",
+                "tests::spawn_helper_tests::parent_loader_environment_does_not_disable_helper_dispatch",
                 "--nocapture",
             ])
             .env("CODEX_TEST_PARENT_LOADER_ENV", "1")

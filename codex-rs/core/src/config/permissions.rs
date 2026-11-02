@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::collections::HashSet;
+use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 
 use codex_config::ConfigPathContext;
 use codex_config::permissions_toml::FilesystemPermissionToml;
@@ -47,6 +47,27 @@ pub(crate) const BUILT_IN_READ_ONLY_PROFILE: &str = BUILT_IN_PERMISSION_PROFILE_
 pub(crate) const BUILT_IN_WORKSPACE_PROFILE: &str = BUILT_IN_PERMISSION_PROFILE_WORKSPACE;
 pub(crate) const BUILT_IN_DANGER_FULL_ACCESS_PROFILE: &str =
     BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS;
+
+/// Keep the active apply_patch aliases readable without granting access to other
+/// sessions or the rest of SUFFICE_HOME. Preserve the alias directory, not its target.
+pub(super) fn active_arg0_helper_dir(
+    codex_home: &Path,
+    path_env: &OsStr,
+) -> Option<AbsolutePathBuf> {
+    let arg0_root = codex_home
+        .join("tmp")
+        .join(format!("arg0-{}", std::env::consts::OS));
+    let legacy_root = codex_home.join("tmp").join("arg0");
+    std::env::split_paths(path_env)
+        .find(|path| {
+            (path.parent() == Some(arg0_root.as_path())
+                || path.parent() == Some(legacy_root.as_path()))
+                && path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with("codex-arg0"))
+        })
+        .and_then(|path| AbsolutePathBuf::from_absolute_path(path).ok())
+}
 
 pub(crate) fn default_builtin_permission_profile_name(
     active_project: &ProjectConfig,
@@ -506,37 +527,6 @@ pub(crate) fn reject_unknown_builtin_permission_profile(profile_name: &str) -> i
     Ok(())
 }
 
-/// Returns a list of paths that must be readable by shell tools in order
-/// for Suffice to function. These should always be added to the
-/// `FileSystemSandboxPolicy` for a thread.
-pub(crate) fn get_readable_roots_required_for_codex_runtime(
-    codex_home: &Path,
-    zsh_path: Option<&PathBuf>,
-    main_execve_wrapper_exe: Option<&PathBuf>,
-) -> Vec<AbsolutePathBuf> {
-    let arg0_root = AbsolutePathBuf::from_absolute_path(codex_home.join("tmp").join("arg0")).ok();
-    let zsh_path = zsh_path.and_then(|path| AbsolutePathBuf::from_absolute_path(path).ok());
-    let execve_wrapper_root = main_execve_wrapper_exe.and_then(|path| {
-        let path = AbsolutePathBuf::from_absolute_path(path).ok()?;
-        if let Some(arg0_root) = arg0_root.as_ref()
-            && path.as_path().starts_with(arg0_root.as_path())
-        {
-            path.parent()
-        } else {
-            Some(path)
-        }
-    });
-
-    let mut readable_roots = Vec::new();
-    if let Some(zsh_path) = zsh_path {
-        readable_roots.push(zsh_path);
-    }
-    if let Some(execve_wrapper_root) = execve_wrapper_root {
-        readable_roots.push(execve_wrapper_root);
-    }
-    readable_roots
-}
-
 fn compile_network_sandbox_policy(
     network: Option<&NetworkToml>,
     base_network_sandbox_policy: NetworkSandboxPolicy,
@@ -834,7 +824,7 @@ fn remove_trailing_glob_suffix(path: &str) -> &str {
 }
 
 // WARNING: keep this parser forward-compatible.
-// Adding a new `:special_path` must not make older Suffice versions reject the
+// Adding a new `:special_path` must not make older Codex versions reject the
 // config. Unknown values intentionally round-trip through
 // `FileSystemSpecialPath::Unknown` so they can be surfaced as warnings and
 // ignored, rather than aborting config load.
@@ -862,7 +852,7 @@ fn push_warning(startup_warnings: &mut Vec<String>, message: String) {
 
 fn missing_filesystem_entries_warning(profile_name: &str) -> String {
     format!(
-        "Permissions profile `{profile_name}` does not define any recognized filesystem entries for this version of Suffice. Filesystem access will remain restricted. Upgrade Suffice if this profile expects filesystem permissions."
+        "Permissions profile `{profile_name}` does not define any recognized filesystem entries for this version of Codex. Filesystem access will remain restricted. Upgrade Codex if this profile expects filesystem permissions."
     )
 }
 
@@ -877,10 +867,10 @@ fn maybe_push_unknown_special_path_warning(
         startup_warnings,
         match subpath.as_deref() {
             Some(subpath) => format!(
-                "Configured filesystem path `{path}` with nested entry `{subpath}` is not recognized by this version of Suffice and will be ignored. Upgrade Suffice if this path is required."
+                "Configured filesystem path `{path}` with nested entry `{subpath}` is not recognized by this version of Codex and will be ignored. Upgrade Codex if this path is required."
             ),
             None => format!(
-                "Configured filesystem path `{path}` is not recognized by this version of Suffice and will be ignored. Upgrade Suffice if this path is required."
+                "Configured filesystem path `{path}` is not recognized by this version of Codex and will be ignored. Upgrade Codex if this path is required."
             ),
         },
     );

@@ -70,3 +70,5 @@ where
             panic!("app-server wire value should map to legacy helper type: {err}")
         })
 }
+
+pub(crate) use crate::boxed_future;

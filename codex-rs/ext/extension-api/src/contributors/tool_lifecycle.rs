@@ -116,6 +116,9 @@ impl McpToolContext {
 
 /// Input supplied when the host starts executing one tool call.
 pub struct ToolStartInput<'a> {
+    /// Final serving assessment for the unchanged action, including its code cell's value.
+    /// When present, replaces asynchronous scoring; it does not grant execution permission.
+    pub serving_assessment: Option<bool>,
     /// Store scoped to the host session runtime.
     pub session_store: &'a ExtensionData,
     /// Store scoped to this thread runtime.
@@ -135,6 +138,8 @@ pub struct ToolStartInput<'a> {
     pub tool_name: &'a ToolName,
     /// Read-only metadata and provenance from the exact MCP call that will execute.
     pub mcp_tool: Option<&'a McpToolContext>,
+    /// Resolves evidence from the issuing step only when awaited; `None` prevents cached approval.
+    pub permissions: crate::ExtensionFuture<'a, Option<codex_guardian_context::PermissionContext>>,
     /// Finalized tool arguments, including any pre-tool-use hook rewrites.
     ///
     /// Payloads can contain sensitive plaintext and must not be logged.
@@ -223,6 +228,18 @@ pub enum ToolTimingBoundary {
     /// Duration reported by the code-mode host for its exec or wait operation.
     /// Measures the remote operation rather than the enclosing local dispatch.
     HostOperation,
+}
+
+/// Lifecycle of work that continues after a code-mode `exec` yields.
+#[derive(Clone, Copy, Debug)]
+pub enum CodeModeCellTiming {
+    ExecYielded,
+    WaitFinished {
+        /// Time the finished result was buffered before this wait retrieved it.
+        result_buffered_for: std::time::Duration,
+    },
+    /// The runtime reported that the cell is missing or closed; its completion time is unknown.
+    CellUnavailable,
 }
 
 /// A measured tool interval. Handler observations also cover cancellation;

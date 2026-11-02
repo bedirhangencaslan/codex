@@ -24,7 +24,7 @@ impl ChatWidget {
 }
 
 #[derive(Debug)]
-pub(super) enum Notification {
+pub(crate) enum Notification {
     AgentTurnComplete { response: String },
     ExecApprovalRequested { command: String },
     EditApprovalRequested { cwd: PathBuf, changes: Vec<PathBuf> },
@@ -48,7 +48,7 @@ impl Notification {
             }
             Notification::EditApprovalRequested { cwd, changes } => {
                 format!(
-                    "Suffice wants to edit {}",
+                    "Codex wants to edit {}",
                     if changes.len() == 1 {
                         #[allow(clippy::unwrap_used)]
                         display_path_for(changes.first().unwrap(), cwd)

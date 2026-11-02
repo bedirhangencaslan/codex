@@ -75,9 +75,10 @@ fn a_single_item_is_cut_exactly_as_upstream_cuts_it() {
     let shaped = shape_text_items(&items, &[], TruncationPolicy::Tokens(20), None)
         .expect("text-only output is shaped");
 
-    let (upstream, _) = codex_utils_output_truncation::formatted_truncate_text_content_items_with_policy(
+    let upstream = codex_utils_output_truncation::formatted_truncate_function_output_items_with_policy(
         &items,
         TruncationPolicy::Tokens(20),
+        |_| 0,
     );
     assert_eq!(shaped, upstream);
     assert!(texts(&shaped)[0].contains("tokens truncated"));

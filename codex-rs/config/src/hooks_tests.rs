@@ -13,7 +13,7 @@ use super::MatcherGroup;
 fn hooks_file_deserializes_existing_json_shape() {
     let parsed: HooksFile = serde_json::from_str(
         r#"{
-  "description": "Optional stop-time review gate for Suffice Companion.",
+  "description": "Optional stop-time review gate for Codex Companion.",
   "hooks": {
     "PreToolUse": [
       {
@@ -37,7 +37,7 @@ fn hooks_file_deserializes_existing_json_shape() {
     assert_eq!(
         parsed,
         HooksFile {
-            description: Some("Optional stop-time review gate for Suffice Companion.".to_string()),
+            description: Some("Optional stop-time review gate for Codex Companion.".to_string()),
             hooks: HookEventsToml {
                 pre_tool_use: vec![MatcherGroup {
                     matcher: Some("^Bash$".to_string()),
@@ -229,6 +229,7 @@ command = "python3 /tmp/pre.py"
                 super::HookStateToml {
                     enabled: Some(false),
                     trusted_hash: Some("sha256:abc123".to_string()),
+                    trusted_content_hash: None,
                 },
             )]),
         }
@@ -256,7 +257,7 @@ command = "python3 /enterprise/place/pre.py"
         ManagedHooksRequirementsToml {
             managed_dir: Some(std::path::PathBuf::from("/enterprise/place")),
             windows_managed_dir: None,
-            hooks: HookEventsToml {
+            hooks: Box::new(HookEventsToml {
                 pre_tool_use: vec![MatcherGroup {
                     matcher: Some("^Bash$".to_string()),
                     hooks: vec![HookHandlerConfig::Command {
@@ -269,7 +270,7 @@ command = "python3 /enterprise/place/pre.py"
                     }],
                 }],
                 ..Default::default()
-            },
+            }),
         }
     );
 }

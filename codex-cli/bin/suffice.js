@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Unified entry point for the Suffice CLI.
+// Unified entry point for the Codex CLI.
 
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "fs";
 import { createRequire } from "node:module";
+import { constants } from "node:os";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -14,12 +15,12 @@ const require = createRequire(import.meta.url);
 const codexPackageRoot = realpathSync(path.join(__dirname, ".."));
 
 const PLATFORM_PACKAGE_BY_TARGET = {
-  "x86_64-unknown-linux-musl": "@suffice/linux-x64",
-  "aarch64-unknown-linux-musl": "@suffice/linux-arm64",
-  "x86_64-apple-darwin": "@suffice/darwin-x64",
-  "aarch64-apple-darwin": "@suffice/darwin-arm64",
-  "x86_64-pc-windows-msvc": "@suffice/win32-x64",
-  "aarch64-pc-windows-msvc": "@suffice/win32-arm64",
+  "x86_64-unknown-linux-musl": "@codex/linux-x64",
+  "aarch64-unknown-linux-musl": "@codex/linux-arm64",
+  "x86_64-apple-darwin": "@codex/darwin-x64",
+  "aarch64-apple-darwin": "@codex/darwin-arm64",
+  "x86_64-pc-windows-msvc": "@codex/win32-x64",
+  "aarch64-pc-windows-msvc": "@codex/win32-arm64",
 };
 
 const { platform, arch } = process;
@@ -89,7 +90,7 @@ function findCodexExecutable() {
     vendorRoot,
     targetTriple,
     "bin",
-    process.platform === "win32" ? "suffice.exe" : "suffice",
+    process.platform === "win32" ? "codex.exe" : "codex",
   );
   if (existsSync(codexExecutable)) {
     return codexExecutable;
@@ -98,24 +99,18 @@ function findCodexExecutable() {
   const packageManager = detectPackageManager();
   const updateCommand =
     packageManager === "bun"
-      ? "bun install -g @suffice/cli@latest"
+      ? "bun install -g @codex/cli@latest"
       : packageManager === "pnpm"
-        ? "pnpm add -g @suffice/cli@latest"
+        ? "pnpm add -g @codex/cli@latest"
         : packageManager === "vite-plus"
-          ? "vp install -g @suffice/cli@latest"
-          : "npm install -g @suffice/cli@latest";
+          ? "vp install -g @codex/cli@latest"
+          : "npm install -g @codex/cli@latest";
   throw new Error(
-    `Missing optional dependency ${platformPackage}. Reinstall Suffice: ${updateCommand}`,
+    `Missing optional dependency ${platformPackage}. Reinstall Codex: ${updateCommand}`,
   );
 }
 
 const binaryPath = findCodexExecutable();
-
-// Use an asynchronous spawn instead of spawnSync so that Node is able to
-// respond to signals (e.g. Ctrl-C / SIGINT) while the native binary is
-// executing. This allows us to forward those signals to the child process
-// and guarantees that when either the child terminates or the parent
-// receives a fatal signal, both processes exit in a predictable manner.
 
 function isPnpmOwnedCodexInstall(nodeModulesDir) {
   if (!existsSync(path.join(nodeModulesDir, ".modules.yaml"))) {
@@ -124,7 +119,7 @@ function isPnpmOwnedCodexInstall(nodeModulesDir) {
 
   try {
     return (
-      realpathSync(path.join(nodeModulesDir, "@suffice", "cli")) ===
+      realpathSync(path.join(nodeModulesDir, "@codex", "cli")) ===
       codexPackageRoot
     );
   } catch {
@@ -141,17 +136,17 @@ function isVitePlusOwnedCodexInstall(packagesDir) {
     const metadata = JSON.parse(
       readFileSync(path.join(packagesDir, "@openai", "codex.json"), "utf8"),
     );
-    if (metadata.name !== "@suffice/cli") {
+    if (metadata.name !== "@codex/cli") {
       return false;
     }
 
-    // Vite+ records the active global installation in packages/@suffice/cli.json.
+    // Vite+ records the active global installation in packages/@codex/cli.json.
     // Older installs have no ID or append a #-prefixed ID to the package name;
     // newer installs put the ID in a subdirectory of the package prefix.
     const installId = metadata.installId || "";
     const installDir = installId.startsWith("#")
-      ? path.join(packagesDir, `@suffice/cli${installId}`)
-      : path.join(packagesDir, "@suffice/cli", installId);
+      ? path.join(packagesDir, `@codex/cli${installId}`)
+      : path.join(packagesDir, "@codex/cli", installId);
     for (const nodeModulesDir of [
       path.join(installDir, "lib", "node_modules"),
       path.join(installDir, "node_modules"),
@@ -171,7 +166,7 @@ function isVitePlusOwnedCodexInstall(packagesDir) {
 }
 
 /**
- * Use heuristics to detect the package manager that was used to install Suffice
+ * Use heuristics to detect the package manager that was used to install Codex
  * in order to give the user a hint about how to update it.
  */
 function detectPackageManager() {
@@ -238,6 +233,17 @@ delete env.CODEX_MANAGED_BY_PNPM;
 delete env.CODEX_MANAGED_BY_VITE_PLUS;
 env[packageManagerEnvVar] = "1";
 
+// Replace Node so the native binary receives signals and exits directly.
+// Node exposes execve on Windows too, but calling it there is unsupported.
+if (process.platform !== "win32" && typeof process.execve === "function") {
+  // Node ignores SIGXFSZ, and ignored signals survive execve. Installing a
+  // handler lets execve restore the default disposition in the native binary.
+  process.on("SIGXFSZ", () => {});
+  process.execve(binaryPath, [binaryPath, ...process.argv.slice(2)], env);
+}
+
+// Older Node versions and Windows need a child process. Spawn asynchronously
+// so Node can forward signals while the native binary is executing.
 const child = spawn(binaryPath, process.argv.slice(2), {
   stdio: "inherit",
   env,
@@ -287,8 +293,9 @@ const childResult = await new Promise((resolve) => {
 });
 
 if (childResult.type === "signal") {
-  // Re-emit the same signal so that the parent terminates with the expected
-  // semantics (this also sets the correct exit code of 128 + n).
+  // Preserve a failure exit code even if Node ignores the re-emitted signal.
+  process.exitCode = 128 + constants.signals[childResult.signal];
+  process.removeAllListeners(childResult.signal);
   process.kill(process.pid, childResult.signal);
 } else {
   process.exit(childResult.exitCode);

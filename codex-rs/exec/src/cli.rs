@@ -10,14 +10,14 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(
     version,
-    override_usage = "suffice exec [OPTIONS] [PROMPT]\n       codex exec [OPTIONS] <COMMAND> [ARGS]"
+    override_usage = "codex exec [OPTIONS] [PROMPT]\n       codex exec [OPTIONS] <COMMAND> [ARGS]"
 )]
 pub struct Cli {
     /// Action to perform. If omitted, runs a new non-interactive session.
     #[command(subcommand)]
     pub command: Option<Command>,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of Suffice.
+    /// Error out when config.toml contains fields that are not recognized by this version of Codex.
     #[arg(long = "strict-config", global = true, default_value_t = false)]
     pub strict_config: bool,
 
@@ -28,7 +28,12 @@ pub struct Cli {
     #[arg(long = "thread-source", value_name = "SOURCE", global = true)]
     pub thread_source: Option<ThreadSource>,
 
-    /// Allow running Suffice outside a Git repository.
+    /// Request an experimental Cyber access program for this turn (OpenAI provider only).
+    /// Omit to use server defaults. Not supported with review; fork requires a prompt.
+    #[arg(long, value_enum, value_name = "PROGRAM", global = true)]
+    pub cyber_access_program: Option<CyberAccessProgramCliArg>,
+
+    /// Allow running Codex outside a Git repository.
     #[arg(long = "skip-git-repo-check", global = true, default_value_t = false)]
     pub skip_git_repo_check: bool,
 
@@ -78,6 +83,24 @@ pub struct Cli {
     /// a prompt is also provided, stdin is appended as a `<stdin>` block.
     #[arg(value_name = "PROMPT", value_hint = clap::ValueHint::Other)]
     pub prompt: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "snake_case")]
+pub enum CyberAccessProgramCliArg {
+    Standard,
+    DaybreakBlue,
+    DaybreakRed,
+}
+
+impl From<CyberAccessProgramCliArg> for codex_app_server_protocol::CyberAccessProgram {
+    fn from(value: CyberAccessProgramCliArg) -> Self {
+        match value {
+            CyberAccessProgramCliArg::Standard => Self::Standard,
+            CyberAccessProgramCliArg::DaybreakBlue => Self::DaybreakBlue,
+            CyberAccessProgramCliArg::DaybreakRed => Self::DaybreakRed,
+        }
+    }
 }
 
 impl std::ops::Deref for Cli {
@@ -182,7 +205,7 @@ pub struct ForkArgs {
 #[derive(Args, Debug)]
 struct ResumeArgsRaw {
     // Note: This is the direct clap shape. We reinterpret the positional when --last is set
-    // so "suffice resume --last <prompt>" treats the positional as a prompt, not a session id.
+    // so "codex resume --last <prompt>" treats the positional as a prompt, not a session id.
     /// Conversation/session id (UUID) or thread name. UUIDs take precedence if it parses.
     /// If omitted, use --last to pick the most recent recorded session.
     #[arg(value_name = "SESSION_ID")]

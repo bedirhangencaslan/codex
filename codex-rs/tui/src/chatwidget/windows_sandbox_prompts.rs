@@ -33,17 +33,16 @@ impl ChatWidget {
             !allow_unelevated || self.elevated_windows_sandbox_setup_required();
         let mut header = ColumnRenderable::new();
         header.push(*Box::new(
-            Paragraph::new(if allow_unelevated {
+            crate::terminal_hyperlinks::HyperlinkText::new(if allow_unelevated {
                 vec![
-                    line!["Set up the Suffice agent sandbox to protect your files and control network access. Learn more <https://developers.openai.com/codex/windows>"],
+                    line!["Set up the Codex agent sandbox to protect your files and control network access. Learn more <https://developers.openai.com/codex/windows>"],
                 ]
             } else {
                 vec![
-                    line!["Your organization requires the default Suffice agent sandbox to continue. Set it up to protect your files and control network access."],
+                    line!["Your organization requires the default Codex agent sandbox to continue. Set it up to protect your files and control network access."],
                     line!["Learn more <https://developers.openai.com/codex/windows>"],
                 ]
-            })
-            .wrap(Wrap { trim: false }),
+            }),
         ));
 
         let accept_otel = self.session_telemetry.clone();
@@ -158,11 +157,11 @@ impl ChatWidget {
         lines.push(line![""]);
         if allow_unelevated {
             lines.push(line![
-                "You can still use Suffice in a non-admin sandbox. It carries greater risk if prompt injected."
+                "You can still use Codex in a non-admin sandbox. It carries greater risk if prompt injected."
             ]);
         } else {
             lines.push(line![
-                "Your organization requires the default sandbox before Suffice can continue."
+                "Your organization requires the default sandbox before Codex can continue."
             ]);
         }
         lines.push(line![
@@ -170,7 +169,7 @@ impl ChatWidget {
         ]);
 
         let mut header = ColumnRenderable::new();
-        header.push(*Box::new(Paragraph::new(lines).wrap(Wrap { trim: false })));
+        header.push(crate::terminal_hyperlinks::HyperlinkText::new(lines));
 
         let elevated_preset = preset.clone();
         let legacy_preset = preset;
@@ -210,7 +209,7 @@ impl ChatWidget {
         };
         if allow_unelevated {
             items.push(SelectionItem {
-                name: "Use Suffice with non-admin sandbox".to_string(),
+                name: "Use Codex with non-admin sandbox".to_string(),
                 description: None,
                 actions: vec![Box::new({
                     let otel = self.session_telemetry.clone();
@@ -272,22 +271,24 @@ impl ChatWidget {
     ) {
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", test))]
     pub(crate) fn maybe_prompt_windows_sandbox_enable(&mut self, show_now: bool) {
         let setup_is_required = !self.windows_sandbox_config.is_enabled()
             || self.elevated_windows_sandbox_setup_required();
         if show_now
             && setup_is_required
-            && let Some(preset) = builtin_approval_presets()
+            && let Some(mut preset) = builtin_approval_presets()
                 .into_iter()
                 .find(|preset| preset.id == "auto")
         {
+            if self.config.active_project.trust_level.is_none()
+                && self.config.config_layer_stack.is_projectless()
+            {
+                preset.approval = self.config.permissions.approval_policy.value();
+            }
             self.open_windows_sandbox_enable_prompt(preset, /*profile_selection*/ None);
         }
     }
-
-    #[cfg(all(not(target_os = "windows"), test))]
-    pub(crate) fn maybe_prompt_windows_sandbox_enable(&mut self, _show_now: bool) {}
 
     #[cfg(any(target_os = "windows", test))]
     pub(crate) fn show_windows_sandbox_setup_status(&mut self) {

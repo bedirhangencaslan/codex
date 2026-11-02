@@ -22,7 +22,7 @@ use crate::local::LocalMemoriesBackend;
 use crate::prompts::build_memory_tool_developer_instructions;
 use crate::tools;
 
-/// Contributes Suffice memory read-path prompt context and memory read tools.
+/// Contributes Codex memory read-path prompt context and memory read tools.
 #[derive(Clone, Default)]
 pub(crate) struct MemoriesExtension {
     metrics_client: Option<MetricsClient>,
@@ -82,7 +82,9 @@ impl ContextContributor for MemoriesExtension {
                         let end = remaining.floor_char_boundary(remaining.len().min(8_900));
                         fragments.push(
                             MemoryContextFragment::ReadInstructions(remaining[..end].to_string())
-                                .render(),
+                                .render()
+                                .into_text()
+                                .unwrap_or_default(),
                         );
                         remaining = &remaining[end..];
                     }
@@ -94,7 +96,7 @@ impl ContextContributor for MemoriesExtension {
                 .map(|instructions| {
                     PromptFragment::developer_policy(
                         instructions,
-                        ContentItemKind("memories.instructions".to_string()),
+                        ContentItemKind(MemoryContextFragment::READ_INSTRUCTIONS_KIND.to_string()),
                     )
                 })
                 .collect()

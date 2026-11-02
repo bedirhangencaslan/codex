@@ -101,15 +101,15 @@ pub(super) fn application_running(application: &InstalledApp, candidate_pid: u32
 #[cfg(target_os = "windows")]
 fn process_package_family(pid: u32) -> Option<String> {
     let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-    if handle == 0 {
+    if handle.is_null() {
         return None;
     }
-    let process = unsafe { OwnedHandle::from_raw_handle(handle as _) };
+    let process = unsafe { OwnedHandle::from_raw_handle(handle) };
 
     let mut family_length = 0;
     let result = unsafe {
         GetPackageFamilyName(
-            process.as_raw_handle() as _,
+            process.as_raw_handle(),
             &mut family_length,
             std::ptr::null_mut(),
         )
@@ -121,7 +121,7 @@ fn process_package_family(pid: u32) -> Option<String> {
     let mut family = vec![0_u16; family_length as usize];
     let result = unsafe {
         GetPackageFamilyName(
-            process.as_raw_handle() as _,
+            process.as_raw_handle(),
             &mut family_length,
             family.as_mut_ptr(),
         )
@@ -210,7 +210,7 @@ fn installed_windows_app() -> Result<Option<InstalledApp>, DiscoveryError> {
         .ok_or(DiscoveryError)?;
 
     Ok(Some(InstalledApp {
-        identity: "OpenAI.Suffice",
+        identity: "OpenAI.Codex",
         version: version.to_string(),
         package_family: PACKAGE_FAMILY,
     }))
@@ -221,7 +221,7 @@ async fn installed_macos_app() -> Result<Option<InstalledApp>, DiscoveryError> {
     let applications = std::iter::once(PathBuf::from("/Applications"))
         .chain(std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Applications")))
         .flat_map(|directory| {
-            ["ChatGPT.app", "Suffice.app"]
+            ["ChatGPT.app", "Codex.app"]
                 .into_iter()
                 .map(move |application| directory.join(application))
         });

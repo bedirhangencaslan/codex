@@ -64,16 +64,16 @@ impl PetImageUnsupportedReason {
     fn message(self) -> &'static str {
         match self {
             Self::Tmux => {
-                "Pets are disabled in tmux. Terminal images don’t stay pane-local in tmux and can corrupt scrollback or move between panes. Run Suffice outside tmux to use pets."
+                "Pets are disabled in tmux. Terminal images don’t stay pane-local in tmux and can corrupt scrollback or move between panes. Run Codex outside tmux to use pets."
             }
             Self::Zellij => {
-                "Pets are disabled in Zellij. Terminal images don’t stay reliably pane-local in Zellij. Run Suffice outside Zellij to use pets."
+                "Pets are disabled in Zellij. Terminal images don’t stay reliably pane-local in Zellij. Run Codex outside Zellij to use pets."
             }
             Self::Iterm2TooOld => {
                 "Pets require iTerm2 3.6 or newer. Upgrade iTerm2 to use terminal pets."
             }
             Self::Terminal => {
-                "Pets aren’t available in this terminal. Terminal pets need image support, and this terminal environment doesn’t expose a supported image protocol. Try a terminal with Kitty graphics or Sixel support, or run Suffice outside tmux."
+                "Pets aren’t available in this terminal. Terminal pets need image support, and this terminal environment doesn’t expose a supported image protocol. Try a terminal with Kitty graphics or Sixel support, or run Codex outside tmux."
             }
         }
     }
@@ -178,7 +178,7 @@ fn is_iterm2_terminal(info: &TerminalInfo) -> bool {
 fn supports_kitty_graphics(info: &TerminalInfo) -> bool {
     matches!(
         info.name,
-        TerminalName::Ghostty | TerminalName::Kitty | TerminalName::WezTerm
+        TerminalName::Ghostty | TerminalName::Kitty | TerminalName::Rex | TerminalName::WezTerm
     ) || terminal_field_contains(info.term.as_deref(), "kitty")
         || terminal_field_contains(info.term.as_deref(), "ghostty")
         || terminal_field_contains(info.term.as_deref(), "wezterm")
@@ -241,7 +241,7 @@ pub fn kitty_transmit_png_with_id(
         if index == 0 {
             let image_id = kitty_image_id_arg(image_id);
             command.push_str(&format!(
-                "{ESC}_Ga=T,t=d,f=100,c={columns},r={rows},q=2{image_id},m={more_flag};{chunk}{ST}",
+                "{ESC}_Ga=T,t=d,f=100,c={columns},r={rows},q=2{image_id},m={more_flag},C=1;{chunk}{ST}",
             ));
         } else {
             command.push_str(&format!("{ESC}_Gm={more_flag};{chunk}{ST}"));
@@ -262,7 +262,8 @@ pub fn kitty_transmit_png_file_with_id(
         .with_context(|| format!("canonicalize {}", path.display()))?;
     let payload = general_purpose::STANDARD.encode(path.to_string_lossy().as_bytes());
     let image_id = kitty_image_id_arg(image_id);
-    let command = format!("{ESC}_Ga=T,t=f,f=100,c={columns},r={rows},q=2{image_id};{payload}{ST}");
+    let command =
+        format!("{ESC}_Ga=T,t=f,f=100,c={columns},r={rows},q=2{image_id},C=1;{payload}{ST}");
 
     Ok(wrap_for_tmux_if_needed(&command))
 }
@@ -353,7 +354,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(command.starts_with("\x1b_Ga=T,t=d,f=100,c=4,r=3,q=2,m=0;"));
+        assert!(command.starts_with("\x1b_Ga=T,t=d,f=100,c=4,r=3,q=2,m=0,C=1;"));
         assert!(command.contains("cG5n"));
         assert!(command.ends_with("\x1b\\"));
     }
@@ -516,6 +517,12 @@ mod tests {
                 /*term*/ None,
             ),
             terminal_info_for_test(
+                TerminalName::Rex,
+                /*multiplexer*/ None,
+                Some("rex"),
+                /*term*/ None,
+            ),
+            terminal_info_for_test(
                 TerminalName::WezTerm,
                 /*multiplexer*/ None,
                 Some("WezTerm"),
@@ -636,6 +643,7 @@ mod tests {
         term: Option<&str>,
     ) -> TerminalInfo {
         TerminalInfo {
+            backend: None,
             name,
             term_program: term_program.map(str::to_string),
             version: version.map(str::to_string),
@@ -691,7 +699,7 @@ mod tests {
 
         assert_eq!(
             command,
-            format!("\x1b_Ga=T,t=f,f=100,c=4,r=3,q=2,i=7;{payload}\x1b\\")
+            format!("\x1b_Ga=T,t=f,f=100,c=4,r=3,q=2,i=7,C=1;{payload}\x1b\\")
         );
     }
 }

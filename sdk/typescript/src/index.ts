@@ -26,7 +26,7 @@ export type {
 export { Thread } from "./thread";
 export type { RunResult, RunStreamedResult, Input, UserInput } from "./thread";
 
-export { Suffice } from "./codex";
+export { Codex } from "./codex";
 
 export type { CodexOptions } from "./codexOptions";
 
@@ -37,4 +37,4 @@ export type {
   ModelReasoningEffort,
   WebSearchMode,
 } from "./threadOptions";
-export type { TurnOptions } from "./turnOptions";
+export type { CyberAccessProgram, TurnOptions } from "./turnOptions";

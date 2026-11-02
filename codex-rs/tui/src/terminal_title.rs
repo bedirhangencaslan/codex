@@ -3,7 +3,7 @@
 //! This module owns the low-level OSC title write path and the sanitization
 //! that happens immediately before we emit it. It is intentionally narrow:
 //! callers decide when the title should change and whether an empty title means
-//! "leave the old title alone" or "clear the title Suffice last wrote".
+//! "leave the old title alone" or "clear the title Codex last wrote".
 //! This module does not attempt to read or restore the terminal's previous
 //! title because that is not portable across terminals.
 //!
@@ -14,6 +14,11 @@
 //! - bidi/invisible formatting codepoints that can visually reorder or hide
 //!   text (the same family of issues discussed in Trojan Source writeups)
 //! - redundant whitespace that would make titles noisy or hard to scan
+//!
+//! GNU Screen truncates Unicode in OSC titles to a byte, which can turn visible
+//! characters into control bytes and spill title text into the terminal. Under
+//! Screen, the entire finished title must therefore use printable ASCII. This
+//! conversion happens here so shared in-TUI status rendering keeps its Unicode.
 
 use std::fmt;
 use std::io;
@@ -30,6 +35,12 @@ use ratatui::crossterm::execute;
 /// readable in tab bars and window managers.
 const MAX_TERMINAL_TITLE_CHARS: usize = 240;
 
+#[derive(Clone, Copy)]
+pub(crate) enum TitleEncoding {
+    Unicode,
+    Screen,
+}
+
 /// Outcome of a [`set_terminal_title`] call.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum SetTerminalTitleResult {
@@ -39,7 +50,7 @@ pub(crate) enum SetTerminalTitleResult {
     ///
     /// This is distinct from clearing the title. Callers decide whether an
     /// empty post-sanitization value should result in no-op behavior, clearing
-    /// the title Suffice manages, or some other fallback.
+    /// the title Codex manages, or some other fallback.
     NoVisibleContent,
 }
 
@@ -58,7 +69,14 @@ pub(crate) fn set_terminal_title(title: &str) -> io::Result<SetTerminalTitleResu
         return Ok(SetTerminalTitleResult::Applied);
     }
 
-    let title = sanitize_terminal_title(title);
+    // Screen remains an output hop when another multiplexer runs inside it.
+    // TERM=screen alone is not sufficient: tmux also commonly uses that TERM.
+    let encoding = if std::env::var_os("STY").is_some() {
+        TitleEncoding::Screen
+    } else {
+        TitleEncoding::Unicode
+    };
+    let title = sanitize_terminal_title(title, encoding);
     if title.is_empty() {
         return Ok(SetTerminalTitleResult::NoVisibleContent);
     }
@@ -70,7 +88,7 @@ pub(crate) fn set_terminal_title(title: &str) -> io::Result<SetTerminalTitleResu
 /// Clears the current terminal title by writing an empty OSC title payload.
 ///
 /// This clears the visible title; it does not restore whatever title the shell
-/// or a previous program may have set before Suffice started managing the title.
+/// or a previous program may have set before Codex started managing the title.
 pub(crate) fn clear_terminal_title() -> io::Result<()> {
     if !stdout().is_terminal() {
         return Ok(());
@@ -108,7 +126,7 @@ impl Command for SetWindowTitle {
 /// This removes terminal control characters, strips invisible/bidi formatting
 /// characters, collapses any whitespace run into a single ASCII space, and
 /// truncates after [`MAX_TERMINAL_TITLE_CHARS`] emitted characters.
-fn sanitize_terminal_title(title: &str) -> String {
+pub(crate) fn sanitize_terminal_title(title: &str, encoding: TitleEncoding) -> String {
     let mut sanitized = String::new();
     let mut chars_written = 0;
     let mut pending_space = false;
@@ -124,6 +142,19 @@ fn sanitize_terminal_title(title: &str) -> String {
         if is_disallowed_terminal_title_char(ch) {
             continue;
         }
+
+        let ch = match (encoding, ch) {
+            // Preserve a visible activity animation without allowing Screen to
+            // turn, for example, U+2807 into BEL. Other Unicode title content
+            // needs the same protection, including names made entirely of it.
+            (TitleEncoding::Screen, '⠋' | '⠼' | '⠇') => '|',
+            (TitleEncoding::Screen, '⠙' | '⠴' | '⠏') => '/',
+            (TitleEncoding::Screen, '⠹' | '⠦') => '-',
+            (TitleEncoding::Screen, '⠸' | '⠧') => '\\',
+            (TitleEncoding::Screen, '●') => '*',
+            (TitleEncoding::Screen, ch) if !ch.is_ascii() => '?',
+            (_, ch) => ch,
+        };
 
         if pending_space {
             let remaining = MAX_TERMINAL_TITLE_CHARS.saturating_sub(chars_written);
@@ -180,14 +211,17 @@ fn is_disallowed_terminal_title_char(ch: char) -> bool {
 mod tests {
     use super::MAX_TERMINAL_TITLE_CHARS;
     use super::SetWindowTitle;
+    use super::TitleEncoding;
     use super::sanitize_terminal_title;
     use crossterm::Command;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn sanitizes_terminal_title() {
-        let sanitized =
-            sanitize_terminal_title("  Project\t|\nWorking\x1b\x07\u{009D}\u{009C} |  Thread  ");
+        let sanitized = sanitize_terminal_title(
+            "  Project\t|\nWorking\x1b\x07\u{009D}\u{009C} |  Thread  ",
+            TitleEncoding::Unicode,
+        );
         assert_eq!(sanitized, "Project | Working | Thread");
     }
 
@@ -195,6 +229,7 @@ mod tests {
     fn strips_invisible_format_chars_from_terminal_title() {
         let sanitized = sanitize_terminal_title(
             "Pro\u{202E}j\u{2066}e\u{200F}c\u{061C}t\u{200B} \u{FEFF}T\u{2060}itle",
+            TitleEncoding::Unicode,
         );
         assert_eq!(sanitized, "Project Title");
     }
@@ -202,14 +237,14 @@ mod tests {
     #[test]
     fn truncates_terminal_title() {
         let input = "a".repeat(MAX_TERMINAL_TITLE_CHARS + 10);
-        let sanitized = sanitize_terminal_title(&input);
+        let sanitized = sanitize_terminal_title(&input, TitleEncoding::Unicode);
         assert_eq!(sanitized.len(), MAX_TERMINAL_TITLE_CHARS);
     }
 
     #[test]
     fn truncation_prefers_visible_char_over_pending_space() {
         let input = format!("{} b", "a".repeat(MAX_TERMINAL_TITLE_CHARS - 1));
-        let sanitized = sanitize_terminal_title(&input);
+        let sanitized = sanitize_terminal_title(&input, TitleEncoding::Unicode);
         assert_eq!(sanitized.len(), MAX_TERMINAL_TITLE_CHARS);
         assert_eq!(sanitized.chars().last(), Some('b'));
     }
@@ -221,5 +256,29 @@ mod tests {
             .write_ansi(&mut out)
             .expect("encode terminal title");
         assert_eq!(out, "\x1b]0;hello\x07");
+    }
+
+    #[test]
+    fn screen_title_stays_ascii_across_activity_and_user_named_fields() {
+        let title = " ● ⠇ | ě[31m thread \u{202e}\x07| 日本語 ćafé  ";
+        let screen = sanitize_terminal_title(title, TitleEncoding::Screen);
+        let unicode = sanitize_terminal_title(title, TitleEncoding::Unicode);
+
+        assert!(screen.is_ascii());
+        insta::assert_snapshot!(
+            format!("Screen: {screen}\nDirect: {unicode}"),
+            @r#"
+        Screen: * | | ?[31m thread | ??? ?af?
+        Direct: ● ⠇ | ě[31m thread | 日本語 ćafé
+        "#
+        );
+        assert_eq!(
+            sanitize_terminal_title("日本語", TitleEncoding::Screen),
+            "???"
+        );
+        assert_eq!(
+            sanitize_terminal_title("\x07\x1b\u{202E}\u{FEFF}", TitleEncoding::Screen),
+            ""
+        );
     }
 }

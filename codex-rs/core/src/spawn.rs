@@ -13,7 +13,7 @@ use codex_protocol::shell_environment::is_non_inheritable_env_var;
 /// Experimental environment variable that will be set to some non-empty value
 /// if both of the following are true:
 ///
-/// 1. The process was spawned by Suffice as part of a shell tool call.
+/// 1. The process was spawned by Codex as part of a shell tool call.
 /// 2. NetworkSandboxPolicy is restricted for the tool call.
 ///
 /// We may try to have just one environment variable for all sandboxing
@@ -67,7 +67,12 @@ pub(crate) async fn spawn_child_async(request: SpawnChildRequest<'_>) -> std::io
         "spawn_child_async: {program:?} {args:?} {arg0:?} {cwd:?} {network_sandbox_policy:?} {stdio_policy:?} {env:?}"
     );
 
-    let mut cmd = Command::new(&program);
+    let mut cmd = match stdio_policy {
+        StdioPolicy::RedirectForShellTool => {
+            Command::from(codex_utils_process::background_command(&program))
+        }
+        StdioPolicy::Inherit => Command::new(&program),
+    };
     #[cfg(unix)]
     cmd.arg0(arg0.map_or_else(|| program.to_string_lossy().to_string(), String::from));
     cmd.args(args);
@@ -75,11 +80,6 @@ pub(crate) async fn spawn_child_async(request: SpawnChildRequest<'_>) -> std::io
     if let Some(network) = network {
         network.apply_to_env(&mut env);
     }
-    // macOS fd cleanup must keep the shell escalation socket.
-    #[cfg(target_os = "macos")]
-    let inherited_fd = env
-        .get(codex_shell_escalation::ESCALATE_SOCKET_ENV_VAR)
-        .and_then(|fd| fd.parse().ok());
     cmd.env_clear();
     cmd.envs(env);
 
@@ -87,7 +87,7 @@ pub(crate) async fn spawn_child_async(request: SpawnChildRequest<'_>) -> std::io
         cmd.env(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR, "1");
     }
 
-    // If this Suffice process dies (including being killed via SIGKILL), we want
+    // If this Codex process dies (including being killed via SIGKILL), we want
     // any child processes that were spawned as part of a `"shell"` tool call
     // to also be terminated.
 
@@ -108,9 +108,9 @@ pub(crate) async fn spawn_child_async(request: SpawnChildRequest<'_>) -> std::io
                 // current parent dies."
                 codex_utils_pty::process_group::set_parent_death_signal(parent_pid)?;
             }
-            // macOS cannot receive the fd with close-on-exec set atomically.
+            // Close descriptors accidentally inherited by the child.
             #[cfg(target_os = "macos")]
-            codex_utils_pty::pty::close_inherited_fds_except(inherited_fd.as_slice());
+            codex_utils_pty::pty::close_inherited_fds_except(&[]);
             Ok(())
         });
     }

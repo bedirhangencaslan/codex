@@ -70,12 +70,12 @@ async fn voice_composer_preserves_normal_colors_across_microphone_states() {
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            insta::assert_snapshot!(rows, @r"
+            insta::assert_snapshot!(rows, @"
             0:
-            1:  voice ● listening ctrl+x mute     /voice stop
+            1:  voice ● listening     f9 mute     /voice stop
             2:    mic ▁▁▁▁▁▁  codex ▁▁▁▁▁▁
             3:
-            4: › typed
+            4: ▌ typed
             ");
         }
         buffer
@@ -113,30 +113,30 @@ async fn voice_preserves_the_normal_composer_prompt() {
         render_bottom_popup(chat, /*width*/ 80)
             .lines()
             .filter_map(|line| line.chars().next())
-            .find(|glyph| matches!(glyph, '›' | '!'))
+            .find(|glyph| matches!(glyph, '▌' | '!'))
     };
     for level in 0..=5 {
         chat.realtime_conversation.microphone_level = level;
-        assert_eq!(prompt(&mut chat), Some('›'));
+        assert_eq!(prompt(&mut chat), Some('▌'));
     }
     for (muted, animations) in [(true, true), (false, false), (false, true)] {
         chat.realtime_conversation.microphone_muted = muted;
         chat.local_settings.tui.animations = animations;
-        assert_eq!(prompt(&mut chat), Some('›'));
+        assert_eq!(prompt(&mut chat), Some('▌'));
     }
     chat.thread_id = Some(ThreadId::new());
-    assert_eq!(prompt(&mut chat), Some('›'));
+    assert_eq!(prompt(&mut chat), Some('▌'));
     chat.thread_id = Some(thread_id);
     chat.bottom_pane
         .set_composer_text("!".to_string(), Vec::new(), Vec::new());
     assert_eq!(prompt(&mut chat), Some('!'));
     chat.bottom_pane
         .handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
-    assert_eq!(prompt(&mut chat), Some('›'));
+    assert_eq!(prompt(&mut chat), Some('▌'));
     chat.reset_realtime_conversation();
     assert_eq!(
         render_bottom_popup(&chat, /*width*/ 80).chars().next(),
-        Some('›')
+        Some('▌')
     );
 }
 
@@ -357,7 +357,7 @@ async fn narrow_voice_footer_keeps_the_stop_control_before_meters() {
 
     let footer = render_bottom_popup(&chat, /*width*/ 46);
     assert!(footer.contains("voice ● speaking"));
-    assert!(footer.contains("ctrl+x mute"));
+    assert!(footer.contains("f9 mute"));
     assert!(footer.contains("/voice stop"));
     chat.realtime_conversation.speaker_active_until = None;
     chat.realtime_conversation.speaker_level = 1;
@@ -375,7 +375,7 @@ async fn narrow_voice_footer_keeps_the_stop_control_before_meters() {
     assert_eq!(chat.realtime_conversation.speaker_active_until, None);
     let interrupted = render_bottom_popup(&chat, /*width*/ 45);
     assert!(interrupted.contains("voice ● heard"));
-    assert!(interrupted.contains("ctrl+x mute"));
+    assert!(interrupted.contains("f9 mute"));
     assert!(interrupted.contains("/voice stop"));
     chat.realtime_conversation.interruption_acknowledged_until =
         Some(std::time::Instant::now() - super::super::INTERRUPTION_ACKNOWLEDGMENT);
@@ -598,23 +598,23 @@ async fn clipped_voice_composer_keeps_the_draft_and_cursor_visible() {
             .filter(|line| line.contains("voice") || line.contains("typed"))
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(rows.contains("› typed"));
+        assert!(rows.contains("▌ typed"));
         assert!(matches!(chat.bottom_pane.cursor_pos(area), Some((_, y)) if y < height));
         layouts.push(format!("{height} rows:\n{rows}"));
     }
 
-    insta::assert_snapshot!(layouts.join("\n\n"), @r"
+    insta::assert_snapshot!(layouts.join("\n\n"), @"
     5 rows:
-    voice ● listening ctrl+x mute     /voice stop
-    › typed
+    voice ● listening     f9 mute     /voice stop
+    ▌ typed
 
     6 rows:
-    voice ● listening ctrl+x mute     /voice stop
-    › typed
+    voice ● listening     f9 mute     /voice stop
+    ▌ typed
 
     8 rows:
-    voice ● listening ctrl+x mute     /voice stop
-    › typed
+    voice ● listening     f9 mute     /voice stop
+    ▌ typed
     ");
 }
 

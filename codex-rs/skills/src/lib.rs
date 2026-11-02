@@ -2,6 +2,7 @@ mod interface;
 mod invocation;
 mod loading;
 mod mentions;
+mod metadata;
 mod model;
 mod name_counts;
 mod parser;
@@ -30,6 +31,8 @@ pub use mentions::extract_tool_mentions_with_sigil;
 pub use mentions::normalize_skill_path;
 pub use mentions::plugin_config_name_from_path;
 pub use mentions::tool_kind_for_path;
+pub use metadata::ParsedSkillMetadata;
+pub use metadata::parse_skill_metadata;
 pub use model::EnvironmentSkillMetadata;
 pub use model::SkillDependencies;
 pub use model::SkillInterface;
@@ -56,7 +59,7 @@ const SYSTEM_SKILLS_DIR: Dir = include_dir::include_dir!("$CARGO_MANIFEST_DIR/sr
 
 const SYSTEM_SKILLS_DIR_NAME: &str = ".system";
 const SKILLS_DIR_NAME: &str = "skills";
-const SYSTEM_SKILLS_MARKER_FILENAME: &str = ".suffice-system-skills.marker";
+const SYSTEM_SKILLS_MARKER_FILENAME: &str = ".codex-system-skills.marker";
 const SYSTEM_SKILLS_MARKER_SALT: &str = "v1";
 
 /// Returns the on-disk cache location for embedded system skills from an absolute SUFFICE_HOME.

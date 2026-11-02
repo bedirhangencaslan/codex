@@ -72,7 +72,7 @@ async fn query_channel(wevtutil: &Path, channel: Channel) -> Option<Vec<Evidence
         .map(|id| format!("EventID={id}"))
         .collect::<Vec<_>>()
         .join(" or ");
-    let mut child = Command::new(wevtutil)
+    let mut child = Command::from(codex_utils_process::background_command(wevtutil))
         .args(["qe", channel.1])
         .arg(format!(
             "/q:*[System[({events}) and TimeCreated[timediff(@SystemTime) <= 604800000]]]"
@@ -151,7 +151,7 @@ fn event_target(value: &str) -> Option<&'static str> {
     match name {
         "codex-windows-sandbox-setup.exe" => Some("sandbox_setup"),
         "codex-command-runner.exe" => Some("command_runner"),
-        "suffice.exe" => Some("suffice"),
+        "codex.exe" => Some("codex"),
         "codex-desktop.exe" => Some("codex_desktop"),
         "chatgpt.exe" | "electron.exe" if trusted => Some("codex_desktop"),
         "rg.exe" if trusted => Some("ripgrep"),
@@ -199,15 +199,15 @@ fn classify(channels: &[Option<Vec<Evidence>>]) -> DoctorCheck {
     }
     let summary = match (status, visible) {
         (CheckStatus::Ok, _) if channels.contains(&None) => "security event coverage is incomplete",
-        (CheckStatus::Ok, _) => "no locally visible recent Suffice security enforcement was found",
+        (CheckStatus::Ok, _) => "no locally visible recent Codex security enforcement was found",
         (CheckStatus::Warning, false) => "security event channels could not be inspected",
-        (CheckStatus::Warning, true) => "recent Suffice security audit or detection requires review",
-        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined a Suffice executable",
+        (CheckStatus::Warning, true) => "recent Codex security audit or detection requires review",
+        (CheckStatus::Fail, _) => "endpoint security blocked or quarantined a Codex executable",
     };
     let mut check = desktop_check("desktop.security.enforcement", status, summary).details(details);
     if status != CheckStatus::Ok {
         check = check.remediation(
-            "ask your organization's security administrator to review endpoint security events and the approved Suffice application policy",
+            "ask your organization's security administrator to review endpoint security events and the approved Codex application policy",
         );
     }
     check

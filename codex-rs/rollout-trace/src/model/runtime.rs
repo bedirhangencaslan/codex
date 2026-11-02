@@ -43,6 +43,9 @@ pub struct CodeCell {
     pub runtime_status: CodeCellRuntimeStatus,
     pub initial_response_at_unix_ms: Option<i64>,
     pub initial_response_seq: Option<RawEventSeq>,
+    pub initial_response_status: Option<CodeCellRuntimeStatus>,
+    pub raw_initial_response_payload_id: Option<RawPayloadId>,
+    pub raw_result_payload_id: Option<RawPayloadId>,
     pub yielded_at_unix_ms: Option<i64>,
     pub yielded_seq: Option<RawEventSeq>,
     pub source_js: String,
@@ -106,7 +109,7 @@ pub struct CompactionRequest {
     pub raw_response_payload_id: Option<RawPayloadId>,
 }
 
-/// Runtime operation requested by the model, a JS code cell, or Suffice itself.
+/// Runtime operation requested by the model, a JS code cell, or Codex itself.
 ///
 /// A `ToolCall` is not a chat transcript row. Model-visible call/output items
 /// link to it through `model_visible_*_item_ids`; runtime-only tools can have
@@ -131,12 +134,12 @@ pub struct ToolCall {
     /// Terminal operation started by this tool, when the tool touched a terminal.
     pub terminal_operation_id: Option<TerminalOperationId>,
     pub summary: ToolCallSummary,
-    /// Original invocation at the Suffice tool boundary.
+    /// Original invocation at the Codex tool boundary.
     ///
     /// Direct model tools store the model's function/custom call payload here.
     /// Code-mode nested tools store the JSON call made by model-authored JS.
     /// Runtime protocol events are deliberately kept separate below because
-    /// they describe how Suffice executed the request, not what the caller sent.
+    /// they describe how Codex executed the request, not what the caller sent.
     pub raw_invocation_payload_id: Option<RawPayloadId>,
     /// Result returned to the immediate requester.
     ///
@@ -169,6 +172,8 @@ pub enum ToolCallKind {
     ExecCommand,
     WriteStdin,
     ApplyPatch,
+    /// Resolved backend identity from an MCP runtime invocation. The callable
+    /// namespace/name may differ and remain in the summary and raw invocation.
     Mcp {
         server: String,
         tool: String,
@@ -210,7 +215,7 @@ pub enum ToolCallSummary {
     },
 }
 
-/// Reusable terminal process/session returned by the runtime.
+/// One terminal process lifetime, including its command and subsequent polls.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TerminalSession {
     pub terminal_id: TerminalId,
@@ -225,7 +230,7 @@ pub struct TerminalSession {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TerminalOperation {
     pub operation_id: TerminalOperationId,
-    /// Runtime terminal/process ID. `None` is legal only while the operation that creates it is starting.
+    /// Reduced session identity, distinct from the recyclable runtime process ID.
     pub terminal_id: Option<TerminalId>,
     pub tool_call_id: ToolCallId,
     pub kind: TerminalOperationKind,

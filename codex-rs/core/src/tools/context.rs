@@ -5,8 +5,9 @@ use crate::original_image_detail::sanitize_original_image_detail;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
 use crate::session::turn_context::TurnContext;
+use crate::session::turn_context::TurnEnvironment;
 use crate::turn_diff_tracker::TurnDiffTracker;
-use crate::unified_exec::format_output_omission_marker;
+use crate::unified_exec::output::CapturedStream;
 use crate::unified_exec::resolve_max_tokens;
 use codex_protocol::ResponseItemId;
 use codex_protocol::mcp::CallToolResult;
@@ -20,11 +21,9 @@ use codex_tools::LoadableToolSpec;
 use codex_tools::ToolName;
 use codex_utils_audio::estimate_audio_token_count;
 use codex_utils_output_truncation::TruncationPolicy;
-use codex_utils_output_truncation::approx_token_count;
-use codex_utils_output_truncation::formatted_truncate_text;
 use codex_utils_output_truncation::truncate_function_output_payload;
-use codex_utils_output_truncation::truncate_text;
 use codex_utils_output_truncation::with_serialization_allowance;
+use codex_utils_path_uri::PathUri;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::num::NonZeroUsize;
@@ -55,6 +54,7 @@ pub type SharedTurnDiffTracker = Arc<Mutex<TurnDiffTracker>>;
 pub(crate) struct ToolCallState {
     pub(crate) terminal_outcome_reached: AtomicBool,
     pub(crate) delivered_assistant_message: OnceLock<String>,
+    pub(crate) invocation: crate::agent::host::InvocationReservation,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -71,6 +71,47 @@ pub enum ToolCallSource {
     },
 }
 
+/// Targets captured from the original call. Environments follow the order declared by the tool.
+#[derive(Clone, Default)]
+pub(crate) enum ToolEnvironments {
+    #[default]
+    All,
+    Terminal(crate::unified_exec::TerminalSession),
+    Arguments(Vec<(&'static str, Arc<TurnEnvironment>)>),
+    Mcp {
+        server: Option<String>,
+        owner: Option<String>,
+    },
+}
+
+impl ToolEnvironments {
+    pub(crate) fn single_executor(env: &TurnEnvironment) -> Self {
+        Self::Arguments(vec![("environment_id", Arc::new(env.clone()))])
+    }
+
+    pub(crate) fn single_id(&self) -> Option<&str> {
+        match self {
+            Self::Arguments(args) => match args.as_slice() {
+                [(_, env)] => Some(&env.selection.environment_id),
+                _ => None,
+            },
+            Self::Terminal(terminal) => Some(&terminal.environment_id),
+            Self::Mcp { owner, .. } => owner.as_deref(),
+            Self::All => None,
+        }
+    }
+
+    pub(crate) fn hook_ids(&self) -> Vec<&str> {
+        match self {
+            Self::Arguments(args) => args
+                .iter()
+                .map(|(_, env)| env.selection.environment_id.as_str())
+                .collect(),
+            _ => self.single_id().into_iter().collect(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ToolInvocation {
     pub session: Arc<Session>,
@@ -83,6 +124,10 @@ pub struct ToolInvocation {
     pub tool_name: ToolName,
     pub source: ToolCallSource,
     pub payload: ToolPayload,
+    /// Original function-call evidence owned by this invocation, independent of live history.
+    pub native_call: Option<Arc<ResponseItem>>,
+    /// Captured before PreToolUse and retained across input rewrites.
+    pub(crate) environments: ToolEnvironments,
 }
 
 /// Identity of the model call that started a tool invocation, retained across code-mode waits.
@@ -407,15 +452,13 @@ pub struct ExecCommandToolOutput {
     pub event_call_id: String,
     pub chunk_id: String,
     pub wall_time: Duration,
-    /// Raw bytes returned for this unified exec call before any truncation.
-    pub raw_output: Vec<u8>,
+    /// Output retained by collection, before model-facing truncation.
+    pub(crate) raw_output: CapturedStream,
     pub truncation_policy: TruncationPolicy,
     pub max_output_tokens: Option<usize>,
     pub process_id: Option<i32>,
     pub exit_code: Option<i32>,
     pub original_token_count: Option<usize>,
-    /// Bytes omitted by the output collection cap before model-facing truncation.
-    pub output_omitted_bytes: Option<NonZeroUsize>,
     pub hook_command: Option<String>,
     /// Where to write the output the model's budget is about to cut, so it can read the rest.
     ///
@@ -424,20 +467,19 @@ pub struct ExecCommandToolOutput {
     /// that does not opt in cannot be changed by this, and the profiles that cannot read the
     /// file simply never get a path (see the handler).
     pub spill_dir: Option<PathBuf>,
+    /// Local execution cwd retained for PostToolUse, independent of the collecting
+    /// turn. Remote commands leave this unset to retain the host hook cwd.
+    pub tool_cwd: Option<PathUri>,
 }
 
 impl ToolOutput for ExecCommandToolOutput {
     fn log_output(&self) -> String {
         // The telemetry budget must not inherit the model's output-token limit.
-        let mut output = String::from_utf8_lossy(&self.raw_output).into_owned();
-        if let Some(omitted_bytes) = self.output_omitted_bytes {
-            let marker = format_output_omission_marker(omitted_bytes.get());
-            if !output.contains(&marker) {
-                output = format!("{marker}\n{output}");
-            }
-        }
         // Telemetry records what the command actually printed, so it carries no condense
         // notice: nothing was condensed on this path.
+        let output = self
+            .raw_output
+            .render(/*policy*/ None, self.original_token_count);
         format!(
             "{}\n{output}",
             self.response_header(&CondenseReport::default(), None)
@@ -473,6 +515,10 @@ impl ToolOutput for ExecCommandToolOutput {
             .map(|command| serde_json::json!({ "command": command }))
     }
 
+    fn post_tool_use_cwd(&self) -> Option<PathUri> {
+        self.tool_cwd.clone()
+    }
+
     fn post_tool_use_response(&self, _call_id: &str, _payload: &ToolPayload) -> Option<JsonValue> {
         if self.process_id.is_some() || self.hook_command.is_none() {
             return None;
@@ -480,9 +526,10 @@ impl ToolOutput for ExecCommandToolOutput {
 
         // A post-tool-use hook is shown what the command printed, not what the model was
         // shown: a hook that greps for a line the harness condensed away would misfire.
-        let raw = String::from_utf8_lossy(&self.raw_output);
-        Some(JsonValue::String(
-            self.truncated_output_with_policy(&raw, self.model_output_policy()),
+        Some(JsonValue::String(self.truncated_output_with_policy(
+            &self.raw_output.text,
+            self.model_output_policy(),
+        )
         ))
     }
 
@@ -545,38 +592,17 @@ impl ExecCommandToolOutput {
     /// Windows.
     #[cfg(all(test, unix))]
     pub(crate) fn truncated_output(&self, max_tokens: usize) -> String {
-        let text = String::from_utf8_lossy(&self.raw_output);
-        self.truncated_output_with_policy(&text, TruncationPolicy::Tokens(max_tokens))
+        self.truncated_output_with_policy(&self.raw_output.text, TruncationPolicy::Tokens(max_tokens))
     }
 
     /// Applies the byte/token budget to `text`, which is the raw output for callers that want
     /// it verbatim and the condensed output on the path to the model.
     fn truncated_output_with_policy(&self, text: &str, policy: TruncationPolicy) -> String {
-        let Some(omitted_bytes) = self.output_omitted_bytes else {
-            return formatted_truncate_text(text, policy);
-        };
-
-        let marker = format_output_omission_marker(omitted_bytes.get());
-        if text.len() <= policy.byte_budget() {
-            return if text.contains(&marker) {
-                text.to_string()
-            } else {
-                format!("{marker}\n{text}")
-            };
+        CapturedStream {
+            text: text.to_string(),
+            omitted_bytes: self.raw_output.omitted_bytes,
         }
-
-        let original_token_count = self
-            .original_token_count
-            .unwrap_or_else(|| approx_token_count(text));
-        let truncated = truncate_text(text, policy);
-        let omission_notice = if truncated.contains(&marker) {
-            String::new()
-        } else {
-            format!("{marker}\n")
-        };
-        format!(
-            "Warning: truncated output (original token count: {original_token_count})\n{omission_notice}\n{truncated}"
-        )
+        .render(Some(policy), self.original_token_count)
     }
 
     fn response_header(&self, condensed: &CondenseReport, spill_path: Option<&Path>) -> String {
@@ -688,14 +714,14 @@ impl ExecCommandToolOutput {
     /// The output as the model should read it: every stage, including the ones that drop
     /// content and say so.
     fn condensed_output(&self, payload: &ToolPayload) -> (String, CondenseReport) {
-        let raw = String::from_utf8_lossy(&self.raw_output);
+        let raw = self.raw_output.text.as_str();
         let arguments = match payload {
             ToolPayload::Function { arguments } => arguments.as_str(),
             _ => "",
         };
-        match condense_exec_output(arguments, self.exit_code, self.process_id, &raw) {
+        match condense_exec_output(arguments, self.exit_code, self.process_id, raw) {
             Some((condensed_text, report)) => (condensed_text, report),
-            None => (raw.into_owned(), CondenseReport::default()),
+            None => (raw.to_owned(), CondenseReport::default()),
         }
     }
 
@@ -704,10 +730,10 @@ impl ExecCommandToolOutput {
     /// Code mode's caller is code the model wrote, which may count lines or match the text
     /// exactly, so the lossy stages are left out even though they announce themselves.
     fn condensed_output_lossless(&self) -> (String, CondenseReport) {
-        let raw = String::from_utf8_lossy(&self.raw_output);
-        match condense_exec_output_lossless(&raw) {
+        let raw = self.raw_output.text.as_str();
+        match condense_exec_output_lossless(raw) {
             Some((condensed_text, report)) => (condensed_text, report),
-            None => (raw.into_owned(), CondenseReport::default()),
+            None => (raw.to_owned(), CondenseReport::default()),
         }
     }
 

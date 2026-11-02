@@ -6,22 +6,22 @@ NOTE: The code might not completely match this spec. There are a few minor chang
 
 ## Entities
 
-These are entities exit on the codex backend. The intent of this section is to establish vocabulary and construct a shared mental model for the `Suffice` core system.
+These are entities exit on the codex backend. The intent of this section is to establish vocabulary and construct a shared mental model for the `Codex` core system.
 
 0. `Model`
    - In our case, this is the Responses REST API
-1. `Suffice`
+1. `Codex`
    - The core engine of codex
    - Runs locally, either in a background thread or separate process
    - Communicated to via a queue pair – SQ (Submission Queue) / EQ (Event Queue)
    - Takes user input, makes requests to the `Model`, executes commands and applies patches.
 2. `Session`
-   - The `Suffice`'s current configuration and state
-   - `Suffice` starts with no `Session`, and it is initialized by `Op::ConfigureSession`, which should be the first message sent by the UI.
+   - The `Codex`'s current configuration and state
+   - `Codex` starts with no `Session`, and it is initialized by `Op::ConfigureSession`, which should be the first message sent by the UI.
    - The current `Session` can be reconfigured with additional `Op::ConfigureSession` calls.
    - Any running execution is aborted when the session is reconfigured.
 3. `Task`
-   - A `Task` is `Suffice` executing work in response to user input.
+   - A `Task` is `Codex` executing work in response to user input.
    - `Session` has at most one `Task` running at a time.
    - Receiving user turn input starts a `Task`
    - Consists of a series of `Turn`s
@@ -35,29 +35,29 @@ These are entities exit on the codex backend. The intent of this section is to e
    - One cycle of iteration in a `Task`, consists of:
      - A request to the `Model` - (initially) prompt + (optional) `last_response_id`, or (in loop) previous turn output
      - The `Model` streams responses back in an SSE, which are collected until "completed" message and the SSE terminates
-     - `Suffice` then executes command(s), applies patch(es), and outputs message(s) returned by the `Model`
+     - `Codex` then executes command(s), applies patch(es), and outputs message(s) returned by the `Model`
      - Pauses to request approval when necessary
    - The output of one `Turn` is the input to the next `Turn`
    - A `Turn` yielding no output terminates the `Task`
 
-The term "UI" is used to refer to the application driving `Suffice`. This may be the CLI / TUI chat-like interface that users operate, or it may be a GUI interface like a VSCode extension. The UI is external to `Suffice`, as `Suffice` is intended to be operated by arbitrary UI implementations.
+The term "UI" is used to refer to the application driving `Codex`. This may be the CLI / TUI chat-like interface that users operate, or it may be a GUI interface like a VSCode extension. The UI is external to `Codex`, as `Codex` is intended to be operated by arbitrary UI implementations.
 
 When a `Turn` completes, the `response_id` from the `Model`'s final `response.completed` message is stored in the `Session` state to resume the thread given the next user turn. The `response_id` is also returned in the `EventMsg::TurnComplete` to the UI, which can be used to fork the thread from an earlier point by providing it in a future user turn.
 
-Since only 1 `Task` can be run at a time, for parallel tasks it is recommended that a single `Suffice` be run for each thread of work.
+Since only 1 `Task` can be run at a time, for parallel tasks it is recommended that a single `Codex` be run for each thread of work.
 
 ## Interface
 
-- `Suffice`
+- `Codex`
   - Communicates with UI via a `SQ` (Submission Queue) and `EQ` (Event Queue).
 - `Submission`
-  - These are messages sent on the `SQ` (UI -> `Suffice`)
+  - These are messages sent on the `SQ` (UI -> `Codex`)
   - Has an string ID provided by the UI, referred to as `sub_id`
   - `Op` refers to the enum of all possible `Submission` payloads
   - In the current codebase these are primarily in-process Rust types rather than a stable serde wire contract
     - This enum is `non_exhaustive`; variants can be added at future dates
 - `Event`
-  - These are messages sent on the `EQ` (`Suffice` -> UI)
+  - These are messages sent on the `EQ` (`Codex` -> UI)
   - Each `Event` has a non-unique ID, matching the `sub_id` from the user-turn op that started the current task.
   - `EventMsg` refers to the enum of all possible `Event` payloads
     - This enum is `non_exhaustive`; variants can be added at future dates
@@ -66,6 +66,7 @@ Since only 1 `Task` can be run at a time, for parallel tasks it is recommended t
 For complete documentation of the `Op` and `EventMsg` variants, refer to [protocol.rs](../protocol/src/protocol.rs). Some example payload types:
 
 - `Op`
+
   - `Op::UserTurn` – Any input from the user to kick off a `Turn`, including full per-turn context such as cwd, model, sandbox, approval policy, and optional `approvals_reviewer`
   - `Op::Interrupt` – Interrupts a running turn
   - `Op::ExecApproval` – Approve or deny code execution
@@ -116,7 +117,7 @@ sequenceDiagram
     participant user as User
     end
     box Daemon
-    participant codex as Suffice
+    participant codex as Codex
     participant session as Session
     participant task as Task
     end

@@ -66,23 +66,23 @@ pub(super) fn endpoint_check(inspection: EndpointInspection) -> DoctorCheck {
     }
 
     let targets = if cfg!(target_os = "windows") {
-        "signed Suffice app; codex.exe; codex-windows-sandbox-setup.exe; codex-command-runner.exe; codex-code-mode-host.exe"
+        "signed Codex app; codex.exe; codex-windows-sandbox-setup.exe; codex-command-runner.exe; codex-code-mode-host.exe"
     } else if cfg!(target_os = "macos") {
-        "signing team 2DC432GLL2 plus the installed Suffice app identity, signed codex agent, and required helpers"
+        "signing team 2DC432GLL2 plus the installed Codex app identity, signed codex agent, and required helpers"
     } else {
-        "verified Suffice app, codex agent, and required helpers"
+        "verified Codex app, codex agent, and required helpers"
     };
     let mut check = DoctorCheck::new(
         "security.endpoint",
         "security",
         CheckStatus::Warning,
-        "endpoint protection detected; Suffice exclusions are unverified",
+        "endpoint protection detected; Codex exclusions are unverified",
     )
     .detail(format!("endpoint products: {}", products.join(", ")))
     .detail(format!("exclusion targets: {targets}"))
-    .detail("Suffice exclusions: not verified")
+    .detail("Codex exclusions: not verified")
     .remediation(
-        "ask your security administrator to verify Suffice exclusions and required helper allowances",
+        "ask your security administrator to verify Codex exclusions and required helper allowances",
     );
     if visibility_incomplete {
         check = check.detail("additional endpoint products: unavailable");
@@ -91,33 +91,33 @@ pub(super) fn endpoint_check(inspection: EndpointInspection) -> DoctorCheck {
     for product in products {
         let remedy = match product {
             "CrowdStrike Falcon" => {
-                "CrowdStrike Falcon: Add a certificate or IOA exclusion for Suffice. If sensor overhead continues, exclude the Suffice agent from sensor visibility. Keep monitoring descendant processes."
+                "CrowdStrike Falcon: Add a certificate or IOA exclusion for Codex. If sensor overhead continues, exclude the Codex agent from sensor visibility. Keep monitoring descendant processes."
             }
             "BeyondTrust Privilege Management" => {
-                "BeyondTrust: Remove Suffice from application blocking rules. Add allow rules for Suffice helper executables. Do not grant administrator privileges."
+                "BeyondTrust: Remove Codex from application blocking rules. Add allow rules for Codex helper executables. Do not grant administrator privileges."
             }
             "Microsoft Defender" => {
-                "Microsoft Defender: Add a certificate or executable-path exclusion for Suffice and its helpers. If Attack Surface Reduction blocks Suffice, add a rule exclusion. If Controlled Folder Access blocks Suffice, allow the app."
+                "Microsoft Defender: Add a certificate or executable-path exclusion for Codex and its helpers. If Attack Surface Reduction blocks Codex, add a rule exclusion. If Controlled Folder Access blocks Codex, allow the app."
             }
             "SentinelOne" => {
-                "SentinelOne: Add a signer, file-hash, or executable-path exclusion for Suffice and its helpers."
+                "SentinelOne: Add a signer, file-hash, or executable-path exclusion for Codex and its helpers."
             }
             "Jamf Protect" => {
-                "Jamf Protect: Add an Override Threat Prevention exception for Suffice app and helper signing identities. If analytics cause delays, add an Ignore System Events for Analytics exception."
+                "Jamf Protect: Add an Override Threat Prevention exception for Codex app and helper signing identities. If analytics cause delays, add an Ignore System Events for Analytics exception."
             }
             _ => {
-                "Add an exclusion for Suffice and its helpers. Use the endpoint product instructions."
+                "Add an exclusion for Codex and its helpers. Use the endpoint product instructions."
             }
         };
         check = check.issue(
             DoctorIssue::new(
                 CheckStatus::Warning,
-                format!("{product} can interfere with Suffice. Verify Suffice exclusions."),
+                format!("{product} can interfere with Codex. Verify Codex exclusions."),
             )
             .measured("not verified")
-            .expected("Suffice application and helper exclusions")
+            .expected("Codex application and helper exclusions")
             .remedy(remedy)
-            .field("Suffice exclusions"),
+            .field("Codex exclusions"),
         );
     }
 
@@ -236,7 +236,7 @@ async fn endpoint_products() -> EndpointInspection {
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 async fn product_command(program: impl AsRef<OsStr>, args: &[&str]) -> Option<Output> {
-    let mut command = Command::new(program);
+    let mut command = Command::from(codex_utils_process::background_command(program));
     command
         .args(args)
         .stdin(Stdio::null())

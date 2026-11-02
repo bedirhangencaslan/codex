@@ -5,12 +5,11 @@ expression: frames
 before onboarding: hidden (0x0 viewport)
 ---
 after onboarding:
-▌ Suffice  v<VERSION>
-▌
-▌ model     loading   /model to change
-▌ directory loading
+
+  >_ OpenAI Codex (v<VERSION>)
+     loading
 
 
-▌ Ask Suffice to do anything
+▌ Ask Codex to do anything
 
   ? for shortcuts

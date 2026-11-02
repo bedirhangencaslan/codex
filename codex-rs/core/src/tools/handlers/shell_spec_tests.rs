@@ -28,13 +28,11 @@ fn has_parameter(tool: &ToolSpec, parameter_name: &str) -> bool {
 fn a_non_interactive_run_is_offered_three_parameters() {
     let tool = create_exec_command_tool_with_environment_id(
         CommandToolOptions {
-            allow_login_shell: true,
             exec_permission_approvals_enabled: true,
             lean_parameters: true,
             code_mode_offered: false,
         },
         /*include_environment_id*/ false,
-        /*include_shell_parameter*/ true,
         /*include_windows_shell_guidance*/ true,
     );
 
@@ -75,7 +73,6 @@ fn a_non_interactive_run_is_offered_three_parameters() {
 #[test]
 fn exec_command_tool_matches_expected_spec() {
     let tool = create_exec_command_tool(CommandToolOptions {
-        allow_login_shell: true,
         exec_permission_approvals_enabled: false,
         lean_parameters: false,
         code_mode_offered: false,
@@ -160,24 +157,6 @@ fn exec_command_tool_matches_expected_spec() {
             output_schema: Some(unified_exec_output_schema().into()),
         })
     );
-}
-
-#[test]
-fn exec_command_tool_can_hide_shell_parameter() {
-    let tool = create_exec_command_tool_with_environment_id(
-        CommandToolOptions {
-            allow_login_shell: true,
-            exec_permission_approvals_enabled: false,
-            lean_parameters: false,
-            code_mode_offered: false,
-        },
-        /*include_environment_id*/ false,
-        /*include_shell_parameter*/ false,
-        /*include_windows_shell_guidance*/ cfg!(windows),
-    );
-
-    assert!(!has_parameter(&tool, "shell"));
-    assert!(has_parameter(&tool, "cmd"));
 }
 
 #[test]
@@ -274,13 +253,11 @@ fn offering_exec_leaves_the_description_as_it_is() {
     let description = |code_mode_offered| {
         let ToolSpec::Function(tool) = create_exec_command_tool_with_environment_id(
             CommandToolOptions {
-                allow_login_shell: false,
                 exec_permission_approvals_enabled: false,
                 lean_parameters: true,
                 code_mode_offered,
             },
             /*include_environment_id*/ false,
-            /*include_shell_parameter*/ false,
             /*include_windows_shell_guidance*/ true,
         ) else {
             panic!("exec_command is a function tool");

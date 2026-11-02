@@ -73,7 +73,7 @@ field merged three-way against the base; the seven templates both sides edited m
 template's own lines (every line either side added is present, every line either removed is
 gone); `glm-5.3-flash` copied verbatim from the pre-merge branch; `gpt-5.2` and `gpt-5.4-mini`
 kept; upstream's new `gpt-6-sol` and `gpt-6-luna` taken as upstream has them, with
-`$CODEX_HOME` -> `$SUFFICE_HOME` as the previous merge did for astra.
+`$SUFFICE_HOME` -> `$SUFFICE_HOME` as the previous merge did for astra.
 
 GLM is now the **last** card. Upstream adds new models at the top; order has no runtime effect
 because presets are sorted by `priority`.
@@ -94,7 +94,7 @@ letting cargo fill the four missing packages at whatever version is newest.
 | where | what happened | done |
 |---|---|---|
 | `cli/Cargo.toml` | the driver folds every lowercase `suffice`; `name` and `default-run` became `codex`, so the build would produce `codex.exe` | restored; scoped rule in `rename-map.txt`; two checks in `assertions.py` |
-| six test lines | the `.codex => .suffice` rule renamed a line-leading `.codex` - a method chain reading the field `codex` - undoing `bbdd99a92a` | restored; the rule now skips a `.codex` that starts its line. On upstream's tree the old and new rule differ on 182 lines, all field accesses |
+| six test lines | the `.suffice => .suffice` rule renamed a line-leading `.codex` - a method chain reading the field `codex` - undoing `bbdd99a92a` | restored; the rule now skips a `.codex` that starts its line. On upstream's tree the old and new rule differ on 182 lines, all field accesses |
 | upstream's new test files | `post-merge.py`: 25 lines in 8 files, `SUFFICE_HOME`, `.suffice`, `.suffice-plugin` | applied, read line by line first |
 | plugin metadata file | upstream moved the constant to `core-plugin-common/src/installed.rs` as `.codex-remote-plugin-install.json`; the map's `.codex` rule does not match before `-` | **open**: the on-disk name changed, and two tests still expect `.suffice-...` |
 | ~20 messages | "Run `suffice login`" became "Run `codex login`" - product name, by the driver's policy, but it names a command | **open** |

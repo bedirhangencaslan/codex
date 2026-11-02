@@ -37,7 +37,7 @@ impl PluginGitMode {
     /// Creates a Git command with the repository-environment policy for this operation.
     /// Automatic remote lookups and initial clones must also select a trusted repository.
     pub(crate) fn command(self, git_binary: &Path) -> Command {
-        let mut command = Command::new(git_binary);
+        let mut command = codex_utils_process::background_command(git_binary);
         command.args(["-c", codex_git_utils::SAFE_BARE_REPOSITORY_CONFIG]);
         if matches!(self, Self::Automatic) {
             command.env("GIT_OPTIONAL_LOCKS", "0");
@@ -59,7 +59,7 @@ pub(crate) fn configure_trusted_git_repository(
 ) -> Result<TempDir, String> {
     let canonical_home = AbsolutePathBuf::from_absolute_path(codex_home)
         .and_then(|path| path.canonicalize())
-        .map_err(|err| format!("failed to resolve trusted Suffice home: {err}"))?;
+        .map_err(|err| format!("failed to resolve trusted Codex home: {err}"))?;
     let staging_root = canonical_home.join(".tmp");
     std::fs::create_dir_all(staging_root.as_path())
         .map_err(|err| format!("failed to create trusted Git repository root: {err}"))?;
@@ -67,7 +67,7 @@ pub(crate) fn configure_trusted_git_repository(
         .canonicalize()
         .map_err(|err| format!("failed to resolve trusted Git repository root: {err}"))?;
     if !staging_root.as_path().starts_with(canonical_home.as_path()) {
-        return Err("trusted Git repository root escapes Suffice home".to_string());
+        return Err("trusted Git repository root escapes Codex home".to_string());
     }
 
     let repository = tempfile::Builder::new()

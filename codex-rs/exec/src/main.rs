@@ -1,7 +1,11 @@
+// Release builds exceed rustc's default query depth when laying out the async
+// MessageProcessor::handle_initialized_client_request future.
+#![recursion_limit = "256"]
+
 //! Entry-point for the `codex-exec` binary.
 //!
 //! When this CLI is invoked normally, it parses the standard `codex-exec` CLI
-//! options and launches the non-interactive Suffice agent. However, if it is
+//! options and launches the non-interactive Codex agent. However, if it is
 //! invoked with arg0 as `codex-linux-sandbox`, we instead treat the invocation
 //! as a request to run the logic for the standalone `codex-linux-sandbox`
 //! executable (i.e., parse any -s args and then run a *sandboxed* command under

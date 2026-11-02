@@ -5,6 +5,16 @@ use std::ops::Range;
 use super::*;
 
 impl TranscriptView {
+    /// Rebuild the layout of an observed revision without counting the reflow as new output.
+    pub(crate) fn rebind_observed_live_revision(&mut self, observed: u64, updated: u64) {
+        if let Some((_, key)) = &mut self.live_key
+            && key.revision == observed
+        {
+            key.revision = updated;
+            key.cacheable = false;
+        }
+    }
+
     /// Refresh unseen activity before either footer measurement or transcript painting.
     pub(crate) fn sync_history_tail(&mut self, cells: &[Arc<dyn HistoryCell>]) {
         let tail = cells.last().map(EntryKey::cell);
@@ -148,24 +158,21 @@ impl TranscriptView {
         if self.last_tail == Some(tail_key) {
             self.last_tail = preceding.last().map(EntryKey::cell);
         }
-        let following = self.is_following();
-        if let Some((_, key)) = &mut self.live_key {
-            if !following && key.revision != previous_revision {
+        if let Some((_, key)) = self.live_key {
+            if !self.is_following() && key.revision != previous_revision {
                 self.unseen_activity = true;
             }
-            key.revision = hydrated_revision;
-            // Force fresh lines even if the next draw receives this exact hydrated revision.
-            key.cacheable = false;
+            self.rebind_observed_live_revision(key.revision, hydrated_revision);
         }
         if self.snapshot().is_some() {
             return;
         }
-        self.restart_search();
         if let Position::Reading(anchor) = self.position
             && (anchor.key == tail_key || anchor.key == EntryKey::Live)
         {
             self.held_reading = Some(self.capture_snapshot(cells));
         }
+        self.restart_search();
     }
 
     /// Extend the frozen history only with the explicitly inserted older page.

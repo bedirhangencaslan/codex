@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 
 import type { CodexConfigObject, CodexConfigValue } from "./codexOptions";
 import { SandboxMode, ModelReasoningEffort, ApprovalMode, WebSearchMode } from "./threadOptions";
+import type { CyberAccessProgram } from "./turnOptions";
 
 export type CodexExecArgs = {
   input: string;
@@ -28,6 +29,8 @@ export type CodexExecArgs = {
   skipGitRepoCheck?: boolean;
   // --output-schema
   outputSchemaFile?: string;
+  // --cyber-access-program
+  cyberAccessProgram?: CyberAccessProgram;
   // --config model_reasoning_effort
   modelReasoningEffort?: ModelReasoningEffort;
   // AbortSignal to cancel the execution
@@ -140,6 +143,10 @@ export class CodexExec {
       commandArgs.push("--output-schema", args.outputSchemaFile);
     }
 
+    if (args.cyberAccessProgram !== undefined) {
+      commandArgs.push("--cyber-access-program", args.cyberAccessProgram);
+    }
+
     if (args.modelReasoningEffort) {
       commandArgs.push("--config", `model_reasoning_effort="${args.modelReasoningEffort}"`);
     }
@@ -244,7 +251,7 @@ export class CodexExec {
       if (code !== 0 || signal) {
         const stderrBuffer = Buffer.concat(stderrChunks);
         const detail = signal ? `signal ${signal}` : `code ${code ?? 1}`;
-        throw new Error(`Suffice Exec exited with ${detail}: ${stderrBuffer.toString("utf8")}`);
+        throw new Error(`Codex Exec exited with ${detail}: ${stderrBuffer.toString("utf8")}`);
       }
     } finally {
       rl.close();
@@ -274,7 +281,7 @@ function flattenConfigOverrides(
       overrides.push(`${prefix}=${toTomlValue(value, prefix)}`);
       return;
     } else {
-      throw new Error("Suffice config overrides must be a plain object");
+      throw new Error("Codex config overrides must be a plain object");
     }
   }
 
@@ -290,7 +297,7 @@ function flattenConfigOverrides(
 
   for (const [key, child] of entries) {
     if (!key) {
-      throw new Error("Suffice config override keys must be non-empty strings");
+      throw new Error("Codex config override keys must be non-empty strings");
     }
     if (child === undefined) {
       continue;
@@ -309,7 +316,7 @@ function toTomlValue(value: CodexConfigValue, path: string): string {
     return JSON.stringify(value);
   } else if (typeof value === "number") {
     if (!Number.isFinite(value)) {
-      throw new Error(`Suffice config override at ${path} must be a finite number`);
+      throw new Error(`Codex config override at ${path} must be a finite number`);
     }
     return `${value}`;
   } else if (typeof value === "boolean") {
@@ -321,7 +328,7 @@ function toTomlValue(value: CodexConfigValue, path: string): string {
     const parts: string[] = [];
     for (const [key, child] of Object.entries(value)) {
       if (!key) {
-        throw new Error("Suffice config override keys must be non-empty strings");
+        throw new Error("Codex config override keys must be non-empty strings");
       }
       if (child === undefined) {
         continue;
@@ -330,10 +337,10 @@ function toTomlValue(value: CodexConfigValue, path: string): string {
     }
     return `{${parts.join(", ")}}`;
   } else if (value === null) {
-    throw new Error(`Suffice config override at ${path} cannot be null`);
+    throw new Error(`Codex config override at ${path} cannot be null`);
   } else {
     const typeName = typeof value;
-    throw new Error(`Unsupported Suffice config override value at ${path}: ${typeName}`);
+    throw new Error(`Unsupported Codex config override value at ${path}: ${typeName}`);
   }
 }
 
@@ -409,7 +416,7 @@ function findCodexPath(): CodexPathResolution {
     vendorRoot = path.join(path.dirname(platformPackageJsonPath), "vendor");
   } catch {
     throw new Error(
-      `Unable to locate Suffice CLI binaries. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies.`,
+      `Unable to locate Codex CLI binaries. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies.`,
     );
   }
 
@@ -417,7 +424,7 @@ function findCodexPath(): CodexPathResolution {
   const nativePackage = resolveNativePackage(vendorRoot, targetTriple, codexBinaryName);
   if (!nativePackage) {
     throw new Error(
-      `Unable to locate Suffice CLI binaries for ${targetTriple}. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies.`,
+      `Unable to locate Codex CLI binaries for ${targetTriple}. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies.`,
     );
   }
 

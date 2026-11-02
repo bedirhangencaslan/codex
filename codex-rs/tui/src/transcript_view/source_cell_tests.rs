@@ -30,7 +30,8 @@ fn reasoning_copy_joins_soft_wraps_and_retains_the_existing_rendering() {
     let layout = TextLayout::new(lines.clone(), width);
     assert_eq!(layout.text(), content);
     assert_eq!(layout.rewrap(/*width*/ 19).text(), content);
-    assert_eq!(cell.display_hyperlink_lines(width), Vec::new());
+    // This fork keeps a one-line `Thinking · ~N tokens · Ctrl+T` marker in the main view.
+    assert_eq!(cell.display_hyperlink_lines(width).len(), 1);
 
     assert_layout_paints_like_lines(lines, width);
 }

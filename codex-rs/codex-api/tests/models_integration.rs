@@ -2,6 +2,7 @@ use codex_api::AuthProvider;
 use codex_api::ModelsClient;
 use codex_api::Provider;
 use codex_api::RetryConfig;
+use codex_api::WireApi;
 use codex_client::ReqwestTransport;
 use codex_http_client::HttpClientBuilder;
 use codex_protocol::config_types::ReasoningSummary;
@@ -28,7 +29,9 @@ use wiremock::matchers::path;
 struct DummyAuth;
 
 impl AuthProvider for DummyAuth {
-    fn add_auth_headers(&self, _headers: &mut HeaderMap) {}
+    fn add_auth_headers(&self, _headers: &mut HeaderMap) -> Result<(), codex_api::AuthError> {
+        Ok(())
+    }
 }
 
 fn provider(base_url: &str) -> Provider {
@@ -141,6 +144,7 @@ async fn models_client_hits_models_endpoint() {
             include_plugin_usage_instructions: false,
             include_apps_usage_instructions: false,
             supports_reasoning_summary_parameter: true,
+            supports_encrypted_reasoning: true,
             default_reasoning_summary: ReasoningSummary::Auto,
             support_verbosity: false,
             default_verbosity: None,
@@ -156,7 +160,6 @@ async fn models_client_hits_models_endpoint() {
             effective_context_window_percent: 95,
             experimental_supported_tools: Vec::new(),
             input_modalities: default_input_modalities(),
-            used_fallback_model_metadata: false,
             supports_search_tool: false,
             supports_experimental_context: false,
             use_responses_lite: false,

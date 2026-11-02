@@ -1,10 +1,9 @@
 ---
 source: tui/src/chatwidget/tests/reasoning_status_tests.rs
-assertion_line: 84
 expression: headers
 ---
 [
-    "Working",
+    "Thinking",
     "Researching backend freshness",
     "Researching backend freshness",
     "Researching backend freshness",

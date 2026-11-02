@@ -47,7 +47,7 @@ use core_test_support::skip_if_target_windows;
 use core_test_support::skip_if_wine_exec;
 use core_test_support::test_codex::TestCodex;
 use core_test_support::test_codex::TestCodexHarness;
-use core_test_support::test_codex::local_selections;
+use core_test_support::test_codex::local_requests;
 use core_test_support::test_codex::test_codex;
 use core_test_support::test_codex::turn_permission_fields;
 use core_test_support::wait_for_event;
@@ -174,7 +174,7 @@ async fn submit_turn(
                 text_elements: Vec::new(),
             }])
             .with_thread_settings(ThreadSettingsOverrides {
-                environments: Some(local_selections(test.config.cwd.clone())),
+                environments: Some(local_requests(test.config.cwd.clone())),
                 approval_policy: Some(approval_policy),
                 approvals_reviewer: Some(ApprovalsReviewer::User),
                 sandbox_policy: Some(sandbox_policy),
@@ -480,7 +480,7 @@ async fn request_permissions_auto_review_applies_guardian_decision(outcome: &str
     skip_if_sandbox!(Ok(()));
     skip_if_wine_exec!(
         Ok(()),
-        "request_permissions requires a cwd native to the Suffice host"
+        "request_permissions requires a cwd native to the Codex host"
     );
 
     let server = start_mock_server().await;
@@ -596,7 +596,7 @@ async fn interrupted_request_permissions_auto_review_aborts_guardian_review() ->
     skip_if_sandbox!(Ok(()));
     skip_if_wine_exec!(
         Ok(()),
-        "request_permissions requires a cwd native to the Suffice host"
+        "request_permissions requires a cwd native to the Codex host"
     );
 
     let server = start_mock_server().await;

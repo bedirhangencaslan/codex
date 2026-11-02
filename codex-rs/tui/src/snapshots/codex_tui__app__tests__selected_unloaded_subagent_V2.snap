@@ -1,0 +1,7 @@
+---
+source: tui/src/app/tests.rs
+expression: "normalize_snapshot_paths(render_bottom_popup(&app.chat_widget, 80))"
+---
+▌ Viewing sub-agent — direct input is disabled
+
+  GLM 5.3 default · /tmp/project · child-1 [worker] · ← for agents

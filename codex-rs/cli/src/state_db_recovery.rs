@@ -17,12 +17,8 @@ pub(crate) fn is_locked(detail: &str) -> bool {
     codex_state::sqlite_error_detail_is_lock(detail)
 }
 
-pub(crate) fn is_corruption(detail: &str) -> bool {
-    codex_state::sqlite_error_detail_is_corruption(detail)
-}
-
 pub(crate) fn is_auto_backup_recoverable(startup_error: &LocalStateDbStartupError) -> bool {
-    is_corruption(startup_error.detail()) || sqlite_home_is_blocking_file(startup_error)
+    startup_error.is_corruption() || sqlite_home_is_blocking_file(startup_error)
 }
 
 fn sqlite_home_is_blocking_file(startup_error: &LocalStateDbStartupError) -> bool {
@@ -34,8 +30,8 @@ fn sqlite_home_is_blocking_file(startup_error: &LocalStateDbStartupError) -> boo
 }
 
 pub(crate) fn print_auto_backup_start(startup_error: &LocalStateDbStartupError) {
-    eprintln!("Suffice couldn't start because its local database appears to be damaged.");
-    eprintln!("Moving the damaged local database aside so Suffice can rebuild it from saved data.");
+    eprintln!("Codex couldn't start because its local database appears to be damaged.");
+    eprintln!("Moving the damaged local database aside so Codex can rebuild it from saved data.");
     print_technical_details(startup_error);
 }
 
@@ -49,9 +45,9 @@ pub(crate) fn confirm_fresh_start_rebuild(
     startup_error: &LocalStateDbStartupError,
     backups: &[RuntimeDbBackup],
 ) -> std::io::Result<()> {
-    eprintln!("Suffice rebuilt its local database.");
+    eprintln!("Codex rebuilt its local database.");
     eprintln!(
-        "Suffice detected a damaged local database, moved it into a backup folder, and will continue startup with a fresh database."
+        "Codex detected a damaged local database, moved it into a backup folder, and will continue startup with a fresh database."
     );
     eprintln!("Database path: {}", startup_error.database_path().display());
     if let Some(backup_folder) = backup_folder(backups) {
@@ -71,15 +67,15 @@ pub(crate) fn confirm_fresh_start_rebuild(
 }
 
 pub(crate) fn print_diagnostic_guidance(startup_error: &LocalStateDbStartupError) {
-    eprintln!("Suffice couldn't start because its local database appears to be damaged.");
-    eprintln!("Run `suffice doctor` to check your setup and get next-step guidance.");
+    eprintln!("Codex couldn't start because its local database appears to be damaged.");
+    eprintln!("Run `codex doctor` to check your setup and get next-step guidance.");
     eprintln!("If this keeps happening, share the technical details below when asking for help.");
     print_technical_details(startup_error);
 }
 
 pub(crate) fn print_locked_guidance(startup_error: &LocalStateDbStartupError) {
-    eprintln!("Suffice couldn't start because another Suffice process is using its local data.");
-    eprintln!("Quit any other copies of Suffice that may still be running, then try again.");
+    eprintln!("Codex couldn't start because another Codex process is using its local data.");
+    eprintln!("Quit any other copies of Codex that may still be running, then try again.");
     print_technical_details(startup_error);
 }
 
@@ -111,7 +107,7 @@ mod tests {
         tokio::fs::write(failed_db_path.as_path(), b"logs").await?;
 
         let startup_error =
-            LocalStateDbStartupError::new(failed_db_path.clone(), "corrupt".to_string());
+            LocalStateDbStartupError::new(failed_db_path.clone(), anyhow::anyhow!("corrupt"));
         let backups = backup_files_for_fresh_start(&startup_error).await?;
 
         assert_eq!(
@@ -134,7 +130,7 @@ mod tests {
         tokio::fs::write(sqlite_home.as_path(), b"not-a-directory").await?;
         let sqlite = codex_state::SqliteConfig::new_for_testing(sqlite_home.as_path().abs());
         let startup_error =
-            LocalStateDbStartupError::new(sqlite.state_db_path(), "File exists".to_string());
+            LocalStateDbStartupError::new(sqlite.state_db_path(), anyhow::anyhow!("File exists"));
 
         assert!(is_auto_backup_recoverable(&startup_error));
         let backups = backup_files_for_fresh_start(&startup_error).await?;

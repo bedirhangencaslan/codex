@@ -1,22 +1,24 @@
 //! Records automatic daemon startup and ensures launch observations survive setup failures.
 
 use super::*;
+use crate::terminal_size_telemetry::LaunchTags;
 
-/// Emit once after connection, or as unconfirmed if startup returns early.
-pub(super) struct Launch<F: FnOnce(&AppServerTarget, bool)>(pub(super) Option<F>);
+/// Record the connection mode or update handoff once. Other early exits are unconfirmed.
+pub(super) struct Launch<F: FnOnce(&'static str) -> LaunchTags>(pub(super) Option<F>);
 
-impl<F: FnOnce(&AppServerTarget, bool)> Launch<F> {
-    pub(super) fn record(mut self, target: &AppServerTarget, connected: bool) {
-        if let Some(record) = self.0.take() {
-            record(target, connected);
-        }
+impl<F: FnOnce(&'static str) -> LaunchTags> Launch<F> {
+    pub(super) fn record(mut self, app_server_mode: &'static str) -> LaunchTags {
+        self.0
+            .take()
+            .map(|record| record(app_server_mode))
+            .unwrap_or_default()
     }
 }
 
-impl<F: FnOnce(&AppServerTarget, bool)> Drop for Launch<F> {
+impl<F: FnOnce(&'static str) -> LaunchTags> Drop for Launch<F> {
     fn drop(&mut self) {
         if let Some(record) = self.0.take() {
-            record(&AppServerTarget::Embedded, /*connected*/ false);
+            record("unconfirmed");
         }
     }
 }

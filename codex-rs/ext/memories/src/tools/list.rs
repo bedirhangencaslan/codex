@@ -47,10 +47,14 @@ where
         memory_tool_name(LIST_TOOL_NAME)
     }
 
+    fn supports_parallel_tool_calls(&self) -> bool {
+        true
+    }
+
     fn spec(&self) -> ToolSpec {
         memory_function_tool::<ListArgs, ListMemoriesResponse>(
             LIST_TOOL_NAME,
-            "List immediate files and directories under a path in the Suffice memories store.",
+            "List immediate files and directories under a path in the Codex memories store.",
         )
     }
 

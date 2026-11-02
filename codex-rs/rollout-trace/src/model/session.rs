@@ -23,7 +23,7 @@ pub enum RolloutStatus {
     Aborted,
 }
 
-/// One Suffice thread/session participating in the rollout.
+/// One Codex thread/session participating in the rollout.
 ///
 /// Threads are agents in the multi-agent sense, but the root interactive
 /// session is represented by the same object. Runtime objects live in top-level
@@ -45,11 +45,12 @@ pub struct AgentThread {
     pub execution: ExecutionWindow,
     /// Configured model presentation hint. Individual inference calls carry the actual upstream model.
     pub default_model: Option<String>,
-    /// Logical conversation items first observed for this thread, in transcript order.
+    /// Accepted model-visible conversation in transcript order. Unaccepted
+    /// response items remain in the graph, reachable through their inference call.
     pub conversation_item_ids: Vec<ConversationItemId>,
 }
 
-/// Provenance for a traced Suffice thread.
+/// Provenance for a traced Codex thread.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum AgentOrigin {
@@ -95,9 +96,9 @@ pub enum ExecutionStatus {
     Aborted,
 }
 
-/// One activation of the Suffice runtime for one thread.
+/// One activation of the Codex runtime for one thread.
 ///
-/// A Suffice turn groups protocol/runtime work for one thread activation.
+/// A Codex turn groups protocol/runtime work for one thread activation.
 /// It is not a user/assistant message pair; conversation belongs in
 /// `ConversationItem`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

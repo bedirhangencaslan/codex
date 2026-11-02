@@ -15,9 +15,9 @@ use owo_colors::OwoColorize;
 
 #[derive(Debug, Parser)]
 #[command(name = "codex-state-logs")]
-#[command(about = "Tail Suffice logs from the dedicated logs SQLite DB with simple filters")]
+#[command(about = "Tail Codex logs from the dedicated logs SQLite DB with simple filters")]
 struct Args {
-    /// Path to SUFFICE_HOME. Defaults to $SUFFICE_HOME or ~/.suffice.
+    /// Path to SUFFICE_HOME. Defaults to $SUFFICE_HOME or ~/.codex.
     #[arg(long, env = "SUFFICE_HOME")]
     codex_home: Option<PathBuf>,
 
@@ -134,8 +134,9 @@ async fn resolve_sqlite_config(args: &Args) -> anyhow::Result<SqliteConfig> {
             .parent()
             .map(ToOwned::to_owned)
             .unwrap_or_else(|| PathBuf::from("."));
-        return Ok(SqliteConfig::from_sqlite_home(
+        return Ok(SqliteConfig::from_sqlite_home_with_nfs_enforcement(
             AbsolutePathBuf::relative_to_current_dir(sqlite_home)?,
+            /*enforce_delete_on_nfs*/ false,
         ));
     }
 
@@ -416,10 +417,10 @@ mod tests {
         assert_eq!(args.level, Some(LogLevelThreshold::Warn));
     }
 
-    /// Explicit database selection must not parse an overridden Suffice home.
+    /// Explicit database selection must not parse an overridden Codex home.
     #[tokio::test]
     async fn direct_db_skips_codex_home_config() {
-        let codex_home = tempfile::tempdir().expect("create Suffice home");
+        let codex_home = tempfile::tempdir().expect("create Codex home");
         std::fs::write(codex_home.path().join("config.toml"), "model = [")
             .expect("write invalid config");
         let sqlite_home = tempfile::tempdir().expect("create SQLite home");

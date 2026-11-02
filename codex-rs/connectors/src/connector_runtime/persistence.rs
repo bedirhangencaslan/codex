@@ -62,6 +62,8 @@ pub(crate) fn load_cached_connector_runtime_for_identity<T: ConnectorRuntimePayl
     (cache.schema_version == CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION).then_some(
         ConnectorRuntimeSnapshot {
             tools: cache.tools,
+            tool_list_meta: cache.tool_list_meta.map(Arc::new),
+            discovery_scope: cache.discovery_scope,
             refreshed_at: modified_at,
             generation: 0,
             tools_version: 0,
@@ -80,6 +82,8 @@ where
     let bytes = serde_json::to_vec_pretty(&CodexAppsToolsDiskCache {
         schema_version: CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION,
         tools: snapshot.tools.clone(),
+        tool_list_meta: snapshot.tool_list_meta.as_deref().cloned(),
+        discovery_scope: snapshot.discovery_scope.clone(),
     })
     .context("failed to serialize connector runtime cache")?;
     write_codex_apps_cache_file(&cache_path, "runtime", bytes)
@@ -104,7 +108,7 @@ fn write_cached_codex_apps_server_info<T: ConnectorRuntimePayload>(
         schema_version: CODEX_APPS_SERVER_INFO_CACHE_SCHEMA_VERSION,
         server_info: server_info.clone(),
     })
-    .context("failed to serialize Suffice Apps server info cache")?;
+    .context("failed to serialize Codex Apps server info cache")?;
     write_codex_apps_cache_file(&cache_path, "server info", bytes)
 }
 
@@ -122,7 +126,7 @@ pub(crate) fn persist_codex_apps_cache<T>(
     }
     let server_info_result = write_cached_codex_apps_server_info(cache_context, server_info);
     if let Err(err) = &server_info_result {
-        tracing::warn!("failed to write Suffice Apps server info cache: {err:#}");
+        tracing::warn!("failed to write Codex Apps server info cache: {err:#}");
     }
     let status = if tools_result.is_ok() && server_info_result.is_ok() {
         "success"
@@ -172,31 +176,31 @@ fn write_codex_apps_cache_file(
 ) -> anyhow::Result<()> {
     let parent = cache_path.parent().ok_or_else(|| {
         anyhow!(
-            "Suffice Apps {cache_name} cache path `{}` has no parent",
+            "Codex Apps {cache_name} cache path `{}` has no parent",
             cache_path.display()
         )
     })?;
     std::fs::create_dir_all(parent).with_context(|| {
         format!(
-            "failed to create Suffice Apps {cache_name} cache directory `{}`",
+            "failed to create Codex Apps {cache_name} cache directory `{}`",
             parent.display()
         )
     })?;
     let mut temporary = NamedTempFile::new_in(parent).with_context(|| {
         format!(
-            "failed to create temporary Suffice Apps {cache_name} cache in `{}`",
+            "failed to create temporary Codex Apps {cache_name} cache in `{}`",
             parent.display()
         )
     })?;
     temporary.write_all(&bytes).with_context(|| {
         format!(
-            "failed to write temporary Suffice Apps {cache_name} cache for `{}`",
+            "failed to write temporary Codex Apps {cache_name} cache for `{}`",
             cache_path.display()
         )
     })?;
     temporary.persist(cache_path).map_err(|error| {
         anyhow!(
-            "failed to atomically replace Suffice Apps {cache_name} cache `{}`: {}",
+            "failed to atomically replace Codex Apps {cache_name} cache `{}`: {}",
             cache_path.display(),
             error.error
         )
@@ -206,6 +210,10 @@ fn write_codex_apps_cache_file(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CodexAppsToolsDiskCache<T> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tool_list_meta: Option<serde_json::Value>,
+    #[serde(default)]
+    discovery_scope: Vec<String>,
     schema_version: u8,
     tools: Arc<[T]>,
 }
@@ -216,7 +224,7 @@ struct CodexAppsServerInfoDiskCache {
     server_info: McpServerInfo,
 }
 
-fn sha1_hex(s: &str) -> String {
+pub(super) fn sha1_hex(s: &str) -> String {
     let mut hasher = Sha1::new();
     hasher.update(s.as_bytes());
     let sha1 = hasher.finalize();
@@ -233,6 +241,8 @@ pub(crate) fn write_cached_codex_apps_tools_for_test<T>(
 {
     let snapshot = ConnectorRuntimeSnapshot {
         tools: tools.into(),
+        tool_list_meta: None,
+        discovery_scope: Vec::new(),
         refreshed_at: SystemTime::now(),
         generation: 0,
         tools_version: 0,
@@ -265,6 +275,8 @@ where
 {
     let snapshot = ConnectorRuntimeSnapshot {
         tools: tools.into(),
+        tool_list_meta: None,
+        discovery_scope: Vec::new(),
         refreshed_at: SystemTime::now(),
         generation: 0,
         tools_version: 0,

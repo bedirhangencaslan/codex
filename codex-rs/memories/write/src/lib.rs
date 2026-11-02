@@ -1,4 +1,4 @@
-//! Write-path implementation for Suffice memories.
+//! Write-path implementation for Codex memories.
 //!
 //! This crate owns the startup memory pipeline, file-backed memory artifact
 //! helpers, Phase 1 and Phase 2 prompt rendering, extension pruning, and
@@ -17,6 +17,7 @@ mod runtime;
 mod start;
 mod storage;
 pub mod workspace;
+mod workspace_lock;
 
 use codex_utils_absolute_path::AbsolutePathBuf;
 use std::path::Path;
@@ -30,6 +31,7 @@ pub use start::start_memories_startup_task;
 pub use storage::rebuild_raw_memories_file_from_memories;
 pub use storage::rollout_summary_file_stem;
 pub use storage::sync_rollout_summaries_from_memories;
+pub use workspace_lock::MemoryWorkspaceLock;
 
 /// The model a background memory phase should run on.
 ///
@@ -106,7 +108,7 @@ mod artifacts {
 
 mod extension_resources {
     pub(super) const FILENAME_TS_FORMAT: &str = "%Y-%m-%dT%H-%M-%S";
-    pub(super) const RETENTION_DAYS: i64 = 7;
+    pub(super) const RETENTION_DAYS: i64 = 14;
 }
 
 mod guard_limits {

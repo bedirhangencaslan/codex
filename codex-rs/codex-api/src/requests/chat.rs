@@ -22,10 +22,6 @@ const MAX_OUTPUT_TOKENS: u32 = 32_000;
 /// Builds the `/chat/completions` request body for `request`.
 pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) -> Value {
     let mut messages = Vec::<Value>::new();
-    if !request.instructions.is_empty() {
-        messages.push(json!({"role": "system", "content": request.instructions}));
-    }
-
     let input = request.input.as_slice();
     let reasoning_by_anchor_index = anchor_reasoning(input);
     let mut last_assistant_text: Option<String> = None;
@@ -40,7 +36,7 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
                 for c in content {
                     match c {
                         ContentItem::InputText { text: t }
-                        | ContentItem::OutputText { text: t } => {
+                        | ContentItem::OutputText { text: t, .. } => {
                             text.push_str(t);
                             parts.push(json!({"type": "text", "text": t}));
                         }
@@ -497,6 +493,8 @@ mod tests {
     fn user(text: &str) -> ResponseItem {
         ResponseItem::Message {
             id: None,
+            encrypted_content: None,
+            status: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
                 text: text.to_string(),
@@ -509,9 +507,13 @@ mod tests {
     fn assistant(text: &str) -> ResponseItem {
         ResponseItem::Message {
             id: None,
+            encrypted_content: None,
+            status: None,
             role: "assistant".to_string(),
             content: vec![ContentItem::OutputText {
                 text: text.to_string(),
+                annotations: None,
+                logprobs: None,
             }],
             phase: None,
             internal_chat_message_metadata_passthrough: None,
@@ -521,6 +523,8 @@ mod tests {
     fn call(call_id: &str, name: &str, arguments: &str) -> ResponseItem {
         ResponseItem::FunctionCall {
             id: None,
+            encrypted_content: None,
+            status: None,
             name: name.to_string(),
             namespace: None,
             arguments: arguments.to_string(),
@@ -533,8 +537,19 @@ mod tests {
     fn request(input: Vec<ResponseItem>, tools: Option<&str>) -> ResponsesApiRequest {
         ResponsesApiRequest {
             model: "glm-5.3-flash".to_string(),
-            instructions: "be terse".to_string(),
-            input,
+            input: std::iter::once(ResponseItem::Message {
+                id: None,
+                encrypted_content: None,
+                status: None,
+                role: "developer".to_string(),
+                content: vec![ContentItem::InputText {
+                    text: "be terse".to_string(),
+                }],
+                phase: None,
+                internal_chat_message_metadata_passthrough: None,
+            })
+            .chain(input)
+            .collect(),
             tools: tools.map(|tools| {
                 std::sync::Arc::<serde_json::value::RawValue>::from(
                     serde_json::value::RawValue::from_string(tools.to_string()).expect("raw value"),
@@ -562,6 +577,8 @@ mod tests {
             vec![
                 ResponseItem::Message {
                     id: None,
+                    encrypted_content: None,
+                    status: None,
                     role: "developer".to_string(),
                     content: vec![ContentItem::InputText {
                         text: "environment context".to_string(),

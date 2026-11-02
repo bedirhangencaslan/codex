@@ -25,18 +25,17 @@ pub(crate) struct InitializeRequestProcessor {
     outgoing: Arc<OutgoingMessageSender>,
     analytics_events_client: AnalyticsEventsClient,
     config: Arc<Config>,
-    config_warnings: Arc<Vec<ConfigWarningNotification>>,
     rpc_transport: AppServerRpcTransport,
     user_verification: Arc<crate::user_verification::Service>,
 }
 
 impl InitializeRequestProcessor {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         gateway_login_control: Arc<codex_login::GatewayLoginControl>,
         outgoing: Arc<OutgoingMessageSender>,
         analytics_events_client: AnalyticsEventsClient,
         config: Arc<Config>,
-        config_warnings: Vec<ConfigWarningNotification>,
         rpc_transport: AppServerRpcTransport,
         user_verification: Arc<crate::user_verification::Service>,
     ) -> Self {
@@ -46,7 +45,6 @@ impl InitializeRequestProcessor {
             outgoing,
             analytics_events_client,
             config,
-            config_warnings: Arc::new(config_warnings),
             rpc_transport,
             user_verification,
         }
@@ -143,6 +141,11 @@ impl InitializeRequestProcessor {
         {
             return Err(invalid_request("Already initialized"));
         }
+        if experimental_api_enabled && capabilities.required_human_approval {
+            self.outgoing
+                .enable_human_approval_connection(connection_id)
+                .await;
+        }
         if user_verification_enabled {
             self.outgoing
                 .enable_user_verification_connection(connection_id)
@@ -226,28 +229,6 @@ impl InitializeRequestProcessor {
         }
 
         Ok(false)
-    }
-
-    pub(crate) async fn send_initialize_notifications_to_connection(
-        &self,
-        connection_id: ConnectionId,
-    ) {
-        for notification in self.config_warnings.iter().cloned() {
-            self.outgoing
-                .send_server_notification_to_connections(
-                    &[connection_id],
-                    ServerNotification::ConfigWarning(notification),
-                )
-                .await;
-        }
-    }
-
-    pub(crate) async fn send_initialize_notifications(&self) {
-        for notification in self.config_warnings.iter().cloned() {
-            self.outgoing
-                .send_server_notification(ServerNotification::ConfigWarning(notification))
-                .await;
-        }
     }
 
     pub(crate) fn track_initialized_request(

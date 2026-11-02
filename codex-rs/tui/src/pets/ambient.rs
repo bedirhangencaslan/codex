@@ -1,4 +1,4 @@
-//! Ambient terminal rendering for the Suffice companion.
+//! Ambient terminal rendering for the Codex companion.
 //!
 //! Ambient pets reuse the same extracted image frames as the full-screen viewer
 //! but are rendered through a different ownership split: ratatui still owns the
@@ -178,6 +178,10 @@ impl AmbientPet {
     pub(crate) fn set_notification(&mut self, kind: PetNotificationKind, body: Option<String>) {
         self.notification = Some(PetNotification::new(kind, body));
         self.animation_started_at = Instant::now();
+    }
+
+    pub(crate) fn set_animations_enabled(&mut self, enabled: bool) {
+        self.animations_enabled = enabled;
     }
 
     pub(crate) fn image_enabled(&self) -> bool {

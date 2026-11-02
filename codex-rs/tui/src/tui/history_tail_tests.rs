@@ -17,7 +17,7 @@ fn replacing_visible_history_tail_preserves_existing_terminal_scrollback() {
     let backend = VT100Backend::with_scrollback(width, height, /*scrollback_len*/ 32);
     let mut terminal = Terminal::with_options(backend).expect("terminal");
     for line in [
-        "shell history that predates Suffice",
+        "shell history that predates Codex",
         "shell output one",
         "shell output two",
         "shell output three",
@@ -70,7 +70,7 @@ fn replacing_visible_history_tail_preserves_existing_terminal_scrollback() {
     screen_with_scrollback.set_scrollback(/*rows*/ usize::MAX);
     let scrollback = screen_with_scrollback.contents();
     assert!(
-        scrollback.contains("shell history that predates Suffice"),
+        scrollback.contains("shell history that predates Codex"),
         "existing terminal scrollback was discarded: {scrollback}"
     );
 }
@@ -103,6 +103,38 @@ fn inaccessible_history_tail_is_preserved_for_non_destructive_append() {
         .expect("leave inaccessible history untouched")
     );
     assert_eq!(terminal.backend().vt100().screen().contents(), before);
+}
+
+#[test]
+fn appending_to_unchanged_history_tail_preserves_existing_rows() {
+    let width = 52;
+    let height = 8;
+    let backend = VT100Backend::new(width, height);
+    let mut terminal = Terminal::with_options(backend).expect("terminal");
+    terminal.set_viewport_area(Rect::new(
+        /*x*/ 0, /*y*/ 0, width, /*height*/ 2,
+    ));
+    insert_history_lines(
+        &mut terminal,
+        vec![Line::from("/status"), Line::from("Account: business")],
+    )
+    .expect("insert initial status card");
+    let replacement = plain_hyperlink_lines(vec![Line::from("Thread usage: 50 credits")]);
+
+    assert!(
+        replace_visible_terminal_history_tail(
+            &mut terminal,
+            /*previous_lines*/ &[],
+            &replacement,
+            InsertHistoryMode::Standard,
+            HistoryLineWrapPolicy::PreWrap,
+        )
+        .expect("append late billing details")
+    );
+    assert_eq!(
+        terminal.backend().vt100().screen().contents(),
+        "/status\nAccount: business\nThread usage: 50 credits"
+    );
 }
 
 #[test]

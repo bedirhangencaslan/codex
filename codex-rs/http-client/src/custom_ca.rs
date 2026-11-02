@@ -1,11 +1,13 @@
-//! Custom CA handling shared by Suffice outbound HTTP and websocket clients.
+//! Custom CA handling shared by Codex outbound HTTP and websocket clients.
 //!
-//! Suffice constructs outbound reqwest clients and secure websocket connections in a few crates, but
+//! Codex constructs outbound reqwest clients and secure websocket connections in a few crates, but
 //! they all need the same trust-store policy when enterprise proxies or gateways intercept TLS.
 //! This module centralizes that policy so callers can start from an ordinary
 //! `reqwest::ClientBuilder` or rustls client config, layer in custom CA support, and either get
 //! back a configured transport or a user-facing error that explains how to fix a misconfigured CA
 //! bundle.
+//! Concurrent native-root reads may share one in-flight load; later builds reload trust, and
+//! custom CA files are read independently for every build.
 //!
 //! The module intentionally has a narrow responsibility:
 //!
@@ -25,7 +27,7 @@
 //! - on macOS seatbelt runs, `reqwest::Client::builder().build()` can panic inside
 //!   `system-configuration` while probing platform proxy settings, which means the process can die
 //!   before the custom-CA code reports success or a structured error. That matters in practice
-//!   because Suffice itself commonly runs spawned test processes under seatbelt, so this is not just
+//!   because Codex itself commonly runs spawned test processes under seatbelt, so this is not just
 //!   a hypothetical CI edge case.
 //! - child processes inherit CA-related environment variables by default, which lets developer
 //!   shell state or CI configuration affect a test unless the test scrubs those variables first
@@ -161,7 +163,7 @@ impl From<BuildCustomCaTransportError> for io::Error {
     }
 }
 
-/// Builds a reqwest client that honors Suffice custom CA environment variables.
+/// Builds a reqwest client that honors Codex custom CA environment variables.
 ///
 /// Callers supply the baseline builder configuration they need, and this helper layers in custom
 /// CA handling before finally constructing the client. `CODEX_CA_CERTIFICATE` takes precedence
@@ -169,7 +171,7 @@ impl From<BuildCustomCaTransportError> for io::Error {
 /// accidentally turn `VAR=""` into a bogus path lookup.
 ///
 /// Callers that build a raw `reqwest::Client` directly bypass this policy entirely. That is an
-/// easy mistake to make when adding a new outbound Suffice HTTP path, and the resulting bug only
+/// easy mistake to make when adding a new outbound Codex HTTP path, and the resulting bug only
 /// shows up in environments where a proxy or gateway requires a custom root CA.
 ///
 /// # Errors
@@ -182,7 +184,7 @@ pub fn build_reqwest_client_with_custom_ca(
     build_reqwest_client_with_env(&ProcessEnv, builder)
 }
 
-/// Builds a rustls client config when a Suffice custom CA bundle is configured.
+/// Builds a rustls client config when a Codex custom CA bundle is configured.
 ///
 /// This is the websocket-facing sibling of [`build_reqwest_client_with_custom_ca`]. When
 /// `CODEX_CA_CERTIFICATE` or `SSL_CERT_FILE` selects a CA bundle, the returned config starts from
@@ -198,7 +200,7 @@ pub fn maybe_build_rustls_client_config_with_custom_ca()
     maybe_build_rustls_client_config_with_env(&ProcessEnv)
 }
 
-/// Builds a rustls client config using native roots and any configured Suffice custom CA bundle.
+/// Builds a rustls client config using native roots and any configured Codex custom CA bundle.
 ///
 /// Unlike [`maybe_build_rustls_client_config_with_custom_ca`], this always returns a config. Use
 /// this when the caller must perform TLS itself instead of delegating default configuration to a
@@ -243,20 +245,26 @@ fn build_rustls_client_config(
     bundle: Option<&ConfiguredCaBundle>,
 ) -> Result<Arc<ClientConfig>, BuildCustomCaTransportError> {
     ensure_rustls_crypto_provider();
+    Ok(Arc::new(
+        ClientConfig::builder()
+            .with_root_certificates(build_rustls_root_store(bundle)?)
+            .with_no_client_auth(),
+    ))
+}
 
+#[cfg(windows)]
+pub(crate) fn build_rustls_root_store_with_custom_ca()
+-> Result<RootCertStore, BuildCustomCaTransportError> {
+    build_rustls_root_store(ProcessEnv.configured_ca_bundle().as_ref())
+}
+
+fn build_rustls_root_store(
+    bundle: Option<&ConfiguredCaBundle>,
+) -> Result<RootCertStore, BuildCustomCaTransportError> {
     // Start from the platform roots so websocket callers keep the same baseline trust behavior
-    // they would get from tungstenite's default rustls connector, then layer in the Suffice custom
+    // they would get from tungstenite's default rustls connector, then layer in the Codex custom
     // CA bundle on top when configured.
-    let mut root_store = RootCertStore::empty();
-    let rustls_native_certs::CertificateResult { certs, errors, .. } =
-        rustls_native_certs::load_native_certs();
-    if !errors.is_empty() {
-        warn!(
-            native_root_error_count = errors.len(),
-            "encountered errors while loading native root certificates"
-        );
-    }
-    let _ = root_store.add_parsable_certificates(certs);
+    let mut root_store = (*crate::native_roots::load()).clone();
 
     if let Some(bundle) = bundle {
         let certificates = bundle.load_certificates()?;
@@ -279,11 +287,7 @@ fn build_rustls_client_config(
         }
     }
 
-    Ok(Arc::new(
-        ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth(),
-    ))
+    Ok(root_store)
 }
 
 /// Builds a reqwest client using an injected environment source and reqwest builder.
@@ -392,7 +396,7 @@ trait EnvSource {
 
     /// Returns the configured CA bundle and which environment variable selected it.
     ///
-    /// `CODEX_CA_CERTIFICATE` wins over `SSL_CERT_FILE` because it is the Suffice-specific override.
+    /// `CODEX_CA_CERTIFICATE` wins over `SSL_CERT_FILE` because it is the Codex-specific override.
     /// Keeping the winning variable name with the path lets later logging explain not only which
     /// file was used but also why that file was chosen.
     fn configured_ca_bundle(&self) -> Option<ConfiguredCaBundle> {
@@ -467,9 +471,9 @@ impl ConfiguredCaBundle {
         }
     }
 
-    /// Loads every certificate block from a PEM file intended for Suffice CA overrides.
+    /// Loads every certificate block from a PEM file intended for Codex CA overrides.
     ///
-    /// This accepts a few common real-world variants so Suffice behaves like other CA-aware tooling:
+    /// This accepts a few common real-world variants so Codex behaves like other CA-aware tooling:
     /// leading comments are preserved, `TRUSTED CERTIFICATE` labels are normalized to standard
     /// certificate labels, and embedded CRLs are ignored when they are well-formed enough for the
     /// section iterator to classify them.
@@ -577,7 +581,7 @@ enum NormalizedPem {
 impl NormalizedPem {
     /// Normalizes PEM text from a CA bundle into the label shape this module expects.
     ///
-    /// Suffice only needs certificate DER bytes to seed `reqwest`'s root store, but operators may
+    /// Codex only needs certificate DER bytes to seed `reqwest`'s root store, but operators may
     /// point it at CA files that came from OpenSSL tooling rather than from a minimal certificate
     /// bundle. OpenSSL's `TRUSTED CERTIFICATE` form is one such variant: it is still certificate
     /// material, but it uses a different PEM label and may carry auxiliary trust metadata that

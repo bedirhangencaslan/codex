@@ -38,7 +38,6 @@ use codex_network_proxy::NetworkProxy;
 use codex_protocol::ThreadId;
 use codex_protocol::models::AdditionalPermissionProfile;
 use codex_protocol::models::PermissionProfile;
-use codex_tools::UnifiedExecShellMode;
 use codex_utils_output_truncation::TruncationPolicy;
 use codex_utils_path_uri::PathUri;
 use rand::Rng;
@@ -46,21 +45,20 @@ use rand::rng;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::sandboxing::SandboxPermissions;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
 use crate::session::turn_context::TurnContext;
-use crate::session::turn_context::TurnEnvironment;
-use crate::shell::ShellType;
+use crate::tools::handlers::unified_exec::preparation::PreparedExecCommand;
 use crate::tools::network_approval::DeferredNetworkApproval;
 use codex_core_plugins::PluginMetricsSidecar;
 
 mod async_watcher;
 mod errors;
-mod head_tail_buffer;
 mod oneshot;
+pub(crate) mod output;
 mod process;
 mod process_manager;
+pub(crate) use process_manager::exec_env_policy_from_shell_policy;
 mod process_state;
 mod shell_snapshot;
 mod stdin_approval;
@@ -84,7 +82,7 @@ static TOOL_OUTPUT_SWEPT: OnceLock<()> = OnceLock::new();
 /// Where this session keeps the untruncated output of commands whose results were cut.
 ///
 /// Under `codex_home` rather than the workspace, for two reasons that are both load-bearing:
-/// `<workspace>/.suffice` is read-only by default even before it exists, so the write would
+/// `<workspace>/.codex` is read-only by default even before it exists, so the write would
 /// fail; and a harness log inside a user's repository turns up in their `git status`.
 /// `<codex_home>/tmp` is the established home for this kind of state - `arg0` already keeps its
 /// scratch there and sweeps it - and `read` reaches it under every profile in normal use,
@@ -141,10 +139,6 @@ fn sweep_stale_tool_output(root: &Path, max_age: Duration) {
 }
 
 pub(crate) use errors::UnifiedExecError;
-pub(crate) use process::NoopSpawnLifecycle;
-#[cfg(unix)]
-pub(crate) use process::SpawnLifecycle;
-pub(crate) use process::SpawnLifecycleHandle;
 pub(crate) use process::UnifiedExecProcess;
 pub(crate) use stdin_approval::TerminalPermissions;
 pub(crate) use stdin_approval::TerminalSandboxSource;
@@ -191,30 +185,25 @@ impl UnifiedExecContext {
 
 #[derive(Debug)]
 pub(crate) struct ExecCommandRequest {
-    pub command: Vec<String>,
-    pub shell_type: ShellType,
-    pub hook_command: String,
+    pub prepared: PreparedExecCommand,
     pub process_id: i32,
-    pub yield_time_ms: u64,
-    pub max_output_tokens: Option<usize>,
-    pub cwd: PathUri,
-    pub sandbox_cwd: PathUri,
-    pub turn_environment: TurnEnvironment,
-    pub shell_mode: UnifiedExecShellMode,
     pub network: Option<NetworkProxy>,
-    pub tty: bool,
-    pub sandbox_permissions: SandboxPermissions,
-    pub additional_permissions: Option<AdditionalPermissionProfile>,
-    pub additional_permissions_preapproved: bool,
-    pub justification: Option<String>,
-    pub prefix_rule: Option<Vec<String>>,
     /// Resolved by the handler, where the turn's environment and policy are both in hand.
     pub spill_dir: Option<PathBuf>,
 }
 
+/// The process and environment behind a terminal session ID at the time of lookup.
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalSession {
+    pub(crate) process_id: i32,
+    process: Arc<UnifiedExecProcess>,
+    call_id: String,
+    pub(crate) environment_id: String,
+}
+
 #[derive(Debug)]
 pub(crate) struct WriteStdinRequest<'a> {
-    pub process_id: i32,
+    pub terminal: &'a TerminalSession,
     pub input: &'a str,
     pub yield_time_ms: u64,
     pub max_output_tokens: Option<usize>,
@@ -311,10 +300,6 @@ pub(crate) fn resolve_max_tokens(max_tokens: Option<usize>) -> usize {
     max_tokens.unwrap_or(DEFAULT_MAX_OUTPUT_TOKENS)
 }
 
-pub(crate) fn format_output_omission_marker(omitted_bytes: usize) -> String {
-    format!("... {omitted_bytes} bytes omitted ...")
-}
-
 pub(crate) fn generate_chunk_id() -> String {
     let mut rng = rng();
     (0..6)
@@ -378,7 +363,7 @@ mod spill_tests {
             );
             assert!(
                 !dir.starts_with(workspace.path()),
-                "{label} spilled into the workspace, where `.suffice` is read-only by default"
+                "{label} spilled into the workspace, where `.codex` is read-only by default"
             );
         }
     }

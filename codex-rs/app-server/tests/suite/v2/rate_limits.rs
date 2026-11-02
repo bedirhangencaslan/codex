@@ -61,7 +61,7 @@ async fn get_account_rate_limits_requires_auth() -> Result<()> {
     assert_eq!(error.error.code, INVALID_REQUEST_ERROR_CODE);
     assert_eq!(
         error.error.message,
-        "suffice account authentication required to read rate limits"
+        "codex account authentication required to read rate limits"
     );
 
     Ok(())
@@ -98,8 +98,11 @@ async fn get_account_rate_limits_requires_chatgpt_auth() -> Result<()> {
 }
 
 #[test_case("enterprise_cbp_automation", AccountPlanType::EnterpriseCbpAutomation; "enterprise_automation")]
+#[test_case("promax", AccountPlanType::ProMax; "pro_max")]
 #[test_case("edu_plus", AccountPlanType::EduPlus; "edu_plus")]
 #[test_case("edu_pro", AccountPlanType::EduPro; "edu_pro")]
+#[test_case("sci", AccountPlanType::Sci; "sci")]
+#[test_case("sci_plus", AccountPlanType::SciPlus; "sci_plus")]
 #[tokio::test]
 async fn get_account_rate_limits_returns_snapshot(
     plan_type: &str,
@@ -530,7 +533,7 @@ async fn send_add_credits_nudge_email_requires_auth() -> Result<()> {
     assert_eq!(error.error.code, INVALID_REQUEST_ERROR_CODE);
     assert_eq!(
         error.error.message,
-        "suffice account authentication required to notify workspace owner"
+        "codex account authentication required to notify workspace owner"
     );
 
     Ok(())

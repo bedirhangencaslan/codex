@@ -696,13 +696,8 @@ impl ReadHandler {
             ));
         }
 
-        let Some(turn_environment) =
-            resolve_tool_environment(&step_context.environments, environment_id.as_deref())?
-        else {
-            return Err(FunctionCallError::RespondToModel(
-                "read is unavailable in this session".to_string(),
-            ));
-        };
+        let turn_environment =
+            resolve_tool_environment(&step_context.environments, environment_id.as_deref())?;
         let sandbox = turn_environment.sandbox_context(/*additional_permissions*/ None);
         let sandbox = Some(&sandbox);
         let filesystem = turn_environment.environment.get_filesystem();

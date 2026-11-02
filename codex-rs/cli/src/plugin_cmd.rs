@@ -37,6 +37,8 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_cli::CliConfigOverrides;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::io;
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -47,7 +49,7 @@ const OPENAI_BUNDLED_ALPHA_MARKETPLACE_NAME: &str = "openai-bundled-alpha";
 const OPENAI_PRIMARY_RUNTIME_MARKETPLACE_NAME: &str = "openai-primary-runtime";
 
 #[derive(Debug, Parser)]
-#[command(bin_name = "suffice plugin")]
+#[command(bin_name = "codex plugin")]
 pub struct PluginCli {
     #[clap(flatten)]
     pub config_overrides: CliConfigOverrides,
@@ -79,7 +81,7 @@ pub enum PluginSubcommand {
 
 #[derive(Debug, Parser)]
 #[command(
-    bin_name = "suffice plugin add",
+    bin_name = "codex plugin add",
     after_help = "Examples:\n  codex plugin add sample@debug\n  codex plugin add sample --marketplace debug"
 )]
 pub struct AddPluginArgs {
@@ -98,7 +100,7 @@ pub struct AddPluginArgs {
 
 #[derive(Debug, Parser)]
 #[command(
-    bin_name = "suffice plugin list",
+    bin_name = "codex plugin list",
     after_help = "Examples:\n  codex plugin list\n  codex plugin list --marketplace debug\n  codex plugin list --json\n  codex plugin list --available --json"
 )]
 pub struct ListPluginsArgs {
@@ -117,7 +119,7 @@ pub struct ListPluginsArgs {
 
 #[derive(Debug, Parser)]
 #[command(
-    bin_name = "suffice plugin remove",
+    bin_name = "codex plugin remove",
     after_help = "Examples:\n  codex plugin remove sample@debug\n  codex plugin remove sample --marketplace debug"
 )]
 pub struct RemovePluginArgs {
@@ -307,17 +309,49 @@ pub async fn run_plugin_list(
         })
         .collect::<Vec<_>>();
 
+    write_plugin_list(&mut io::stdout().lock(), marketplaces, args)
+}
+
+fn write_plugin_list(
+    writer: &mut impl Write,
+    marketplaces: Vec<PluginListMarketplace>,
+    args: ListPluginsArgs,
+) -> Result<()> {
+    let result = render_plugin_list(writer, marketplaces, args)
+        .and_then(|()| writer.flush().map_err(Into::into));
+    match result {
+        // A consumer such as `head` may finish before the full catalog is written.
+        Err(error)
+            if error
+                .downcast_ref::<io::Error>()
+                .is_some_and(|error| error.kind() == io::ErrorKind::BrokenPipe) =>
+        {
+            Ok(())
+        }
+        Ok(()) => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+fn render_plugin_list(
+    writer: &mut impl Write,
+    marketplaces: Vec<PluginListMarketplace>,
+    args: ListPluginsArgs,
+) -> Result<()> {
     if args.json {
         let output = JsonPluginListOutput::from_marketplaces(marketplaces, args.available);
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        writeln!(writer, "{}", serde_json::to_string_pretty(&output)?)?;
         return Ok(());
     }
 
     if marketplaces.is_empty() {
         if let Some(marketplace_name) = args.marketplace_name {
-            println!("No plugins found in marketplace `{marketplace_name}`.");
+            writeln!(
+                writer,
+                "No plugins found in marketplace `{marketplace_name}`."
+            )?;
         } else {
-            println!("No marketplace plugins found.");
+            writeln!(writer, "No marketplace plugins found.")?;
         }
     } else {
         for (index, marketplace) in marketplaces.into_iter().enumerate() {
@@ -376,23 +410,25 @@ pub async fn run_plugin_list(
             }
 
             if index > 0 {
-                println!();
+                writeln!(writer)?;
             }
-            println!("Marketplace `{}`", marketplace.name);
+            writeln!(writer, "Marketplace `{}`", marketplace.name)?;
             if let Some(path) = &marketplace.path {
-                println!("{}", path.display());
+                writeln!(writer, "{}", path.display())?;
             } else {
-                println!("Remote catalog");
+                writeln!(writer, "Remote catalog")?;
             }
-            println!();
-            println!(
+            writeln!(writer)?;
+            writeln!(
+                writer,
                 "{:<plugin_width$}  {:<status_width$}  {:<installed_version_width$}  SOURCE",
                 "PLUGIN", "STATUS", "VERSION"
-            );
+            )?;
             for (plugin, status, installed_version, path) in rows {
-                println!(
+                writeln!(
+                    writer,
                     "{plugin:<plugin_width$}  {status:<status_width$}  {installed_version:<installed_version_width$}  {path}"
-                );
+                )?;
             }
         }
     }
@@ -1090,3 +1126,7 @@ fn path_ends_with(path: &Path, suffix: &[&str]) -> bool {
             .collect::<Vec<_>>(),
     )
 }
+
+#[cfg(test)]
+#[path = "plugin_cmd_tests.rs"]
+mod tests;

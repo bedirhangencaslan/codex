@@ -48,7 +48,7 @@ use std::os::unix::fs::OpenOptionsExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-/// Filename that stores the message history inside `~/.suffice`.
+/// Filename that stores the message history inside `~/.codex`.
 const HISTORY_FILENAME: &str = "history.jsonl";
 const HISTORY_READ_BUFFER_SIZE: usize = 8192;
 
@@ -439,8 +439,5 @@ fn log_identity(_metadata: &std::fs::Metadata) -> Option<u64> {
     None
 }
 
-#[cfg(test)]
-#[path = "batch_tests.rs"]
-mod batch_tests;
 #[cfg(test)]
 mod tests;

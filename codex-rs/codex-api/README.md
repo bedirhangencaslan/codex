@@ -1,6 +1,6 @@
 # codex-api
 
-Typed clients for Suffice/OpenAI APIs built on top of the generic transport in `codex-client`.
+Typed clients for Codex/OpenAI APIs built on top of the generic transport in `codex-client`.
 
 - Hosts the request/response models and request builders for Responses and related Codex APIs.
 - Owns provider configuration (base URLs, headers, query params), auth header injection, retry tuning, and stream idle settings.
@@ -12,8 +12,9 @@ Typed clients for Suffice/OpenAI APIs built on top of the generic transport in `
 The public interface of this crate is intentionally small and uniform:
 
 - **Responses endpoint**
+
   - Input:
-    - `ResponsesApiRequest` for the request body (`model`, `instructions`, `input`, `tools`, `parallel_tool_calls`, reasoning/text controls).
+    - `ResponsesApiRequest` for the request body (`model`, `input`, `tools`, `parallel_tool_calls`, reasoning/text controls).
     - `ResponsesOptions` for transport/header concerns (`conversation_id`, `session_source`, `extra_headers`, `compression`, `turn_state`).
   - Output: a `ResponseStream` of `ResponseEvent` (both re-exported from `common`).
 

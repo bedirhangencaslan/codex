@@ -19,6 +19,10 @@ use windows_sys::Win32::Storage::FileSystem::FILE_GENERIC_READ;
 #[path = "setup_runtime_bin_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "setup_runtime_long_paths_tests.rs"]
+mod long_paths_tests;
+
 pub(super) fn ensure_codex_app_runtime_paths_readable(
     sandbox_group_psid: *mut c_void,
     refresh_errors: &mut Vec<String>,
@@ -185,7 +189,7 @@ fn ensure_runtime_tree_readable(
 fn runtime_paths(local_app_data: Option<PathBuf>, user_profile: Option<PathBuf>) -> Vec<PathBuf> {
     let mut runtime_paths = Vec::new();
     if let Some(local_app_data) = local_app_data {
-        let codex_root = local_app_data.join("OpenAI").join("Suffice");
+        let codex_root = local_app_data.join("OpenAI").join("Codex");
         runtime_paths.push(codex_root);
     }
     // The managed primary runtime is installed outside the LocalAppData runtime roots.

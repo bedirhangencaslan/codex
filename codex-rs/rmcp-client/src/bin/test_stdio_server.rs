@@ -13,9 +13,15 @@ use rmcp::ServiceExt;
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::CallToolRequestParams;
 use rmcp::model::CallToolResult;
+use rmcp::model::ContentBlock;
+use rmcp::model::ElicitRequest;
+use rmcp::model::ElicitRequestParams;
+use rmcp::model::ElicitationSchema;
 use rmcp::model::Implementation;
 use rmcp::model::InitializeRequestParams;
 use rmcp::model::InitializeResult;
+use rmcp::model::InputRequest;
+use rmcp::model::InputRequiredResult;
 use rmcp::model::JsonObject;
 use rmcp::model::ListResourceTemplatesResult;
 use rmcp::model::ListResourcesResult;
@@ -28,7 +34,7 @@ use rmcp::model::Resource;
 use rmcp::model::ResourceContents;
 use rmcp::model::ResourceTemplate;
 use rmcp::model::ServerCapabilities;
-use rmcp::model::ServerInfo;
+use rmcp::model::ServerConfig;
 use rmcp::model::Tool;
 use rmcp::model::ToolAnnotations;
 use serde::Deserialize;
@@ -43,16 +49,35 @@ struct TestToolServer {
     resources: Arc<Vec<Resource>>,
     resource_templates: Arc<Vec<ResourceTemplate>>,
     supports_openai_form_elicitation: Arc<AtomicBool>,
+    tools_discovered: Arc<AtomicBool>,
+    invalidated_listing: Arc<AtomicBool>,
 }
 
 const MEMO_URI: &str = "memo://codex/example-note";
 const MEMO_CONTENT: &str = "This is a sample MCP resource served by the rmcp test server.";
-const SANDBOX_STATE_META_CAPABILITY: &str = "codex/sandbox-state-meta";
+const SANDBOX_STATE_CAPABILITY: &str = "codex/sandbox-state";
 const SMALL_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 const APP_ONLY_CWD_MARKER_FILE_ENV: &str = "MCP_TEST_APP_ONLY_CWD_MARKER_FILE";
 const DYNAMIC_SERVER_METADATA_ENV: &str = "MCP_TEST_DYNAMIC_SERVER_METADATA";
 const INITIALIZE_BARRIER_FILE_ENV: &str = "MCP_TEST_INITIALIZE_BARRIER_FILE";
 const SERVER_INSTRUCTIONS_ENV: &str = "MCP_TEST_SERVER_INSTRUCTIONS";
+
+const LEASE_EVENTS_FILE_ENV: &str = "MCP_TEST_LEASE_EVENTS_FILE";
+
+/// Record only the lease protocol for the app-server unload regression.
+fn record_lease_event(method: &str, id: &serde_json::Value) -> Result<(), McpError> {
+    use std::io::Write;
+    if let Some(path) = std::env::var_os(LEASE_EVENTS_FILE_ENV) {
+        let event = serde_json::json!([method, id]);
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .and_then(|mut file| writeln!(file, "{event}"))
+            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+    }
+    Ok(())
+}
 
 fn dynamic_server_process_label() -> Option<String> {
     std::env::var_os(DYNAMIC_SERVER_METADATA_ENV)
@@ -181,6 +206,8 @@ impl TestToolServer {
             resources: Arc::new(resources),
             resource_templates: Arc::new(resource_templates),
             supports_openai_form_elicitation: Arc::new(AtomicBool::new(false)),
+            tools_discovered: Arc::default(),
+            invalidated_listing: Arc::default(),
         }
     }
 
@@ -352,16 +379,16 @@ impl TestToolServer {
         tool
     }
 
-    /// Tool intended for manual testing of Suffice TUI rendering for MCP image tool results.
+    /// Tool intended for manual testing of Codex TUI rendering for MCP image tool results.
     ///
     /// This exists to exercise edge cases where a `CallToolResult.content` includes image blocks
     /// that aren't the first item (or includes invalid image blocks before a valid image).
     ///
-    /// Manual testing approach (Suffice TUI):
+    /// Manual testing approach (Codex TUI):
     /// - Build this binary: `cargo build -p codex-rmcp-client --bin test_stdio_server`
     /// - Register it:
-    ///   - `suffice mcp add mcpimg -- /abs/path/to/test_stdio_server`
-    /// - Then in Suffice TUI, ask it to call:
+    ///   - `codex mcp add mcpimg -- /abs/path/to/test_stdio_server`
+    /// - Then in Codex TUI, ask it to call:
     ///   - `mcpimg.image_scenario({"scenario":"image_only"})`
     ///   - `mcpimg.image_scenario({"scenario":"image_only_original_detail"})`
     ///   - `mcpimg.image_scenario({"scenario":"text_then_image","caption":"Here is the image:"})`
@@ -420,7 +447,7 @@ impl TestToolServer {
 
     fn memo_template() -> ResourceTemplate {
         ResourceTemplate::new("memo://codex/{slug}", "codex-memo")
-            .with_title("Suffice Memo")
+            .with_title("Codex Memo")
             .with_description("Template for memo://codex/{slug} resources used in tests.")
             .with_mime_type("text/plain")
     }
@@ -479,7 +506,7 @@ fn sync_barrier_map() -> &'static tokio::sync::Mutex<HashMap<String, SyncBarrier
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
-/// Scenarios for `image_scenario`, intended to exercise Suffice TUI handling of MCP image outputs.
+/// Scenarios for `image_scenario`, intended to exercise Codex TUI handling of MCP image outputs.
 ///
 /// The key behavior under test is that the TUI should render an image output cell if *any*
 /// decodable image block exists in the tool result content, even if the first block is text or an
@@ -527,18 +554,29 @@ impl ServerHandler for TestToolServer {
         Ok(self.get_info())
     }
 
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_tool_list_changed()
             .enable_resources()
             .build();
         capabilities.experimental = Some(BTreeMap::from([(
-            SANDBOX_STATE_META_CAPABILITY.to_string(),
+            SANDBOX_STATE_CAPABILITY.to_string(),
             JsonObject::new(),
         )]));
 
-        let server_info = ServerInfo::new(capabilities);
+        if std::env::var_os(LEASE_EVENTS_FILE_ENV).is_some() {
+            capabilities
+                .extensions
+                .get_or_insert_default()
+                .insert("codex/connection-lease".to_owned(), JsonObject::new());
+        } else if std::env::var_os("MCP_TEST_EXPERIMENTAL_LEASE_ONLY").is_some() {
+            capabilities
+                .experimental
+                .get_or_insert_default()
+                .insert("codex/connection-lease".to_owned(), JsonObject::new());
+        }
+        let server_info = ServerConfig::new(capabilities);
         let server_info = match dynamic_server_process_label() {
             Some(process_label) => server_info
                 .with_server_info(
@@ -559,7 +597,7 @@ impl ServerHandler for TestToolServer {
     fn list_tools(
         &self,
         request: Option<PaginatedRequestParams>,
-        _context: rmcp::service::RequestContext<rmcp::service::RoleServer>,
+        context: rmcp::service::RequestContext<rmcp::service::RoleServer>,
     ) -> impl std::future::Future<Output = Result<ListToolsResult, McpError>> + Send + '_ {
         let tools = self.tools.clone();
         async move {
@@ -571,6 +609,49 @@ impl ServerHandler for TestToolServer {
                 cwd.meta
                     .get_or_insert_with(MetaObject::new)
                     .insert("ui".to_string(), json!({ "visibility": ["app"] }));
+            }
+            if std::env::var_os("MCP_TEST_DISCOVER_TOOLS").is_some() {
+                tools.retain(|tool| tool.name == "echo");
+                let mut search = tools[0].clone();
+                search.name = Cow::Borrowed("search_tools");
+                search.description = Some(Cow::Borrowed("Discover the echo tool."));
+                let discovered = self.tools_discovered.load(Ordering::Acquire);
+                if !discovered {
+                    tools.clear();
+                }
+                let invalidation = std::env::var("MCP_TEST_INVALIDATE_LISTING");
+                let cursor = request.as_ref().and_then(|request| request.cursor.as_ref());
+                if invalidation.as_deref() == Ok("pagination")
+                    && discovered
+                    && !self.invalidated_listing.load(Ordering::Acquire)
+                    && cursor.is_none()
+                {
+                    return Ok(ListToolsResult {
+                        tools: vec![search],
+                        next_cursor: Some("stale".to_string()),
+                        ..Default::default()
+                    });
+                }
+                let invalidate = match invalidation.as_deref() {
+                    Ok("startup") => !discovered,
+                    Ok("discovery") => discovered,
+                    Ok("pagination") => discovered && cursor.is_some(),
+                    _ => false,
+                };
+                if invalidate && !self.invalidated_listing.swap(true, Ordering::AcqRel) {
+                    self.tools_discovered.store(true, Ordering::Release);
+                    // Invalidate an incomplete listing before returning its response.
+                    tools.clear();
+                    context
+                        .peer
+                        .notify_tool_list_changed()
+                        .await
+                        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+                    if invalidation.as_deref() == Ok("pagination") {
+                        return Err(McpError::invalid_params("expired tool-list cursor", None));
+                    }
+                }
+                tools.insert(0, search);
             }
             let mut result = ListToolsResult::with_all_items(tools);
             match (
@@ -636,12 +717,53 @@ impl ServerHandler for TestToolServer {
         }
     }
 
+    async fn on_custom_request(
+        &self,
+        request: rmcp::model::CustomRequest,
+        context: rmcp::service::RequestContext<rmcp::service::RoleServer>,
+    ) -> Result<rmcp::model::CustomResult, McpError> {
+        if std::env::var_os(LEASE_EVENTS_FILE_ENV).is_none()
+            || !matches!(
+                request.method.as_str(),
+                "codex/connection/open" | "codex/connection/release"
+            )
+            || !context
+                .client_capabilities()
+                .and_then(|caps| caps.extensions)
+                .is_some_and(|caps| caps.contains_key("codex/connection-lease"))
+        {
+            return Err(McpError::new(
+                rmcp::model::ErrorCode::METHOD_NOT_FOUND,
+                request.method,
+                None,
+            ));
+        }
+        let id = request
+            .params
+            .as_ref()
+            .and_then(|params| params.get("leaseId"))
+            .ok_or_else(|| McpError::invalid_params("missing lease ID", None))?;
+        record_lease_event(&request.method, id)?;
+        Ok(rmcp::model::CustomResult(serde_json::json!({})))
+    }
+
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: rmcp::service::RequestContext<rmcp::service::RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, McpError> {
+        if let Some(lease) = context.meta.get("codex/connectionLease") {
+            record_lease_event("tools/call", lease)?;
+        }
         match request.name.as_ref() {
+            "search_tools" if std::env::var_os("MCP_TEST_DISCOVER_TOOLS").is_some() => {
+                self.tools_discovered.store(true, Ordering::Release);
+                context.peer.notify_tool_list_changed().await
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+                Ok(Self::structured_result(json!({
+                    "tools": self.tools.iter().filter(|tool| tool.name == "echo").collect::<Vec<_>>()
+                })))
+            }
             "js" => {
                 let args = Self::parse_call_args::<JsArgs>(&request, "js")?;
                 if args.code == "nodeRepl.fail()" {
@@ -725,6 +847,30 @@ impl ServerHandler for TestToolServer {
                         ));
                     }
                 };
+
+                if std::env::var_os("MCP_TEST_ECHO_INPUT").is_some() {
+                    if let Some(responses) = request.input_responses {
+                        let answer = responses["confirmation"]["content"]["answer"]
+                            .as_str()
+                            .ok_or_else(|| McpError::invalid_params("missing answer text", None))?;
+                        return Ok(CallToolResult::success(vec![ContentBlock::text(answer)]).into());
+                    }
+                    let mut meta = MetaObject::new();
+                    meta.insert("fixture/processId".into(), json!(std::process::id()));
+                    let form = ElicitRequestParams::FormElicitationParams {
+                        meta: Some(meta.into()),
+                        message: args.message,
+                        requested_schema: ElicitationSchema::builder()
+                            .required_string_property("answer", |s| s)
+                            .build()
+                            .map_err(|error| McpError::internal_error(error.to_string(), None))?,
+                    };
+                    let input = InputRequest::Elicitation(ElicitRequest::new(form));
+                    return Ok(InputRequiredResult::from_input_requests(BTreeMap::from([
+                        ("confirmation".into(), input),
+                    ]))
+                    .into());
+                }
 
                 let env_snapshot: HashMap<String, String> = std::env::vars().collect();
                 let env_name = args.env_var.as_deref().unwrap_or("MCP_TEST_VALUE");
@@ -1001,6 +1147,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("starting rmcp test server");
     if let Ok(pid_file) = std::env::var("MCP_TEST_PID_FILE") {
         std::fs::write(pid_file, std::process::id().to_string())?;
+    }
+    #[cfg(windows)]
+    if let Ok(console_state_file) = std::env::var("MCP_TEST_CONSOLE_STATE_FILE") {
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetConsoleWindow() -> *mut std::ffi::c_void;
+        }
+        let has_console = unsafe { !GetConsoleWindow().is_null() };
+        std::fs::write(console_state_file, has_console.to_string())?;
     }
     #[cfg(windows)]
     if let Ok(marker_file) = std::env::var("MCP_TEST_BREAKAWAY_DENIED_FILE") {

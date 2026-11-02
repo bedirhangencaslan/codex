@@ -296,6 +296,8 @@ mod tests {
                 text: "x".repeat(tokens.saturating_mul(4)),
             }],
             phase: None,
+            encrypted_content: None,
+            status: None,
             internal_chat_message_metadata_passthrough: None,
         })
     }

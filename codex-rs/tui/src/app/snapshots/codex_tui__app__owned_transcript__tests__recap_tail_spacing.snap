@@ -7,9 +7,9 @@ History 20
 
   ↳ Recap: The draft is ready.
 
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
@@ -19,9 +19,9 @@ History 20
   ↳ Recap: The draft is ready.
 
 • Follow-up response.
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
@@ -31,9 +31,9 @@ History 20
   ↳ Recap: The draft is ready.
 
 • Streaming response.
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
@@ -45,9 +45,9 @@ History 20
   ↳ Recap: The draft is ready.
            Next: Review the changes.
 
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
@@ -59,9 +59,9 @@ History 20
            Next: Review the changes.
 
 • Follow-up response.
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
@@ -73,9 +73,9 @@ History 20
            Next: Review the changes.
 
 • Streaming response.
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
@@ -89,7 +89,7 @@ History 20
 
 
 
-› Ask Codex to do anything
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/proje…
   ? for shortcuts
@@ -103,7 +103,7 @@ History 20
 • Follow-up response.
 
 
-› Ask Codex to do anything
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/proje…
   ? for shortcuts
@@ -117,34 +117,34 @@ History 20
 • Streaming response.
 
 
-› Ask Codex to do anything
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/proje…
   ? for shortcuts
 
 80x7, Recap at tail
            Next: Review the changes.
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
 
 80x7, Message after recap
 • Follow-up response.
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
 
 80x7, Live message after recap
 • Streaming response.
-                                    Tip: Use /mcp to list configured MCP tools.
 
-› Ask Codex to do anything
+
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/project
   ? for shortcuts
@@ -152,7 +152,7 @@ History 20
 32x6, Recap at tail
 
 
-› Ask Codex to do anything
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/proje…
   ? for shortcuts
@@ -160,7 +160,7 @@ History 20
 32x6, Message after recap
 
 
-› Ask Codex to do anything
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/proje…
   ? for shortcuts
@@ -168,7 +168,7 @@ History 20
 32x6, Live message after recap
 
 
-› Ask Codex to do anything
+▌ Ask Codex to do anything
 
   gpt-test default · /tmp/proje…
   ? for shortcuts

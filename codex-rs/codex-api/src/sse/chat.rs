@@ -52,8 +52,10 @@ pub(crate) fn spawn_chat_stream(
     });
 
     ResponseStream {
+        routing_affinity: None,
         rx_event,
         upstream_request_id,
+        interrupt: None,
     }
 }
 
@@ -271,6 +273,7 @@ async fn flush_items(
         let item = match freeform_input(&turn.freeform_tools, &name, &state.arguments) {
             Some(input) => ResponseItem::CustomToolCall {
                 id: None,
+                encrypted_content: None,
                 status: None,
                 call_id,
                 name,
@@ -280,6 +283,8 @@ async fn flush_items(
             },
             None => ResponseItem::FunctionCall {
                 id: None,
+                encrypted_content: None,
+                status: None,
                 name,
                 namespace: None,
                 arguments: state.arguments,
@@ -401,6 +406,8 @@ async fn append_assistant(
     if assistant.is_none() {
         let item = ResponseItem::Message {
             id: None,
+            encrypted_content: None,
+            status: None,
             role: "assistant".to_string(),
             content: Vec::new(),
             phase: None,
@@ -420,8 +427,12 @@ async fn append_assistant(
         // put that separator between every token. Building the single part the rest of the code
         // expects keeps the two wires equivalent.
         match content.last_mut() {
-            Some(ContentItem::OutputText { text: existing }) => existing.push_str(&text),
-            _ => content.push(ContentItem::OutputText { text: text.clone() }),
+            Some(ContentItem::OutputText { text: existing, .. }) => existing.push_str(&text),
+            _ => content.push(ContentItem::OutputText {
+                text: text.clone(),
+                annotations: None,
+                logprobs: None,
+            }),
         }
         let _ = tx_event
             .send(Ok(ResponseEvent::OutputTextDelta(text)))

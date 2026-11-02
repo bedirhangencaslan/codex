@@ -25,12 +25,16 @@ use super::session::ExecutionWindow;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConversationItem {
     pub item_id: ConversationItemId,
+    /// Original Responses item ID, scoped to this thread. Retained for joining
+    /// history acceptance and exact inference without matching rendered text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub responses_item_id: Option<String>,
     pub thread_id: AgentThreadId,
     /// Runtime activation that first introduced this item locally, when known.
     pub codex_turn_id: Option<CodexTurnId>,
     pub first_seen_at_unix_ms: i64,
     pub role: ConversationRole,
-    /// Suffice channel for assistant/tool content, when the item is channel-specific.
+    /// Codex channel for assistant/tool content, when the item is channel-specific.
     pub channel: Option<ConversationChannel>,
     pub kind: ConversationItemKind,
     /// Routing metadata carried by a Responses `agent_message` item.
@@ -63,7 +67,7 @@ pub enum ConversationRole {
     Tool,
 }
 
-/// Suffice channel for model-visible content.
+/// Codex channel for model-visible content.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConversationChannel {
@@ -134,6 +138,9 @@ pub enum ConversationPart {
     PayloadRef {
         label: String,
         raw_payload_id: RawPayloadId,
+        /// Content identity across snapshots, independent of the containing payload file.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        content_sha256: Option<String>,
     },
 }
 
