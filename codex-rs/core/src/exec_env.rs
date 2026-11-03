@@ -79,6 +79,33 @@ pub fn inject_apply_patch_env(env: &mut HashMap<String, String>) {
         CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),
         "1".to_string(),
     );
+    inject_git_cr_at_eol_env(env);
+}
+
+/// Preserving line endings means `apply_patch` writes CRLF lines into CRLF files. In a repository
+/// that stores CRLF (committed with `core.autocrlf=false`), git's default whitespace rules count
+/// that `\r` as trailing whitespace, so `git diff --check` flags every line the agent added. On
+/// the Tabby benchmark that was 40K characters per check, enough to push the run into
+/// compaction. `cr-at-eol` keeps git's other default rules; it replaces a repository's own
+/// `core.whitespace`, which only changes what the agent's git commands report.
+///
+/// Uses `GIT_CONFIG_COUNT` (git 2.31+), appending after any entries already in the environment.
+fn inject_git_cr_at_eol_env(env: &mut HashMap<String, String>) {
+    let count_key = env
+        .keys()
+        .find(|key| key.eq_ignore_ascii_case("GIT_CONFIG_COUNT"))
+        .cloned();
+    let count = count_key
+        .as_ref()
+        .and_then(|key| env.get(key))
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .unwrap_or(0);
+    if let Some(key) = count_key {
+        env.remove(&key);
+    }
+    env.insert(format!("GIT_CONFIG_KEY_{count}"), "core.whitespace".to_string());
+    env.insert(format!("GIT_CONFIG_VALUE_{count}"), "cr-at-eol".to_string());
+    env.insert("GIT_CONFIG_COUNT".to_string(), (count + 1).to_string());
 }
 
 #[cfg(all(test, target_os = "windows"))]

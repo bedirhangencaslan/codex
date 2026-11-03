@@ -50,11 +50,33 @@ fn inject_apply_patch_env_enables_older_executables_despite_stale_values() {
     inject_apply_patch_env(&mut env);
     assert_eq!(
         env,
-        HashMap::from([(
-            CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),
-            "1".to_string(),
-        )])
+        HashMap::from([
+            (
+                CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR.to_string(),
+                "1".to_string(),
+            ),
+            ("GIT_CONFIG_COUNT".to_string(), "1".to_string()),
+            ("GIT_CONFIG_KEY_0".to_string(), "core.whitespace".to_string()),
+            ("GIT_CONFIG_VALUE_0".to_string(), "cr-at-eol".to_string()),
+        ])
     );
+}
+
+#[test]
+fn inject_apply_patch_env_appends_after_inherited_git_config_entries() {
+    let mut env = HashMap::from([
+        ("GIT_CONFIG_COUNT".to_string(), "1".to_string()),
+        ("GIT_CONFIG_KEY_0".to_string(), "user.name".to_string()),
+        ("GIT_CONFIG_VALUE_0".to_string(), "someone".to_string()),
+    ]);
+    inject_apply_patch_env(&mut env);
+    assert_eq!(env.get("GIT_CONFIG_COUNT").map(String::as_str), Some("2"));
+    assert_eq!(env.get("GIT_CONFIG_KEY_0").map(String::as_str), Some("user.name"));
+    assert_eq!(
+        env.get("GIT_CONFIG_KEY_1").map(String::as_str),
+        Some("core.whitespace")
+    );
+    assert_eq!(env.get("GIT_CONFIG_VALUE_1").map(String::as_str), Some("cr-at-eol"));
 }
 
 #[cfg(target_os = "windows")]
