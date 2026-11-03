@@ -44,8 +44,10 @@ pub(crate) fn spawn_chat_stream(
     });
 
     ResponseStream {
+        routing_affinity: None,
         rx_event,
         upstream_request_id,
+        interrupt: None,
     }
 }
 
@@ -234,6 +236,8 @@ async fn flush_items(tx_event: &mpsc::Sender<Result<ResponseEvent, ApiError>>, t
                 encrypted_function_args: None,
                 call_id: state.id.unwrap_or_else(|| format!("tool-call-{index}")),
                 internal_chat_message_metadata_passthrough: None,
+                encrypted_content: None,
+                status: None,
             })))
             .await;
     }
@@ -352,6 +356,8 @@ async fn append_assistant(
             content: Vec::new(),
             phase: None,
             internal_chat_message_metadata_passthrough: None,
+            encrypted_content: None,
+            status: None,
         };
         *assistant = Some(item.clone());
         let _ = tx_event
@@ -360,7 +366,11 @@ async fn append_assistant(
     }
 
     if let Some(ResponseItem::Message { content, .. }) = assistant {
-        content.push(ContentItem::OutputText { text: text.clone() });
+        content.push(ContentItem::OutputText {
+            text: text.clone(),
+            annotations: None,
+            logprobs: None,
+        });
         let _ = tx_event
             .send(Ok(ResponseEvent::OutputTextDelta(text)))
             .await;

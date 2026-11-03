@@ -19,9 +19,10 @@ use tokio::sync::oneshot;
 pub(crate) fn fetch(
     request_handle: AppServerRequestHandle,
     thread_id: Option<ThreadId>,
-    request_id: &'static str,
+    request_id: impl Into<String>,
     mut response_tx: oneshot::Sender<Result<Vec<ExperimentalFeature>, String>>,
 ) {
+    let request_id = request_id.into();
     tokio::spawn(async move {
         let discovery = async {
             let mut features = Vec::new();
@@ -108,8 +109,7 @@ pub(crate) async fn write(
             let key = format!("features.{}", serde_json::json!(name));
             Ok(crate::config_update::replace_config_value(
                 key,
-                // Keep the daemon opt-out explicit even before rollout defaults enable it.
-                if *enabled || feature.default_enabled || name == "daemon_auto_start" {
+                if *enabled || feature.default_enabled {
                     serde_json::json!(enabled)
                 } else {
                     serde_json::Value::Null

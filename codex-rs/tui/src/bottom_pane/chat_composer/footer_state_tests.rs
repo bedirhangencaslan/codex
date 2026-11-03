@@ -18,7 +18,7 @@ fn composer() -> ChatComposer {
         /*disable_paste_burst*/ true,
     );
     composer.set_status_line_enabled(/*enabled*/ true);
-    composer.set_status_line(Some(Line::from("MODEL STATUS")));
+    composer.set_status_line(Some(Line::from("MODEL STATUS").into()));
     composer
 }
 
@@ -102,40 +102,6 @@ fn retained_command_suggestions_yield_paint_and_cursor_to_find() {
         frames.join("\n\n")
     );
     assert_eq!(render(&composer, /*footer*/ None), original);
-}
-
-#[test]
-fn prompt_suggestion_yields_space_to_transcript_find() {
-    let mut composer = composer();
-    let footer = TranscriptFooter {
-        text: vec![
-            Line::from("Find: needle"),
-            Line::from("Enter next · Esc close"),
-        ]
-        .into(),
-        cursor_column: Some(8),
-        is_interactive: true,
-    };
-    let without_suggestion = render(&composer, Some(&footer));
-    let request = crate::prompt_suggestions::SuggestionRequest {
-        thread_id: codex_protocol::ThreadId::new(),
-        turn_id: "turn".into(),
-        summary: codex_protocol::config_types::ReasoningSummary::None,
-        id: uuid::Uuid::new_v4(),
-        cancellation: tokio_util::sync::CancellationToken::new(),
-        generation_finished: tokio_util::sync::CancellationToken::new(),
-    };
-    composer.set_prompt_suggestion(request.clone());
-    composer.apply_prompt_suggestion(
-        &request,
-        Some("Add a regression test for the timeout and explain how the cleanup works".into()),
-    );
-    let original = render(&composer, /*footer*/ None);
-    let during_search = render(&composer, Some(&footer));
-    assert_eq!(during_search, without_suggestion);
-    insta::assert_snapshot!("find_hides_prompt_suggestion", text(&during_search.0));
-    assert_eq!(render(&composer, /*footer*/ None), original);
-    assert!(!request.cancellation.is_cancelled());
 }
 
 #[test]

@@ -6,12 +6,17 @@ pub use heartbeat::Heartbeat;
 pub use heartbeat::UserInputOrigin;
 
 mod compaction_resume_metadata;
+pub use codex_protocol::turn_input::TurnAttribution;
 pub use compaction_resume_metadata::CompactionResumeMetadata;
+pub use compaction_resume_metadata::DynamicToolsSnapshot;
 pub use compaction_resume_metadata::PreviousTurnSettings;
 pub use compaction_resume_metadata::resume_multi_agent_version;
 
 mod compaction_checkpoint;
 pub use compaction_checkpoint::CompactionCheckpoint;
+
+mod initialization;
+pub use initialization::HistoryInitialization;
 
 use std::borrow::Borrow;
 use std::ops::Deref;
@@ -61,7 +66,27 @@ pub struct ResponseItemEnvelope {
 ///
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
 pub struct CodexHarnessMetadata {
-    /// Whether a developer message was supplied by an app-server client.
+    /// Complete retained records actually delivered by this Guardian message. Host-only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guardian_sources: Vec<RetainedSource>,
+
+    /// Completed sync reviews delivered by this complete Guardian message. Host-only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guardian_review_ids: Vec<codex_protocol::ResponseItemId>,
+
+    /// This complete message delivered the meaning of retained source-order labels.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub guardian_source_order_guidance: bool,
+
+    /// Section-scoped omission delivery proof; None means unknown, not complete.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guardian_retained_omissions: Option<GuardianRetainedOmissions>,
+
+    /// Original retained evidence represented by this exact history item.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retained_source: Option<RetainedSource>,
+
+    /// Whether a developer message was supplied by a client or a client requested tool-output retention.
     #[serde(default)]
     pub client_authored: bool,
 
@@ -109,6 +134,10 @@ pub struct CodexHarnessMetadata {
     )]
     pub mcp_attribution: Option<McpAttribution>,
 
+    /// Native search ran during automatic fallback, so its browsing references stay on native.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub native_search_fallback_used: bool,
+
     /// Sender context captured by the host when this task message was accepted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sender_user_messages: Option<Box<SenderUserMessages>>,
@@ -128,6 +157,21 @@ where
             sources: Vec::new(),
         }
     })))
+}
+
+impl CodexHarnessMetadata {
+    /// Shortened messages no longer prove complete instruction or review delivery.
+    pub fn mark_retained_sources_incomplete(&mut self) {
+        self.guardian_review_ids.clear();
+        self.guardian_source_order_guidance = false;
+        self.guardian_retained_omissions = None;
+        if let Some(source) = &mut self.retained_source {
+            source.complete = false;
+        }
+        for source in &mut self.guardian_sources {
+            source.complete = false;
+        }
+    }
 }
 
 impl ResponseItemEnvelope {
@@ -174,13 +218,18 @@ impl Borrow<ResponseItem> for ResponseItemEnvelope {
 /// Persisted rollout item used by core history and rollout storage.
 #[derive(Debug, Clone)]
 pub enum RolloutItem {
-    SessionMeta(SessionMetaLine),
+    SessionMeta(Box<SessionMetaLine>),
+    /// Complete dynamic-tool catalog for subsequent model steps, including an empty catalog.
+    DynamicToolsUpdated {
+        thread_id: ThreadId,
+        tools: Vec<DynamicToolSpec>,
+    },
     ResponseItem(ResponseItemEnvelope),
     InterAgentCommunication(InterAgentCommunication),
     InterAgentCommunicationMetadata {
         trigger_turn: bool,
     },
-    Compacted(CompactedItem),
+    Compacted(Box<CompactedItem>),
     TurnContext(TurnContextItem),
     TokenUsageRecord(TokenUsageRecord),
     WorldState(WorldStateItem),
@@ -236,12 +285,16 @@ pub use retained_context::RetainedContextEntry;
 pub use retained_context::RetainedContextEvent;
 pub use retained_context::RetainedContextOrder;
 pub use retained_context::RetainedInputSource;
+pub use retained_context::RetainedSource;
+pub use retained_context::RetainedSourceId;
+pub use retained_context::RetainedSourceRole;
 pub use retained_context::RetainedUserMessage;
 pub use retained_context::VerifiedAnswer;
 pub use retained_context::VerifiedQuestionAnswer;
 mod rollout_payload;
 
 pub use guardian_history::GuardianHistoryCheckpoint;
+pub use guardian_history::GuardianRetainedOmissions;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompactedItem {
@@ -303,9 +356,13 @@ impl JsonSchema for CompactedItem {
 impl From<CompactedItem> for ResponseItem {
     fn from(value: CompactedItem) -> Self {
         ResponseItem::Message {
+            status: None,
+            encrypted_content: None,
             id: None,
             role: "assistant".to_string(),
             content: vec![ContentItem::OutputText {
+                annotations: None,
+                logprobs: None,
                 text: value.message,
             }],
             phase: None,
@@ -331,6 +388,9 @@ pub struct RolloutLine {
 pub struct ResumedHistory {
     pub conversation_id: ThreadId,
     pub history: Arc<Vec<RolloutItem>>,
+    /// Store-issued revision for this exact snapshot; clear it when modifying the history.
+    #[serde(skip)]
+    pub history_revision: Option<String>,
     pub rollout_path: Option<PathBuf>,
 }
 
@@ -381,31 +441,6 @@ impl InitialHistory {
         }
     }
 
-    pub fn get_event_msgs(&self) -> Option<Vec<EventMsg>> {
-        match self {
-            Self::New | Self::Cleared => None,
-            Self::Resumed(resumed) => Some(
-                resumed
-                    .history
-                    .iter()
-                    .filter_map(|item| match item {
-                        RolloutItem::EventMsg(event) => Some(event.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-            ),
-            Self::Forked(items) => Some(
-                items
-                    .iter()
-                    .filter_map(|item| match item {
-                        RolloutItem::EventMsg(event) => Some(event.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-            ),
-        }
-    }
-
     pub fn get_base_instructions(&self) -> Option<BaseInstructions> {
         match self {
             Self::New | Self::Cleared => None,
@@ -421,17 +456,7 @@ impl InitialHistory {
     }
 
     pub fn get_dynamic_tools(&self) -> Option<Vec<DynamicToolSpec>> {
-        match self {
-            Self::New | Self::Cleared => None,
-            Self::Resumed(resumed) => resumed.history.iter().find_map(|item| match item {
-                RolloutItem::SessionMeta(meta_line) => meta_line.meta.dynamic_tools.clone(),
-                _ => None,
-            }),
-            Self::Forked(items) => items.iter().find_map(|item| match item {
-                RolloutItem::SessionMeta(meta_line) => meta_line.meta.dynamic_tools.clone(),
-                _ => None,
-            }),
-        }
+        latest_dynamic_tools(self.get_rollout_items()).map(<[_]>::to_vec)
     }
 
     pub fn get_selected_capability_roots(&self) -> Vec<SelectedCapabilityRoot> {
@@ -511,6 +536,31 @@ fn session_cwd_from_items(items: &[RolloutItem]) -> Option<PathBuf> {
         RolloutItem::SessionMeta(meta_line) => Some(meta_line.meta.cwd.clone()),
         _ => None,
     })
+}
+
+/// Returns the latest catalog, preserving explicit clears and falling back to creation metadata.
+pub fn latest_dynamic_tools(items: &[RolloutItem]) -> Option<&[DynamicToolSpec]> {
+    let metadata = items.iter().find_map(|item| match item {
+        RolloutItem::SessionMeta(meta) => Some(&meta.meta),
+        _ => None,
+    });
+    items
+        .iter()
+        .rev()
+        .find_map(|item| {
+            let (thread_id, tools) = match item {
+                RolloutItem::DynamicToolsUpdated { thread_id, tools } => (thread_id, tools),
+                RolloutItem::Compacted(compacted) => {
+                    let snapshot = compacted.resume_metadata.as_ref()?.dynamic_tools.as_ref()?;
+                    (&snapshot.thread_id, &snapshot.tools)
+                }
+                _ => return None,
+            };
+            metadata
+                .is_none_or(|meta| meta.id == *thread_id)
+                .then_some(tools.as_slice())
+        })
+        .or_else(|| metadata.and_then(|meta| meta.dynamic_tools.as_deref()))
 }
 
 /// Returns a thread's latest plugin selection, with a turn-context fallback.

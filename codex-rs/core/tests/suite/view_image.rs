@@ -751,6 +751,7 @@ async fn view_image_routes_to_selected_remote_environment() -> anyhow::Result<()
         .await?;
     let absolute_image_path = image_path_uri.inferred_native_path_string();
     let remote_selection = TurnEnvironmentSelection {
+        selected_capability_roots: Default::default(),
         environment_id: REMOTE_ENVIRONMENT_ID.to_string(),
         cwd: remote_cwd_uri.clone(),
         workspace_roots: vec![remote_cwd_uri],
@@ -1620,7 +1621,6 @@ async fn view_image_tool_returns_unsupported_message_for_text_only_model() -> an
         visibility: ModelVisibility::List,
         supported_in_api: true,
         input_modalities: vec![InputModality::Text],
-        used_fallback_model_metadata: false,
         supports_search_tool: false,
         supports_experimental_context: false,
         use_responses_lite: false,
@@ -1650,6 +1650,7 @@ async fn view_image_tool_returns_unsupported_message_for_text_only_model() -> an
         availability_nux: None,
         apply_patch_tool_type: None,
         web_search_tool_type: Default::default(),
+        web_search_provider: None,
         truncation_policy: TruncationPolicyConfig::bytes(/*limit*/ 10_000),
         supports_image_detail_original: false,
         context_window: Some(272_000),

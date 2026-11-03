@@ -86,6 +86,9 @@ pub struct CreateThreadParams {
     pub extra_config: Option<ExtraConfig>,
     /// Source thread id when this thread is created as a fork.
     pub forked_from_id: Option<ThreadId>,
+    /// Saved fork role, persisted independently of the thread index.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub attached_thread: bool,
     /// The ID of the parent thread. This will only be set if this thread is a subagent.
     pub parent_thread_id: Option<ThreadId>,
     /// Runtime source for the thread.
@@ -125,8 +128,12 @@ pub struct ResumeThreadParams {
     pub thread_id: ThreadId,
     /// Known local rollout path when the caller resumed from a specific file.
     pub rollout_path: Option<PathBuf>,
-    /// Known replay history for the resumed thread, if already loaded by the caller.
+    /// Previously loaded replay history. A canonical session header identifies a stored snapshot
+    /// that may need refreshing under writer ownership; other histories are explicit overrides.
     pub history: Option<Arc<Vec<RolloutItem>>>,
+    /// Opaque revision paired with `history`, validated by the store under writer ownership.
+    #[serde(skip)]
+    pub history_revision: Option<String>,
     /// Whether archived threads may be reopened.
     pub include_archived: bool,
     /// Metadata for future writes appended to the resumed live thread.
@@ -175,6 +182,9 @@ pub struct StoredThreadHistory {
     pub thread_id: ThreadId,
     /// Persisted rollout items in replay order.
     pub items: Vec<RolloutItem>,
+    /// Optional revision for reusing this exact snapshot within the current process.
+    #[serde(skip)]
+    pub revision: Option<String>,
 }
 
 /// Persisted rollout items needed to reconstruct the latest model-visible context.
@@ -188,6 +198,9 @@ pub struct StoredModelContext {
     pub thread_id: ThreadId,
     /// Persisted rollout items in replay order.
     pub items: Vec<RolloutItem>,
+    /// Optional revision for reusing this exact snapshot within the current process.
+    #[serde(skip)]
+    pub revision: Option<String>,
 }
 
 /// Requested boundary for inheriting a paginated thread's history.
@@ -298,13 +311,15 @@ pub enum SortDirection {
     Desc,
 }
 
-/// Spawn-graph relationship used to filter thread listings.
+/// Parent relationship used to filter thread listings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThreadRelationFilter {
     /// Return only threads whose immediate parent is the given thread.
     DirectChildrenOf(ThreadId),
     /// Return every thread transitively descended from the given thread.
     DescendantsOf(ThreadId),
+    /// Saved attached threads, independent of the spawned-agent graph.
+    AttachedThreadsOf(ThreadId),
 }
 
 /// Parameters for listing threads.
@@ -345,6 +360,9 @@ pub struct ListThreadsParams {
 /// Parameters for searching thread content.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchThreadsParams {
+    /// The current login when searching account-scoped local history.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<crate::LocalHistoryAccount>,
     /// Maximum number of threads to return.
     pub page_size: usize,
     /// Opaque cursor returned by a previous search call.
@@ -442,6 +460,8 @@ pub struct ListTurnsParams {
 pub struct StoredTurn {
     /// Turn id.
     pub turn_id: String,
+    /// Causal root recorded for this turn. Older projected turns may not have one.
+    pub root_turn_id: Option<String>,
     /// Projected app-server item snapshots associated with this turn, according to `items_view`.
     pub items: Vec<StoredThreadItem>,
     /// Amount of item detail included in `items`.
@@ -469,17 +489,29 @@ pub struct TurnPage {
     pub backwards_cursor: Option<String>,
 }
 
+/// Starting position for listing persisted items.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ListItemsPosition {
+    /// Opaque cursor returned by a previous list call.
+    Cursor(String),
+    /// Exclusive item anchor within the visible non-empty turn.
+    /// Requires creation order without an update watermark.
+    ItemAnchor { item_id: String },
+}
+
 /// Parameters for listing persisted items within a thread.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListItemsParams {
+    /// Exact item lookup scoped to `turn_id`; incompatible with cursors and update replay.
+    pub item_ids: Option<Vec<String>>,
     /// Thread id to read.
     pub thread_id: ThreadId,
     /// Optional turn id to filter by. When omitted, returns items across the thread.
     pub turn_id: Option<String>,
     /// Whether archived threads are eligible.
     pub include_archived: bool,
-    /// Opaque cursor returned by a previous list call.
-    pub cursor: Option<String>,
+    /// Optional starting position; omitted for the first page.
+    pub position: Option<ListItemsPosition>,
     /// Maximum number of items to return.
     pub page_size: usize,
     /// Direction to sort items by the selected ordinal.
@@ -514,7 +546,7 @@ pub struct StoredThreadItem {
     pub started_at_ms: Option<i64>,
     /// Exact lifecycle completion time in Unix milliseconds, when recorded by the producer.
     pub completed_at_ms: Option<i64>,
-    /// Serialized app-server ThreadItem snapshot.
+    /// Serialized app-server item payload. Its lifecycle times are stored in the columns above.
     pub item_json: Vec<u8>,
 }
 
@@ -586,6 +618,12 @@ pub struct ThreadOccurrenceSearchPage {
 /// Store-owned thread metadata used by list/read/resume responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StoredThread {
+    /// Recorded creator user, when available from the backing store.
+    #[serde(default)]
+    pub creator_user_id: Option<String>,
+    /// Recorded creator workspace, when available from the backing store.
+    #[serde(default)]
+    pub creator_account_id: Option<String>,
     /// Originator recorded at creation, if available from the backing store.
     #[serde(default)]
     pub originator: Option<String>,
@@ -904,6 +942,10 @@ impl ThreadMetadataPatch {
     }
 
     pub fn is_empty(&self) -> bool {
+        self.updated_at.is_none() && self.is_empty_except_updated_at()
+    }
+
+    pub(crate) fn is_empty_except_updated_at(&self) -> bool {
         self.name.is_none()
             && self.rollout_path.is_none()
             && self.preview.is_none()
@@ -912,7 +954,6 @@ impl ThreadMetadataPatch {
             && self.model.is_none()
             && self.reasoning_effort.is_none()
             && self.created_at.is_none()
-            && self.updated_at.is_none()
             && self.advance_recency_at.is_none()
             && self.source.is_none()
             && self.originator.is_none()
@@ -1116,12 +1157,12 @@ mod tests {
     }
 
     fn session_meta(history_mode: ThreadHistoryMode) -> RolloutItem {
-        RolloutItem::SessionMeta(codex_protocol::protocol::SessionMetaLine {
+        RolloutItem::SessionMeta(Box::new(codex_protocol::protocol::SessionMetaLine {
             meta: codex_protocol::protocol::SessionMeta {
                 history_mode,
                 ..Default::default()
             },
             git: None,
-        })
+        }))
     }
 }

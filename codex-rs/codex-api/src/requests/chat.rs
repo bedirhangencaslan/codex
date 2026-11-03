@@ -19,9 +19,6 @@ use std::collections::HashMap;
 /// Builds the `/chat/completions` request body for `request`.
 pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) -> Value {
     let mut messages = Vec::<Value>::new();
-    if !request.instructions.is_empty() {
-        messages.push(json!({"role": "system", "content": request.instructions}));
-    }
 
     let input = request.input.as_slice();
     let reasoning_by_anchor_index = anchor_reasoning(input);
@@ -36,7 +33,7 @@ pub(crate) fn chat_body_from_responses_request(request: &ResponsesApiRequest) ->
 
                 for c in content {
                     match c {
-                        ContentItem::InputText { text: t } | ContentItem::OutputText { text: t } => {
+                        ContentItem::InputText { text: t } | ContentItem::OutputText { text: t, .. } => {
                             text.push_str(t);
                             parts.push(json!({"type": "text", "text": t}));
                         }
@@ -369,6 +366,8 @@ mod tests {
             }],
             phase: None,
             internal_chat_message_metadata_passthrough: None,
+            encrypted_content: None,
+            status: None,
         }
     }
 
@@ -381,13 +380,14 @@ mod tests {
             encrypted_function_args: None,
             call_id: call_id.to_string(),
             internal_chat_message_metadata_passthrough: None,
+            encrypted_content: None,
+            status: None,
         }
     }
 
     fn request(input: Vec<ResponseItem>, tools: Option<&str>) -> ResponsesApiRequest {
         ResponsesApiRequest {
             model: "glm-5.3-flash".to_string(),
-            instructions: "be terse".to_string(),
             input,
             tools: tools.map(|tools| {
                 std::sync::Arc::<serde_json::value::RawValue>::from(
@@ -422,6 +422,8 @@ mod tests {
                     }],
                     phase: None,
                     internal_chat_message_metadata_passthrough: None,
+                    encrypted_content: None,
+                    status: None,
                 },
                 user("hello"),
             ],
@@ -429,8 +431,8 @@ mod tests {
         ));
 
         let messages = body["messages"].as_array().expect("messages");
-        assert_eq!(messages[1]["role"], "system");
-        assert_eq!(messages[1]["content"], "environment context");
+        assert_eq!(messages[0]["role"], "system");
+        assert_eq!(messages[0]["content"], "environment context");
     }
 
     #[test]
@@ -461,17 +463,16 @@ mod tests {
         ));
 
         let messages = body["messages"].as_array().expect("messages");
-        assert_eq!(messages.len(), 5, "system + user + 1 assistant + 2 tool");
-        assert_eq!(messages[0]["role"], "system");
-        assert_eq!(messages[1]["role"], "user");
-        assert_eq!(messages[2]["role"], "assistant");
+        assert_eq!(messages.len(), 4, "user + 1 assistant + 2 tool");
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[1]["role"], "assistant");
         assert_eq!(
-            messages[2]["tool_calls"].as_array().map(Vec::len),
+            messages[1]["tool_calls"].as_array().map(Vec::len),
             Some(2),
             "consecutive calls must collapse into one assistant message"
         );
-        assert_eq!(messages[3]["tool_call_id"], "call-a");
-        assert_eq!(messages[4]["tool_call_id"], "call-b");
+        assert_eq!(messages[2]["tool_call_id"], "call-a");
+        assert_eq!(messages[3]["tool_call_id"], "call-b");
         assert_eq!(body["stream_options"]["include_usage"], true);
     }
 
