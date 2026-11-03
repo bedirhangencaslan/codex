@@ -55,11 +55,10 @@ pub fn create_read_tool(options: ReadToolOptions) -> ToolSpec {
 
     ToolSpec::Function(ResponsesApiTool {
         name: READ_TOOL_NAME.to_string(),
-        description: "Reads a file with 1-indexed line numbers (`<line>: <content>`), or lists a directory (subdirectories end in `/`).
+        description: "Reads a file as plain text, or lists a directory (subdirectories end in `/`).
 
-- Returns up to 2000 lines from `offset`; lines over 2000 characters are cut.
+- Returns up to 2000 lines from `offset` (1-indexed); lines over 2000 characters are cut.
 - A file's purpose shows in its opening docstring and first definitions: read that part first, and widen with `offset`/`limit` only when you need more.
-- Line numbers are display only; never copy them into `apply_patch`.
 - Several reads in one response run in parallel."
             .to_string(),
         strict: false,

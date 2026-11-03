@@ -6,15 +6,15 @@ Scenario: Astra uses the catalog question schema to ask who a launch update is f
 
 ## Window 1
 -- request 1 (request) --
-00:additional_tools/developer (3; hash=f181967456befa67):
-        - namespace/functions; hash=7e611b8ddd5621cf
+00:additional_tools/developer (3; hash=6bfb06f188907e5a):
+        - namespace/functions; hash=aeae7e154ef541bc
           - custom/exec
           - function/wait
           - function/request_user_input
           - function/request_user_input_async
         - namespace/clock: Tools for reading and waiting on time.; hash=f402e8c5e9b5e317
           - function/sleep
-        - namespace/collaboration: Tools for spawning and managing sub-agents.; hash=2c8d6295978dbe63
+        - namespace/collaboration: Tools for spawning and managing sub-agents.; hash=1d0939c0fb0250ed
           - function/followup_task
           - function/interrupt_agent
           - function/list_agents
@@ -48,9 +48,5 @@ Scenario: Astra uses the catalog question schema to ask who a launch update is f
 -- request 4 (request) --
 12:message/assistant:
     Here is the launch update for customers.
-13:message/developer:
-    <PERMISSIONS_INSTRUCTIONS>
-14:message/user:
-    <ENVIRONMENT_CONTEXT>
-15:message/user:
+13:message/user:
     Now give it an email subject.

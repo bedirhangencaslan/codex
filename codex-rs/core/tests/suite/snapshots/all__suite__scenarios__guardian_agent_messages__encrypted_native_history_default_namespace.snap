@@ -25,7 +25,7 @@ Scenario: A historical MAv2 send_message call and an encrypted parent reply reac
 
     When calling `wait_agent`, prefer longer waits (minutes) to avoid busy polling.
 
-    There are 4 available concurrency slots, meaning that up to 4 agents can be active at once, including you.
+    There are 2 available concurrency slots, meaning that up to 2 agents can be active at once, including you.
 
     Full-history forks (`fork_turns` omitted or `"all"`) inherit the parent model and reasoning effort and d...uctions; when doing so, set `fork_turns` to `"none"`. [hash=18ccf7e93ecabab9]
 03:message/developer:
@@ -59,7 +59,7 @@ Scenario: A historical MAv2 send_message call and an encrypted parent reply reac
 
     When calling `wait_agent`, prefer longer waits (minutes) to avoid busy polling.
 
-    There are 4 available concurrency slots, meaning that up to 4 agents can be active at once, including you.
+    There are 2 available concurrency slots, meaning that up to 2 agents can be active at once, including you.
 
     Full-history forks (`fork_turns` omitted or `"all"`) inherit the parent model and reasoning effort and d...uctions; when doing so, set `fork_turns` to `"none"`. [hash=18ccf7e93ecabab9]
 03:message/developer:
@@ -80,8 +80,8 @@ Scenario: A historical MAv2 send_message call and an encrypted parent reply reac
 
 ## Window 3 (after request 3: input diverged at item 00, settings changed (model, parallel_tool_calls, prompt_cache_key, reasoning, text, tools))
 -- request 4 (turn) --
-00:additional_tools/developer (1; hash=65a86311792f6c71):
-        - namespace/functions; hash=dcfbcf0da1c2d607
+00:additional_tools/developer (1; hash=673f2089f5f37770):
+        - namespace/functions; hash=ebf342b19fd83096
           - custom/exec
           - function/wait
 01:message/developer:
@@ -177,7 +177,7 @@ Scenario: A historical MAv2 send_message call and an encrypted parent reply reac
 
     When calling `wait_agent`, prefer longer waits (minutes) to avoid busy polling.
 
-    There are 4 available concurrency slots, meaning that up to 4 agents can be active at once, including you.
+    There are 2 available concurrency slots, meaning that up to 2 agents can be active at once, including you.
 
     Full-history forks (`fork_turns` omitted or `"all"`) inherit the parent model and reasoning effort and d...uctions; when doing so, set `fork_turns` to `"none"`. [hash=18ccf7e93ecabab9]
 03:message/developer:
@@ -200,8 +200,8 @@ Scenario: A historical MAv2 send_message call and an encrypted parent reply reac
 
 ## Window 5 (after request 5: input diverged at item 00, settings changed (model, parallel_tool_calls, prompt_cache_key, reasoning, text, tools))
 -- request 6 (turn) --
-00:additional_tools/developer (1; hash=65a86311792f6c71):
-        - namespace/functions; hash=dcfbcf0da1c2d607
+00:additional_tools/developer (1; hash=673f2089f5f37770):
+        - namespace/functions; hash=ebf342b19fd83096
           - custom/exec
           - function/wait
 01:message/developer:
@@ -342,7 +342,7 @@ Scenario: A historical MAv2 send_message call and an encrypted parent reply reac
 
     When calling `wait_agent`, prefer longer waits (minutes) to avoid busy polling.
 
-    There are 4 available concurrency slots, meaning that up to 4 agents can be active at once, including you.
+    There are 2 available concurrency slots, meaning that up to 2 agents can be active at once, including you.
 
     Full-history forks (`fork_turns` omitted or `"all"`) inherit the parent model and reasoning effort and d...uctions; when doing so, set `fork_turns` to `"none"`. [hash=18ccf7e93ecabab9]
 03:message/developer:

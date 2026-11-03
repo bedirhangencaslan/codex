@@ -16,13 +16,16 @@ Settings:
   text: {"verbosity":"low"}
   tool_choice: "auto"
 -- request 1 (turn) --
-00:additional_tools/developer (2; hash=7b4c6a992fd91f91):
-        - namespace/functions; hash=101d32aa59ea258b
+00:additional_tools/developer (2; hash=8ec03e577df8ab7b):
+        - namespace/functions; hash=535e192dca540d39
           - function/exec_command
           - function/write_stdin
           - function/request_user_input
           - custom/apply_patch
           - function/view_image
+          - function/read
+          - function/glob
+          - function/grep
         - tool_search: # Tool discovery  Searches over deferred tool metadata with BM25 and exposes matching tools for t...; args=[limit, query]; hash=b573ed69c0b0e6c7
 01:message/developer:
     <MODEL_INSTRUCTIONS>
@@ -56,12 +59,15 @@ Settings:
 ## Window 2 (after request 3: input diverged at item 00)
 Settings: same as window 1
 -- request 4 (turn) --
-00:additional_tools/developer (2; hash=3b0da5c6c5e4fd8e):
-        - namespace/functions; hash=36c9912d971c5be8
+00:additional_tools/developer (2; hash=741bba2445e21eef):
+        - namespace/functions; hash=d2bc11f2059f79ef
           - function/update_plan
           - function/request_user_input
           - custom/apply_patch
           - function/view_image
+          - function/read
+          - function/glob
+          - function/grep
         - tool_search: # Tool discovery  Searches over deferred tool metadata with BM25 and exposes matching tools for t...; args=[limit, query]; hash=b573ed69c0b0e6c7
 01:message/developer:
     <MODEL_INSTRUCTIONS>

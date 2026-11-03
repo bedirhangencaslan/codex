@@ -16,8 +16,8 @@ Settings:
   text: {"verbosity":"low"}
   tool_choice: "auto"
 -- request 1 (turn) --
-00:additional_tools/developer (2; hash=f1d0adb3566d1b59):
-        - namespace/functions; hash=dfb4b8684addc20d
+00:additional_tools/developer (2; hash=1109f987f22b6320):
+        - namespace/functions; hash=7c3d7f0a0b3fad3c
           - custom/exec
           - function/wait
           - function/exec_command
@@ -27,6 +27,9 @@ Settings:
           - function/get_context_remaining
           - custom/apply_patch
           - function/view_image
+          - function/read
+          - function/glob
+          - function/grep
         - tool_search: # Tool discovery  Searches over deferred tool metadata with BM25 and exposes matching tools for t...; args=[limit, query]; hash=b573ed69c0b0e6c7
 01:message/developer:
     <MODEL_INSTRUCTIONS>
@@ -57,8 +60,8 @@ Settings:
 ## Window 2 (after request 2: input diverged at item 03)
 Settings: same as window 1
 -- request 3 (turn) --
-00:additional_tools/developer (2; hash=f1d0adb3566d1b59):
-        - namespace/functions; hash=dfb4b8684addc20d
+00:additional_tools/developer (2; hash=1109f987f22b6320):
+        - namespace/functions; hash=7c3d7f0a0b3fad3c
           - custom/exec
           - function/wait
           - function/exec_command
@@ -68,6 +71,9 @@ Settings: same as window 1
           - function/get_context_remaining
           - custom/apply_patch
           - function/view_image
+          - function/read
+          - function/glob
+          - function/grep
         - tool_search: # Tool discovery  Searches over deferred tool metadata with BM25 and exposes matching tools for t...; args=[limit, query]; hash=b573ed69c0b0e6c7
 01:message/developer:
     <MODEL_INSTRUCTIONS>
@@ -100,8 +106,8 @@ Settings: same as window 1
 -- request 5 (turn) --
 09:message/developer:
     This is an incremental tools update. Previously declared tools remain available for direct calls unless ...here, its latest definition replaces the earlier one. [hash=bceb65fad1afdf9c]
-10:additional_tools/developer (1; hash=845cf7662dc8512b):
-        - namespace/functions; hash=0c787fbffa4d7ddf
+10:additional_tools/developer (1; hash=b7fd89abae4195ad):
+        - namespace/functions; hash=174a13d856a6951d
           - function/update_plan
 11:message/developer:
     The following tools are no longer available. Do not call them:

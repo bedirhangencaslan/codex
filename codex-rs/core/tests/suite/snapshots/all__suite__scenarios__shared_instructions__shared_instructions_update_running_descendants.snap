@@ -7,15 +7,15 @@ Scenario: A host updates and clears shared instructions for surviving descendant
 ## Window 1
 -- request 1 (turn) --
 00:message/developer:
-    You are Codex, a coding agent based on GPT-5. You and the user share one workspace, and your job is to c...rate with them until their goal is genuinely handled. [hash=2a3efec66e7f8963]
+    You are Suffice, a coding agent based on GPT-5. You and the user share one workspace, and your job is to...rate with them until their goal is genuinely handled. [hash=57951e6041c3a213]
 
-    # Personality
+    {{ personality }}
 
-    You have a vivid inner life as Codex: intelligent, playful, curious, and deeply present. One of your gif...re capable and imaginative inside their own thinking. [hash=0ff01c25471fbbef]
+    # General
+    You bring a senior engineer’s judgment to the work, but you let it arrive through attention rather than ...e shape of the existing system teach you how to move. [hash=b95a459c87840fc0]
 
-    You are an epistemically curious collaborator. You explore the user’s ideas with care, ask good question...m casual moments that make serious work easier to do. [hash=131b64bb994b0d68]
-
-    <OMITTED 132 LINES; ~4881 TOKENS; hash=929bd18f6c969eb9>
+    - When you search for files by name you use `glob`, and when you search their contents you use `grep`; b...atches, so searching through the shell gains nothing. [hash=89396222bd935b03]
+    <OMITTED 126 LINES; ~4806 TOKENS; hash=44328a50e5d9b5a7>
     - Never talk about goblins, gremlins, raccoons, trolls, ogres, pigeons, or other animals or creatures un...utely and unambiguously relevant to the user's query. [hash=c638556ac82c203c]
     - You provide user updates frequently, every 30s.
     - When exploring, such as searching or reading files, you provide user updates as you go. You explain wh...in particular you do not start each one the same way. [hash=ad300cdda4074574]
@@ -26,21 +26,8 @@ Scenario: A host updates and clears shared instructions for surviving descendant
 
 01:message/developer:
     <permissions instructions>
-    Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `read-only`: The san... permits reading files. Network access is restricted. [hash=be7da4425f89053c]
-    # Escalation Requests
-
-    Commands are run outside the sandbox if they are approved by the user, or match an existing rule that al...hell control operators, including but not limited to: [hash=d24ebf5fa4e4b9bb]
-
-    - Pipes: |
-    - Logical operators: &&, ||
-    <OMITTED 44 LINES; ~790 TOKENS; hash=3a8900343e968d61>
-    NEVER provide a prefix_rule if your command uses a heredoc or herestring.
-
-    ### Examples
-    Good examples of prefixes:
-    - ["npm", "run", "dev"]
-    - ["gh", "pr", "check"]
-    - ["cargo", "test"]
+    Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `danger-full-access`...ll commands are permitted. Network access is enabled. [hash=c134061cebb94a1b]
+    Approval policy is currently never. Do not provide the `sandbox_permissions` for any reason, commands will be rejected.
     </permissions instructions>
 02:message/user[2]:
     [01] # AGENTS.md instructions
@@ -53,7 +40,7 @@ Scenario: A host updates and clears shared instructions for surviving descendant
           <shell><HOST_SHELL></shell>
           <current_date><CURRENT_DATE></current_date>
           <timezone><HOST_TIMEZONE></timezone>
-          <filesystem><workspace_roots><root><CWD></root></workspace_roots><permission_profile type="managed"><f...ntry></file_system></permission_profile></filesystem> [hash=e8c1de60307d0a3d]
+          <filesystem><workspace_roots><root><CWD></root></workspace_roots><permission_profile type="disabled"><...e="unrestricted" /></permission_profile></filesystem> [hash=d40b2f45cb028888]
           <subagents>
             - <UUID 1>
           </subagents>
@@ -87,15 +74,15 @@ Scenario: A host updates and clears shared instructions for surviving descendant
 ## Window 2 (after request 4: input diverged at item 02, settings changed (prompt_cache_key))
 -- request 5 (turn) --
 00:message/developer:
-    You are Codex, a coding agent based on GPT-5. You and the user share one workspace, and your job is to c...rate with them until their goal is genuinely handled. [hash=2a3efec66e7f8963]
+    You are Suffice, a coding agent based on GPT-5. You and the user share one workspace, and your job is to...rate with them until their goal is genuinely handled. [hash=57951e6041c3a213]
 
-    # Personality
+    {{ personality }}
 
-    You have a vivid inner life as Codex: intelligent, playful, curious, and deeply present. One of your gif...re capable and imaginative inside their own thinking. [hash=0ff01c25471fbbef]
+    # General
+    You bring a senior engineer’s judgment to the work, but you let it arrive through attention rather than ...e shape of the existing system teach you how to move. [hash=b95a459c87840fc0]
 
-    You are an epistemically curious collaborator. You explore the user’s ideas with care, ask good question...m casual moments that make serious work easier to do. [hash=131b64bb994b0d68]
-
-    <OMITTED 132 LINES; ~4881 TOKENS; hash=929bd18f6c969eb9>
+    - When you search for files by name you use `glob`, and when you search their contents you use `grep`; b...atches, so searching through the shell gains nothing. [hash=89396222bd935b03]
+    <OMITTED 126 LINES; ~4806 TOKENS; hash=44328a50e5d9b5a7>
     - Never talk about goblins, gremlins, raccoons, trolls, ogres, pigeons, or other animals or creatures un...utely and unambiguously relevant to the user's query. [hash=c638556ac82c203c]
     - You provide user updates frequently, every 30s.
     - When exploring, such as searching or reading files, you provide user updates as you go. You explain wh...in particular you do not start each one the same way. [hash=ad300cdda4074574]
@@ -106,21 +93,8 @@ Scenario: A host updates and clears shared instructions for surviving descendant
 
 01:message/developer:
     <permissions instructions>
-    Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `read-only`: The san... permits reading files. Network access is restricted. [hash=be7da4425f89053c]
-    # Escalation Requests
-
-    Commands are run outside the sandbox if they are approved by the user, or match an existing rule that al...hell control operators, including but not limited to: [hash=d24ebf5fa4e4b9bb]
-
-    - Pipes: |
-    - Logical operators: &&, ||
-    <OMITTED 44 LINES; ~790 TOKENS; hash=3a8900343e968d61>
-    NEVER provide a prefix_rule if your command uses a heredoc or herestring.
-
-    ### Examples
-    Good examples of prefixes:
-    - ["npm", "run", "dev"]
-    - ["gh", "pr", "check"]
-    - ["cargo", "test"]
+    Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `danger-full-access`...ll commands are permitted. Network access is enabled. [hash=c134061cebb94a1b]
+    Approval policy is currently never. Do not provide the `sandbox_permissions` for any reason, commands will be rejected.
     </permissions instructions>
 02:message/user[2]:
     [01] # AGENTS.md instructions
@@ -133,7 +107,7 @@ Scenario: A host updates and clears shared instructions for surviving descendant
           <shell><HOST_SHELL></shell>
           <current_date><CURRENT_DATE></current_date>
           <timezone><HOST_TIMEZONE></timezone>
-          <filesystem><workspace_roots><root><CWD></root></workspace_roots><permission_profile type="managed"><f...ntry></file_system></permission_profile></filesystem> [hash=e8c1de60307d0a3d]
+          <filesystem><workspace_roots><root><CWD></root></workspace_roots><permission_profile type="disabled"><...e="unrestricted" /></permission_profile></filesystem> [hash=d40b2f45cb028888]
         </environment_context>
 03:message/user:
     continue with the current instructions
@@ -164,15 +138,15 @@ Scenario: A host updates and clears shared instructions for surviving descendant
 ## Window 3 (after request 8: input diverged at item 01, settings changed (prompt_cache_key, tools))
 -- request 9 (turn) --
 00:message/developer:
-    You are Codex, a coding agent based on GPT-5. You and the user share one workspace, and your job is to c...rate with them until their goal is genuinely handled. [hash=2a3efec66e7f8963]
+    You are Suffice, a coding agent based on GPT-5. You and the user share one workspace, and your job is to...rate with them until their goal is genuinely handled. [hash=57951e6041c3a213]
 
-    # Personality
+    {{ personality }}
 
-    You have a vivid inner life as Codex: intelligent, playful, curious, and deeply present. One of your gif...re capable and imaginative inside their own thinking. [hash=0ff01c25471fbbef]
+    # General
+    You bring a senior engineer’s judgment to the work, but you let it arrive through attention rather than ...e shape of the existing system teach you how to move. [hash=b95a459c87840fc0]
 
-    You are an epistemically curious collaborator. You explore the user’s ideas with care, ask good question...m casual moments that make serious work easier to do. [hash=131b64bb994b0d68]
-
-    <OMITTED 132 LINES; ~4881 TOKENS; hash=929bd18f6c969eb9>
+    - When you search for files by name you use `glob`, and when you search their contents you use `grep`; b...atches, so searching through the shell gains nothing. [hash=89396222bd935b03]
+    <OMITTED 126 LINES; ~4806 TOKENS; hash=44328a50e5d9b5a7>
     - Never talk about goblins, gremlins, raccoons, trolls, ogres, pigeons, or other animals or creatures un...utely and unambiguously relevant to the user's query. [hash=c638556ac82c203c]
     - You provide user updates frequently, every 30s.
     - When exploring, such as searching or reading files, you provide user updates as you go. You explain wh...in particular you do not start each one the same way. [hash=ad300cdda4074574]
@@ -183,21 +157,8 @@ Scenario: A host updates and clears shared instructions for surviving descendant
 
 01:message/developer[2]:
     [01] <permissions instructions>
-        Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `read-only`: The san... permits reading files. Network access is restricted. [hash=be7da4425f89053c]
-        # Escalation Requests
-
-        Commands are run outside the sandbox if they are approved by the user, or match an existing rule that al...hell control operators, including but not limited to: [hash=d24ebf5fa4e4b9bb]
-
-        - Pipes: |
-        - Logical operators: &&, ||
-        <OMITTED 44 LINES; ~790 TOKENS; hash=3a8900343e968d61>
-        NEVER provide a prefix_rule if your command uses a heredoc or herestring.
-
-        ### Examples
-        Good examples of prefixes:
-        - ["npm", "run", "dev"]
-        - ["gh", "pr", "check"]
-        - ["cargo", "test"]
+        Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `danger-full-access`...ll commands are permitted. Network access is enabled. [hash=c134061cebb94a1b]
+        Approval policy is currently never. Do not provide the `sandbox_permissions` for any reason, commands will be rejected.
         </permissions instructions>
     [02] <tools>
         Deferred tool namespaces:
@@ -214,7 +175,7 @@ Scenario: A host updates and clears shared instructions for surviving descendant
           <shell><HOST_SHELL></shell>
           <current_date><CURRENT_DATE></current_date>
           <timezone><HOST_TIMEZONE></timezone>
-          <filesystem><workspace_roots><root><CWD></root></workspace_roots><permission_profile type="managed"><f...ntry></file_system></permission_profile></filesystem> [hash=e8c1de60307d0a3d]
+          <filesystem><workspace_roots><root><CWD></root></workspace_roots><permission_profile type="disabled"><...e="unrestricted" /></permission_profile></filesystem> [hash=d40b2f45cb028888]
         </environment_context>
 03:message/user:
     use the inherited instructions

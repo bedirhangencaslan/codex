@@ -17,7 +17,7 @@ Settings:
   tool_choice: "auto"
 -- request 1 (turn) --
 00:additional_tools/developer (3; hash=650d9374d11dab9f):
-        - namespace/functions; hash=101d32aa59ea258b
+        - namespace/functions; hash=535e192dca540d39
           - function/exec_command
           - function/write_stdin
           - function/request_user_input

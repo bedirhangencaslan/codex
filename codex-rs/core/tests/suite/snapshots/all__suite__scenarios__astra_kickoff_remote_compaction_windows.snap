@@ -16,15 +16,15 @@ Settings:
   text: {"verbosity":"low"}
   tool_choice: "auto"
 -- request 1 (turn) --
-00:additional_tools/developer (3; hash=bf2e30605ff5dc17):
-        - namespace/functions; hash=fada4a476a3754dd
+00:additional_tools/developer (3; hash=1833149f6392bd5c):
+        - namespace/functions; hash=2c3ba764608c0630
           - custom/exec
           - function/wait
           - function/request_user_input
           - function/request_user_input_async
         - namespace/clock: Tools for reading and waiting on time.; hash=f402e8c5e9b5e317
           - function/sleep
-        - namespace/collaboration: Tools for spawning and managing sub-agents.; hash=2c8d6295978dbe63
+        - namespace/collaboration: Tools for spawning and managing sub-agents.; hash=1d0939c0fb0250ed
           - function/followup_task
           - function/interrupt_agent
           - function/list_agents
@@ -32,7 +32,7 @@ Settings:
           - function/spawn_agent
           - function/wait_agent
 01:message/developer:
-    You are Codex, an agent based on GPT-6. You and the user share one workspace, and your job is to collabo...them until their intended goal is completely handled. [hash=efa50f074efa5803]
+    You are Suffice, an agent based on GPT-6. You and the user share one workspace, and your job is to colla...them until their intended goal is completely handled. [hash=f36b3aaabbe9b1f3]
 
     # When to ask the user for permission
 
@@ -40,7 +40,7 @@ Settings:
 
     User authorization and preferences persist across turns. Do not request permission again when the user h... any guidelines provided in skills or external files. [hash=911f91c92c72882c]
 
-    <OMITTED 155 LINES; ~4935 TOKENS; hash=5573869716192298>
+    <OMITTED 158 LINES; ~5176 TOKENS; hash=2d2861e014ca9ac0>
 
     - Skill naming: If a plugin contributes skills, those skill entries are prefixed with plugin_name: in the Skills list.
     - MCP naming: Plugin-provided MCP tools keep standard MCP identifiers such as mcp__server__tool; use tool provenance to tell which plugin they come from.
@@ -63,21 +63,8 @@ Settings:
         - outline: Draft a project outline (file: r0/outline/SKILL.md)
         </skills_instructions>
     [02] <permissions instructions>
-        Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `read-only`: The san... permits reading files. Network access is restricted. [hash=be7da4425f89053c]
-        # Escalation Requests
-
-        Commands are run outside the sandbox if they are approved by the user, or match an existing rule that al...hell control operators, including but not limited to: [hash=d24ebf5fa4e4b9bb]
-
-        - Pipes: |
-        - Logical operators: &&, ||
-        <OMITTED 44 LINES; ~790 TOKENS; hash=3a8900343e968d61>
-        NEVER provide a prefix_rule if your command uses a heredoc or herestring.
-
-        ### Examples
-        Good examples of prefixes:
-        - ["npm", "run", "dev"]
-        - ["gh", "pr", "check"]
-        - ["cargo", "test"]
+        Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `danger-full-access`...ll commands are permitted. Network access is enabled. [hash=c134061cebb94a1b]
+        Approval policy is currently never. Do not provide the `sandbox_permissions` for any reason, commands will be rejected.
         </permissions instructions>
     [03] <collaboration_mode># Collaboration Mode: Default
 
@@ -110,11 +97,11 @@ Settings:
 
     When calling `wait_agent`, prefer longer waits (minutes) to avoid busy polling.
 
-    There are 4 available concurrency slots, meaning that up to 4 agents can be active at once, including you.
+    There are 2 available concurrency slots, meaning that up to 2 agents can be active at once, including you.
 
     Full-history forks (`fork_turns` omitted or `"all"`) inherit the parent model and reasoning effort and d... so, set `fork_turns` to `"none"`.</multi_agent_role> [hash=d5928243dc643bcc]
 04:message/developer:
-    <multi_agent_mode>Any earlier instruction enabling proactive multi-agent delegation no longer applies. D...elegation, or parallel agent work.</multi_agent_mode> [hash=2b6e037067b4390c]
+    <multi_agent_mode>Any earlier instruction enabling proactive multi-agent delegation no longer applies. D...g sub-agents only, not tool calls.</multi_agent_mode> [hash=bc8c154c7dd3ffbb]
 05:message/user[2]:
     [01] # AGENTS.md instructions for <AGENTS_DIRECTORY>
 
@@ -126,7 +113,7 @@ Settings:
           <shell><HOST_SHELL></shell>
           <current_date><CURRENT_DATE></current_date>
           <timezone><HOST_TIMEZONE></timezone>
-          <filesystem><workspace_roots><root><WORKSPACE_ROOT 1></root></workspace_roots><permission_profile type...ntry></file_system></permission_profile></filesystem> [hash=911722cc43b4c3b8]
+          <filesystem><workspace_roots><root><WORKSPACE_ROOT 1></root></workspace_roots><permission_profile type...e="unrestricted" /></permission_profile></filesystem> [hash=0592734c170299c1]
         </environment_context>
 06:message/user:
     Plan a team kickoff for Friday using $outline and $calendar:agenda.
@@ -188,15 +175,15 @@ Settings:
 ## Window 2 (after request 3: input diverged at item 02)
 Settings: same as window 1
 -- request 4 (turn) --
-00:additional_tools/developer (3; hash=bf2e30605ff5dc17):
-        - namespace/functions; hash=fada4a476a3754dd
+00:additional_tools/developer (3; hash=1833149f6392bd5c):
+        - namespace/functions; hash=2c3ba764608c0630
           - custom/exec
           - function/wait
           - function/request_user_input
           - function/request_user_input_async
         - namespace/clock: Tools for reading and waiting on time.; hash=f402e8c5e9b5e317
           - function/sleep
-        - namespace/collaboration: Tools for spawning and managing sub-agents.; hash=2c8d6295978dbe63
+        - namespace/collaboration: Tools for spawning and managing sub-agents.; hash=1d0939c0fb0250ed
           - function/followup_task
           - function/interrupt_agent
           - function/list_agents
@@ -204,7 +191,7 @@ Settings: same as window 1
           - function/spawn_agent
           - function/wait_agent
 01:message/developer:
-    You are Codex, an agent based on GPT-6. You and the user share one workspace, and your job is to collabo...them until their intended goal is completely handled. [hash=efa50f074efa5803]
+    You are Suffice, an agent based on GPT-6. You and the user share one workspace, and your job is to colla...them until their intended goal is completely handled. [hash=f36b3aaabbe9b1f3]
 
     # When to ask the user for permission
 
@@ -212,7 +199,7 @@ Settings: same as window 1
 
     User authorization and preferences persist across turns. Do not request permission again when the user h... any guidelines provided in skills or external files. [hash=911f91c92c72882c]
 
-    <OMITTED 155 LINES; ~4935 TOKENS; hash=5573869716192298>
+    <OMITTED 158 LINES; ~5176 TOKENS; hash=2d2861e014ca9ac0>
 
     - Skill naming: If a plugin contributes skills, those skill entries are prefixed with plugin_name: in the Skills list.
     - MCP naming: Plugin-provided MCP tools keep standard MCP identifiers such as mcp__server__tool; use tool provenance to tell which plugin they come from.
@@ -237,21 +224,8 @@ Settings: same as window 1
         - outline: Draft a project outline (file: r0/outline/SKILL.md)
         </skills_instructions>
     [02] <permissions instructions>
-        Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `read-only`: The san... permits reading files. Network access is restricted. [hash=be7da4425f89053c]
-        # Escalation Requests
-
-        Commands are run outside the sandbox if they are approved by the user, or match an existing rule that al...hell control operators, including but not limited to: [hash=d24ebf5fa4e4b9bb]
-
-        - Pipes: |
-        - Logical operators: &&, ||
-        <OMITTED 44 LINES; ~790 TOKENS; hash=3a8900343e968d61>
-        NEVER provide a prefix_rule if your command uses a heredoc or herestring.
-
-        ### Examples
-        Good examples of prefixes:
-        - ["npm", "run", "dev"]
-        - ["gh", "pr", "check"]
-        - ["cargo", "test"]
+        Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `danger-full-access`...ll commands are permitted. Network access is enabled. [hash=c134061cebb94a1b]
+        Approval policy is currently never. Do not provide the `sandbox_permissions` for any reason, commands will be rejected.
         </permissions instructions>
     [03] <collaboration_mode># Collaboration Mode: Default
 
@@ -284,11 +258,11 @@ Settings: same as window 1
 
     When calling `wait_agent`, prefer longer waits (minutes) to avoid busy polling.
 
-    There are 4 available concurrency slots, meaning that up to 4 agents can be active at once, including you.
+    There are 2 available concurrency slots, meaning that up to 2 agents can be active at once, including you.
 
     Full-history forks (`fork_turns` omitted or `"all"`) inherit the parent model and reasoning effort and d... so, set `fork_turns` to `"none"`.</multi_agent_role> [hash=d5928243dc643bcc]
 05:message/developer:
-    <multi_agent_mode>Any earlier instruction enabling proactive multi-agent delegation no longer applies. D...elegation, or parallel agent work.</multi_agent_mode> [hash=2b6e037067b4390c]
+    <multi_agent_mode>Any earlier instruction enabling proactive multi-agent delegation no longer applies. D...g sub-agents only, not tool calls.</multi_agent_mode> [hash=bc8c154c7dd3ffbb]
 06:message/user[2]:
     [01] # AGENTS.md instructions for <AGENTS_DIRECTORY>
 
@@ -300,7 +274,7 @@ Settings: same as window 1
           <shell><HOST_SHELL></shell>
           <current_date><CURRENT_DATE></current_date>
           <timezone><HOST_TIMEZONE></timezone>
-          <filesystem><workspace_roots><root><WORKSPACE_ROOT 1></root></workspace_roots><permission_profile type...ntry></file_system></permission_profile></filesystem> [hash=911722cc43b4c3b8]
+          <filesystem><workspace_roots><root><WORKSPACE_ROOT 1></root></workspace_roots><permission_profile type...e="unrestricted" /></permission_profile></filesystem> [hash=0592734c170299c1]
         </environment_context>
 07:message/user:
     Summarize the kickoff notes with $notes:summarize.

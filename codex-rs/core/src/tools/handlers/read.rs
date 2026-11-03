@@ -688,6 +688,10 @@ impl ReadHandler {
         // One file per call. Reading the first path and dropping the rest would hide the shape of
         // the tool; naming the parallel form turns a rejected call into one round trip rather than
         // two, and the model already sends several calls in a response for searches.
+        //
+        // Re-measured on gpt-6-luna with `paths` allowed: 5 of 54 calls used it, the opening read
+        // did not shorten, and the model kept sending one file per call even when the schema took
+        // only a list.
         if targets.len() + overflow.len() > 1 {
             return Err(FunctionCallError::RespondToModel(
                 "`read` takes one `filePath`. To read several files, send several `read` calls \
@@ -751,7 +755,7 @@ impl ReadHandler {
                     uri,
                     offset: target.offset,
                     limit: target.limit,
-                    numbered: true,
+                    numbered: false,
                     demand: 0,
                     cap: 0,
                 },
