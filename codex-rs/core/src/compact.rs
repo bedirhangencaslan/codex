@@ -356,6 +356,9 @@ async fn run_compact_task_inner_impl(
             // (`session/turn.rs`), so compaction lands on the turns' cached prefix.
             base_instructions,
             tools: Arc::clone(&tools),
+            // Ordinary turns send `true` (`session/turn.rs::build_prompt`); the server renders
+            // the tool section differently without it, so `false` misses the whole cached prefix.
+            parallel_tool_calls: true,
             cyber_access_program: turn_context.cyber_access_program,
             ..Default::default()
         };
