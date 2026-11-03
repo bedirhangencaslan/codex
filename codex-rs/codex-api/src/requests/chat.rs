@@ -289,7 +289,9 @@ fn chat_function_from_freeform(obj: &serde_json::Map<String, Value>) -> Option<V
         "function": {
             "name": name,
             "description": if name == "apply_patch" {
-                "Edits files with a patch in the format described in the instructions. Send the patch as `input`, verbatim.".to_string()
+                // Upstream's own first sentence, then the one thing this wire changes: the
+                // patch travels inside `input` instead of as the raw tool body.
+                format!("{description} Send the patch as the `input` string, verbatim.")
             } else {
                 format!(
                     "{description} Send the entire body as the `input` string; it is passed \

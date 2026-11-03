@@ -156,6 +156,9 @@ use tokio::sync::watch;
 use tracing::instrument;
 use tracing::warn;
 
+/// Tests still exercise the sync; a build of the product never starts it.
+const CURATED_REPO_SYNC_ALLOWED: bool = cfg!(test);
+
 static CURATED_REPO_SYNC_STARTED: AtomicBool = AtomicBool::new(false);
 const FEATURED_PLUGIN_IDS_CACHE_TTL: std::time::Duration =
     std::time::Duration::from_secs(60 * 60 * 3);
@@ -776,6 +779,12 @@ impl PluginsManager {
         config: &PluginsConfigInput,
         on_effective_plugins_changed: Option<EffectivePluginsChangedCallback>,
     ) {
+        // This fork sends nothing off the machine but model requests, and nothing else turns
+        // this off: the curated marketplace would otherwise be cloned from GitHub on startup.
+        // Local and configured marketplaces are unaffected.
+        if !CURATED_REPO_SYNC_ALLOWED {
+            return;
+        }
         if config.plugins_enabled
             && !self.remote_global_catalog_active(config)
             && MarketplacePolicy::from_requirements(config.config_layer_stack.requirements())
