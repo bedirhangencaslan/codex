@@ -694,7 +694,7 @@ struct MentionCompletionTarget {
 }
 
 #[derive(Clone, Copy)]
-enum ShellPrefixHandling {
+pub(crate) enum ShellPrefixHandling {
     Interpret,
     Literal,
 }
@@ -715,6 +715,7 @@ pub(super) struct ComposerDraft {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ComposerDraftSnapshot {
     pub(crate) text: String,
+    pub(crate) shell_mode: Option<bool>,
     pub(crate) cursor: usize,
     pub(crate) text_elements: Vec<TextElement>,
     pub(crate) local_images: Vec<LocalImageAttachment>,
@@ -1616,7 +1617,7 @@ impl ChatComposer {
         );
     }
 
-    fn set_text_content_with_shell_prefix(
+    pub(super) fn set_text_content_with_shell_prefix(
         &mut self,
         text: String,
         text_elements: Vec<TextElement>,
@@ -1899,7 +1900,6 @@ impl ChatComposer {
         self.attachments.local_image_paths()
     }
 
-    #[cfg(test)]
     pub(crate) fn status_line_content(&self) -> Option<&FooterContent> {
         self.footer.status_line_value.as_ref()
     }
@@ -4958,7 +4958,8 @@ impl ChatComposer {
             selection.register(footer_rect.intersection(buf.area), changed);
         }
         let style = user_message_style();
-        Block::default().style(style).render(composer_rect, buf);
+        let background = composer_layout::background_rect(composer_rect, buf.area, options);
+        Block::default().style(style).render(background, buf);
         if let Some(previews) = options.image_previews {
             previews.render(
                 thumbnails,

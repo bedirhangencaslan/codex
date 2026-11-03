@@ -86,7 +86,7 @@ system message. The Chat branch now calls `ResponsesHttpExecutor`, replacing the
 
 As on 2026-09-24, never from the markers: upstream's catalog, every field merged three-way against
 the base, templates merged on their own lines, `glm-5.3-flash`, `gpt-5.2`, `gpt-5.4` and
-`gpt-5.4-mini` kept, `$CODEX_HOME` -> `$SUFFICE_HOME`.
+`gpt-5.4-mini` kept, `$SUFFICE_HOME` -> `$SUFFICE_HOME`.
 
 `gpt-6-luna`: `tool_mode: direct`, `use_responses_lite: false`, `default_reasoning_summary: auto`.
 Responses Lite is off because the API rejects `parallel_tool_calls: true` under it, and in direct

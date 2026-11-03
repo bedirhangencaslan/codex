@@ -700,7 +700,7 @@ impl ReadHandler {
             resolve_tool_environment(&step_context.environments, environment_id.as_deref())?;
         let sandbox = turn_environment.sandbox_context(/*additional_permissions*/ None);
         let sandbox = Some(&sandbox);
-        let filesystem = turn_environment.environment.get_filesystem();
+        let filesystem = turn_environment.environment().get_filesystem();
         let filesystem = filesystem.as_ref();
 
         // What the section headers are written against. Same rule as `grep`/`glob`

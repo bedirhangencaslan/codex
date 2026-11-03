@@ -29,6 +29,14 @@ pub(super) async fn run_startup_for_test(
         initial_backends,
         config.clone(),
         config.cwd.to_path_buf(),
+        backend_selection::BackendPreferenceContext::new(
+            &config,
+            crate::backend_preference_local_cwd(
+                config.cwd.as_path(),
+                &app_server_target,
+                &EnvironmentManager::default_for_tests(),
+            ),
+        ),
         Vec::new(),
         ConfigOverrides::default(),
         LoaderOverrides::default(),
@@ -799,7 +807,7 @@ async fn startup_reads_server_defaults_before_starting_thread() -> Result<()> {
         server_home.path().join("config.toml"),
         "model = \"server-model\"\nmodel_reasoning_effort = \"high\"\n",
     )?;
-    // Implicit projectless approvals only replace a restricted base, not Suffice's full access.
+    // Implicit projectless approvals only replace a restricted base, not Codex's full access.
     let requirements = client_home.path().join("system-requirements.toml");
     std::fs::write(
         &requirements,

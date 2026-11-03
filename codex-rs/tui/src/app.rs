@@ -216,7 +216,7 @@ pub(crate) mod app_server_requests;
 mod app_server_thread_ownership;
 mod backend_banner_fallback;
 mod backend_events;
-mod backend_selection;
+pub(crate) mod backend_selection;
 pub(crate) mod backend_sessions;
 mod background_requests;
 mod composer_hints;
@@ -270,6 +270,7 @@ mod server_version_notice;
 mod session_lifecycle;
 mod session_picker;
 mod side;
+mod side_pane;
 mod startup;
 pub(crate) mod startup_bootstrap;
 mod startup_prompts;
@@ -300,6 +301,7 @@ use self::loaded_threads::find_loaded_subagent_threads_for_primary;
 use self::pending_interactive_replay::PendingInteractiveReplayState;
 pub(crate) use self::platform_actions::WindowsSandboxHost;
 use self::platform_actions::*;
+use self::side::SideCompanion;
 use self::side::SideParentStatus;
 use self::side::SideParentStatusChange;
 use self::side::SideThreadState;
@@ -547,6 +549,7 @@ pub(crate) struct App {
     /// Legacy bootstrap and server-setting inputs; local preferences live in `local_settings`.
     pub(crate) config: Config,
     pub(crate) local_settings: crate::local_settings::LocalSettings,
+    backend_preference_context: backend_selection::BackendPreferenceContext,
     launch_cwd: PathBuf,
     /// Resume anchor selected by `/cd`; ordinary resumes retain the immutable launch cwd.
     runtime_working_directory_override: Option<PathBuf>,
@@ -645,6 +648,8 @@ pub(crate) struct App {
     agent_navigation: AgentNavigationState,
     agents_overview: agents_overview::AgentsOverviewState,
     side_threads: HashMap<ThreadId, SideThreadState>,
+    /// A parked parent view survives child cleanup until its own replay finishes.
+    side_companions: HashMap<ThreadId, SideCompanion>,
     abandoned_side_threads: HashSet<ThreadId>,
     active_thread_id: Option<ThreadId>,
     active_thread_rx: Option<mpsc::Receiver<ThreadBufferedEvent>>,

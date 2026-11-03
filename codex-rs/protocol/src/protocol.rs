@@ -222,6 +222,15 @@ pub struct ConversationStartParams {
     pub voice: Option<RealtimeVoice>,
 }
 
+/// A caller-owned realtime sideband. Dropping either direction seals input and ends
+/// the attachment after accepted messages drain. The caller supplies bounded channels
+/// and one complete JSON message per item.
+#[derive(Debug)]
+pub struct RealtimeSidebandTransport {
+    pub incoming: tokio::sync::mpsc::Receiver<String>,
+    pub outgoing: tokio::sync::mpsc::Sender<String>,
+}
+
 impl fmt::Debug for ConversationStartParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Text, instructions, and transport endpoints can contain credentials.
@@ -720,6 +729,13 @@ pub enum Op {
         reply: oneshot::Sender<CodexResult<()>>,
     },
 
+    /// Attach an existing call using caller-provided I/O without opening a socket.
+    RealtimeConversationAttachStream {
+        params: ConversationStartParams,
+        transport: RealtimeSidebandTransport,
+        reply: oneshot::Sender<CodexResult<()>>,
+    },
+
     /// Send audio input to the running realtime conversation stream.
     #[debug("RealtimeConversationAudio {{ item_id: {:?}, sample_rate: {}, num_channels: {}, samples_per_channel: {:?} }}", _0.frame.item_id, _0.frame.sample_rate, _0.frame.num_channels, _0.frame.samples_per_channel)]
     RealtimeConversationAudio(ConversationAudioParams),
@@ -1094,6 +1110,7 @@ impl Op {
             Self::CleanBackgroundTerminals => "clean_background_terminals",
             Self::RealtimeConversationStart(_) => "realtime_conversation_start",
             Self::RealtimeConversationAttach { .. } => "realtime_conversation_attach",
+            Self::RealtimeConversationAttachStream { .. } => "realtime_conversation_attach_stream",
             Self::RealtimeConversationAudio(_) => "realtime_conversation_audio",
             Self::RealtimeConversationText(_) => "realtime_conversation_text",
             Self::RealtimeConversationSpeech(_) => "realtime_conversation_speech",
@@ -2177,6 +2194,11 @@ pub struct ItemCompletedEvent {
     pub thread_id: ThreadId,
     pub turn_id: String,
     pub item: TurnItem,
+    /// Native tokens in the completed assistant message, including any sampled footer.
+    /// Completion telemetry only; absent for items without a producer-supplied count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub content_token_count: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub started_at_ms: Option<i64>,
@@ -5746,6 +5768,7 @@ mod tests {
     #[test]
     fn item_completed_event_from_image_generation_emits_end_event() {
         let event = ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             item: TurnItem::ImageGeneration(ImageGenerationItem {
@@ -5784,6 +5807,7 @@ mod tests {
     #[test]
     fn item_completed_event_from_file_change_emits_patch_end_event() {
         let event = ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             started_at_ms: Some(0),
@@ -5823,6 +5847,7 @@ mod tests {
     #[test]
     fn item_completed_event_from_mcp_tool_call_emits_end_event() {
         let event = ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             started_at_ms: Some(0),
@@ -5904,6 +5929,7 @@ mod tests {
             }),
         };
         let completed = ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             started_at_ms: Some(10),
@@ -5982,6 +6008,7 @@ mod tests {
             }),
         };
         let completed = ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             started_at_ms: Some(10),
@@ -6027,6 +6054,7 @@ mod tests {
     #[test]
     fn review_mode_item_completion_emits_legacy_events_with_ids() {
         let entered = ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             started_at_ms: Some(0),
@@ -6040,6 +6068,7 @@ mod tests {
             }),
         };
         let exited = ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             started_at_ms: Some(0),
@@ -6100,6 +6129,7 @@ mod tests {
     #[test]
     fn item_completed_event_defaults_missing_completed_at_ms() {
         let mut value = serde_json::to_value(ItemCompletedEvent {
+            content_token_count: None,
             thread_id: ThreadId::new(),
             turn_id: "turn-1".into(),
             item: TurnItem::UserMessage(UserMessageItem::new(&[])),

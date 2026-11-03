@@ -156,8 +156,9 @@ CHECKS = [
      "pub wire: WireApi", "present", "code"),
     ("codex-api WireApi'yi disari veriyor", "T1", "codex-rs/codex-api/src/provider.rs",
      "codex_client::WireApi", "present", "code"),
+    # Upstream moved the gate into ProviderCapabilities::from_config.
     ("saglayici OpenAI degilse remote-v2 yok", "T1",
-     "codex-rs/model-provider/src/provider.rs", "is_openai()", "present", "code"),
+     "codex-rs/model-provider/src/capabilities.rs", "is_openai()", "present", "code"),
 ]
 
 

@@ -40,6 +40,7 @@ use codex_extension_api::ExtensionRegistry;
 use codex_extension_api::ExtensionRegistryBuilder;
 use codex_features::Feature;
 use codex_history::RolloutItem;
+use codex_image_generation_extension::install as install_image_generation_extension;
 use codex_login::CodexAuth;
 use codex_models_manager::bundled_models_response;
 use codex_protocol::capabilities::CapabilityRootLocation;
@@ -55,6 +56,7 @@ use codex_protocol::models::ImageDetail;
 use codex_protocol::models::ImageReference;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::CodeModeToolMessages;
+use codex_protocol::openai_models::InputModality;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::openai_models::ToolMessage;
 use codex_protocol::openai_models::ToolMode;
@@ -97,6 +99,7 @@ use core_test_support::stdio_server_bin;
 use core_test_support::streaming_sse::StreamingSseChunk;
 use core_test_support::streaming_sse::start_streaming_sse_server;
 use core_test_support::test_codex::TestCodex;
+use core_test_support::test_codex::TestCodexBuilder;
 use core_test_support::test_codex::environment_config_for_selection;
 use core_test_support::test_codex::executor_path_uri;
 use core_test_support::test_codex::test_codex;
@@ -109,6 +112,9 @@ use tempfile::TempDir;
 use tokio::sync::oneshot;
 
 const ONE_PIXEL_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
+
+#[path = "scenarios_injected_agent_mail.rs"]
+mod injected_agent_mail;
 
 #[path = "scenarios_dynamic_tools.rs"]
 mod dynamic_tools;
@@ -153,6 +159,9 @@ mod agent_eviction;
 
 #[path = "scenarios_reserved_spawn.rs"]
 mod reserved_spawn;
+
+#[path = "host_turn_admission.rs"]
+mod host_turn_admission;
 
 #[path = "scenarios_partial_answers.rs"]
 mod partial_answers;
@@ -227,6 +236,9 @@ mod frozen_cloud_skills;
 
 #[path = "scenarios_compaction_tests.rs"]
 mod compaction;
+
+#[path = "scenarios_budget_context.rs"]
+mod budget_context;
 
 #[path = "scenarios_world_state_prefix_tests.rs"]
 mod world_state_prefix;
@@ -370,6 +382,114 @@ fn configure_catalog_plugin_scenario(config: &mut Config) {
     )
     .expect("isolated plugin scenario config")
     .with_cloud_config_binding(stack.cloud_config_binding().cloned());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn gif_generation_preserves_animation_and_replays_a_still_preview() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+    // Two one-pixel frames, red then blue, with a 200 ms frame duration.
+    let gif = "R0lGODlhAQABAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAAAQABAAAIBAABBAQAIfkEARQAAQAsAAAAAAEAAQCBAAD/AAAAAAAAAAAACAQAAQQEADs=";
+    let server = start_mock_server().await;
+    wiremock::Mock::given(wiremock::matchers::method("POST"))
+        .and(wiremock::matchers::path("/v1/images/generations"))
+        .and(wiremock::matchers::body_json(json!({
+            "prompt": "A pixel alternating between red and blue.",
+            "background": "opaque",
+            "model": "gpt-image-2",
+            "quality": "auto",
+            "size": "auto",
+            "output_format": "gif",
+            "frame_count": 2,
+            "frame_duration_ms": 200,
+        })))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "created": 1,
+            "data": [{"b64_json": gif}],
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let auth = CodexAuth::create_dummy_chatgpt_auth_for_testing();
+    let mut extensions = ExtensionRegistryBuilder::<Config>::new();
+    install_image_generation_extension(
+        &mut extensions,
+        codex_core::test_support::auth_manager_from_auth(auth.clone()),
+        |_config| None,
+    );
+    let image_store = Arc::new(RecordingFileAttachmentStore::default());
+    let test = test_codex()
+        .with_auth(auth)
+        .with_extensions(Arc::new(extensions.build()))
+        .with_image_store(image_store.clone())
+        .with_config(|config| {
+            configure_scenario_catalog(config);
+            config
+                .features
+                .enable(Feature::ImageGenerationAnimation)
+                .unwrap();
+        })
+        .with_model_info_override("gpt-5.4", |model| {
+            model.use_responses_lite = true;
+            model.input_modalities = vec![InputModality::Text, InputModality::Image];
+        })
+        .build_with_auto_env(&server)
+        .await?;
+    let mock = mount_sse_sequence(
+        &server,
+        vec![
+            sse(vec![
+                ev_function_call_with_namespace(
+                    "gif-generation",
+                    "image_gen",
+                    "imagegen",
+                    &json!({
+                        "prompt": "A pixel alternating between red and blue.",
+                        "gif": {"frame_count": 2, "frame_duration_ms": 200},
+                    })
+                    .to_string(),
+                ),
+                ev_completed("generated"),
+            ]),
+            sse(vec![
+                ev_assistant_message("preview", "Here is the two-frame GIF."),
+                ev_completed("previewed"),
+            ]),
+            sse(vec![
+                ev_assistant_message("timing", "Each frame lasts 200 ms."),
+                ev_completed("answered"),
+            ]),
+        ],
+    )
+    .await;
+    test.submit_text_turn("Generate a two-frame GIF of a pixel alternating red and blue.")
+        .await?;
+    test.submit_text_turn("How long does each frame last?")
+        .await?;
+
+    let uploads = image_store.uploads.lock().expect("uploads lock");
+    let [animation, preview] = uploads.as_slice() else {
+        panic!("expected an animated artifact and a separate model preview");
+    };
+    assert_eq!(animation.data, BASE64_STANDARD.decode(gif)?);
+    assert_eq!(image::guess_format(&preview.data)?, image::ImageFormat::Png);
+    assert_eq!(
+        image::load_from_memory(&preview.data)?
+            .to_rgba8()
+            .get_pixel(0, 0)
+            .0,
+        [255, 0, 0, 255]
+    );
+    let requests = mock.requests();
+    assert_eq!(requests.len(), 3);
+    insta::assert_snapshot!(context_snapshot::format_request_history_snapshot(
+        "GIF generation exposes animation controls and guidance, preserves the animated artifact, and replays a still preview through a follow-up turn.",
+        &requests,
+        &ContextSnapshotOptions::default()
+            .rewrite_known_segments()
+            .include_request_settings(),
+    ));
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3201,13 +3321,14 @@ fn compaction_output(value: &str) -> serde_json::Value {
 }
 
 async fn async_compaction_test(
+    builder: TestCodexBuilder,
     responses_uri: &str,
     features: Vec<Feature>,
     configure: impl Fn(&mut Config) + Send + Sync + 'static,
 ) -> Result<(wiremock::MockServer, TestCodex)> {
     let config_server = start_mock_server().await;
     let base_url = format!("{responses_uri}/v1");
-    let test = test_codex()
+    let test = builder
         .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
         .with_config(move |config| {
             configure_scenario_catalog(config);
@@ -3437,13 +3558,23 @@ async fn astra_async_compaction_keeps_work_added_after_its_snapshot(
             vec![Feature::RetainClientToolOutputs]
         }
     };
-    let (_config_server, test) = async_compaction_test(streaming.uri(), features, move |config| {
-        if over_budget {
-            config.async_compaction_threshold_percent = 1;
-            config.model_auto_compact_token_limit = Some(5_000);
-        }
-    })
-    .await?;
+    let reminders = Arc::new(budget_context::PrefixBudgetReminders {
+        remaining: 400.into(),
+    });
+    let mut builder = test_codex();
+    if matches!(suffix, LiveSuffix::User) {
+        let mut extensions = ExtensionRegistryBuilder::new();
+        extensions.prompt_contributor(reminders.clone());
+        builder = builder.with_extensions(Arc::new(extensions.build()));
+    }
+    let (_config_server, test) =
+        async_compaction_test(builder, streaming.uri(), features, move |config| {
+            if over_budget {
+                config.async_compaction_threshold_percent = 1;
+                config.model_auto_compact_token_limit = Some(5_000);
+            }
+        })
+        .await?;
     test.codex.ensure_rollout_materialized().await;
     let compaction_event = |event: &EventMsg| match event {
         EventMsg::ItemStarted(event) if matches!(event.item, TurnItem::ContextCompaction(_)) => {
@@ -3459,6 +3590,9 @@ async fn astra_async_compaction_keeps_work_added_after_its_snapshot(
     let timeout = Duration::from_secs(/*secs*/ 20);
     tokio::time::timeout(timeout, streaming.wait_for_request_count(/*count*/ 2)).await?;
     let next_input = if matches!(suffix, LiveSuffix::User) {
+        reminders
+            .remaining
+            .store(350, std::sync::atomic::Ordering::SeqCst);
         TurnInputRequest::user_input(vec![text("Check who can finish the notes.")])
     } else {
         let item = serde_json::from_value(json!({
@@ -3516,6 +3650,9 @@ async fn astra_async_compaction_keeps_work_added_after_its_snapshot(
         test.codex.wait_for_background_compaction_for_test(),
     )
     .await?;
+    reminders
+        .remaining
+        .store(325, std::sync::atomic::Ordering::SeqCst);
     release_foreground
         .send(())
         .expect("release foreground work");
@@ -3567,6 +3704,8 @@ async fn astra_async_compaction_keeps_work_added_after_its_snapshot(
     assert!(history.windows(2).any(|items| matches!(items,
         [RolloutItem::Compacted(_), RolloutItem::WorldState(baseline)]
         if baseline.full && baseline.state["collaboration_mode"]["mode"] == "plan"
+            && !baseline.state.contains_key("cutoff_budget")
+            && !baseline.state.contains_key("install_budget")
     )));
     let input = requests[3]["input"].as_array().expect("request input");
     // The full snapshot normalizes mode text; check the cutoff and later update explicitly.
@@ -3590,7 +3729,7 @@ async fn astra_async_compaction_keeps_work_added_after_its_snapshot(
         insta::assert_snapshot!(
             "astra_async_compaction_with_live_suffix",
             context_snapshot::format_context_snapshot(
-                "Astra compacts a completed launch-notes turn in the background. The user switches to Plan mode while it runs. Adoption restores Default mode at the cutoff, then preserves the Plan update, newer user message, and assistant/tool exchange in their original order.",
+                "Astra compacts a completed launch-notes turn in the background. The user switches to Plan mode and the host changes which budget reminder opts out of full context. Adoption keeps the live suffix and refreshes both reminders after the tool output.",
                 &entries,
                 &ContextSnapshotOptions::default().rewrite_known_segments(),
             )
@@ -3646,7 +3785,9 @@ async fn async_compaction_reuses_pending_work(
     outcome: PendingCompactionOutcome,
     trigger: CompactionTrigger,
 ) -> Result<()> {
-    use core_test_support::responses::ev_completed_with_tokens;
+    use super::rollout_budget::HostAccounting;
+
+    const BACKGROUND_TOKENS: i64 = 3_001;
 
     skip_if_no_network!(Ok(()));
     let over_budget = outcome == PendingCompactionOutcome::SuccessOverBudget;
@@ -3690,7 +3831,7 @@ async fn async_compaction_reuses_pending_work(
                 } else {
                     ev_assistant_message("invalid", "missing compaction output")
                 },
-                /*tokens*/ 3_000,
+                BACKGROUND_TOKENS,
             ),
         )]);
     }
@@ -3714,7 +3855,16 @@ async fn async_compaction_reuses_pending_work(
         /*tokens*/ if over_budget { 10 } else { 3_000 },
     )));
     let (streaming, mut completions) = start_streaming_sse_server(responses).await;
+    let accounting =
+        (outcome == PendingCompactionOutcome::Success).then(|| Arc::new(HostAccounting::default()));
+    let mut builder = test_codex();
+    if let Some(accounting) = &accounting {
+        let mut extensions = ExtensionRegistryBuilder::new();
+        extensions.thread_lifecycle_contributor(accounting.clone());
+        builder = builder.with_extensions(Arc::new(extensions.build()));
+    }
     let (_config_server, test) = async_compaction_test(
+        builder,
         streaming.uri(),
         if over_budget {
             vec![Feature::RetainClientToolOutputs]
@@ -3848,6 +3998,15 @@ async fn async_compaction_reuses_pending_work(
     assert!(history.items.iter().all(|item| !matches!(item,
         RolloutItem::TokenUsageRecord(record) if record.response_id == "background"
     )));
+    if let Some(accounting) = accounting {
+        let reports = accounting.reports.lock().expect("usage reports");
+        let charged_turns: Vec<_> = reports
+            .iter()
+            .filter(|report| report.usage.total_tokens == BACKGROUND_TOKENS)
+            .map(|report| &report.turn_id)
+            .collect();
+        assert_eq!(charged_turns, [&usage("seed").turn_id]);
+    }
     let continuation = usage("continuation");
     assert_eq!(
         (
